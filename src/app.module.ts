@@ -3,7 +3,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { typeOrmConfig } from './config/typeorm.config';
 import { UserModule } from './modules/user/user.module';
-
+import { DepartmentModule } from './modules/department/department.module';
+import { AuthModule } from './auth/auth.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -13,6 +14,8 @@ import { UserModule } from './modules/user/user.module';
       inject: [ConfigService],
     }),
     UserModule,
+    DepartmentModule,
+    AuthModule,
   ],
 })
 export class AppModule {}
