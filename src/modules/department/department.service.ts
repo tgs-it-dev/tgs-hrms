@@ -34,7 +34,8 @@ export class DepartmentService {
   }
 
   async remove(tenantId: string, id: string) {
-    await this.findOne(tenantId, id);
+    const dept = await this.findOne(tenantId, id);
     await this.repo.delete({ id, tenantId });
+    return { deleted: true, id };
   }
 }
