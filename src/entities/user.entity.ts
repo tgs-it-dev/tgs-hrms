@@ -6,5 +6,14 @@ export class User {
   id: number;
 
   @Column()
-  name: string;
+  email: string;
+
+  @Column()
+  password: string;
+
+  @Column()
+  tenantId: number;
+
+  @Column()
+  role: 'admin' | 'staff';
 }
