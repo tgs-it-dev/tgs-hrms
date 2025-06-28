@@ -16,4 +16,11 @@ export class User {
 
   @Column()
   role: 'admin' | 'staff';
+
+  @Column({ nullable: true })
+resetToken: string;
+
+@Column({ nullable: true })
+resetTokenExpiry: Date;
+
 }

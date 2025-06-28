@@ -1,3 +1,4 @@
+// src/modules/auth/auth.service.ts
 import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from '../../entities/user.entity';
@@ -41,14 +42,16 @@ export class AuthService {
     const user = await this.userRepository.findOne({ where: { email: dto.email } });
     if (!user) throw new BadRequestException('User with this email does not exist');
 
-    
     const payload = { email: user.email, sub: user.id };
     const resetToken = this.jwtService.sign(payload, { expiresIn: '15m' });
 
-    
+    user.resetToken = resetToken;
+    user.resetTokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
+    await this.userRepository.save(user);
+
     return {
       message: 'Reset link sent to email',
-      resetToken, 
+      resetToken,
     };
   }
 
@@ -56,7 +59,12 @@ export class AuthService {
     try {
       const decoded = this.jwtService.verify(dto.token);
       const user = await this.userRepository.findOne({ where: { id: decoded.sub } });
+
       if (!user) throw new BadRequestException('Invalid token');
+
+      if (user.resetTokenExpiry && new Date() > user.resetTokenExpiry) {
+        throw new BadRequestException('Reset token has expired');
+      }
 
       const hashedPassword = await bcrypt.hash(dto.newPassword, 10);
       user.password = hashedPassword;
