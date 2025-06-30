@@ -2,16 +2,14 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 // import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { AuthGuard } from '@nestjs/passport';
 import { TenantGuard } from '../../common/guards/company.guard';
 import { TenantId } from '../../common/decorators/company.decorator';
 import { DepartmentService } from './department.service';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
-import { Roles } from 'src/common/decorators/roles.decorator';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
-import { RolesGuard } from 'src/common/guards/roles.guard';
-
+import { Roles } from '../../common/decorators/roles.decorator';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
 
 @ApiTags('Departments')
 @ApiBearerAuth()
@@ -24,26 +22,22 @@ export class DepartmentController {
 
   @Post()
   //My Change
-   @Roles('admin')  // Only admin can create
-
+  @Roles('admin') // Only admin can create
   @ApiOperation({ summary: 'Create department' })
-
-   @ApiResponse({ status: 201, description: 'Department created.' })
+  @ApiResponse({ status: 201, description: 'Department created.' })
   @ApiResponse({ status: 409, description: 'Department name must be unique within tenant.' })
   @ApiResponse({ status: 400, description: 'Validation error.' })
   // create(@TenantId() tenantId: string, @Body() dto: CreateDepartmentDto) {
   //   return this.service.create(tenantId, dto);
   // }
-   async create(@TenantId() tenantId: string, @Body() dto: CreateDepartmentDto) {
+  async create(@TenantId() tenantId: string, @Body() dto: CreateDepartmentDto) {
     return await this.service.create(tenantId, dto);
-
   }
 
   @Get()
-
   @ApiOperation({ summary: 'List departments' })
   @ApiResponse({ status: 200, description: 'List of departments.' })
-    async findAll(@TenantId() tenantId: string) {
+  async findAll(@TenantId() tenantId: string) {
     return await this.service.findAll(tenantId);
   }
   // findAll(@TenantId() tenantId: string) {
@@ -51,13 +45,12 @@ export class DepartmentController {
   // }
 
   @Get(':id')
-   //My Change
-   @Roles('admin')  // Only admin can create
-   
+  //My Change
+  @Roles('admin') // Only admin can create
   @ApiOperation({ summary: 'Get department' })
-   @ApiResponse({ status: 200, description: 'Department found.' })
+  @ApiResponse({ status: 200, description: 'Department found.' })
   @ApiResponse({ status: 404, description: 'Department not found.' })
-   async findOne(@TenantId() tenantId: string, @Param('id') id: string) {
+  async findOne(@TenantId() tenantId: string, @Param('id') id: string) {
     return await this.service.findOne(tenantId, id);
   }
   // findOne(@TenantId() tenantId: string, @Param('id') id: string) {
@@ -65,14 +58,17 @@ export class DepartmentController {
   // }
 
   @Put(':id')
-   //My Change
-   @Roles('admin')  // Only admin can create
-   
+  //My Change
+  @Roles('admin') // Only admin can create
   @ApiOperation({ summary: 'Update department' })
-   @ApiResponse({ status: 200, description: 'Department updated.' })
+  @ApiResponse({ status: 200, description: 'Department updated.' })
   @ApiResponse({ status: 404, description: 'Department not found.' })
   @ApiResponse({ status: 409, description: 'Department name must be unique within tenant.' })
-  async update(@TenantId() tenantId: string, @Param('id') id: string, @Body() dto: UpdateDepartmentDto) {
+  async update(
+    @TenantId() tenantId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateDepartmentDto
+  ) {
     return await this.service.update(tenantId, id, dto);
   }
   // update(@TenantId() tenantId: string, @Param('id') id: string, @Body() dto: UpdateDepartmentDto) {
@@ -80,13 +76,12 @@ export class DepartmentController {
   // }
 
   @Delete(':id')
-   //My Change
-   @Roles('admin')  // Only admin can create
-   
+  //My Change
+  @Roles('admin') // Only admin can create
   @ApiOperation({ summary: 'Delete department' })
-   @ApiResponse({ status: 200, description: 'Department deleted.' })
+  @ApiResponse({ status: 200, description: 'Department deleted.' })
   @ApiResponse({ status: 404, description: 'Department not found.' })
-    async remove(@TenantId() tenantId: string, @Param('id') id: string) {
+  async remove(@TenantId() tenantId: string, @Param('id') id: string) {
     return await this.service.remove(tenantId, id);
   }
   // remove(@TenantId() tenantId: string, @Param('id') id: string) {

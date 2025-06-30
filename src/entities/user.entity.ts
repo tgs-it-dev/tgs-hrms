@@ -1,10 +1,4 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  ManyToOne,
-  JoinColumn,
-} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { Company } from './company.entity'; // adjust path as needed
 
 export enum UserRole {
@@ -20,7 +14,6 @@ export class User {
   @Column()
   name: string;
 
-
   @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
   role: UserRole;
 
@@ -30,5 +23,4 @@ export class User {
   @ManyToOne(() => Company, { eager: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'company_id' })
   company: Company;
-
 }

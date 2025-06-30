@@ -1,7 +1,12 @@
 // modules/department/department.service.ts
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, QueryFailedError } from 'typeorm';
 import { Department } from '../../entities/department.entity';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
@@ -15,10 +20,14 @@ export class DepartmentService {
 
   async create(tenantId: string, dto: CreateDepartmentDto) {
     try {
-      return await this.repo.save(this.repo.create({ ...dto, tenantId }));
+      return await this.repo.save(this.repo.create({ ...dto, tenantId, tenant: { id: tenantId } }));
     } catch (err) {
-      if (err.code === '23505') { // Unique violation (Postgres)
-        throw new BadRequestException('Department name must be unique within your company');
+      if (err.code === '23505') {
+        // Unique violation (Postgres)
+        throw new ConflictException('Department name must be unique within your company');
+      }
+      if (err instanceof QueryFailedError && (err as any).code === '23502') {
+        throw new BadRequestException('Department name is required.');
       }
       throw err;
     }
@@ -29,19 +38,51 @@ export class DepartmentService {
   }
 
   async findOne(tenantId: string, id: string) {
-    const dept = await this.repo.findOne({ where: { id, tenantId } });
-    if (!dept) throw new NotFoundException('Department not found');
-    return dept;
-  }
+  const dept = await this.repo.findOne({ where: { id, tenantId } });
+  if (!dept) throw new NotFoundException('Department not found');
+  return dept;
+}
+
+
+  // async update(tenantId: string, id: string, dto: UpdateDepartmentDto) {
+  //   await this.findOne(tenantId, id);
+  //   await this.repo.update({ id, tenantId }, dto);
+  //   return this.findOne(tenantId, id);
+  // }
 
   async update(tenantId: string, id: string, dto: UpdateDepartmentDto) {
-    await this.findOne(tenantId, id);
-    await this.repo.update({ id, tenantId }, dto);
-    return this.findOne(tenantId, id);
+    const department = await this.repo.findOneBy({ id, tenantId });
+
+    if (!department) {
+      throw new NotFoundException('Department not found.');
+    }
+
+    Object.assign(department, dto);
+
+    try {
+      return await this.repo.save(department);
+    } catch (err) {
+      if (err.code === '23505') {
+        throw new ConflictException(
+          `Department name '${dto.name}' already exists for this tenant.`
+        );
+      }
+      throw err;
+    }
   }
 
-  async remove(tenantId: string, id: string) {
-    await this.findOne(tenantId, id);
-    await this.repo.delete({ id, tenantId });
-  }
+
+
+  // async remove(tenantId: string, id: string): Promise<{ deleted: true; id: string }> {
+  //   await this.findOne(tenantId, id); // ensures it exists and belongs to the tenant
+  //   await this.repo.delete({ id, tenantId });
+  //   return { deleted: true, id };
+  // }
+
+  async remove(tenantId: string, id: string): Promise<{ deleted: true; id: string }> {
+  await this.findOne(tenantId, id); // 🔁 this throws 404 if not found
+  await this.repo.delete({ id, tenantId });
+  return { deleted: true, id };
+}
+
 }

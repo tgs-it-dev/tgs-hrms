@@ -2,17 +2,16 @@ import { CanActivate, ExecutionContext, Injectable, ForbiddenException } from '@
 
 @Injectable()
 export class TenantGuard implements CanActivate {
-   // Optionally accept allowed roles for future RBACAdd
+  // Optionally accept allowed roles for future RBACAdd
   // constructor(private allowedRoles?: string[]) {}
   canActivate(ctx: ExecutionContext): boolean {
     const request = ctx.switchToHttp().getRequest();
-      // In future, check user roles here if allowedRoles is set
+    // In future, check user roles here if allowedRoles is set
     return Boolean(request.user?.tenantId);
   }
 }
 // <<<<<<< HEAD
 // // This guard can be extended to check user roles for RBAC.
-
 
 // =======
 

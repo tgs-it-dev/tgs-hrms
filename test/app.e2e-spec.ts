@@ -4,10 +4,6 @@ import * as request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 
-// Mock JWT tokens (in a real test, generate or mock JWT verification)
-const adminToken = 'Bearer admin.jwt.token';
-const userToken = 'Bearer user.jwt.token';
-
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
 
@@ -21,6 +17,6 @@ describe('AppController (e2e)', () => {
   });
 
   it('/ (GET)', () => {
-    return request(app.getHttpServer()).get('/').expect(200).expect('Hello World!');
+    return request(app.getHttpServer()).get('/').expect(200).expect('OK');
   });
 });

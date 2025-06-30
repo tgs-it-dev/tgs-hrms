@@ -6,6 +6,7 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  JoinColumn,
 } from 'typeorm';
 import { Company } from './company.entity';
 
@@ -23,6 +24,7 @@ export class Department {
     onDelete: 'CASCADE',
     eager: false,
   })
+  @JoinColumn({ name: 'tenant' }) // 👈 Makes the relation explicit
   tenant: Company;
   // --------------------------------------------------------------------------
 

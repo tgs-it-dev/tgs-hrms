@@ -8,7 +8,3 @@ export class TenantGuard implements CanActivate {
     return Boolean(user?.tenantId); // only allow if tenantId is present
   }
 }
-
-
-
-

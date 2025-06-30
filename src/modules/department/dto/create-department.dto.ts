@@ -9,7 +9,9 @@ export class CreateDepartmentDto {
   @IsNotEmpty()
   @MinLength(2)
   @MaxLength(100)
-  @Matches(/^[a-zA-Z0-9 &'-]+$/, { message: 'Name can only contain letters, numbers, spaces, and -& characters.' })
+  @Matches(/^[a-zA-Z0-9 &'-]+$/, {
+    message: 'Name can only contain letters, numbers, spaces, and -& characters.',
+  })
   @MaxLength(255)
   name: string;
 
