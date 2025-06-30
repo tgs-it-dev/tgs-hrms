@@ -9,6 +9,15 @@ import * as bcrypt from 'bcrypt';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 
+/**
+ * AuthService handles authentication logic including registration, login, password reset,
+ * and token refresh. It uses bcrypt for password hashing and JWT for stateless authentication.
+ *
+ * Security:
+ * - Passwords are hashed with bcrypt before storage.
+ * - JWT payload includes user id, role, and tenantId for multi-tenant and role-based access.
+ * - Refresh tokens are issued for session renewal (demo: stored in user entity).
+ */
 @Injectable()
 export class AuthService {
   constructor(
@@ -24,6 +33,12 @@ export class AuthService {
     return { message: 'User registered successfully' };
   }
 
+  /**
+   * Validates user credentials and issues JWT access and refresh tokens.
+   * Passwords are compared using bcrypt.
+   *
+   * Security: Throws UnauthorizedException for invalid credentials.
+   */
   async validateUser(email: string, password: string) {
     const user = await this.userRepository.findOne({ where: { email } });
     if (!user) throw new UnauthorizedException('Invalid credentials');
@@ -32,8 +47,13 @@ export class AuthService {
     if (!isPasswordValid) throw new UnauthorizedException('Invalid credentials');
 
     const payload = { email: user.email, sub: user.id, role: user.role, tenantId: user.tenantId };
+    const accessToken = this.jwtService.sign(payload);
+    const refreshToken = this.jwtService.sign(payload, { expiresIn: '7d' });
+    user["refreshToken"] = refreshToken;
+    await this.userRepository.save(user);
     return {
-      accessToken: this.jwtService.sign(payload),
+      accessToken,
+      refreshToken,
       user,
     };
   }
@@ -73,6 +93,28 @@ export class AuthService {
       return { message: 'Password successfully reset' };
     } catch (err) {
       throw new BadRequestException('Invalid or expired token');
+    }
+  }
+
+  /**
+   * Issues a new access token if the provided refresh token is valid.
+   *
+   * Security: Throws UnauthorizedException for invalid or expired refresh tokens.
+   */
+  async refreshToken(refreshToken: string) {
+    const user = await this.userRepository.findOne({ where: { refreshToken } });
+    if (!user) throw new UnauthorizedException('Invalid refresh token');
+    try {
+      const payload = this.jwtService.verify(refreshToken);
+      const newAccessToken = this.jwtService.sign({
+        email: user.email,
+        sub: user.id,
+        role: user.role,
+        tenantId: user.tenantId,
+      });
+      return { accessToken: newAccessToken };
+    } catch (e) {
+      throw new UnauthorizedException('Invalid refresh token');
     }
   }
 }
