@@ -9,7 +9,7 @@ import { Company } from './company.entity'; // adjust path as needed
 
 export enum UserRole {
   ADMIN = 'admin',
-  STAFF = 'staff',
+  USER = 'user',
 }
 
 @Entity()
@@ -20,7 +20,8 @@ export class User {
   @Column()
   name: string;
 
-  @Column({ type: 'enum', enum: UserRole, default: UserRole.STAFF })
+
+  @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
   role: UserRole;
 
   @Column({ name: 'company_id' })
@@ -29,4 +30,5 @@ export class User {
   @ManyToOne(() => Company, { eager: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'company_id' })
   company: Company;
+
 }

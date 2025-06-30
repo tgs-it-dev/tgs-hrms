@@ -1,5 +1,5 @@
 // modules/department/department.service.ts
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Department } from '../../entities/department.entity';
@@ -13,8 +13,15 @@ export class DepartmentService {
     private repo: Repository<Department>
   ) {}
 
-  create(tenantId: string, dto: CreateDepartmentDto) {
-    return this.repo.save(this.repo.create({ ...dto, tenantId }));
+  async create(tenantId: string, dto: CreateDepartmentDto) {
+    try {
+      return await this.repo.save(this.repo.create({ ...dto, tenantId }));
+    } catch (err) {
+      if (err.code === '23505') { // Unique violation (Postgres)
+        throw new BadRequestException('Department name must be unique within your company');
+      }
+      throw err;
+    }
   }
 
   findAll(tenantId: string) {

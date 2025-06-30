@@ -8,10 +8,10 @@ import { TenantId } from '../../common/decorators/company.decorator';
 import { DepartmentService } from './department.service';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
-//My Change
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
+
 
 @ApiTags('Departments')
 @ApiBearerAuth()
@@ -27,6 +27,7 @@ export class DepartmentController {
    @Roles('admin')  // Only admin can create
 
   @ApiOperation({ summary: 'Create department' })
+
    @ApiResponse({ status: 201, description: 'Department created.' })
   @ApiResponse({ status: 409, description: 'Department name must be unique within tenant.' })
   @ApiResponse({ status: 400, description: 'Validation error.' })
@@ -35,10 +36,11 @@ export class DepartmentController {
   // }
    async create(@TenantId() tenantId: string, @Body() dto: CreateDepartmentDto) {
     return await this.service.create(tenantId, dto);
+
   }
 
   @Get()
-   @Roles('admin') 
+
   @ApiOperation({ summary: 'List departments' })
   @ApiResponse({ status: 200, description: 'List of departments.' })
     async findAll(@TenantId() tenantId: string) {
