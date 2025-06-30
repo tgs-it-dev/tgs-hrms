@@ -7,4 +7,7 @@ export class User {
 
   @Column()
   name: string;
+
+  @Column({ default: 'user' })
+  role: string; // 'admin' or 'user'
 }

@@ -6,6 +6,7 @@ import { TenantId } from '../../common/decorators/company.decorator';
 import { DepartmentService } from './department.service';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
+import { Roles, RolesGuard } from '../../common/guards/company.guard';
 
 @ApiTags('Departments')
 @ApiBearerAuth()
@@ -16,6 +17,8 @@ export class DepartmentController {
 
   @Post()
   @ApiOperation({ summary: 'Create department' })
+  @UseGuards(RolesGuard)
+  @Roles('admin')
   create(@TenantId() tenantId: string, @Body() dto: CreateDepartmentDto) {
     return this.service.create(tenantId, dto);
   }
