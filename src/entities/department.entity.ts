@@ -11,22 +11,22 @@ import {
 import { Company } from './company.entity';
 
 @Entity()
-@Index(['tenantId', 'name'], { unique: true }) // name must be unique **within** a tenant
+@Index(['tenantId', 'name'], { unique: true }) 
 export class Department {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  // --- tenant scope ----------------------------------------------------------
+
   @Column({ type: 'uuid' })
-  tenantId: string; // redundant but lets us filter fast w/out a join
+  tenantId: string; 
 
   @ManyToOne(() => Company, (company) => company.departments, {
     onDelete: 'CASCADE',
     eager: false,
   })
-  @JoinColumn({ name: 'tenant' }) // 👈 Makes the relation explicit
+  @JoinColumn({ name: 'tenant' }) 
   tenant: Company;
-  // --------------------------------------------------------------------------
+ 
 
   @Column({ length: 100 })
   name: string;

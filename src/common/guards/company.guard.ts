@@ -2,20 +2,11 @@ import { CanActivate, ExecutionContext, Injectable, ForbiddenException } from '@
 
 @Injectable()
 export class TenantGuard implements CanActivate {
-  // Optionally accept allowed roles for future RBACAdd
-  // constructor(private allowedRoles?: string[]) {}
   canActivate(ctx: ExecutionContext): boolean {
     const request = ctx.switchToHttp().getRequest();
-    // In future, check user roles here if allowedRoles is set
     return Boolean(request.user?.tenantId);
   }
 }
-// <<<<<<< HEAD
-// // This guard can be extended to check user roles for RBAC.
-
-// =======
-
-// New RolesGuard
 export function Roles(...roles: string[]) {
   return (target: any, key?: any, descriptor?: any) => {
     Reflect.defineMetadata('roles', roles, descriptor ? descriptor.value : target);
@@ -37,4 +28,3 @@ export class RolesGuard implements CanActivate {
     return true;
   }
 }
-// >>>>>>> ca4d12b935120e2f97f08cdbc55c19715a5a9ccf

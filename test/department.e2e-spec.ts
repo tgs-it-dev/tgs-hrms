@@ -3,29 +3,13 @@ import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
-
-// Mock JWT tokens (in a real test, generate or mock JWT verification)
-// const adminToken = 'Bearer admin.jwt.token';
-// const userToken = 'Bearer user.jwt.token';
-
 import * as jwt from 'jsonwebtoken';
+import { makeBearerToken } from './utils/auth-helper';
+import * as dotenv from 'dotenv';
+dotenv.config({ path: '.env.test' });
 
-const adminPayload = {
-  sub: 'test-user',
-  tenantId: 'f7056477-f4f3-4dc9-987e-73d52e6d3541',
-  role: 'admin',
-};
-
-const userPayload = {
-  sub: 'test-user-id',
-  tenantId: 'f7056477-f4f3-4dc9-987e-73d52e6d3541',
-  role: 'user',
-};
-
-const secret = 'hrm123';
-
-const adminToken = 'Bearer ' + jwt.sign(adminPayload, secret, { expiresIn: '1h' });
-const userToken = 'Bearer ' + jwt.sign(userPayload, secret, { expiresIn: '1h' });
+const adminToken = makeBearerToken('admin');
+const userToken  = makeBearerToken('user');
 
 describe('DepartmentController (e2e)', () => {
   let app: INestApplication<App>;

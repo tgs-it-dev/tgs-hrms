@@ -1,4 +1,3 @@
-// modules/department/department.service.ts
 import {
   Injectable,
   NotFoundException,
@@ -44,12 +43,6 @@ export class DepartmentService {
 }
 
 
-  // async update(tenantId: string, id: string, dto: UpdateDepartmentDto) {
-  //   await this.findOne(tenantId, id);
-  //   await this.repo.update({ id, tenantId }, dto);
-  //   return this.findOne(tenantId, id);
-  // }
-
   async update(tenantId: string, id: string, dto: UpdateDepartmentDto) {
     const department = await this.repo.findOneBy({ id, tenantId });
 
@@ -70,14 +63,6 @@ export class DepartmentService {
       throw err;
     }
   }
-
-
-
-  // async remove(tenantId: string, id: string): Promise<{ deleted: true; id: string }> {
-  //   await this.findOne(tenantId, id); // ensures it exists and belongs to the tenant
-  //   await this.repo.delete({ id, tenantId });
-  //   return { deleted: true, id };
-  // }
 
   async remove(tenantId: string, id: string): Promise<{ deleted: true; id: string }> {
   await this.findOne(tenantId, id); // 🔁 this throws 404 if not found
