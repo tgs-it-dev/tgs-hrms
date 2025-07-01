@@ -1,9 +1,7 @@
-// src/modules/auth/auth.controller.ts
-
 import { Body, Controller, Post, Param, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
-import { ApiTags, ApiBody, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';  // Added ApiBearerAuth import
+import { ApiTags, ApiBody, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -65,7 +63,7 @@ export class AuthController {
   }
 
   // PROTECTED ROUTES
-  @ApiBearerAuth()  // Added this line to indicate that this route requires authentication
+  @ApiBearerAuth()
   @Post('admin-data')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
@@ -73,11 +71,21 @@ export class AuthController {
     return { message: 'Only Admin can access this route' };
   }
 
-  @ApiBearerAuth()  // Added this line to indicate that this route requires authentication
+  @ApiBearerAuth()
   @Post('tenant/:tenantId/profile')
   @UseGuards(JwtAuthGuard, TenantGuard)
   @Roles('admin', 'staff')
   getTenantProfile(@Param('tenantId') tenantId: number) {
     return { message: `Profile for tenant ${tenantId}` };
+  }
+
+  // ✅ LOGOUT
+  @ApiBearerAuth()
+  @Post('logout')
+  @ApiBody({ schema: { properties: { refreshToken: { type: 'string' } } } })
+  @ApiResponse({ status: 200, description: 'User logged out successfully' })
+  @ApiResponse({ status: 400, description: 'Refresh token missing or invalid' })
+  async logout(@Body('refreshToken') refreshToken: string) {
+    return this.authService.logout(refreshToken);
   }
 }

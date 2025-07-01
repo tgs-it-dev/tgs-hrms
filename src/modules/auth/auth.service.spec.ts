@@ -6,6 +6,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
 import { UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 const mockPassword = bcrypt.hashSync('123456', 10);
 
@@ -17,7 +18,7 @@ const mockUser: User = {
   tenantId: 1,
   resetToken: '',
   resetTokenExpiry: new Date(),
-  refreshToken: '',  
+  refreshToken: '',
 };
 
 const mockUserRepository = () => ({
@@ -34,6 +35,14 @@ const mockJwtService = {
   sign: jest.fn().mockReturnValue('mocked-jwt-token'),
 };
 
+const mockConfigService = {
+  get: jest.fn().mockImplementation((key: string) => {
+    if (key === 'JWT_SECRET') return 'mocked-secret';
+    if (key === 'JWT_EXPIRES_IN') return '15m';
+    return null;
+  }),
+};
+
 describe('AuthService - Login', () => {
   let service: AuthService;
   let userRepo: Repository<User>;
@@ -44,6 +53,7 @@ describe('AuthService - Login', () => {
         AuthService,
         { provide: getRepositoryToken(User), useFactory: mockUserRepository },
         { provide: JwtService, useValue: mockJwtService },
+        { provide: ConfigService, useValue: mockConfigService },
       ],
     }).compile();
 

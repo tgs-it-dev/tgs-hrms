@@ -6,6 +6,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
 import { BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 const mockPassword = bcrypt.hashSync('123456', 10);
 
@@ -20,22 +21,30 @@ const baseUser: User = {
   refreshToken: '',
 };
 
+const mockUserRepository = {
+  findOneBy: jest.fn(),
+  findOne: jest.fn(),
+  save: jest.fn(),
+  create: jest.fn(),
+};
+
+const mockJwtService = {
+  sign: jest.fn().mockReturnValue('mocked-jwt-token'),
+  verify: jest.fn().mockReturnValue({ sub: baseUser.id }),
+};
+
+const mockConfigService = {
+  get: jest.fn().mockImplementation((key: string) => {
+    if (key === 'JWT_SECRET') return 'mocked-secret';
+    if (key === 'JWT_EXPIRES_IN') return '15m';
+    return null;
+  }),
+};
+
 describe('AuthService - Reset Password', () => {
   let service: AuthService;
   let userRepo: Repository<User>;
   let jwtService: JwtService;
-
-  const mockUserRepository = {
-    findOneBy: jest.fn(),
-    findOne: jest.fn(),
-    save: jest.fn(),
-    create: jest.fn(),
-  };
-
-  const mockJwtService = {
-    sign: jest.fn().mockReturnValue('mocked-jwt-token'),
-    verify: jest.fn().mockReturnValue({ sub: baseUser.id }),
-  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -43,6 +52,7 @@ describe('AuthService - Reset Password', () => {
         AuthService,
         { provide: getRepositoryToken(User), useValue: mockUserRepository },
         { provide: JwtService, useValue: mockJwtService },
+        { provide: ConfigService, useValue: mockConfigService },
       ],
     }).compile();
 
@@ -83,7 +93,7 @@ describe('AuthService - Reset Password', () => {
     mockJwtService.verify.mockReturnValue({ sub: validUser.id });
     mockUserRepository.findOne.mockResolvedValue(validUser);
     mockUserRepository.save.mockResolvedValue(validUser);
-     jest.spyOn(bcrypt, 'hash').mockImplementation(async () => 'hashedPassword');
+    jest.spyOn(bcrypt, 'hash').mockImplementation(async () => 'hashedPassword');
 
     const result = await service.resetPassword({
       token: 'valid-token',
@@ -95,7 +105,7 @@ describe('AuthService - Reset Password', () => {
   });
 
   it('should throw for invalid token (no user)', async () => {
-    mockJwtService.verify.mockReturnValue({ sub: 999 }); // unknown user
+    mockJwtService.verify.mockReturnValue({ sub: 999 });
     mockUserRepository.findOne.mockResolvedValue(null);
 
     await expect(

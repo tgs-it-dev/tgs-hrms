@@ -19,7 +19,7 @@ export class AuthService {
     @InjectRepository(User)
     private userRepository: Repository<User>,
     private jwtService: JwtService,
-    private configService: ConfigService, // ✅ Inject ConfigService
+    private configService: ConfigService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -133,5 +133,22 @@ export class AuthService {
     } catch (e) {
       throw new UnauthorizedException('Invalid refresh token');
     }
+  }
+
+  // ✅ LOGOUT METHOD
+  async logout(refreshToken: string) {
+    if (!refreshToken) {
+      throw new BadRequestException('Refresh token is required');
+    }
+
+    const user = await this.userRepository.findOne({ where: { refreshToken } });
+    if (!user) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    user.refreshToken = null;
+    await this.userRepository.save(user);
+
+    return { message: 'Successfully logged out' };
   }
 }
