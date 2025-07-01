@@ -1,5 +1,8 @@
-// src/modules/auth/auth.service.ts
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from '../../entities/user.entity';
 import { Repository } from 'typeorm';
@@ -8,22 +11,15 @@ import { RegisterDto } from './dto/register.dto';
 import * as bcrypt from 'bcrypt';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ConfigService } from '@nestjs/config';
 
-/**
- * AuthService handles authentication logic including registration, login, password reset,
- * and token refresh. It uses bcrypt for password hashing and JWT for stateless authentication.
- *
- * Security:
- * - Passwords are hashed with bcrypt before storage.
- * - JWT payload includes user id, role, and tenantId for multi-tenant and role-based access.
- * - Refresh tokens are issued for session renewal (demo: stored in user entity).
- */
 @Injectable()
 export class AuthService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
     private jwtService: JwtService,
+    private configService: ConfigService, // ✅ Inject ConfigService
   ) {}
 
   async register(dto: RegisterDto) {
@@ -33,12 +29,6 @@ export class AuthService {
     return { message: 'User registered successfully' };
   }
 
-  /**
-   * Validates user credentials and issues JWT access and refresh tokens.
-   * Passwords are compared using bcrypt.
-   *
-   * Security: Throws UnauthorizedException for invalid credentials.
-   */
   async validateUser(email: string, password: string) {
     const user = await this.userRepository.findOne({ where: { email } });
     if (!user) throw new UnauthorizedException('Invalid credentials');
@@ -46,11 +36,26 @@ export class AuthService {
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) throw new UnauthorizedException('Invalid credentials');
 
-    const payload = { email: user.email, sub: user.id, role: user.role, tenantId: user.tenantId };
-    const accessToken = this.jwtService.sign(payload);
-    const refreshToken = this.jwtService.sign(payload, { expiresIn: '7d' });
-    user["refreshToken"] = refreshToken;
+    const payload = {
+      email: user.email,
+      sub: user.id,
+      role: user.role,
+      tenantId: user.tenantId,
+    };
+
+    const accessToken = this.jwtService.sign(payload, {
+      secret: this.configService.get<string>('JWT_SECRET'),
+      expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '15m',
+    });
+
+    const refreshToken = this.jwtService.sign(payload, {
+      secret: this.configService.get<string>('JWT_SECRET'),
+      expiresIn: '7d',
+    });
+
+    user.refreshToken = refreshToken;
     await this.userRepository.save(user);
+
     return {
       accessToken,
       refreshToken,
@@ -63,7 +68,10 @@ export class AuthService {
     if (!user) throw new BadRequestException('User with this email does not exist');
 
     const payload = { email: user.email, sub: user.id };
-    const resetToken = this.jwtService.sign(payload, { expiresIn: '15m' });
+    const resetToken = this.jwtService.sign(payload, {
+      secret: this.configService.get<string>('JWT_SECRET'),
+      expiresIn: '15m',
+    });
 
     user.resetToken = resetToken;
     user.resetTokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
@@ -77,7 +85,10 @@ export class AuthService {
 
   async resetPassword(dto: ResetPasswordDto) {
     try {
-      const decoded = this.jwtService.verify(dto.token);
+      const decoded = this.jwtService.verify(dto.token, {
+        secret: this.configService.get<string>('JWT_SECRET'),
+      });
+
       const user = await this.userRepository.findOne({ where: { id: decoded.sub } });
 
       if (!user) throw new BadRequestException('Invalid token');
@@ -96,22 +107,28 @@ export class AuthService {
     }
   }
 
-  /**
-   * Issues a new access token if the provided refresh token is valid.
-   *
-   * Security: Throws UnauthorizedException for invalid or expired refresh tokens.
-   */
   async refreshToken(refreshToken: string) {
     const user = await this.userRepository.findOne({ where: { refreshToken } });
     if (!user) throw new UnauthorizedException('Invalid refresh token');
+
     try {
-      const payload = this.jwtService.verify(refreshToken);
-      const newAccessToken = this.jwtService.sign({
-        email: user.email,
-        sub: user.id,
-        role: user.role,
-        tenantId: user.tenantId,
+      const payload = this.jwtService.verify(refreshToken, {
+        secret: this.configService.get<string>('JWT_SECRET'),
       });
+
+      const newAccessToken = this.jwtService.sign(
+        {
+          email: user.email,
+          id: user.id,
+          role: user.role,
+          tenantId: user.tenantId,
+        },
+        {
+          secret: this.configService.get<string>('JWT_SECRET'),
+          expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '15m',
+        },
+      );
+
       return { accessToken: newAccessToken };
     } catch (e) {
       throw new UnauthorizedException('Invalid refresh token');

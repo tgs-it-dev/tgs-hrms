@@ -5,6 +5,7 @@ import { typeOrmConfig } from './config/typeorm.config';
 import { UserModule } from './modules/user/user.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { JwtModule } from '@nestjs/jwt';
 
 @Module({
   imports: [
@@ -14,13 +15,21 @@ import { ThrottlerModule } from '@nestjs/throttler';
       useFactory: typeOrmConfig,
       inject: [ConfigService],
     }),
-    // ThrottlerModule is used to globally rate limit API requests for security and performance.
-    // Here, we set a limit of 5 requests per minute (60,000 ms) per IP address.
-    // This helps prevent brute-force attacks and abuse of sensitive endpoints like login.
     ThrottlerModule.forRoot({
-      throttlers: [
-        { ttl: 60_000, limit: 5 },
-      ],
+      throttlers: [{ ttl: 60_000, limit: 5 }],
+    }),
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async (config: ConfigService) => {
+        const secret = config.get<string>('JWT_SECRET');
+        if (!secret) throw new Error('JWT_SECRET not found');
+        console.log('✅ JWT_SECRET in AppModule:', secret);
+        return {
+          secret,
+          signOptions: { expiresIn: config.get<string>('JWT_EXPIRES_IN', '15m') },
+        };
+      },
     }),
     UserModule,
     AuthModule,

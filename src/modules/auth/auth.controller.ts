@@ -1,18 +1,20 @@
-import { Body, Controller, Post } from '@nestjs/common';
+// src/modules/auth/auth.controller.ts
+
+import { Body, Controller, Post, Param, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
-import { ApiTags, ApiBody, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiBody, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';  // Added ApiBearerAuth import
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { Throttle } from '@nestjs/throttler';
 
-/**
- * AuthController handles authentication-related endpoints such as login, registration,
- * password reset, and token refresh. It integrates with AuthService for business logic.
- *
- * Security: Sensitive endpoints like login are rate-limited to prevent brute-force attacks.
- */
+// Import guards and decorators from the correct path
+import { RolesGuard } from '../../guards/roles.guard'; 
+import { JwtAuthGuard } from '../../guards/jwt-auth.guard'; 
+import { Roles } from '../../decorators/roles.decorator'; 
+import { TenantGuard } from '../../guards/tenant.guard'; 
+
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
@@ -26,15 +28,7 @@ export class AuthController {
     return this.authService.register(dto);
   }
 
-  /**
-   * POST /auth/login
-   * Authenticates a user using email and password.
-   *
-   * Rate limited to 5 requests per minute per IP using @Throttle.
-   * Returns JWT access and refresh tokens on success.
-   *
-   * Security: Rate limiting helps prevent brute-force attacks.
-   */
+  // LOGIN
   @Post('login')
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiBody({ type: LoginDto })
@@ -61,11 +55,29 @@ export class AuthController {
     return this.authService.resetPassword(dto);
   }
 
+  // REFRESH TOKEN
   @Post('refresh')
   @ApiBody({ schema: { properties: { refreshToken: { type: 'string' } } } })
   @ApiResponse({ status: 200, description: 'Token refreshed' })
   @ApiResponse({ status: 401, description: 'Invalid refresh token' })
   async refresh(@Body('refreshToken') refreshToken: string) {
     return this.authService.refreshToken(refreshToken);
+  }
+
+  // PROTECTED ROUTES
+  @ApiBearerAuth()  // Added this line to indicate that this route requires authentication
+  @Post('admin-data')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  getAdminData() {
+    return { message: 'Only Admin can access this route' };
+  }
+
+  @ApiBearerAuth()  // Added this line to indicate that this route requires authentication
+  @Post('tenant/:tenantId/profile')
+  @UseGuards(JwtAuthGuard, TenantGuard)
+  @Roles('admin', 'staff')
+  getTenantProfile(@Param('tenantId') tenantId: number) {
+    return { message: `Profile for tenant ${tenantId}` };
   }
 }

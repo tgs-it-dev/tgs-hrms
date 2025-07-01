@@ -16,7 +16,8 @@ const mockUser: User = {
   role: 'admin',
   tenantId: 1,
   resetToken: '',
-  resetTokenExpiry: new Date(),  // Updated with a valid Date
+  resetTokenExpiry: new Date(),
+  refreshToken: '',  
 };
 
 const mockUserRepository = () => ({

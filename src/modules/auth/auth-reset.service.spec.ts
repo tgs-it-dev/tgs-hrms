@@ -17,6 +17,7 @@ const baseUser: User = {
   tenantId: 1,
   resetToken: '',
   resetTokenExpiry: new Date(),
+  refreshToken: '',
 };
 
 describe('AuthService - Reset Password', () => {
