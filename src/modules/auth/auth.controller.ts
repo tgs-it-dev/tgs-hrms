@@ -7,7 +7,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { Throttle } from '@nestjs/throttler';
 
-// Import guards and decorators from the correct path
+
 import { RolesGuard } from '../../guards/roles.guard'; 
 import { JwtAuthGuard } from '../../guards/jwt-auth.guard'; 
 import { Roles } from '../../decorators/roles.decorator'; 
@@ -18,7 +18,7 @@ import { TenantGuard } from '../../guards/tenant.guard';
 export class AuthController {
   constructor(private authService: AuthService) {}
 
-  // REGISTER
+  
   @Post('register')
   @ApiBody({ type: RegisterDto })
   @ApiResponse({ status: 201, description: 'User registered successfully' })
@@ -26,7 +26,7 @@ export class AuthController {
     return this.authService.register(dto);
   }
 
-  // LOGIN
+  
   @Post('login')
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiBody({ type: LoginDto })
@@ -36,7 +36,7 @@ export class AuthController {
     return this.authService.validateUser(body.email, body.password);
   }
 
-  // FORGOT PASSWORD
+  
   @Post('forgot-password')
   @ApiBody({ type: ForgotPasswordDto })
   @ApiResponse({ status: 200, description: 'Reset link sent to email' })
@@ -44,7 +44,7 @@ export class AuthController {
     return this.authService.forgotPassword(dto);
   }
 
-  // RESET PASSWORD
+  
   @Post('reset-password')
   @ApiBody({ type: ResetPasswordDto })
   @ApiResponse({ status: 200, description: 'Password successfully reset' })
@@ -53,7 +53,7 @@ export class AuthController {
     return this.authService.resetPassword(dto);
   }
 
-  // REFRESH TOKEN
+  
   @Post('refresh')
   @ApiBody({ schema: { properties: { refreshToken: { type: 'string' } } } })
   @ApiResponse({ status: 200, description: 'Token refreshed' })
@@ -62,7 +62,7 @@ export class AuthController {
     return this.authService.refreshToken(refreshToken);
   }
 
-  // PROTECTED ROUTES
+  
   @ApiBearerAuth()
   @Post('admin-data')
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -79,7 +79,7 @@ export class AuthController {
     return { message: `Profile for tenant ${tenantId}` };
   }
 
-  // ✅ LOGOUT
+  
   @ApiBearerAuth()
   @Post('logout')
   @ApiBody({ schema: { properties: { refreshToken: { type: 'string' } } } })

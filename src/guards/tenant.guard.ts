@@ -1,4 +1,4 @@
-// src/guards/tenant.guard.ts
+
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 
 @Injectable()

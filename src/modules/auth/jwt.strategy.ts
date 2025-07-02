@@ -10,7 +10,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!secret) {
       throw new Error('JWT_SECRET is not defined in .env');
     }
-    console.log('✅ JWT_SECRET loaded in strategy:', secret);
+    console.log(' JWT_SECRET loaded in strategy:', secret);
 
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -19,7 +19,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
-    console.log('✅ JWT payload validated:', payload);
+    console.log(' JWT payload validated:', payload);
     return {
       id: payload.sub,
       email: payload.email,

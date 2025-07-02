@@ -24,7 +24,7 @@ import { JwtModule } from '@nestjs/jwt';
       useFactory: async (config: ConfigService) => {
         const secret = config.get<string>('JWT_SECRET');
         if (!secret) throw new Error('JWT_SECRET not found');
-        console.log('✅ JWT_SECRET in AppModule:', secret);
+        console.log(' JWT_SECRET in AppModule:', secret);
         return {
           secret,
           signOptions: { expiresIn: config.get<string>('JWT_EXPIRES_IN', '15m') },

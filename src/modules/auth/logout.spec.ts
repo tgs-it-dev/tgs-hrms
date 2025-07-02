@@ -48,7 +48,7 @@ describe('Logout Feature', () => {
     jest.clearAllMocks();
   });
 
-  it('✅ should logout and nullify refreshToken', async () => {
+  it(' should logout and nullify refreshToken', async () => {
     mockUserRepo.findOne.mockResolvedValue(mockUser);
     mockUserRepo.save.mockResolvedValue({ ...mockUser, refreshToken: null });
 
@@ -64,11 +64,11 @@ describe('Logout Feature', () => {
     expect(response).toEqual({ message: 'Successfully logged out' });
   });
 
-  it('❌ should throw BadRequestException if token is missing', async () => {
+  it(' should throw BadRequestException if token is missing', async () => {
     await expect(authService.logout(null as unknown as string)).rejects.toThrow(BadRequestException);
   });
 
-  it('❌ should throw UnauthorizedException if token is not found', async () => {
+  it(' should throw UnauthorizedException if token is not found', async () => {
     mockUserRepo.findOne.mockResolvedValue(null);
 
     await expect(authService.logout('invalid-token')).rejects.toThrow(UnauthorizedException);

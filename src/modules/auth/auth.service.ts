@@ -135,7 +135,7 @@ export class AuthService {
     }
   }
 
-  // ✅ LOGOUT METHOD
+  
   async logout(refreshToken: string) {
     if (!refreshToken) {
       throw new BadRequestException('Refresh token is required');
