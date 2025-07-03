@@ -5,7 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { User } from '../../entities/user.entity';
+import { User, UserRole } from '../../entities/user.entity';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { RegisterDto } from './dto/register.dto';
@@ -27,7 +27,19 @@ export class AuthService {
 
   async register(dto: RegisterDto) {
     const hashedPassword = await bcrypt.hash(dto.password, 10);
-    const user = this.userRepository.create({ ...dto, password: hashedPassword });
+
+    const user = this.userRepository.create({
+      email: dto.email,
+      password: hashedPassword,
+      tenantId: dto.tenantId,
+      name: dto.name,
+      role: dto.role as UserRole,
+      companyId: dto.companyId,
+      refreshToken: null,
+      resetToken: null,
+      resetTokenExpiry: null,
+    });
+
     await this.userRepository.save(user);
     return { message: 'User registered successfully' };
   }
@@ -35,10 +47,12 @@ export class AuthService {
   async validateUser(email: string, password: string) {
     this.logger.log(`Login attempt for email: ${email}`);
     const user = await this.userRepository.findOne({ where: { email } });
+
     if (!user) {
       this.logger.warn(`Login failed: user not found for email: ${email}`);
       throw new UnauthorizedException('Invalid credentials');
     }
+
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       this.logger.warn(`Login failed: invalid password for email: ${email}`);
@@ -75,7 +89,9 @@ export class AuthService {
 
   async forgotPassword(dto: ForgotPasswordDto) {
     const user = await this.userRepository.findOne({ where: { email: dto.email } });
-    if (!user) throw new BadRequestException('User with this email does not exist');
+    if (!user) {
+      throw new BadRequestException('User with this email does not exist');
+    }
 
     const payload = { email: user.email, sub: user.id };
     const resetToken = this.jwtService.sign(payload, {
@@ -84,7 +100,7 @@ export class AuthService {
     });
 
     user.resetToken = resetToken;
-    user.resetTokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
+    user.resetTokenExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
     await this.userRepository.save(user);
 
     return {
@@ -99,24 +115,29 @@ export class AuthService {
       const decoded = this.jwtService.verify(dto.token, {
         secret: this.configService.get<string>('JWT_SECRET'),
       });
+
       const user = await this.userRepository.findOne({ where: { id: decoded.sub } });
       if (!user) {
         this.logger.warn(`Password reset failed: user not found for token: ${dto.token}`);
         throw new BadRequestException('Invalid token');
       }
+
       if (!user.resetToken || user.resetToken !== dto.token) {
         this.logger.warn(`Password reset failed: token mismatch for user id: ${user.id}`);
         throw new BadRequestException('Invalid or expired token');
       }
+
       if (user.resetTokenExpiry && new Date() > user.resetTokenExpiry) {
         this.logger.warn(`Password reset failed: token expired for user id: ${user.id}`);
         throw new BadRequestException('Reset token has expired');
       }
+
       const hashedPassword = await bcrypt.hash(dto.newPassword, 10);
       user.password = hashedPassword;
       user.resetToken = null;
       user.resetTokenExpiry = null;
       await this.userRepository.save(user);
+
       this.logger.log(`Password reset successful for user id: ${user.id}`);
       return { message: 'Password successfully reset' };
     } catch (err) {
@@ -153,20 +174,22 @@ export class AuthService {
     }
   }
 
-  
   async logout(refreshToken: string) {
     this.logger.log(`Logout attempt with refresh token: ${refreshToken}`);
     if (!refreshToken) {
       this.logger.warn('Logout failed: Refresh token is required');
       throw new BadRequestException('Refresh token is required');
     }
+
     const user = await this.userRepository.findOne({ where: { refreshToken } });
     if (!user) {
       this.logger.warn('Logout failed: Invalid refresh token');
       throw new UnauthorizedException('Invalid refresh token');
     }
+
     user.refreshToken = null;
     await this.userRepository.save(user);
+
     this.logger.log(`Logout successful for user id: ${user.id}`);
     return { message: 'Successfully logged out' };
   }

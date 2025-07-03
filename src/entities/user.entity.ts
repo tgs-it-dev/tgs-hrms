@@ -1,5 +1,12 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { Company } from './company.entity';
+
 export enum UserRole {
   ADMIN = 'admin',
   USER = 'user',
@@ -10,7 +17,7 @@ export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @Column({ unique: true })
   email: string;
 
   @Column()
@@ -19,7 +26,6 @@ export class User {
   @Column()
   tenantId: number;
 
-  
   @Column({ type: 'text', nullable: true })
   refreshToken: string | null;
 
@@ -28,12 +34,14 @@ export class User {
 
   @Column({ type: 'timestamptz', nullable: true })
   resetTokenExpiry: Date | null;
+
+  @Column()
   name: string;
 
   @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
   role: UserRole;
 
-  @Column({ name: 'company_id' })
+  @Column({ name: 'company_id', type: 'uuid' })
   companyId: string;
 
   @ManyToOne(() => Company, { eager: false, onDelete: 'CASCADE' })
