@@ -6,10 +6,16 @@ import { UserModule } from './modules/user/user.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { JwtModule } from '@nestjs/jwt';
+import { DepartmentModule } from './modules/department/department.module';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 
 @Module({
   imports: [
+    // 1️⃣ Global .env configuration
     ConfigModule.forRoot({ isGlobal: true }),
+
+    // 2️⃣ Database connection
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: typeOrmConfig,
@@ -31,8 +37,15 @@ import { JwtModule } from '@nestjs/jwt';
         };
       },
     }),
+
+    // 3️⃣ Feature modules
     UserModule,
     AuthModule,
   ],
+  controllers: [AppController],
+
+  providers: [
+    AppService,
+    ],
 })
 export class AppModule {}
