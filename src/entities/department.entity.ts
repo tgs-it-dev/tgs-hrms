@@ -9,7 +9,6 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { Company } from './company.entity';
-
 @Entity()
 @Index(['tenantId', 'name'], { unique: true }) 
 export class Department {
