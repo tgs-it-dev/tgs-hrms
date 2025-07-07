@@ -13,12 +13,6 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 import { DesignationService } from './designation.service';
 import { CreateDesignationDto } from './dto/create-designation.dto';
 import { UpdateDesignationDto } from './dto/update-designation.dto';
-// import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-// import { TenantGuard } from '../../common/guards/tenant.guard';
-// import { RolesGuard } from '../../common/guards/roles.guard';
-// import { Roles } from '../../common/decorators/roles.decorator';
-// import { TenantId } from '../../common/decorators/company.decorator';
-
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { TenantGuard } from 'src/common/guards/company.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';

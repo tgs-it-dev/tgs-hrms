@@ -1,8 +1,3 @@
-/* test/designation.e2e-spec.ts
-   --------------------------------------------------
-   E2E tests for Designation CRUD (multi‑tenant)
-   -------------------------------------------------- */
-
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
@@ -19,9 +14,6 @@ describe('DesignationController (e2e)', () => {
   let app: INestApplication<App>;
   let departmentId: string;        // created once for all tests
 
-  /* -------------------------------------------
-     1) Spin up Nest and create a department
-  ------------------------------------------- */
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -42,9 +34,6 @@ describe('DesignationController (e2e)', () => {
     await app.close();
   });
 
-  /* -------------------------------------------
-     2) CREATE
-  ------------------------------------------- */
   describe('POST /designations', () => {
     it('allows admin to create designation', async () => {
       const uniqueTitle = `Sr QA ${Date.now()}`;
@@ -101,9 +90,6 @@ describe('DesignationController (e2e)', () => {
     });
   });
 
-  /* -------------------------------------------
-     3) READ
-  ------------------------------------------- */
   describe('GET /designations?department_id', () => {
     it('lists designations for department', async () => {
       const res = await request(app.getHttpServer())
@@ -116,9 +102,7 @@ describe('DesignationController (e2e)', () => {
     });
   });
 
-  /* -------------------------------------------
-     4) UPDATE & DELETE (happy‑path only)
-  ------------------------------------------- */
+
   describe('PUT /designations/:id and DELETE /designations/:id', () => {
     let designationId: string;
 
