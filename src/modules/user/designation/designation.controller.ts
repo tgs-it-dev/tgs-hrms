@@ -17,7 +17,7 @@ import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { TenantGuard } from 'src/common/guards/company.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
-import { TenantId } from 'src/common/decorators/company.decorator';
+import { TenantId } from 'src/common/decorators/company.deorator';
 
 @ApiTags('Designations')
 @ApiBearerAuth()

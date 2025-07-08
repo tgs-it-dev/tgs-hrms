@@ -1,4 +1,3 @@
-// src/entities/company.entity.ts   ← put it where you keep shared entities
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -8,6 +7,7 @@ import {
   OneToMany,
 } from 'typeorm';
 import { Department } from './department.entity';
+import { User } from './user.entity'; 
 
 @Entity()
 export class Company {
@@ -23,7 +23,9 @@ export class Company {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  // purely for navigation; not required for Department CRUD
   @OneToMany(() => Department, (d) => d.tenant)
   departments: Department[];
+
+  @OneToMany(() => User, (user) => user.company)
+  users: User[];
 }

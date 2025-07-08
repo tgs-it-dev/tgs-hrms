@@ -1,11 +1,11 @@
-// data-source.ts  (root level)
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import { Company } from './src/entities/company.entity';
 import { Department } from './src/entities/department.entity';
 import { Designation } from 'src/entities/designation.entity';
+import { User } from './src/entities/user.entity';
 import * as dotenv from 'dotenv';
-dotenv.config();          // ← so .env values work
+dotenv.config(); // Load environment variables
 
 export const AppDataSource = new DataSource({
   type: 'postgres',
@@ -14,8 +14,8 @@ export const AppDataSource = new DataSource({
   username: process.env.DB_USER,
   password: process.env.DB_PASS,
   database: process.env.DB_NAME,
-  entities: [Company, Department , Designation],            // or 'src/entities/**/*.ts'
+  entities: [Company, Department , Designation , User],            // or 'src/entities/**/*.ts'
   migrations: ['src/migrations/**/*.ts'],
-  synchronize: false,                         // never true when using migrations
-  logging: false,
+  synchronize: false,
+  logging: true,  // Set logging to true for debugging
 });
