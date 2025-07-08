@@ -23,7 +23,7 @@ export class Company {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  @OneToMany(() => Department, (d) => d.tenant)
+  @OneToMany(() => Department, () => Department)
   departments: Department[];
 
   @OneToMany(() => User, (user) => user.company)

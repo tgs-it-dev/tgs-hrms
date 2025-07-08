@@ -6,24 +6,28 @@ import { UserModule } from './modules/user/user.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { JwtModule } from '@nestjs/jwt';
-import { DepartmentModule } from './modules/department/department.module';
+import { DepartmentModule } from './modules/department/department.module'; 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
 @Module({
   imports: [
-    // 1️⃣ Global .env configuration
+
     ConfigModule.forRoot({ isGlobal: true }),
 
-    // 2️⃣ Database connection
+    
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: typeOrmConfig,
       inject: [ConfigService],
     }),
+
+  
     ThrottlerModule.forRoot({
       throttlers: [{ ttl: 60_000, limit: 5 }],
     }),
+
+    
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -38,14 +42,12 @@ import { AppService } from './app.service';
       },
     }),
 
-    // 3️⃣ Feature modules
+    
     UserModule,
     AuthModule,
+    DepartmentModule, 
   ],
   controllers: [AppController],
-
-  providers: [
-    AppService,
-    ],
+  providers: [AppService],
 })
 export class AppModule {}
