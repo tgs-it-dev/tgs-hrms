@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { User } from '../../entities/user.entity';
+import { User, UserRole } from '../../entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
@@ -11,14 +11,17 @@ import { ConfigService } from '@nestjs/config';
 const mockPassword = bcrypt.hashSync('123456', 10);
 
 const baseUser: User = {
-  id: 1,
+  id: '1',
   email: 'admin@company.com',
   password: mockPassword,
-  role: 'admin',
+  role: UserRole.ADMIN,
   tenantId: 1,
   resetToken: '',
   resetTokenExpiry: new Date(),
   refreshToken: '',
+  name: 'Admin User',
+  companyId: 'some-company-uuid',
+  company: null,
 };
 
 const mockUserRepository = {
@@ -105,7 +108,7 @@ describe('AuthService - Reset Password', () => {
   });
 
   it('should throw for invalid token (no user)', async () => {
-    mockJwtService.verify.mockReturnValue({ sub: 999 });
+    mockJwtService.verify.mockReturnValue({ sub: '999' });
     mockUserRepository.findOne.mockResolvedValue(null);
 
     await expect(

@@ -41,10 +41,10 @@ export class User {
   @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
   role: UserRole;
 
-  @Column({ name: 'company_id', type: 'uuid' })
-  companyId: string;
+  @Column({ name: 'company_id', type: 'uuid', nullable: true })
+  companyId: string | null;  
 
-  @ManyToOne(() => Company, { eager: false, onDelete: 'CASCADE' })
+  @ManyToOne(() => Company, { eager: false, onDelete: 'CASCADE', nullable: true })  
   @JoinColumn({ name: 'company_id' })
-  company: Company;
+  company: Company | null;  
 }

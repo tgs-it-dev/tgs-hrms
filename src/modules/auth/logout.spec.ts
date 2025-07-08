@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { User } from '../../entities/user.entity';
+import { User, UserRole } from '../../entities/user.entity';  
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UnauthorizedException, BadRequestException } from '@nestjs/common';
@@ -12,14 +12,17 @@ describe('Logout Feature', () => {
   let userRepo: Repository<User>;
 
   const mockUser: User = {
-    id: 1,
+    id: '1',
     email: 'user@example.com',
     password: 'hashed',
     tenantId: 123,
-    role: 'admin',
+    role: UserRole.ADMIN, 
     refreshToken: 'valid-token',
     resetToken: null,
     resetTokenExpiry: null,
+    name: 'Test User',
+    companyId: 'some-company-uuid',
+    company: null,
   };
 
   const mockUserRepo = {
@@ -48,7 +51,7 @@ describe('Logout Feature', () => {
     jest.clearAllMocks();
   });
 
-  it(' should logout and nullify refreshToken', async () => {
+  it('should logout and nullify refreshToken', async () => {
     mockUserRepo.findOne.mockResolvedValue(mockUser);
     mockUserRepo.save.mockResolvedValue({ ...mockUser, refreshToken: null });
 
@@ -64,11 +67,11 @@ describe('Logout Feature', () => {
     expect(response).toEqual({ message: 'Successfully logged out' });
   });
 
-  it(' should throw BadRequestException if token is missing', async () => {
+  it('should throw BadRequestException if token is missing', async () => {
     await expect(authService.logout(null as unknown as string)).rejects.toThrow(BadRequestException);
   });
 
-  it(' should throw UnauthorizedException if token is not found', async () => {
+  it('should throw UnauthorizedException if token is not found', async () => {
     mockUserRepo.findOne.mockResolvedValue(null);
 
     await expect(authService.logout('invalid-token')).rejects.toThrow(UnauthorizedException);
