@@ -9,25 +9,22 @@ import { JwtModule } from '@nestjs/jwt';
 import { DepartmentModule } from './modules/department/department.module'; 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { DesignationModule } from './designation/designation.module'; 
 
 @Module({
   imports: [
-
     ConfigModule.forRoot({ isGlobal: true }),
 
-    
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: typeOrmConfig,
       inject: [ConfigService],
     }),
 
-  
     ThrottlerModule.forRoot({
       throttlers: [{ ttl: 60_000, limit: 5 }],
     }),
 
-    
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -45,7 +42,8 @@ import { AppService } from './app.service';
     
     UserModule,
     AuthModule,
-    DepartmentModule, 
+    DepartmentModule,
+    DesignationModule,
   ],
   controllers: [AppController],
   providers: [AppService],
