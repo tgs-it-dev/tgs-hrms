@@ -31,10 +31,9 @@ export class AuthService {
     const user = this.userRepository.create({
       email: dto.email,
       password: hashedPassword,
-      tenantId: dto.tenantId,
       name: dto.name,
       role: dto.role as UserRole,
-      companyId: dto.companyId,
+      tenantId: dto.tenantId,
       refreshToken: null,
       resetToken: null,
       resetTokenExpiry: null,
@@ -61,7 +60,7 @@ export class AuthService {
 
     const payload = {
       email: user.email,
-      sub: user.id,
+      id: user.id,
       role: user.role,
       tenantId: user.tenantId,
     };
@@ -100,7 +99,7 @@ export class AuthService {
     });
 
     user.resetToken = resetToken;
-    user.resetTokenExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+    user.resetTokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
     await this.userRepository.save(user);
 
     return {
@@ -118,17 +117,17 @@ export class AuthService {
 
       const user = await this.userRepository.findOne({ where: { id: decoded.sub } });
       if (!user) {
-        this.logger.warn(`Password reset failed: user not found for token: ${dto.token}`);
+        this.logger.warn(`Password reset failed: user not found`);
         throw new BadRequestException('Invalid token');
       }
 
       if (!user.resetToken || user.resetToken !== dto.token) {
-        this.logger.warn(`Password reset failed: token mismatch for user id: ${user.id}`);
+        this.logger.warn(`Password reset failed: token mismatch`);
         throw new BadRequestException('Invalid or expired token');
       }
 
       if (user.resetTokenExpiry && new Date() > user.resetTokenExpiry) {
-        this.logger.warn(`Password reset failed: token expired for user id: ${user.id}`);
+        this.logger.warn(`Password reset failed: token expired`);
         throw new BadRequestException('Reset token has expired');
       }
 
@@ -160,7 +159,6 @@ export class AuthService {
           email: user.email,
           id: user.id,
           role: user.role,
-          tenantId: user.tenantId,
         },
         {
           secret: this.configService.get<string>('JWT_SECRET'),

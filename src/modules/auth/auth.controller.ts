@@ -1,3 +1,4 @@
+
 import {
   Body,
   Controller,
@@ -20,7 +21,6 @@ import { Throttle } from '@nestjs/throttler';
 import { RolesGuard } from '../../guards/roles.guard';
 import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
 import { Roles } from '../../decorators/roles.decorator';
-import { TenantGuard } from '../../guards/tenant.guard';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -38,7 +38,7 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiBody({ type: LoginDto })
   @ApiResponse({ status: 200, description: 'Login successful' })
-  @ApiResponse({ status: 401, description: 'Invalid credentials' })
+  @ApiResponse({ status:  401, description: 'Invalid credentials' })
   async login(@Body() body: LoginDto) {
     return this.authService.validateUser(body.email, body.password);
   }
@@ -81,14 +81,6 @@ export class AuthController {
   }
 
   @ApiBearerAuth()
-  @Post('tenant/:tenantId/profile')
-  @UseGuards(JwtAuthGuard, TenantGuard)
-  @Roles('admin', 'staff')
-  getTenantProfile(@Param('tenantId') tenantId: number) {
-    return { message: `Profile for tenant ${tenantId}` };
-  }
-
-  @ApiBearerAuth()
   @Post('logout')
   @ApiBody({
     schema: {
@@ -98,10 +90,7 @@ export class AuthController {
     },
   })
   @ApiResponse({ status: 200, description: 'User logged out successfully' })
-  @ApiResponse({
-    status: 400,
-    description: 'Refresh token missing or invalid',
-  })
+  @ApiResponse({ status: 400, description: 'Refresh token missing or invalid' })
   async logout(@Body('refreshToken') refreshToken: string) {
     return this.authService.logout(refreshToken);
   }
