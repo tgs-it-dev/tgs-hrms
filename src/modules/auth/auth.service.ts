@@ -60,7 +60,7 @@ export class AuthService {
 
     const payload = {
       email: user.email,
-      id: user.id,
+      sub: user.id,
       role: user.role,
       tenantId: user.tenantId,
     };
@@ -157,7 +157,7 @@ export class AuthService {
       const newAccessToken = this.jwtService.sign(
         {
           email: user.email,
-          id: user.id,
+          sub: user.id,
           role: user.role,
         },
         {
