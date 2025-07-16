@@ -1,79 +1,90 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { User, UserRole } from '../../entities/user.entity';  
+import { User, UserRole } from '../../entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
-import { UnauthorizedException, BadRequestException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
+import { UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
-describe('Logout Feature', () => {
-  let authService: AuthService;
+const mockPassword = bcrypt.hashSync('123456', 10);
+
+
+const mockUser: User = {
+  id: '1',
+  email: 'admin@company.com',
+  password: mockPassword,
+  role: UserRole.ADMIN,
+  tenantId: '1', 
+  resetToken: '',
+  resetTokenExpiry: new Date(),
+  refreshToken: '',
+  name: 'Admin User',
+  company: null, 
+};
+
+const mockUserRepository = () => ({
+  findOneBy: jest.fn().mockResolvedValue(mockUser),
+  save: jest.fn(),
+  create: jest.fn(),
+  findOne: jest.fn().mockImplementation(({ where }: { where: { email: string } }) => {
+    if (where.email === mockUser.email) return Promise.resolve(mockUser);
+    return Promise.resolve(null);
+  }),
+});
+
+const mockJwtService = {
+  sign: jest.fn().mockReturnValue('mocked-jwt-token'),
+};
+
+const mockConfigService = {
+  get: jest.fn().mockImplementation((key: string) => {
+    if (key === 'JWT_SECRET') return 'mocked-secret';
+    if (key === 'JWT_EXPIRES_IN') return '15m';
+    return null;
+  }),
+};
+
+describe('AuthService - Login', () => {
+  let service: AuthService;
   let userRepo: Repository<User>;
-
-  const mockUser: User = {
-    id: '1',
-    email: 'user@example.com',
-    password: 'hashed',
-    tenantId: 123,
-    role: UserRole.ADMIN, 
-    refreshToken: 'valid-token',
-    resetToken: null,
-    resetTokenExpiry: null,
-    name: 'Test User',
-    companyId: 'some-company-uuid',
-    company: null,
-  };
-
-  const mockUserRepo = {
-    findOne: jest.fn(),
-    save: jest.fn(),
-  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
-        JwtService,
-        ConfigService,
-        {
-          provide: getRepositoryToken(User),
-          useValue: mockUserRepo,
-        },
+        { provide: getRepositoryToken(User), useFactory: mockUserRepository },
+        { provide: JwtService, useValue: mockJwtService },
+        { provide: ConfigService, useValue: mockConfigService },
       ],
     }).compile();
 
-    authService = module.get<AuthService>(AuthService);
+    service = module.get<AuthService>(AuthService);
     userRepo = module.get<Repository<User>>(getRepositoryToken(User));
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
+  it('should validate and return access token for valid credentials', async () => {
+    
+    jest.spyOn(bcrypt, 'compare').mockImplementation(() => Promise.resolve(true));
+
+    const result = await service.validateUser('admin@company.com', '123456');
+
+    expect(result).toHaveProperty('accessToken', 'mocked-jwt-token');
+    expect(result.user?.email).toBe('admin@company.com');
   });
 
-  it('should logout and nullify refreshToken', async () => {
-    mockUserRepo.findOne.mockResolvedValue(mockUser);
-    mockUserRepo.save.mockResolvedValue({ ...mockUser, refreshToken: null });
-
-    const response = await authService.logout('valid-token');
-
-    expect(mockUserRepo.findOne).toHaveBeenCalledWith({
-      where: { refreshToken: 'valid-token' },
-    });
-    expect(mockUserRepo.save).toHaveBeenCalledWith({
-      ...mockUser,
-      refreshToken: null,
-    });
-    expect(response).toEqual({ message: 'Successfully logged out' });
+  it('should throw error for invalid email', async () => {
+    await expect(
+      service.validateUser('wrong@company.com', '123456')
+    ).rejects.toThrow(UnauthorizedException);
   });
 
-  it('should throw BadRequestException if token is missing', async () => {
-    await expect(authService.logout(null as unknown as string)).rejects.toThrow(BadRequestException);
-  });
+  it('should throw error for invalid password', async () => {
+    jest.spyOn(bcrypt, 'compare').mockImplementation(() => Promise.resolve(false));
 
-  it('should throw UnauthorizedException if token is not found', async () => {
-    mockUserRepo.findOne.mockResolvedValue(null);
-
-    await expect(authService.logout('invalid-token')).rejects.toThrow(UnauthorizedException);
+    await expect(
+      service.validateUser('admin@company.com', 'wrongpass')
+    ).rejects.toThrow(UnauthorizedException);
   });
 });

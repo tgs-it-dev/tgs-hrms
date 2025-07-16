@@ -7,7 +7,8 @@ import {
   OneToMany,
 } from 'typeorm';
 import { Department } from './department.entity';
-import { User } from './user.entity'; 
+import { User } from './user.entity';
+import { Employee } from './employee.entity'; 
 
 @Entity()
 export class Company {
@@ -28,4 +29,7 @@ export class Company {
 
   @OneToMany(() => User, (user) => user.company)
   users: User[];
+
+  @OneToMany(() => Employee, (employee) => employee.tenant) 
+  employees: Employee[];
 }
