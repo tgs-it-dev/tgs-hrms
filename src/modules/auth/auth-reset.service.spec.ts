@@ -5,129 +5,183 @@ import { User, UserRole } from '../../entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-const mockPassword = bcrypt.hashSync('123456', 10);
 
-const baseUser: User = {
+const mockUser: User = {
   id: '1',
   email: 'admin@company.com',
-  password: mockPassword,
+  password: bcrypt.hashSync('123456', 10),
   role: UserRole.ADMIN,
-  tenantId: 1,
-  resetToken: '',
-  resetTokenExpiry: new Date(),
-  refreshToken: '',
-  name: 'Admin User',
-  companyId: 'some-company-uuid',
-  company: null,
+  tenantId: '1', 
+  resetToken: 'valid-token',
+  resetTokenExpiry: new Date(Date.now() + 60000),
+  refreshToken: 'refresh-token',
+  name: 'Test User',
+  company: null, 
 };
 
-const mockUserRepository = {
-  findOneBy: jest.fn(),
-  findOne: jest.fn(),
+const mockUserRepository = () => ({
+  findOneBy: jest.fn().mockResolvedValue(mockUser),
+  findOne: jest.fn().mockResolvedValue(mockUser),
   save: jest.fn(),
-  create: jest.fn(),
-};
+});
 
-const mockJwtService = {
-  sign: jest.fn().mockReturnValue('mocked-jwt-token'),
-  verify: jest.fn().mockReturnValue({ sub: baseUser.id }),
-};
-
-const mockConfigService = {
-  get: jest.fn().mockImplementation((key: string) => {
-    if (key === 'JWT_SECRET') return 'mocked-secret';
-    if (key === 'JWT_EXPIRES_IN') return '15m';
-    return null;
-  }),
-};
-
-describe('AuthService - Reset Password', () => {
+describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
   let service: AuthService;
   let userRepo: Repository<User>;
   let jwtService: JwtService;
+  let configService: ConfigService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
-        { provide: getRepositoryToken(User), useValue: mockUserRepository },
-        { provide: JwtService, useValue: mockJwtService },
-        { provide: ConfigService, useValue: mockConfigService },
+        { provide: getRepositoryToken(User), useFactory: mockUserRepository },
+        {
+          provide: JwtService,
+          useValue: {
+            sign: jest.fn().mockReturnValue('new-token'),
+            verify: jest.fn().mockReturnValue({ sub: '1' }),
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key) => {
+              switch (key) {
+                case 'JWT_SECRET':
+                  return 'test-secret';
+                case 'RESET_TOKEN_SECRET':
+                  return 'test-reset-secret';
+                default:
+                  return 'dummy';
+              }
+            }),
+          },
+        },
       ],
     }).compile();
 
     service = module.get<AuthService>(AuthService);
     userRepo = module.get<Repository<User>>(getRepositoryToken(User));
     jwtService = module.get<JwtService>(JwtService);
+    configService = module.get<ConfigService>(ConfigService);
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('should generate reset token for valid email', async () => {
-    mockUserRepository.findOne.mockResolvedValue(baseUser);
-    mockUserRepository.save.mockResolvedValue(baseUser);
-
-    const result = await service.forgotPassword({ email: baseUser.email });
-
-    expect(result).toEqual({ message: 'Reset link sent to email', resetToken: expect.any(String) });
-    expect(mockUserRepository.save).toHaveBeenCalledWith(expect.objectContaining({ resetToken: expect.any(String) }));
-  });
-
-  it('should throw BadRequestException for unknown email', async () => {
-    mockUserRepository.findOne.mockResolvedValue(null);
-
-    await expect(
-      service.forgotPassword({ email: 'unknown@email.com' })
-    ).rejects.toThrow(BadRequestException);
-  });
-
-  it('should reset password for valid token', async () => {
-    const validUser = {
-      ...baseUser,
-      resetToken: 'valid-token',
-      resetTokenExpiry: new Date(Date.now() + 10000),
-    };
-
-    mockJwtService.verify.mockReturnValue({ sub: validUser.id });
-    mockUserRepository.findOne.mockResolvedValue(validUser);
-    mockUserRepository.save.mockResolvedValue(validUser);
-    jest.spyOn(bcrypt, 'hash').mockImplementation(async () => 'hashedPassword');
-
-    const result = await service.resetPassword({
-      token: 'valid-token',
-      newPassword: 'newpass123',
+  describe('forgotPassword', () => {
+    it('should generate reset token for valid email', async () => {
+      const result = await service.forgotPassword({ email: 'admin@company.com' });
+      expect(result).toEqual({
+        message: 'Reset link sent to email',
+        resetToken: expect.any(String),
+      });
+      expect(userRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ resetToken: expect.any(String) })
+      );
     });
 
-    expect(result).toEqual({ message: 'Password successfully reset' });
-    expect(mockUserRepository.save).toHaveBeenCalledWith(expect.objectContaining({ password: 'hashedPassword' }));
+    it('should throw BadRequestException for unknown email', async () => {
+      jest.spyOn(userRepo, 'findOne').mockResolvedValue(null);
+      await expect(
+        service.forgotPassword({ email: 'invalid@example.com' })
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 
-  it('should throw for invalid token (no user)', async () => {
-    mockJwtService.verify.mockReturnValue({ sub: '999' });
-    mockUserRepository.findOne.mockResolvedValue(null);
+  describe('resetPassword', () => {
+    it('should reset password for valid token', async () => {
+      const token = 'valid-token';
 
-    await expect(
-      service.resetPassword({ token: 'wrong', newPassword: 'newpass123' })
-    ).rejects.toThrow(BadRequestException);
+      jest.spyOn(jwtService, 'verify').mockReturnValue({ sub: mockUser.id });
+
+      jest.spyOn(userRepo, 'findOne').mockResolvedValue({
+        ...mockUser,
+        resetToken: token,
+        resetTokenExpiry: new Date(Date.now() + 60000),
+      });
+
+      jest.spyOn(bcrypt, 'hash').mockImplementation(async () => 'hashedPassword');
+
+      const result = await service.resetPassword({
+        token,
+        newPassword: 'newpass123',
+      });
+
+      expect(result).toEqual({ message: 'Password successfully reset' });
+      expect(userRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          password: 'hashedPassword',
+          resetToken: null,
+          resetTokenExpiry: null,
+        })
+      );
+    });
+
+    it('should throw for invalid token', async () => {
+      jest.spyOn(jwtService, 'verify').mockImplementation(() => {
+        throw new Error();
+      });
+
+      await expect(
+        service.resetPassword({ token: 'wrong', newPassword: 'newpass123' })
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw for expired token', async () => {
+      jest.spyOn(jwtService, 'verify').mockReturnValue({ sub: mockUser.id });
+
+      const expiredUser = {
+        ...mockUser,
+        resetToken: 'valid-token',
+        resetTokenExpiry: new Date(Date.now() - 60000),
+      };
+
+      jest.spyOn(userRepo, 'findOne').mockResolvedValue(expiredUser);
+
+      await expect(
+        service.resetPassword({ token: 'valid-token', newPassword: 'newpass123' })
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 
-  it('should throw for expired token', async () => {
-    const expiredUser = {
-      ...baseUser,
-      resetToken: 'expired-token',
-      resetTokenExpiry: new Date(Date.now() - 10000),
-    };
+  describe('refreshToken', () => {
+    it('should return new access token if refresh token is valid', async () => {
+      const result = await service.refreshToken('refresh-token');
+      expect(result).toEqual({ accessToken: 'new-token' });
+    });
 
-    mockJwtService.verify.mockReturnValue({ sub: expiredUser.id });
-    mockUserRepository.findOne.mockResolvedValue(expiredUser);
+    it('should throw UnauthorizedException if user not found', async () => {
+      jest.spyOn(userRepo, 'findOne').mockResolvedValue(null);
+      await expect(service.refreshToken('invalid')).rejects.toThrow(UnauthorizedException);
+    });
 
-    await expect(
-      service.resetPassword({ token: 'expired-token', newPassword: 'newpass123' })
-    ).rejects.toThrow(BadRequestException);
+    it('should throw UnauthorizedException if refresh token is tampered', async () => {
+      jest.spyOn(jwtService, 'verify').mockImplementation(() => {
+        throw new Error();
+      });
+
+      await expect(service.refreshToken('bad-token')).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  describe('logout', () => {
+    it('should clear refresh token on logout', async () => {
+      const result = await service.logout('refresh-token');
+      expect(result).toEqual({ message: 'Successfully logged out' });
+      expect(userRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ refreshToken: null })
+      );
+    });
+
+    it('should throw BadRequestException if no token', async () => {
+      await expect(service.logout('')).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw UnauthorizedException for invalid token', async () => {
+      jest.spyOn(userRepo, 'findOne').mockResolvedValue(null);
+      await expect(service.logout('invalid')).rejects.toThrow(UnauthorizedException);
+    });
   });
 });

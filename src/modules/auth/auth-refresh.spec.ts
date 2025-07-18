@@ -8,18 +8,18 @@ import { Repository } from 'typeorm';
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+
 const mockUser: User = {
   id: '1',
   email: 'admin@company.com',
   password: bcrypt.hashSync('123456', 10),
   role: UserRole.ADMIN,
-  tenantId: 1,
+  tenantId: '1', 
   resetToken: 'valid-token',
   resetTokenExpiry: new Date(Date.now() + 60000),
   refreshToken: 'refresh-token',
   name: 'Test User',
-  companyId: 'company-uuid',
-  company: null,
+  company: null, //
 };
 
 const mockUserRepository = () => ({
