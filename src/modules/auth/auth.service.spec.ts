@@ -11,16 +11,16 @@ import { ConfigService } from '@nestjs/config';
 const mockPassword = bcrypt.hashSync('123456', 10);
 
 const mockUser: User = {
-  id: '1',
+  id: '1', 
   email: 'admin@company.com',
   password: mockPassword,
   role: UserRole.ADMIN,
-  tenantId: 1,
+  tenantId: '11111111-1111-1111-1111-111111111111', 
   resetToken: '',
   resetTokenExpiry: new Date(),
   refreshToken: '',
   name: 'Admin User',
-  companyId: 'some-company-uuid',
+
   company: null,
 };
 
