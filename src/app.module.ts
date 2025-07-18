@@ -13,10 +13,10 @@ import { AppService } from './app.service';
 
 @Module({
   imports: [
-    // 1️⃣ Global .env configuration
+    
     ConfigModule.forRoot({ isGlobal: true }),
 
-    // 2️⃣ Database connection
+    
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: typeOrmConfig,
@@ -39,7 +39,7 @@ import { AppService } from './app.service';
       },
     }),
 
-    // 3️⃣ Feature modules
+    
     UserModule,
     AuthModule,
     DesignationModule,

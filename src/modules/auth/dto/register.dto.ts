@@ -1,32 +1,36 @@
-import { ApiProperty } from '@nestjs/swagger';  
-import { IsEmail, IsNotEmpty, IsString, IsUUID, IsEnum, IsNumber } from 'class-validator';  
+import { ApiProperty } from '@nestjs/swagger';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsString,
+  IsUUID,
+  IsEnum,
+} from 'class-validator';
+import { UserRole } from '../../../entities/user.entity';
 
-export class RegisterDto {  
-  @ApiProperty()  
-  @IsEmail()  
-  email: string;  
+export class RegisterDto {
+  @ApiProperty()
+  @IsEmail()
+  email: string;
 
-  @ApiProperty()  
-  @IsString()  
-  @IsNotEmpty()  
-  password: string;  
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  password: string;
 
-  @ApiProperty()  
-  @IsNumber()  
-  @IsNotEmpty()  
-  tenantId: number;  
+  @ApiProperty({ enum: UserRole })
+  @IsEnum(UserRole)
+  role: UserRole;
 
-  @ApiProperty({ enum: ['admin', 'staff'] })  
-  @IsEnum(['admin', 'staff'])  
-  role: 'admin' | 'staff';  
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  name: string;
 
-  @ApiProperty()  
-  @IsString()  
-  @IsNotEmpty()  
-  name: string;  
+  @ApiProperty()
+  @IsUUID()
+  @IsNotEmpty()
+  tenantId: string;
 
-  @ApiProperty()  
-  @IsUUID()  
-  @IsNotEmpty()  
-  companyId: string;  
-}  
+  
+}
