@@ -4,9 +4,16 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Enable CORS for your frontend
+  app.enableCors({
+    origin: 'http://localhost:5173', // allow your frontend
+    credentials: true, // only if you use cookies
+  });
+
   const config = new DocumentBuilder()
-    .setTitle('HRMS Auth API')
-    .setDescription('APIs for login, registration and tenant-based access')
+    .setTitle('HRMS Backend APIs')
+    .setDescription('APIs for login, registration and tenant-based access for Department and Designation')
     .setVersion('1.0')
     .addBearerAuth()
     .build();
