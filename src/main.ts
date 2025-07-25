@@ -7,7 +7,7 @@ async function bootstrap() {
 
   // Enable CORS for your frontend
   app.enableCors({
-    origin: 'http://localhost:5173', // allow your frontend
+    origin: '*',//Allow all Frontend Devices
     credentials: true, // only if you use cookies
   });
 
@@ -20,6 +20,6 @@ async function bootstrap() {
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
-  await app.listen(3000);
+  await app.listen(3000, '0.0.0.0');
 }
 bootstrap();
