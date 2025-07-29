@@ -2,9 +2,9 @@ import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import { Company } from './src/entities/company.entity';
 import { Department } from './src/entities/department.entity';
+import { Designation } from 'src/entities/designation.entity';
 import { User } from './src/entities/user.entity';
 import * as dotenv from 'dotenv';
-
 dotenv.config(); // Load environment variables
 
 export const AppDataSource = new DataSource({
@@ -14,7 +14,7 @@ export const AppDataSource = new DataSource({
   username: process.env.DB_USER,
   password: process.env.DB_PASS,
   database: process.env.DB_NAME,
-  entities: [Company, Department, User],  // Ensure all entities are listed correctly
+  entities: [Company, Department , Designation , User],            // or 'src/entities/**/*.ts'
   migrations: ['src/migrations/**/*.ts'],
   synchronize: false,
   logging: true,  // Set logging to true for debugging

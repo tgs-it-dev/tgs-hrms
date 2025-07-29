@@ -8,15 +8,6 @@ export class CreateDesignationDto {
   @MaxLength(100)
   title: string;
 
-  @ApiProperty({
-    example: 'Manages team and tasks',
-    required: false,
-    description: 'Description of the designation',
-  })
-  @IsOptional()
-  @IsString()
-  description?: string;
-
   @ApiProperty({ example: '6b99992a-d8ef-4c0c-91dc-2a23e391ac9c', description: 'Related department ID' })
   @IsNotEmpty()
   @IsUUID()

@@ -1,36 +1,40 @@
 import {
-  Entity,
-  PrimaryGeneratedColumn,
   Column,
-  ManyToOne,
   CreateDateColumn,
-  UpdateDateColumn,
+  Entity,
   Index,
   JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import { Department } from './department.entity';
+import { Company } from './company.entity';
 
-@Entity()
-@Index(['departmentId', 'title'], { unique: true }) 
+@Entity('designations')
+@Index(['departmentId', 'title'], { unique: true })      // ⬅️ unique per‑department
 export class Designation {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  @Column({ length: 120 })
+  title: string;
+
+  /* ─────────── Tenant (Company) ─────────── */
+  @Column({ type: 'uuid' })
+  tenantId: string;
+
+  @ManyToOne(() => Company, { onDelete: 'CASCADE', eager: false })
+  @JoinColumn({ name: 'tenantId' })
+  tenant: Company;
+
+  /* ─────────── Parent Department ─────────── */
   @Column({ type: 'uuid' })
   departmentId: string;
 
-  @ManyToOne(() => Department, (department) => department.designations, {
-    onDelete: 'CASCADE',
-    eager: false,
-  })
+  @ManyToOne(() => Department, { onDelete: 'CASCADE', eager: false })
   @JoinColumn({ name: 'departmentId' })
   department: Department;
-
-  @Column({ length: 100 })
-  title: string;
-
-  @Column({ type: 'text', nullable: true })
-  description?: string;
 
   @CreateDateColumn()
   createdAt: Date;

@@ -48,6 +48,7 @@ import { CompanyModule } from './modules/company/company.module';
     // Existing Modules
     UserModule,
     AuthModule,
+
     DepartmentModule,
     DesignationModule,
     EmployeeModule,

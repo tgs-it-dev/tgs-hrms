@@ -26,10 +26,22 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
+    // Check if user already exists with the same email
+    const existingUser = await this.userRepository.findOne({ 
+      where: { email: dto.email.toLowerCase() } 
+    });
+
+    if (existingUser) {
+      throw new BadRequestException({ 
+        field: 'email', 
+        message: 'User with this email already exists' 
+      });
+    }
+
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
     const user = this.userRepository.create({
-      email: dto.email,
+      email: dto.email.toLowerCase(), // Normalize email to lowercase
       password: hashedPassword,
       name: dto.name,
       role: dto.role as UserRole,
@@ -44,19 +56,22 @@ export class AuthService {
   }
 
   async validateUser(email: string, password: string) {
-    this.logger.log(`Login attempt for email: ${email}`);
-    const user = await this.userRepository.findOne({ where: { email } });
+     const normalizedEmail = email.toLowerCase();  // 👈 Normalize to lowercase
+    this.logger.log(`Login attempt for email: ${normalizedEmail}`);
+    const user = await this.userRepository.findOne({ where: { email : normalizedEmail } });
 
     if (!user) {
-      this.logger.warn(`Login failed: user not found for email: ${email}`);
-      throw new UnauthorizedException('Invalid credentials');
-    }
+    this.logger.warn(`Login failed: user not found for email: ${normalizedEmail}`);
+    // Use BadRequestException and include a field
+    throw new BadRequestException({ field: 'email', message: 'Email not found' });
+  }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      this.logger.warn(`Login failed: invalid password for email: ${email}`);
-      throw new UnauthorizedException('Invalid credentials');
-    }
+  const isPasswordValid = await bcrypt.compare(password, user.password);
+  if (!isPasswordValid) {
+    this.logger.warn(`Login failed: invalid password for email: ${normalizedEmail}`);
+    // Use BadRequestException and include a field
+    throw new BadRequestException({ field: 'password', message: 'Incorrect password' });
+  }
 
     const payload = {
       email: user.email,
@@ -78,7 +93,7 @@ export class AuthService {
     user.refreshToken = refreshToken;
     await this.userRepository.save(user);
 
-    this.logger.log(`Login successful for email: ${email}`);
+    this.logger.log(`Login successful for email: ${normalizedEmail}`);
     return {
       accessToken,
       refreshToken,

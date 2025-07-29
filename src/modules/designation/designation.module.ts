@@ -8,6 +8,6 @@ import { DesignationController } from './designation.controller';
   imports: [TypeOrmModule.forFeature([Designation])],
   controllers: [DesignationController], 
   providers: [DesignationService],
-  exports: [DesignationService],
+  exports: [DesignationService],  
 })
 export class DesignationModule {}

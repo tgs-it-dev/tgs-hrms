@@ -18,12 +18,13 @@ export class DesignationService {
     private repo: Repository<Designation>,
   ) {}
 
-  async create(dto: CreateDesignationDto) {
+  async create(tenantId: string, dto: CreateDesignationDto) {
     
     const existing = await this.repo.findOne({
       where: {
         title: dto.title,
         departmentId: dto.departmentId,
+        tenantId: tenantId,
       },
     });
 
@@ -34,7 +35,7 @@ export class DesignationService {
     }
 
     try {
-      const designation = this.repo.create(dto);
+      const designation = this.repo.create({ ...dto, tenantId });
       return await this.repo.save(designation);
     } catch (err) {
       if (err instanceof QueryFailedError && (err as any).code === '23505') {

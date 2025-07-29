@@ -30,6 +30,29 @@ export class AuthController {
   @Post('register')
   @ApiBody({ type: RegisterDto })
   @ApiResponse({ status: 201, description: 'User registered successfully' })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Missing Fields Error or User already exists',
+    schema: {
+      example: {
+        message: 'Missing Fields Error',
+        errors: [
+          { field: 'email', message: 'Email is required' },
+          { field: 'password', message: 'Password is required' }
+        ]
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'User already exists',
+    schema: {
+      example: {
+        field: 'email',
+        message: 'User with this email already exists'
+      }
+    }
+  })
   async register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
@@ -38,7 +61,39 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiBody({ type: LoginDto })
   @ApiResponse({ status: 200, description: 'Login successful' })
-  @ApiResponse({ status:  401, description: 'Invalid credentials' })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Missing Fields Error',
+    schema: {
+      example: {
+        message: 'Missing Fields Error',
+        errors: [
+          { field: 'email', message: 'Email is required' },
+          { field: 'password', message: 'Password is required' }
+        ]
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Email not found',
+    schema: {
+      example: {
+        field: 'email',
+        message: 'Email not found'
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Invalid password',
+    schema: {
+      example: {
+        field: 'password',
+        message: 'Incorrect password'
+      }
+    }
+  })
   async login(@Body() body: LoginDto) {
     return this.authService.validateUser(body.email, body.password);
   }
