@@ -1,8 +1,6 @@
-// modules/department/department.module.ts
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Department } from '../../entities/department.entity';
-// import { Company } from 'src/entities/company.entity';
 import { Company } from '../../entities/company.entity';
 
 import { DepartmentController } from './department.controller';

@@ -5,14 +5,6 @@ import { RolesGuard } from '../../guards/roles.guard';
 import { TenantGuard } from '../../guards/tenant.guard';
 import { Roles } from '../../decorators/roles.decorator';
 
-/**
- * UserController exposes endpoints for user management.
- *
- * Security:
- * - Protected by JwtAuthGuard, RolesGuard, and TenantGuard to ensure only authenticated,
- *   authorized, and tenant-matching users can access endpoints.
- * - @Roles('admin') restricts access to admin users only.
- */
 @Controller('users')
 export class UserController {
   constructor(private readonly userService: UserService) {}

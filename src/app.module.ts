@@ -45,6 +45,7 @@ import { AppService } from './app.service';
     
     UserModule,
     AuthModule,
+
     DepartmentModule,
     DesignationModule, 
         EmployeeModule, 

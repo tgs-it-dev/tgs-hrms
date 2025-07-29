@@ -22,6 +22,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { TenantGuard } from '../../common/guards/company.guard';
+import { TenantId } from '../../common/decorators/company.deorator';
 
 @ApiTags('Designations')
 @ApiBearerAuth()
@@ -45,8 +46,8 @@ export class DesignationController {
       },
     },
   })
-  async create(@Body() dto: CreateDesignationDto) {
-    return this.service.create(dto);
+  async create(@TenantId() tenantId: string, @Body() dto: CreateDesignationDto) {
+    return this.service.create(tenantId, dto);
   }
 
   @Put(':id')
