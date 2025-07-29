@@ -5,12 +5,15 @@ import { typeOrmConfig } from './config/typeorm.config';
 import { UserModule } from './modules/user/user.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { DepartmentModule } from './modules/department/department.module';
-import { DesignationModule } from './modules/designation/designation.module'; 
-import { EmployeeModule } from './modules/auth/employee/employee.module'; 
+import { DesignationModule } from './modules/designation/designation.module';
+import { EmployeeModule } from './modules/auth/employee/employee.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { JwtModule } from '@nestjs/jwt';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+
+// 👇 Import your CompanyModule here
+import { CompanyModule } from './modules/company/company.module';
 
 @Module({
   imports: [
@@ -42,12 +45,15 @@ import { AppService } from './app.service';
       },
     }),
 
-    
+    // Existing Modules
     UserModule,
     AuthModule,
     DepartmentModule,
-    DesignationModule, 
-        EmployeeModule, 
+    DesignationModule,
+    EmployeeModule,
+
+    // ✅ Add CompanyModule here
+    CompanyModule,
   ],
   controllers: [AppController],
   providers: [AppService],
