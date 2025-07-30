@@ -9,15 +9,20 @@ describe('DesignationService', () => {
   let service: DesignationService;
   let repo: Repository<Designation>;
 
-  const departmentId = 'dept-uuid';
+  // Use proper UUID format
+  const tenantId = '550e8400-e29b-41d4-a716-446655440000';
+  const departmentId = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+  const designationId = '6ba7b811-9dad-11d1-80b4-00c04fd430c8';
+  
   const mockDesignation: Designation = {
-    id: 'desig-uuid',
+    id: designationId,
     departmentId,
+    tenantId,
     title: 'Manager',
-    description: 'Head of team',
     createdAt: new Date(),
     updatedAt: new Date(),
     department: {} as any,
+    tenant: {} as any,
   };
 
   beforeEach(async () => {
@@ -47,10 +52,9 @@ describe('DesignationService', () => {
     jest.spyOn(repo, 'create').mockReturnValue(mockDesignation);
     jest.spyOn(repo, 'save').mockResolvedValue(mockDesignation);
 
-    const result = await service.create({
+    const result = await service.create(tenantId, {
       title: 'Manager',
       departmentId,
-      description: 'Head of team',
     });
 
     expect(result).toEqual(mockDesignation);
@@ -60,10 +64,9 @@ describe('DesignationService', () => {
     jest.spyOn(repo, 'findOne').mockResolvedValue(mockDesignation);
 
     await expect(
-      service.create({
+      service.create(tenantId, {
         title: 'Manager',
         departmentId,
-        description: '',
       }),
     ).rejects.toThrow(ConflictException);
   });
@@ -73,17 +76,17 @@ describe('DesignationService', () => {
     jest.spyOn(repo, 'findOne').mockResolvedValue(null);
     jest.spyOn(repo, 'save').mockResolvedValue({ ...mockDesignation, title: 'Lead' });
 
-    const result = await service.update('desig-uuid', { title: 'Lead' });
+    const result = await service.update(designationId, { title: 'Lead' });
     expect(result.title).toBe('Lead');
   });
 
   it('should throw ConflictException when updating to duplicate title', async () => {
-    const anotherDesignation = { ...mockDesignation, id: 'another-id' };
+    const anotherDesignation = { ...mockDesignation, id: '6ba7b812-9dad-11d1-80b4-00c04fd430c8' };
     jest.spyOn(repo, 'findOneBy').mockResolvedValue(mockDesignation);
     jest.spyOn(repo, 'findOne').mockResolvedValue(anotherDesignation);
 
     await expect(
-      service.update('desig-uuid', { title: 'Manager' }),
+      service.update(designationId, { title: 'Manager' }),
     ).rejects.toThrow(ConflictException);
   });
 
@@ -91,13 +94,13 @@ describe('DesignationService', () => {
     jest.spyOn(repo, 'findOneBy').mockResolvedValue(mockDesignation);
     jest.spyOn(repo, 'delete').mockResolvedValue({ affected: 1 } as any);
 
-    const result = await service.remove('desig-uuid');
-    expect(result).toEqual({ deleted: true, id: 'desig-uuid' });
+    const result = await service.remove(designationId);
+    expect(result).toEqual({ deleted: true, id: designationId });
   });
 
   it('should throw 404 if deleting non-existent designation', async () => {
     jest.spyOn(repo, 'findOneBy').mockResolvedValue(null);
 
-    await expect(service.remove('bad-id')).rejects.toThrow(NotFoundException);
+    await expect(service.remove('6ba7b813-9dad-11d1-80b4-00c04fd430c8')).rejects.toThrow(NotFoundException);
   });
 });

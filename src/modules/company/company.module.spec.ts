@@ -5,6 +5,7 @@ import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { NotFoundException } from '@nestjs/common';
 import { Company } from '../../entities/company.entity';
+import { UserRole } from '../../entities/user.entity';
 
 describe('CompanyController', () => {
   let controller: CompanyController;
@@ -45,9 +46,10 @@ describe('CompanyController', () => {
   describe('create', () => {
     it('should create a company', async () => {
       const dto: CreateCompanyDto = { name: 'ABC Ltd' };
-      const result = await controller.create(dto);
+      const mockReq = { user: { id: 'user-1', role: UserRole.ADMIN } };
+      const result = await controller.create(dto, mockReq);
       expect(result).toEqual(mockCompany);
-      expect(service.create).toHaveBeenCalledWith(dto);
+      expect(service.create).toHaveBeenCalledWith(dto, mockReq.user);
     });
   });
 
@@ -76,29 +78,33 @@ describe('CompanyController', () => {
   describe('update', () => {
     it('should update a company', async () => {
       const dto: UpdateCompanyDto = { name: 'Updated Name' };
-      const result = await controller.update('uuid-company-id', dto);
+      const mockReq = { user: { id: 'user-1', role: UserRole.ADMIN } };
+      const result = await controller.update('uuid-company-id', dto, mockReq);
       expect(result).toEqual({ ...mockCompany, name: 'Updated Name' });
     });
 
     it('should throw if company to update is not found', async () => {
       jest.spyOn(service, 'update').mockRejectedValueOnce(new NotFoundException('Company not found'));
+      const mockReq = { user: { id: 'user-1', role: UserRole.ADMIN } };
 
       await expect(
-        controller.update('not-found-id', { name: 'New' }),
+        controller.update('not-found-id', { name: 'New' }, mockReq),
       ).rejects.toThrow(new NotFoundException('Company not found'));
     });
   });
 
   describe('remove', () => {
     it('should remove a company', async () => {
-      const result = await controller.remove('uuid-company-id');
+      const mockReq = { user: { id: 'user-1', role: UserRole.ADMIN } };
+      const result = await controller.remove('uuid-company-id', mockReq);
       expect(result).toEqual(mockCompany);
     });
 
     it('should throw if company to delete is not found', async () => {
       jest.spyOn(service, 'remove').mockRejectedValueOnce(new NotFoundException('Company not found'));
+      const mockReq = { user: { id: 'user-1', role: UserRole.ADMIN } };
 
-      await expect(controller.remove('not-found-id')).rejects.toThrow(
+      await expect(controller.remove('not-found-id', mockReq)).rejects.toThrow(
         new NotFoundException('Company not found'),
       );
     });

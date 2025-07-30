@@ -7,16 +7,19 @@ import {
   Post,
   Put,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
   ApiResponse,
   ApiTags,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { EmployeeService } from './employee.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
+import { EmployeeQueryDto } from './dto/employee-query.dto';
 
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
@@ -36,7 +39,30 @@ export class EmployeeController {
   @Roles('admin')
   @ApiOperation({ summary: 'Create employee' })
   @ApiResponse({ status: 201, description: 'Employee created.' })
-  @ApiResponse({ status: 400, description: 'Invalid department or designation.' })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Invalid department, designation, or missing required fields.',
+    schema: {
+      example: {
+        message: 'Missing Fields Error',
+        errors: [
+          { field: 'email', message: 'Email is required' },
+          { field: 'name', message: 'Name is required' }
+        ]
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 409, 
+    description: 'Employee with this email already exists.',
+    schema: {
+      example: {
+        message: 'Employee with this email already exists in this tenant.',
+        error: 'Conflict',
+        statusCode: 409
+      }
+    }
+  })
   async create(
     @TenantId() tenantId: string,
     @Body() dto: CreateEmployeeDto,
@@ -48,8 +74,40 @@ export class EmployeeController {
   @Roles('admin')
   @ApiOperation({ summary: 'Update employee' })
   @ApiResponse({ status: 200, description: 'Employee updated.' })
-  @ApiResponse({ status: 400, description: 'Invalid department or designation.' })
-  @ApiResponse({ status: 404, description: 'Employee not found.' })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Invalid department, designation, or missing required fields.',
+    schema: {
+      example: {
+        message: 'Missing Fields Error',
+        errors: [
+          { field: 'email', message: 'Please provide a valid email address' }
+        ]
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 404, 
+    description: 'Employee not found.',
+    schema: {
+      example: {
+        message: 'Employee not found',
+        error: 'Not Found',
+        statusCode: 404
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 409, 
+    description: 'Employee with this email already exists.',
+    schema: {
+      example: {
+        message: 'Employee with this email already exists in this tenant.',
+        error: 'Conflict',
+        statusCode: 409
+      }
+    }
+  })
   async update(
     @TenantId() tenantId: string,
     @Param('id') id: string,
@@ -59,10 +117,36 @@ export class EmployeeController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List all employees for tenant' })
+  @ApiOperation({ summary: 'List all employees for tenant with optional filters' })
+  @ApiQuery({ 
+    name: 'department_id', 
+    required: false, 
+    description: 'Filter employees by department ID',
+    example: '3a275957-c811-4ebb-b9f1-481bd96e47d1'
+  })
+  @ApiQuery({ 
+    name: 'designation_id', 
+    required: false, 
+    description: 'Filter employees by designation ID',
+    example: '6b99992a-d8ef-4c0c-91dc-2a23e391ac9c'
+  })
   @ApiResponse({ status: 200, description: 'List of employees.' })
-  async findAll(@TenantId() tenantId: string) {
-    return this.service.findAll(tenantId);
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Invalid department_id or designation_id',
+    schema: {
+      example: {
+        message: 'Invalid department for this tenant.',
+        error: 'Bad Request',
+        statusCode: 400
+      }
+    }
+  })
+  async findAll(
+    @TenantId() tenantId: string,
+    @Query() query: EmployeeQueryDto
+  ) {
+    return this.service.findAll(tenantId, query);
   }
 
   @Get(':id')
