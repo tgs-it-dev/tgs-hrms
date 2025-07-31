@@ -6,7 +6,7 @@ import { UserModule } from './modules/user/user.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { DepartmentModule } from './modules/department/department.module';
 import { DesignationModule } from './modules/designation/designation.module';
-import { EmployeeModule } from './modules/auth/employee/employee.module';
+import { EmployeeModule } from './modules/employee/employee.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { JwtModule } from '@nestjs/jwt';
 import { AppController } from './app.controller';

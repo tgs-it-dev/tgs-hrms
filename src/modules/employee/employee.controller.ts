@@ -21,11 +21,11 @@ import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { EmployeeQueryDto } from './dto/employee-query.dto';
 
-import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../../common/guards/roles.guard';
-import { Roles } from '../../../common/decorators/roles.decorator';
-import { TenantGuard } from '../../../common/guards/company.guard';
-import { TenantId } from '../../../common/decorators/company.deorator';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { TenantGuard } from '../../common/guards/company.guard';
+import { TenantId } from '../../common/decorators/company.deorator';
 
 
 @ApiTags('Employees')

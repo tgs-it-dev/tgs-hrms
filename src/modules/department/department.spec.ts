@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { DepartmentService } from '../department/department.service';
+import { DepartmentService } from './department.service';
 import { Department } from '../../entities/department.entity';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 

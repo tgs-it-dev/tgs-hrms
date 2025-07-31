@@ -6,9 +6,9 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, QueryFailedError, Not } from 'typeorm';
-import { Employee } from '../../../entities/employee.entity';
-import { Department } from '../../../entities/department.entity';
-import { Designation } from '../../../entities/designation.entity';
+import { Employee } from '../../entities/employee.entity';
+import { Department } from '../../entities/department.entity';
+import { Designation } from '../../entities/designation.entity';
 
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';

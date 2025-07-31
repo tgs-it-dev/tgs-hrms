@@ -1,12 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { EmployeeService } from '../../../src/modules/auth/employee/employee.service';
+import { EmployeeService } from './employee.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Employee } from '../../../src/entities/employee.entity';
-import { Department } from '../../../src/entities/department.entity';
-import { Designation } from '../../../src/entities/designation.entity';
-import { EmployeeQueryDto } from '../../../src/modules/auth/employee/dto/employee-query.dto';
-import { CreateEmployeeDto } from '../../../src/modules/auth/employee/dto/create-employee.dto';
-import { UpdateEmployeeDto } from '../../../src/modules/auth/employee/dto/update-employee.dto';
+import { Employee } from '../../entities/employee.entity';
+import { Department } from '../../entities/department.entity';
+import { Designation } from '../../entities/designation.entity';
+import { EmployeeQueryDto } from './dto/employee-query.dto';
+import { CreateEmployeeDto } from './dto/create-employee.dto';
+import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { ConflictException } from '@nestjs/common';
 import { Not } from 'typeorm';
 
