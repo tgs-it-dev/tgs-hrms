@@ -27,8 +27,10 @@ export class Employee {
   tenant: Company;
 
   @Column({ length: 100 })
-  name: string;a
-  email: string;
+  name: string;
+
+  @Column({ length: 100, nullable: true })
+  email?: string; 
 
   @Column({ length: 20, nullable: true })
   phone?: string;
