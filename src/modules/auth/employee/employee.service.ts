@@ -13,7 +13,6 @@ import { Designation } from '../../../entities/designation.entity';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 
-
 @Injectable()
 export class EmployeeService {
   constructor(
@@ -60,11 +59,21 @@ export class EmployeeService {
   }
 
   async findAll(tenantId: string) {
-    return this.employeeRepo.find({
+    const employees = await this.employeeRepo.find({
       where: { tenantId },
       relations: ['department', 'designation'],
       order: { createdAt: 'DESC' },
     });
+
+    return employees.map((employee) => ({
+      ...employee,
+      department: employee.department
+        ? { id: employee.department.id, name: employee.department.name }
+        : null,
+      designation: employee.designation
+        ? { id: employee.designation.id, title: employee.designation.title }
+        : null,
+    }));
   }
 
   async findOne(tenantId: string, id: string) {
@@ -73,7 +82,16 @@ export class EmployeeService {
       relations: ['department', 'designation'],
     });
     if (!employee) throw new NotFoundException('Employee not found');
-    return employee;
+
+    return {
+      ...employee,
+      department: employee.department
+        ? { id: employee.department.id, name: employee.department.name }
+        : null,
+      designation: employee.designation
+        ? { id: employee.designation.id, title: employee.designation.title }
+        : null,
+    };
   }
 
   async update(tenantId: string, id: string, dto: UpdateEmployeeDto) {
@@ -92,7 +110,7 @@ export class EmployeeService {
   }
 
   async remove(tenantId: string, id: string): Promise<{ deleted: true; id: string }> {
-    await this.findOne(tenantId, id); 
+    await this.findOne(tenantId, id);
     await this.employeeRepo.delete({ id, tenantId });
     return { deleted: true, id };
   }

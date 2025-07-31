@@ -13,17 +13,19 @@ import {
   ApiOperation,
   ApiResponse,
   ApiTags,
+  ApiOkResponse,
 } from '@nestjs/swagger';
+
 import { EmployeeService } from './employee.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
-import { Roles } from '../../../common/decorators/roles.decorator';
 import { TenantGuard } from '../../../common/guards/company.guard';
-import { TenantId } from '../../../common/decorators/company.deorator';
 
+import { Roles } from '../../../common/decorators/roles.decorator';
+import { TenantId } from '../../../common/decorators/company.deorator';
 
 @ApiTags('Employees')
 @ApiBearerAuth()
@@ -60,16 +62,80 @@ export class EmployeeController {
 
   @Get()
   @ApiOperation({ summary: 'List all employees for tenant' })
-  @ApiResponse({ status: 200, description: 'List of employees.' })
+  @ApiOkResponse({
+    description: 'List of employees with department and designation.',
+    schema: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          name: { type: 'string' },
+          email: { type: 'string' },
+          phone: { type: 'string', nullable: true },
+          department: {
+            type: 'object',
+            nullable: true,
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              name: { type: 'string' },
+            },
+          },
+          designation: {
+            type: 'object',
+            nullable: true,
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              title: { type: 'string' },
+            },
+          },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' },
+        },
+      },
+    },
+  })
   async findAll(@TenantId() tenantId: string) {
     return this.service.findAll(tenantId);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get single employee by ID' })
-  @ApiResponse({ status: 200, description: 'Employee found.' })
+  @ApiOkResponse({
+    description: 'Employee found with department and designation.',
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', format: 'uuid' },
+        name: { type: 'string' },
+        email: { type: 'string' },
+        phone: { type: 'string', nullable: true },
+        department: {
+          type: 'object',
+          nullable: true,
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            name: { type: 'string' },
+          },
+        },
+        designation: {
+          type: 'object',
+          nullable: true,
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            title: { type: 'string' },
+          },
+        },
+        createdAt: { type: 'string', format: 'date-time' },
+        updatedAt: { type: 'string', format: 'date-time' },
+      },
+    },
+  })
   @ApiResponse({ status: 404, description: 'Employee not found.' })
-  async findOne(@TenantId() tenantId: string, @Param('id') id: string) {
+  async findOne(
+    @TenantId() tenantId: string,
+    @Param('id') id: string,
+  ) {
     return this.service.findOne(tenantId, id);
   }
 
@@ -78,7 +144,10 @@ export class EmployeeController {
   @ApiOperation({ summary: 'Delete employee by ID' })
   @ApiResponse({ status: 200, description: 'Employee deleted.' })
   @ApiResponse({ status: 404, description: 'Employee not found.' })
-  async remove(@TenantId() tenantId: string, @Param('id') id: string) {
+  async remove(
+    @TenantId() tenantId: string,
+    @Param('id') id: string,
+  ) {
     return this.service.remove(tenantId, id);
   }
 }

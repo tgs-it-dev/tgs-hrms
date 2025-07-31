@@ -61,34 +61,62 @@ describe('EmployeeService', () => {
     jest.clearAllMocks();
   });
 
-  it('should throw error if department not found for tenant', async () => {
-    mockDepartmentRepo.findOneBy.mockResolvedValue(undefined);
+  describe('create()', () => {
+    it('should throw an error if department not found for tenant', async () => {
+      mockDepartmentRepo.findOneBy.mockResolvedValue(undefined);
 
-    await expect(service.create(tenantId, createDto)).rejects.toThrow(
-      'Invalid department for this tenant.',
-    );
-  });
+      await expect(service.create(tenantId, createDto)).rejects.toThrow(
+        'Invalid department for this tenant.',
+      );
+      expect(mockDepartmentRepo.findOneBy).toHaveBeenCalledWith({
+        id: createDto.departmentId,
+        tenantId,
+      });
+    });
 
-  it('should throw error if designation does not belong to department', async () => {
-    mockDepartmentRepo.findOneBy.mockResolvedValue({ id: 'dept-uuid', tenantId });
-    mockDesignationRepo.findOneBy.mockResolvedValue(undefined);
+    it('should throw an error if designation does not belong to department', async () => {
+      mockDepartmentRepo.findOneBy.mockResolvedValue({
+        id: createDto.departmentId,
+        tenantId,
+      });
 
-    await expect(service.create(tenantId, createDto)).rejects.toThrow(
-      'Invalid designation for the selected department.',
-    );
-  });
+      mockDesignationRepo.findOneBy.mockResolvedValue(undefined);
 
-  it('should create employee successfully if validations pass', async () => {
-    mockDepartmentRepo.findOneBy.mockResolvedValue({ id: 'dept-uuid', tenantId });
-    mockDesignationRepo.findOneBy.mockResolvedValue({ id: 'desig-uuid', departmentId: 'dept-uuid' });
+      await expect(service.create(tenantId, createDto)).rejects.toThrow(
+        'Invalid designation for the selected department.',
+      );
 
-    const mockEmployee = { id: 'emp-uuid', ...createDto, tenantId };
-    mockEmployeeRepo.create.mockReturnValue(mockEmployee);
-    mockEmployeeRepo.save.mockResolvedValue(mockEmployee);
+      expect(mockDesignationRepo.findOneBy).toHaveBeenCalledWith({
+        id: createDto.designationId,
+        departmentId: createDto.departmentId,
+      });
+    });
 
-    const result = await service.create(tenantId, createDto);
-    expect(result).toEqual(mockEmployee);
-    expect(mockEmployeeRepo.create).toHaveBeenCalledWith({ ...createDto, tenantId });
-    expect(mockEmployeeRepo.save).toHaveBeenCalledWith(mockEmployee);
+    it('should create employee successfully if validations pass', async () => {
+      const mockDepartment = { id: createDto.departmentId, tenantId };
+      const mockDesignation = {
+        id: createDto.designationId,
+        departmentId: createDto.departmentId,
+      };
+      const mockEmployee = {
+        id: 'emp-uuid',
+        ...createDto,
+        tenantId,
+      };
+
+      mockDepartmentRepo.findOneBy.mockResolvedValue(mockDepartment);
+      mockDesignationRepo.findOneBy.mockResolvedValue(mockDesignation);
+      mockEmployeeRepo.create.mockReturnValue(mockEmployee);
+      mockEmployeeRepo.save.mockResolvedValue(mockEmployee);
+
+      const result = await service.create(tenantId, createDto);
+
+      expect(result).toEqual(mockEmployee);
+      expect(mockEmployeeRepo.create).toHaveBeenCalledWith({
+        ...createDto,
+        tenantId,
+      });
+      expect(mockEmployeeRepo.save).toHaveBeenCalledWith(mockEmployee);
+    });
   });
 });

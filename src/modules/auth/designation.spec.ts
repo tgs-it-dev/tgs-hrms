@@ -14,10 +14,11 @@ describe('DesignationService', () => {
     id: 'desig-uuid',
     departmentId,
     title: 'Manager',
-    description: 'Head of team',
+    tenantId: 'tenant-uuid',
     createdAt: new Date(),
     updatedAt: new Date(),
     department: {} as any,
+    tenant: {} as any,
   };
 
   beforeEach(async () => {
@@ -47,10 +48,9 @@ describe('DesignationService', () => {
     jest.spyOn(repo, 'create').mockReturnValue(mockDesignation);
     jest.spyOn(repo, 'save').mockResolvedValue(mockDesignation);
 
-    const result = await service.create({
+    const result = await service.create('tenant-uuid', {
       title: 'Manager',
       departmentId,
-      description: 'Head of team',
     });
 
     expect(result).toEqual(mockDesignation);
@@ -60,10 +60,9 @@ describe('DesignationService', () => {
     jest.spyOn(repo, 'findOne').mockResolvedValue(mockDesignation);
 
     await expect(
-      service.create({
+      service.create('tenant-uuid', {
         title: 'Manager',
         departmentId,
-        description: '',
       }),
     ).rejects.toThrow(ConflictException);
   });
