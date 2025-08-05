@@ -11,5 +11,5 @@ export class CreateDesignationDto {
   @ApiProperty({ example: '6b99992a-d8ef-4c0c-91dc-2a23e391ac9c', description: 'Related department ID' })
   @IsNotEmpty()
   @IsUUID()
-  departmentId: string;
+  department_id: string;
 }

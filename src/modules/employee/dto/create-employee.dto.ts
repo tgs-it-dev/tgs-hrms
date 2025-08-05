@@ -1,29 +1,20 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsUUID, IsEmail, IsNotEmpty } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsUUID, IsNotEmpty } from 'class-validator';
 
 export class CreateEmployeeDto {
-  @ApiProperty({ example: 'John Doe', description: 'Employee full name' })
-  @IsString({ message: 'Name must be a string' })
-  @IsNotEmpty({ message: 'Name is required' })
-  name: string;
+  @ApiProperty({ 
+    description: 'User UUID to be assigned as employee',
+    example: '550e8400-e29b-41d4-a716-446655440000'
+  })
+  @IsUUID('4', { message: 'userId must be a valid UUID' })
+  @IsNotEmpty({ message: 'userId is required' })
+  user_id: string;
 
-  @ApiProperty({ example: 'john.doe@company.com', description: 'Employee email address' })
-  @IsEmail({}, { message: 'Please provide a valid email address' })
-  @IsNotEmpty({ message: 'Email is required' })
-  email: string;
-
-  @ApiPropertyOptional({ example: '+1234567890', description: 'Employee phone number' })
-  @IsString({ message: 'Phone must be a string' })
-  @IsOptional()
-  phone?: string;
-
-  @ApiPropertyOptional({ description: 'Department UUID' })
-  @IsUUID('4', { message: 'departmentId must be a valid UUID' })
-  @IsOptional()
-  departmentId?: string;
-
-  @ApiPropertyOptional({ description: 'Designation UUID' })
+  @ApiProperty({ 
+    description: 'Designation UUID for the employee',
+    example: '6b99992a-d8ef-4c0c-91dc-2a23e391ac9c'
+  })
   @IsUUID('4', { message: 'designationId must be a valid UUID' })
-  @IsOptional()
-  designationId?: string;
+  @IsNotEmpty({ message: 'designationId is required' })
+  designation_id: string;
 }

@@ -2,49 +2,56 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
+  CreateDateColumn,
+  UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  OneToMany,
 } from 'typeorm';
-import { Company } from './company.entity';
+import { Tenant } from './tenant.entity';
+import { Role } from './role.entity';
+import { Employee } from './employee.entity';
 
-export enum UserRole {
-  ADMIN = 'admin',
-  USER = 'user',
-  STAFF = 'staff',
-}
-
-@Entity()
+@Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ unique: true })
+  @Column({ type: 'varchar' })
   email: string;
 
-  @Column()
+  @Column({ type: 'varchar' })
+  phone: string;
+
+  @Column({ type: 'varchar' })
   password: string;
 
-  
+  @Column({ type: 'varchar' })
+  first_name: string;
 
-  @Column({ type: 'text', nullable: true })
-  refreshToken: string | null;
+  @Column({ type: 'varchar' })
+  last_name: string;
 
-  @Column({ type: 'text', nullable: true })
-  resetToken: string | null;
+  @Column({ type: 'uuid' })
+  role_id: string;
 
-  @Column({ type: 'timestamptz', nullable: true })
-  resetTokenExpiry: Date | null;
+  @Column({ type: 'uuid' })
+  tenant_id: string;
 
-  @Column()
-  name: string;
+  @CreateDateColumn()
+  created_at: Date;
 
-  @Column({ type: 'enum', enum: UserRole, default: UserRole.STAFF })
-  role: UserRole;
+  @UpdateDateColumn()
+  updated_at: Date;
 
-  @Column({ name: 'company_id', type: 'uuid', nullable: true })
-  tenantId: string | null;
+  @ManyToOne(() => Role, (role) => role.users, { nullable: false })
+  @JoinColumn({ name: 'role_id' })
+  role: Role;
 
-  @ManyToOne(() => Company, { eager: false, onDelete: 'CASCADE', nullable: true })
-  @JoinColumn({ name: 'company_id' })
-  company: Company | null;
+  @ManyToOne(() => Tenant, (tenant) => tenant.users, { nullable: false })
+  @JoinColumn({ name: 'tenant_id' })
+  tenant: Tenant;
+
+  @OneToMany(() => Employee, (employee) => employee.user)
+  employees: Employee[];
 }

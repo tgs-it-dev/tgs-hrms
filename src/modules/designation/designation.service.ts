@@ -1,30 +1,39 @@
 import {
+  BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
-  ConflictException,
-  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, QueryFailedError } from 'typeorm';
 import { Designation } from '../../entities/designation.entity';
+import { Department } from '../../entities/department.entity';
 import { CreateDesignationDto } from './dto/create-designation.dto';
 import { UpdateDesignationDto } from './dto/update-designation.dto';
-
 
 @Injectable()
 export class DesignationService {
   constructor(
     @InjectRepository(Designation)
-    private repo: Repository<Designation>,
+    private readonly designationRepo: Repository<Designation>,
+
+    @InjectRepository(Department)
+    private readonly departmentRepo: Repository<Department>,
   ) {}
 
   async create(tenantId: string, dto: CreateDesignationDto) {
-    
-    const existing = await this.repo.findOne({
+    const department = await this.departmentRepo.findOne({
+      where: { id: dto.department_id, tenant_id: tenantId },
+    });
+
+    if (!department) {
+      throw new BadRequestException('Invalid department for this tenant');
+    }
+
+    const existing = await this.designationRepo.findOne({
       where: {
         title: dto.title,
-        departmentId: dto.departmentId,
-        tenantId: tenantId,
+        department_id: dto.department_id,
       },
     });
 
@@ -35,34 +44,34 @@ export class DesignationService {
     }
 
     try {
-      const designation = this.repo.create({ ...dto, tenantId });
-      return await this.repo.save(designation);
+      const designation = this.designationRepo.create(dto);
+      return await this.designationRepo.save(designation);
     } catch (err) {
-      if (err instanceof QueryFailedError && (err as any).code === '23505') {
-        throw new ConflictException(
-          'Title must be unique within the department',
-        );
-      }
-      if (err instanceof QueryFailedError && (err as any).code === '23502') {
-        throw new BadRequestException('Missing required fields');
+      if (err instanceof QueryFailedError) {
+        const code = (err as any).code;
+        if (code === '23505') {
+          throw new ConflictException('Title must be unique within the department');
+        }
+        if (code === '23502') {
+          throw new BadRequestException('Missing required fields');
+        }
       }
       throw err;
     }
   }
 
   async update(id: string, dto: UpdateDesignationDto) {
-    const designation = await this.repo.findOneBy({ id });
+    const designation = await this.designationRepo.findOneBy({ id });
 
     if (!designation) {
       throw new NotFoundException('Designation not found.');
     }
 
-    
     if (dto.title && dto.title !== designation.title) {
-      const exists = await this.repo.findOne({
+      const exists = await this.designationRepo.findOne({
         where: {
           title: dto.title,
-          departmentId: designation.departmentId,
+          department_id: designation.department_id,
         },
       });
 
@@ -76,33 +85,33 @@ export class DesignationService {
     Object.assign(designation, dto);
 
     try {
-      return await this.repo.save(designation);
+      return await this.designationRepo.save(designation);
     } catch (err) {
       if (err instanceof QueryFailedError && (err as any).code === '23505') {
-        throw new ConflictException(
-          'Title must be unique within the department',
-        );
+        throw new ConflictException('Title must be unique within the department');
       }
       throw err;
     }
   }
 
-  async findAllByDepartment(departmentId: string) {
-    return await this.repo.find({
-      where: { departmentId },
-      order: { createdAt: 'DESC' },
+  async findAllByDepartment(department_id: string) {
+    return await this.designationRepo.find({
+      where: { department_id },
+      order: { created_at: 'DESC' },
     });
   }
 
   async findOne(id: string) {
-    const designation = await this.repo.findOneBy({ id });
-    if (!designation) throw new NotFoundException('Designation not found.');
+    const designation = await this.designationRepo.findOneBy({ id });
+    if (!designation) {
+      throw new NotFoundException('Designation not found.');
+    }
     return designation;
   }
 
   async remove(id: string): Promise<{ deleted: true; id: string }> {
-    await this.findOne(id); 
-    await this.repo.delete(id);
+    await this.findOne(id); // Ensure exists
+    await this.designationRepo.delete(id);
     return { deleted: true, id };
   }
 }

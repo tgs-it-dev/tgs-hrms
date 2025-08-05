@@ -7,9 +7,8 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, QueryFailedError, Not } from 'typeorm';
 import { Employee } from '../../entities/employee.entity';
-import { Department } from '../../entities/department.entity';
+import { User } from '../../entities/user.entity';
 import { Designation } from '../../entities/designation.entity';
-
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { EmployeeQueryDto } from './dto/employee-query.dto';
@@ -18,179 +17,132 @@ import { EmployeeQueryDto } from './dto/employee-query.dto';
 export class EmployeeService {
   constructor(
     @InjectRepository(Employee)
-    private employeeRepo: Repository<Employee>,
+    private readonly employeeRepo: Repository<Employee>,
 
-    @InjectRepository(Department)
-    private deptRepo: Repository<Department>,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
 
     @InjectRepository(Designation)
-    private designationRepo: Repository<Designation>,
+    private readonly designationRepo: Repository<Designation>,
   ) {}
 
-  async validateDepartment(departmentId: string, tenantId: string) {
-    const department = await this.deptRepo.findOneBy({ id: departmentId, tenantId });
-    if (!department) {
-      throw new BadRequestException('Invalid department for this tenant.');
+  private async validateUser(user_id: string, tenant_id: string): Promise<User> {
+    const user = await this.userRepo.findOneBy({ id: user_id, tenant_id });
+    if (!user) {
+      throw new BadRequestException('Invalid user for this tenant.');
     }
-    return department;
+    return user;
   }
 
-  async validateDesignation(designationId: string, departmentId: string) {
-    const designation = await this.designationRepo.findOneBy({ id: designationId, departmentId });
+  private async validateDesignation(designation_id: string, tenant_id: string): Promise<Designation> {
+    const designation = await this.designationRepo.findOne({
+      where: { id: designation_id },
+      relations: ['department'],
+    });
+
     if (!designation) {
-      throw new BadRequestException('Invalid designation for the selected department.');
+      throw new BadRequestException('Invalid designation ID');
     }
+
+    if (designation.department.tenant_id !== tenant_id) {
+      throw new BadRequestException('Designation does not belong to this tenant');
+    }
+
     return designation;
   }
 
-  async validateEmailUniqueness(email: string, tenantId: string, excludeId?: string) {
-    const normalizedEmail = email.toLowerCase();
-    
-    let existingEmployee;
-    if (excludeId) {
-      // Check for email uniqueness excluding the current employee
-      existingEmployee = await this.employeeRepo.findOne({
-        where: {
-          email: normalizedEmail,
-          tenantId,
-          id: Not(excludeId)
-        }
-      });
-    } else {
-      // Check for email uniqueness (for new employees)
-      existingEmployee = await this.employeeRepo.findOne({
-        where: {
-          email: normalizedEmail,
-          tenantId
-        }
-      });
-    }
-    
-    if (existingEmployee) {
-      throw new ConflictException('Employee with this email already exists in this tenant.');
+  private async ensureEmployeeIsUnique(user_id: string, tenant_id: string, exclude_id?: string) {
+    const employee = await this.employeeRepo.findOne({
+      where: exclude_id
+        ? { user_id, id: Not(exclude_id) }
+        : { user_id },
+      relations: ['user'],
+    });
+
+    if (employee && employee.user.tenant_id === tenant_id) {
+      throw new ConflictException('User is already an employee in this tenant.');
     }
   }
 
-  async create(tenantId: string, dto: CreateEmployeeDto) {
-    // Validate email uniqueness within tenant
-    await this.validateEmailUniqueness(dto.email, tenantId);
-
-    if (dto.departmentId) {
-      await this.validateDepartment(dto.departmentId, tenantId);
-    }
-    if (dto.designationId && dto.departmentId) {
-      await this.validateDesignation(dto.designationId, dto.departmentId);
-    }
+  async create(tenant_id: string, dto: CreateEmployeeDto) {
+    await this.validateUser(dto.user_id, tenant_id);
+    await this.validateDesignation(dto.designation_id, tenant_id);
+    await this.ensureEmployeeIsUnique(dto.user_id, tenant_id);
 
     const employee = this.employeeRepo.create({
-      ...dto,
-      email: dto.email.toLowerCase(), // Normalize email to lowercase
-      tenantId,
+      user_id: dto.user_id,
+      designation_id: dto.designation_id,
     });
 
     try {
       return await this.employeeRepo.save(employee);
     } catch (err) {
       if (err instanceof QueryFailedError && (err as any).code === '23505') {
-        throw new ConflictException('Employee with this email already exists.');
+        throw new ConflictException('Employee already exists.');
       }
       throw err;
     }
   }
 
-  async findAll(tenantId: string, query: EmployeeQueryDto) {
-    // Validate department_id if provided
-    if (query.department_id) {
-      await this.validateDepartment(query.department_id, tenantId);
-    }
-
-    // Validate designation_id if provided
+  async findAll(tenant_id: string, query: EmployeeQueryDto) {
     if (query.designation_id) {
-      const designation = await this.designationRepo.findOne({
-        where: { id: query.designation_id },
-        relations: ['department']
-      });
-      
-      if (!designation) {
-        throw new BadRequestException('Invalid designation ID');
-      }
-      
-      // Ensure designation belongs to the current tenant
-      if (designation.department.tenantId !== tenantId) {
-        throw new BadRequestException('Designation does not belong to this tenant');
-      }
+      await this.validateDesignation(query.designation_id, tenant_id);
     }
 
-    // Build where clause
-    const whereClause: any = { tenantId };
-
-    if (query.department_id) {
-      whereClause.departmentId = query.department_id;
-    }
-
+    const whereClause: any = {};
     if (query.designation_id) {
-      whereClause.designationId = query.designation_id;
+      whereClause.designation_id = query.designation_id;
     }
 
-    return this.employeeRepo.find({
+    const employees = await this.employeeRepo.find({
       where: whereClause,
-      relations: ['department', 'designation'],
-      order: { createdAt: 'DESC' },
+      relations: ['user', 'designation', 'designation.department'],
     });
+
+    return employees.filter((e) => e.user.tenant_id === tenant_id);
   }
 
-  async findOne(tenantId: string, id: string) {
+  async findOne(tenant_id: string, id: string) {
     const employee = await this.employeeRepo.findOne({
-      where: { id, tenantId },
-      relations: ['department', 'designation'],
+      where: { id },
+      relations: ['user', 'designation', 'designation.department'],
     });
-    if (!employee) throw new NotFoundException('Employee not found');
+
+    if (!employee || employee.user.tenant_id !== tenant_id) {
+      throw new NotFoundException('Employee not found');
+    }
+
     return employee;
   }
 
-  async update(tenantId: string, id: string, dto: UpdateEmployeeDto) {
-    const employee = await this.employeeRepo.findOneBy({ id, tenantId });
+  async update(tenant_id: string, id: string, dto: UpdateEmployeeDto) {
+    const employee = await this.employeeRepo.findOneBy({ id });
     if (!employee) throw new NotFoundException('Employee not found');
 
-    // Validate email uniqueness if email is being updated
-    if (dto.email && dto.email !== employee.email) {
-      await this.validateEmailUniqueness(dto.email, tenantId, id);
+    const user = await this.userRepo.findOneBy({ id: employee.user_id });
+    if (!user || user.tenant_id !== tenant_id) {
+      throw new NotFoundException('Employee not found');
     }
 
-    // Validate department if provided
-    if (dto.departmentId) {
-      await this.validateDepartment(dto.departmentId, tenantId);
-    }
-    
-    // Validate designation: either against new department or current employee department
-    if (dto.designationId) {
-      const departmentIdToUse = dto.departmentId || employee.departmentId;
-      if (departmentIdToUse) {
-        await this.validateDesignation(dto.designationId, departmentIdToUse);
-      }
+    if (dto.designation_id) {
+      await this.validateDesignation(dto.designation_id, tenant_id);
     }
 
-    // Apply updates after validation
     Object.assign(employee, dto);
-    
-    // Normalize email if it's being updated
-    if (dto.email) {
-      employee.email = dto.email.toLowerCase();
-    }
 
     try {
       return await this.employeeRepo.save(employee);
     } catch (err) {
       if (err instanceof QueryFailedError && (err as any).code === '23505') {
-        throw new ConflictException('Employee with this email already exists.');
+        throw new ConflictException('Employee already exists.');
       }
       throw err;
     }
   }
 
-  async remove(tenantId: string, id: string): Promise<{ deleted: true; id: string }> {
-    await this.findOne(tenantId, id); 
-    await this.employeeRepo.delete({ id, tenantId });
+  async remove(tenant_id: string, id: string): Promise<{ deleted: true; id: string }> {
+    await this.findOne(tenant_id, id);
+    await this.employeeRepo.delete(id);
     return { deleted: true, id };
   }
 }

@@ -37,27 +37,25 @@ export class EmployeeController {
 
   @Post()
   @Roles('admin')
-  @ApiOperation({ summary: 'Create employee' })
+  @ApiOperation({ summary: 'Create employee by assigning user to designation' })
   @ApiResponse({ status: 201, description: 'Employee created.' })
   @ApiResponse({ 
     status: 400, 
-    description: 'Invalid department, designation, or missing required fields.',
+    description: 'Invalid user or designation.',
     schema: {
       example: {
-        message: 'Missing Fields Error',
-        errors: [
-          { field: 'email', message: 'Email is required' },
-          { field: 'name', message: 'Name is required' }
-        ]
+        message: 'Invalid user for this tenant.',
+        error: 'Bad Request',
+        statusCode: 400
       }
     }
   })
   @ApiResponse({ 
     status: 409, 
-    description: 'Employee with this email already exists.',
+    description: 'User is already an employee in this tenant.',
     schema: {
       example: {
-        message: 'Employee with this email already exists in this tenant.',
+        message: 'User is already an employee in this tenant.',
         error: 'Conflict',
         statusCode: 409
       }
@@ -72,17 +70,16 @@ export class EmployeeController {
 
   @Put(':id')
   @Roles('admin')
-  @ApiOperation({ summary: 'Update employee' })
+  @ApiOperation({ summary: 'Update employee designation' })
   @ApiResponse({ status: 200, description: 'Employee updated.' })
   @ApiResponse({ 
     status: 400, 
-    description: 'Invalid department, designation, or missing required fields.',
+    description: 'Invalid designation.',
     schema: {
       example: {
-        message: 'Missing Fields Error',
-        errors: [
-          { field: 'email', message: 'Please provide a valid email address' }
-        ]
+        message: 'Invalid designation ID',
+        error: 'Bad Request',
+        statusCode: 400
       }
     }
   })
@@ -97,17 +94,6 @@ export class EmployeeController {
       }
     }
   })
-  @ApiResponse({ 
-    status: 409, 
-    description: 'Employee with this email already exists.',
-    schema: {
-      example: {
-        message: 'Employee with this email already exists in this tenant.',
-        error: 'Conflict',
-        statusCode: 409
-      }
-    }
-  })
   async update(
     @TenantId() tenantId: string,
     @Param('id') id: string,
@@ -117,13 +103,7 @@ export class EmployeeController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List all employees for tenant with optional filters' })
-  @ApiQuery({ 
-    name: 'department_id', 
-    required: false, 
-    description: 'Filter employees by department ID',
-    example: '3a275957-c811-4ebb-b9f1-481bd96e47d1'
-  })
+  @ApiOperation({ summary: 'List all employees for tenant with optional designation filter' })
   @ApiQuery({ 
     name: 'designation_id', 
     required: false, 
@@ -133,10 +113,10 @@ export class EmployeeController {
   @ApiResponse({ status: 200, description: 'List of employees.' })
   @ApiResponse({ 
     status: 400, 
-    description: 'Invalid department_id or designation_id',
+    description: 'Invalid designation_id',
     schema: {
       example: {
-        message: 'Invalid department for this tenant.',
+        message: 'Invalid designation ID',
         error: 'Bad Request',
         statusCode: 400
       }
