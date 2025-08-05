@@ -1,10 +1,11 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { UserService } from './user.service';
-import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
-import { RolesGuard } from '../../guards/roles.guard';
-import { TenantGuard } from '../../guards/tenant.guard';
-import { Roles } from '../../decorators/roles.decorator';
+import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
+import { RolesGuard } from 'src/common/guards/roles.guard';
+import { TenantGuard } from 'src/common/guards/tenant.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
+
 
 @ApiTags('Users')
 @ApiBearerAuth()

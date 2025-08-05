@@ -54,4 +54,14 @@ export class User {
 
   @OneToMany(() => Employee, (employee) => employee.user)
   employees: Employee[];
+
+@Column({ type: 'text', nullable: true })
+refresh_token: string;
+
+@Column({ type: 'text', nullable: true })
+reset_token: string;
+
+@Column({ type: 'timestamptz', nullable: true })
+reset_token_expiry: Date;
+
 }

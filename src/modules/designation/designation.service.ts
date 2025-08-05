@@ -21,9 +21,9 @@ export class DesignationService {
     private readonly departmentRepo: Repository<Department>,
   ) {}
 
-  async create(tenantId: string, dto: CreateDesignationDto) {
+  async create(tenant_id: string, dto: CreateDesignationDto) {
     const department = await this.departmentRepo.findOne({
-      where: { id: dto.department_id, tenant_id: tenantId },
+      where: { id: dto.department_id, tenant_id },
     });
 
     if (!department) {

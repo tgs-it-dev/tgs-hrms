@@ -78,7 +78,7 @@ export class AuthService {
     const payload = {
       email: user.email,
       sub: user.id,
-      role: user.role.name,
+      role: user.role.name.toLowerCase(),
       tenant_id: user.tenant_id,
     };
 
@@ -91,6 +91,9 @@ export class AuthService {
       secret: this.configService.get<string>('JWT_SECRET'),
       expiresIn: '7d',
     });
+
+    user.refresh_token = refreshToken;
+await this.userRepository.save(user);
 
     this.logger.log(`Login successful for email: ${normalizedEmail}`);
     return {
@@ -193,10 +196,15 @@ export class AuthService {
 
       // In a real application, you might want to blacklist the refresh token
       // For now, we'll just return a success message
-      
       return { message: 'Logged out successfully' };
     } catch (error) {
       throw new UnauthorizedException('Invalid refresh token');
     }
   }
 }
+
+
+
+
+
+
