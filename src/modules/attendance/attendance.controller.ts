@@ -48,15 +48,6 @@ async createAttendance(
     return this.attendanceService.findAll(userId);
   }
 
-  @Put(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateAttendanceDto) {
-    return this.attendanceService.update(id, dto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.attendanceService.remove(id);
-  }
 }
 
 
