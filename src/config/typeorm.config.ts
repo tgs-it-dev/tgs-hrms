@@ -10,7 +10,7 @@ export const typeOrmConfig = (
   username: configService.get('DB_USER'),
   password: configService.get('DB_PASS'),
   database: configService.get('DB_NAME'),
-  synchronize: true,
+  synchronize: false, // Disabled to prevent schema sync issues
 
   // ✅ Automatically load all entities from src/entities folder
   entities: [__dirname + '/../entities/*.entity.{ts,js}'],

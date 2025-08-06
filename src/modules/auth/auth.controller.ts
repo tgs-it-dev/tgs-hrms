@@ -18,10 +18,9 @@ import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { Throttle } from '@nestjs/throttler';
-import { RolesGuard } from '../../guards/roles.guard';
-import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
-import { Roles } from '../../decorators/roles.decorator';
-
+import { RolesGuard } from 'src/common/guards/roles.guard';
+import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
+import { Roles } from 'src/common/guards/company.guard';
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {

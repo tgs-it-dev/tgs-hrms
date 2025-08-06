@@ -1,46 +1,36 @@
 import {
+  Entity,
+  PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
-  Entity,
-  Index,
   ManyToOne,
-  OneToMany,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
   JoinColumn,
+  OneToMany,
 } from 'typeorm';
-import { Company } from './company.entity';
-import { Designation } from './designation.entity'; 
+import { Tenant } from './tenant.entity';
+import { Designation } from './designation.entity';
 
-@Entity()
-@Index(['tenantId', 'name'], { unique: true })
+@Entity('departments')
 export class Department {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'uuid', nullable: false })
-  tenantId: string;
-
-  @ManyToOne(() => Company, (company) => company.departments, {
-    onDelete: 'CASCADE',
-    eager: false,
-  })
-  @JoinColumn({ name: 'tenantId' })
-  tenant: Company;
-
-  @Column({ length: 100 })
+  @Column({ type: 'varchar' })
   name: string;
 
-  @Column({ type: 'text', nullable: true })
-  description?: string;
+  @Column({ type: 'text' })
+  description: string;
 
-  
-  @OneToMany(() => Designation, (designation) => designation.department)
-  designations: Designation[];
+  @Column({ type: 'uuid' })
+  tenant_id: string;
 
   @CreateDateColumn()
-  createdAt: Date;
+  created_at: Date;
 
-  @UpdateDateColumn()
-  updatedAt: Date;
+  @ManyToOne(() => Tenant, (tenant) => tenant.departments, { nullable: false })
+  @JoinColumn({ name: 'tenant_id' })
+  tenant: Tenant;
+
+  @OneToMany(() => Designation, (designation) => designation.department)
+  designations: Designation[];
 }

@@ -17,8 +17,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     return {
       id: payload.sub,
       email: payload.email,
-      role: payload.role,
-      tenantId: payload.tenantId,
+      role: payload.role, // This is now the role name string
+      tenant_id: payload.tenant_id, // Use snake_case to match entity and guards
     };
   }
 }

@@ -17,11 +17,10 @@ import {
 import { DesignationService } from './designation.service';
 import { CreateDesignationDto } from './dto/create-designation.dto';
 import { UpdateDesignationDto } from './dto/update-designation.dto';
-
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { TenantGuard } from '../../common/guards/company.guard';
+import { TenantGuard } from '../../common/guards/tenant.guard';
 import { TenantId } from '../../common/decorators/company.deorator';
 
 @ApiTags('Designations')
@@ -46,8 +45,8 @@ export class DesignationController {
       },
     },
   })
-  async create(@TenantId() tenantId: string, @Body() dto: CreateDesignationDto) {
-    return this.service.create(tenantId, dto);
+  async create(@TenantId() tenant_id: string, @Body() dto: CreateDesignationDto) {
+    return this.service.create(tenant_id, dto);
   }
 
   @Put(':id')

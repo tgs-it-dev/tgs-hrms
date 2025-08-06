@@ -5,7 +5,7 @@ import { User, UserRole } from '../../entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
-import { UnauthorizedException } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 const mockPassword = bcrypt.hashSync('123456', 10);
@@ -77,7 +77,7 @@ describe('AuthService - Login', () => {
   it('should throw error for invalid email', async () => {
     await expect(
       service.validateUser('wrong@company.com', '123456')
-    ).rejects.toThrow(UnauthorizedException);
+    ).rejects.toThrow(BadRequestException);
   });
 
   it('should throw error for invalid password', async () => {
@@ -85,6 +85,6 @@ describe('AuthService - Login', () => {
 
     await expect(
       service.validateUser('admin@company.com', 'wrongpass')
-    ).rejects.toThrow(UnauthorizedException);
+    ).rejects.toThrow(BadRequestException);
   });
 });

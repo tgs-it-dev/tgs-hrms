@@ -19,7 +19,7 @@ import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
-import { TenantGuard } from '../../common/guards/company.guard';
+import { TenantGuard } from 'src/common/guards/tenant.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { TenantId } from '../../common/decorators/company.deorator';
 
@@ -47,10 +47,10 @@ export class DepartmentController {
   })
   @ApiResponse({ status: 400, description: 'Validation error.' })
   async create(
-    @TenantId() tenantId: string,
+    @TenantId() tenant_id: string,
     @Body() dto: CreateDepartmentDto,
   ) {
-    return await this.service.create(tenantId, dto);
+    return await this.service.create(tenant_id, dto);
   }
 
   @Put(':id')
@@ -70,18 +70,18 @@ export class DepartmentController {
   })
   @ApiResponse({ status: 404, description: 'Department not found.' })
   async update(
-    @TenantId() tenantId: string,
+    @TenantId() tenant_id: string,
     @Param('id') id: string,
     @Body() dto: UpdateDepartmentDto,
   ) {
-    return await this.service.update(tenantId, id, dto);
+    return await this.service.update(tenant_id, id, dto);
   }
 
   @Get()
   @ApiOperation({ summary: 'List all departments for tenant' })
   @ApiResponse({ status: 200, description: 'List of departments returned.' })
-  async findAll(@TenantId() tenantId: string) {
-    return await this.service.findAll(tenantId);
+  async findAll(@TenantId() tenant_id: string) {
+    return await this.service.findAll(tenant_id);
   }
 
   @Get(':id')
@@ -90,10 +90,10 @@ export class DepartmentController {
   @ApiResponse({ status: 200, description: 'Department found.' })
   @ApiResponse({ status: 404, description: 'Department not found.' })
   async findOne(
-    @TenantId() tenantId: string,
+    @TenantId() tenant_id: string,
     @Param('id') id: string,
   ) {
-    return await this.service.findOne(tenantId, id);
+    return await this.service.findOne(tenant_id, id);
   }
 
   @Delete(':id')
@@ -102,9 +102,9 @@ export class DepartmentController {
   @ApiResponse({ status: 200, description: 'Department deleted successfully.' })
   @ApiResponse({ status: 404, description: 'Department not found.' })
   async remove(
-    @TenantId() tenantId: string,
+    @TenantId() tenant_id: string,
     @Param('id') id: string,
   ) {
-    return await this.service.remove(tenantId, id);
+    return await this.service.remove(tenant_id, id);
   }
 }
