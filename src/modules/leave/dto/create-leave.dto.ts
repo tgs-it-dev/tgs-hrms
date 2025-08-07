@@ -1,23 +1,3 @@
-// import { IsDateString, IsNotEmpty, IsString } from 'class-validator';
-
-// export class CreateLeaveDto {
-//   @IsDateString()
-//   from_date: string;
-
-//   @IsDateString()
-//   to_date: string;
-
-//   @IsString()
-//   @IsNotEmpty()
-//   reason: string;
-
-//   @IsString()
-//   @IsNotEmpty()
-//   type: string;
-// }
-
-
-
 import { ApiProperty } from '@nestjs/swagger';
 import { IsDateString, IsNotEmpty, IsString, IsUUID } from 'class-validator';
 

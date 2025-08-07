@@ -26,21 +26,6 @@ export class LeaveService {
     return this.leaveRepo.find();
   }
 
-//   async updateStatus(id: string, status: string, adminTenantId: string): Promise<Leave> {
-//     const leave = await this.leaveRepo.findOne({ where: { id }, relations: ['user'] });
-
-//     if (!leave) throw new NotFoundException('Leave not found');
-
-//     if (leave.user.tenant_id !== adminTenantId) {
-//       throw new ForbiddenException('Access denied');
-//     }
-
-//     leave.status = status;
-//     return await this.leaveRepo.save(leave);
-//   }
-
-
-
 async updateStatus(id: string, status: string, adminTenantId: string): Promise<Leave> {
   const leave = await this.leaveRepo.findOne({ where: { id }, relations: ['user'] });
 
