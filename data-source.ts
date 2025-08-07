@@ -9,6 +9,7 @@ import { Department } from './src/entities/department.entity';
 import { Designation } from './src/entities/designation.entity';
 import { Employee } from './src/entities/employee.entity';
 import { Attendance } from 'src/entities/attendance.entity';
+import { Leave } from 'src/entities/leave.entity';
 import * as dotenv from 'dotenv';
 dotenv.config(); // Load environment variables
 
@@ -19,7 +20,7 @@ export const AppDataSource = new DataSource({
   username: process.env.DB_USER,
   password: process.env.DB_PASS,
   database: process.env.DB_NAME,
-  entities: [Tenant, User, Role, Permission, RolePermission, Department, Designation, Employee, Attendance],
+  entities: [Tenant, User, Role, Permission, RolePermission, Department, Designation, Employee, Attendance , Leave],
   migrations: ['src/migrations/**/*.ts'],
   synchronize: false,
   logging: true,  // Set logging to true for debugging
