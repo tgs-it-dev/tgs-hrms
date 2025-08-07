@@ -4,10 +4,8 @@ import {
   IsNotEmpty,
   IsString,
   IsUUID,
-  IsEnum,
   MinLength,
 } from 'class-validator';
-import { UserRole } from '../../../entities/user.entity';
 
 export class RegisterDto {
   @ApiProperty({ example: 'user@example.com', description: 'User email address' })
@@ -21,18 +19,28 @@ export class RegisterDto {
   @MinLength(6, { message: 'Password must be at least 6 characters long' })
   password: string;
 
-  @ApiProperty({ enum: UserRole, example: 'user', description: 'User role' })
-  @IsEnum(UserRole, { message: 'Role must be one of: admin, user, staff' })
-  @IsNotEmpty({ message: 'Role is required' })
-  role: UserRole;
+  @ApiProperty({ example: 'John', description: 'User first name' })
+  @IsString({ message: 'First name must be a string' })
+  @IsNotEmpty({ message: 'First name is required' })
+  first_name: string;
 
-  @ApiProperty({ example: 'John Doe', description: 'User full name' })
-  @IsString({ message: 'Name must be a string' })
-  @IsNotEmpty({ message: 'Name is required' })
-  name: string;
+  @ApiProperty({ example: 'Doe', description: 'User last name' })
+  @IsString({ message: 'Last name must be a string' })
+  @IsNotEmpty({ message: 'Last name is required' })
+  last_name: string;
 
-  @ApiProperty({ example: 'f7056477-f4f3-4dc9-987e-73d52e6d3541', description: 'Tenant/Company ID' })
+  @ApiProperty({ example: '+1234567890', description: 'User phone number' })
+  @IsString({ message: 'Phone must be a string' })
+  @IsNotEmpty({ message: 'Phone is required' })
+  phone: string;
+
+  @ApiProperty({ example: '550e8400-e29b-41d4-a716-446655440000', description: 'Role ID' })
+  @IsUUID('4', { message: 'Please provide a valid UUID for roleId' })
+  @IsNotEmpty({ message: 'Role ID is required' })
+  role_id: string;
+
+  @ApiProperty({ example: 'f7056477-f4f3-4dc9-987e-73d52e6d3541', description: 'Tenant ID' })
   @IsUUID('4', { message: 'Please provide a valid UUID for tenantId' })
   @IsNotEmpty({ message: 'Tenant ID is required' })
-  tenantId: string;
+  tenant_id: string;
 }

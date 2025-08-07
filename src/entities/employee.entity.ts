@@ -2,56 +2,32 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
+  CreateDateColumn,
   ManyToOne,
   JoinColumn,
-  CreateDateColumn,
-  UpdateDateColumn,
 } from 'typeorm';
-import { Department } from './department.entity';
+import { User } from './user.entity';
 import { Designation } from './designation.entity';
-import { Company } from './company.entity';
 
-@Entity()
+@Entity('employees')
 export class Employee {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @Column({ type: 'uuid' })
-  tenantId: string;
+  user_id: string;
 
-  @ManyToOne(() => Company, (company) => company.employees, {
-    onDelete: 'CASCADE',
-    eager: false,
-  })
-  @JoinColumn({ name: 'tenantId' })
-  tenant: Company;
-
-  @Column({ length: 100 })
-  name: string;
-
-  @Column({ length: 100, nullable: true })
-  email?: string; 
-
-  @Column({ length: 20, nullable: true })
-  phone?: string;
-
-  @Column({ type: 'uuid', nullable: true })
-  departmentId?: string;
-
-  @ManyToOne(() => Department, { nullable: true, onDelete: 'SET NULL' })
-  @JoinColumn({ name: 'departmentId' })
-  department?: Department;
-
-  @Column({ type: 'uuid', nullable: true })
-  designationId?: string;
-
-  @ManyToOne(() => Designation, { nullable: true, onDelete: 'SET NULL' })
-  @JoinColumn({ name: 'designationId' })
-  designation?: Designation;
+  @Column({ type: 'uuid' })
+  designation_id: string;
 
   @CreateDateColumn()
-  createdAt: Date;
+  created_at: Date;
 
-  @UpdateDateColumn()
-  updatedAt: Date;
+  @ManyToOne(() => User, (user) => user.employees, { nullable: false })
+  @JoinColumn({ name: 'user_id' })
+  user: User;
+
+  @ManyToOne(() => Designation, (designation) => designation.employees, { nullable: false })
+  @JoinColumn({ name: 'designation_id' })
+  designation: Designation;
 }

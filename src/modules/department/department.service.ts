@@ -17,10 +17,9 @@ export class DepartmentService {
     private repo: Repository<Department>,
   ) {}
 
-  async create(tenantId: string, dto: CreateDepartmentDto) {
-    
+  async create(tenant_id: string, dto: CreateDepartmentDto) {
     const existing = await this.repo.findOne({
-      where: { name: dto.name, tenantId },
+      where: { name: dto.name, tenant_id },
     });
 
     if (existing) {
@@ -32,8 +31,8 @@ export class DepartmentService {
     try {
       const department = this.repo.create({
         ...dto,
-        tenantId,
-        tenant: { id: tenantId } as any, 
+        tenant_id,
+        tenant: { id: tenant_id } as any, // attach tenant relation
       });
 
       return await this.repo.save(department);
@@ -50,17 +49,16 @@ export class DepartmentService {
     }
   }
 
-  async update(tenantId: string, id: string, dto: UpdateDepartmentDto) {
-    const department = await this.repo.findOneBy({ id, tenantId });
+  async update(tenant_id: string, id: string, dto: UpdateDepartmentDto) {
+    const department = await this.repo.findOneBy({ id, tenant_id });
 
     if (!department) {
       throw new NotFoundException('Department not found.');
     }
 
-    
     if (dto.name && dto.name !== department.name) {
       const existing = await this.repo.findOne({
-        where: { name: dto.name, tenantId },
+        where: { name: dto.name, tenant_id },
       });
 
       if (existing && existing.id !== id) {
@@ -84,15 +82,15 @@ export class DepartmentService {
     }
   }
 
-  async findAll(tenantId: string) {
+  async findAll(tenant_id: string) {
     return this.repo.find({
-      where: { tenantId },
-      order: { createdAt: 'DESC' },
+      where: { tenant_id },
+      order: { created_at: 'DESC' },
     });
   }
 
-  async findOne(tenantId: string, id: string) {
-    const dept = await this.repo.findOne({ where: { id, tenantId } });
+  async findOne(tenant_id: string, id: string) {
+    const dept = await this.repo.findOne({ where: { id, tenant_id } });
 
     if (!dept) {
       throw new NotFoundException('Department not found');
@@ -101,12 +99,9 @@ export class DepartmentService {
     return dept;
   }
 
-  async remove(
-    tenantId: string,
-    id: string,
-  ): Promise<{ deleted: true; id: string }> {
-    await this.findOne(tenantId, id); 
-    await this.repo.delete({ id, tenantId });
+  async remove(tenant_id: string, id: string): Promise<{ deleted: true; id: string }> {
+    await this.findOne(tenant_id, id);
+    await this.repo.delete({ id, tenant_id });
     return { deleted: true, id };
   }
 }
