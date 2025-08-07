@@ -14,6 +14,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { JwtModule } from '@nestjs/jwt';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AttendanceModule } from './modules/attendance/attendace.module';
 
 @Module({
   imports: [
@@ -54,6 +55,8 @@ import { AppService } from './app.service';
     TenantModule,
     RoleModule,
     PermissionModule,
+    AttendanceModule
+   
   ],
   controllers: [AppController],
   providers: [AppService],

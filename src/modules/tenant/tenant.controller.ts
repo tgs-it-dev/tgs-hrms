@@ -1,16 +1,18 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, NotFoundException, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiBody } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/guards/company.guard';
+import { TenantService } from './tenant.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
+
 
 @ApiTags('Tenants')
 @ApiBearerAuth()
 @Controller('tenants')
 export class TenantController {
-  constructor() {}
+  constructor(private readonly tenantService: TenantService) {}
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -37,8 +39,17 @@ export class TenantController {
     status: 403, 
     description: 'Forbidden - Insufficient permissions' 
   })
-  getTenants() {
-    return { message: 'Get all tenants - Implementation pending' };
+  async getTenants() {
+    try {
+      const tenants = await this.tenantService.findAll();
+      return {
+        statusCode: 200,
+        message: 'List of tenants retrieved successfully.',
+        data: tenants,
+      };
+    } catch (err) {
+      throw new BadRequestException('Failed to fetch tenants');
+    }
   }
 
   @Get(':id')
@@ -65,8 +76,18 @@ export class TenantController {
     status: 404, 
     description: 'Tenant not found' 
   })
-  getTenantById(@Param('id') id: string) {
-    return { message: `Get tenant by ID: ${id} - Implementation pending` };
+  async getTenantById(@Param('id') id: string) {
+    try {
+      const tenant = await this.tenantService.findOne(id);
+      return {
+        statusCode: 200,
+        message: 'Tenant retrieved successfully.',
+        data: tenant,
+      };
+    } catch (err) {
+      if (err instanceof NotFoundException) throw err;
+      throw new BadRequestException('Failed to fetch tenant');
+    }
   }
 
   @Post()
@@ -89,8 +110,17 @@ export class TenantController {
     status: 400, 
     description: 'Bad Request - Invalid tenant data' 
   })
-  createTenant(@Body() createTenantDto: CreateTenantDto) {
-    return { message: 'Create tenant - Implementation pending' };
+  async createTenant(@Body() createTenantDto: CreateTenantDto) {
+    try {
+      const tenant = await this.tenantService.create(createTenantDto);
+      return {
+        statusCode: 201,
+        message: 'Tenant created successfully.',
+        data: tenant,
+      };
+    } catch (err) {
+      throw new BadRequestException('Failed to create tenant');
+    }
   }
 
   @Put(':id')
@@ -111,8 +141,18 @@ export class TenantController {
     status: 404, 
     description: 'Tenant not found' 
   })
-  updateTenant(@Param('id') id: string, @Body() updateTenantDto: UpdateTenantDto) {
-    return { message: `Update tenant: ${id} - Implementation pending` };
+  async updateTenant(@Param('id') id: string, @Body() updateTenantDto: UpdateTenantDto) {
+    try {
+      const tenant = await this.tenantService.update(id, updateTenantDto);
+      return {
+        statusCode: 200,
+        message: 'Tenant updated successfully.',
+        data: tenant,
+      };
+    } catch (err) {
+      if (err instanceof NotFoundException) throw err;
+      throw new BadRequestException('Failed to update tenant');
+    }
   }
 
   @Delete(':id')
@@ -132,7 +172,17 @@ export class TenantController {
     status: 404, 
     description: 'Tenant not found' 
   })
-  deleteTenant(@Param('id') id: string) {
-    return { message: `Delete tenant: ${id} - Implementation pending` };
+  async deleteTenant(@Param('id') id: string) {
+    try {
+      await this.tenantService.remove(id);
+      return {
+        statusCode: 200,
+        message: 'Tenant deleted successfully.',
+        id,
+      };
+    } catch (err) {
+      if (err instanceof NotFoundException) throw err;
+      throw new BadRequestException('Failed to delete tenant');
+    }
   }
 } 

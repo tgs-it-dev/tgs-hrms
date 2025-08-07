@@ -11,6 +11,7 @@ import {
 import { Tenant } from './tenant.entity';
 import { Role } from './role.entity';
 import { Employee } from './employee.entity';
+import { Attendance } from './attendance.entity'; // ✅ Add this if not already
 
 @Entity('users')
 export class User {
@@ -55,13 +56,15 @@ export class User {
   @OneToMany(() => Employee, (employee) => employee.user)
   employees: Employee[];
 
-@Column({ type: 'text', nullable: true })
-refresh_token: string;
+  @OneToMany(() => Attendance, (attendance) => attendance.user) // ✅ Add this
+  attendances: Attendance[];
 
-@Column({ type: 'text', nullable: true })
-reset_token: string;
+  @Column({ type: 'text', nullable: true })
+  refresh_token: string;
 
-@Column({ type: 'timestamptz', nullable: true })
-reset_token_expiry: Date;
+  @Column({ type: 'text', nullable: true })
+  reset_token: string;
 
+  @Column({ type: 'timestamptz', nullable: true })
+  reset_token_expiry: Date;
 }
