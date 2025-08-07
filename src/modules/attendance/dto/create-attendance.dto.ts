@@ -1,4 +1,3 @@
-// src/modules/attendance/dto/create-attendance.dto.ts
 import { IsEnum, IsOptional, IsDateString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
