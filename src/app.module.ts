@@ -16,6 +16,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AttendanceModule } from './modules/attendance/attendace.module';
 
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -46,7 +47,7 @@ import { AttendanceModule } from './modules/attendance/attendace.module';
       },
     }),
 
-    // All Modules
+    
     UserModule,
     AuthModule,
     DepartmentModule,
