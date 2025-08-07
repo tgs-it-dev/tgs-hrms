@@ -7,17 +7,17 @@ import { BadRequestException } from '@nestjs/common';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Global validation pipe for consistent error handling
+  
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true, // Remove properties that don't have decorators
-      forbidNonWhitelisted: true, // Throw error if non-whitelisted properties are present
-      transform: true, // Transform payloads to be objects typed according to their DTO classes
+      whitelist: true, 
+      forbidNonWhitelisted: true, 
+      transform: true, 
       transformOptions: {
         enableImplicitConversion: true,
       },
       exceptionFactory: (errors) => {
-        // Custom error response format
+        
         const errorMessages = errors.map(error => ({
           field: error.property,
           message: Object.values(error.constraints || {}).join(', '),
@@ -31,10 +31,10 @@ async function bootstrap() {
     }),
   );
 
-  // Enable CORS for your frontend
+  
   app.enableCors({
-    origin: '*',//Allow all Frontend Devices
-    credentials: true, // only if you use cookies
+    origin: '*',
+    credentials: true, 
   });
 
   const config = new DocumentBuilder()

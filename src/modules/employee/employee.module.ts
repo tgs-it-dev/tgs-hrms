@@ -12,7 +12,7 @@ import { Role } from 'src/entities/role.entity';
     TypeOrmModule.forFeature([Employee, User, Designation,Role]),
 
   ],
-  providers: [EmployeeService],
   controllers: [EmployeeController],
+  providers: [EmployeeService],
 })
 export class EmployeeModule {}

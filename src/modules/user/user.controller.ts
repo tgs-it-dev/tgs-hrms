@@ -1,57 +1,132 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
-import { UserService } from './user.service';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
-import { RolesGuard } from 'src/common/guards/roles.guard';
-import { TenantGuard } from 'src/common/guards/tenant.guard';
-import { Roles } from 'src/common/decorators/roles.decorator';
 
+
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
+import { UserService } from './user.service';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
+import { RolesGuard } from 'src/common/guards/roles.guard';
+import { TenantId } from 'src/common/decorators/company.deorator';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 @ApiTags('Users')
-@ApiBearerAuth()
+@ApiBearerAuth()  
+@UseGuards(JwtAuthGuard, RolesGuard)  
+@Roles('admin')  
 @Controller('users')
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  @Get()
-  @UseGuards(JwtAuthGuard, RolesGuard, TenantGuard)
-  @Roles('admin')
-  @ApiOperation({ summary: 'Get all users for the current tenant' })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'List of users retrieved successfully.',
-    schema: {
-      example: [
-        {
-          id: '550e8400-e29b-41d4-a716-446655440000',
-          email: 'user@example.com',
-          phone: '+1234567890',
-          firstName: 'John',
-          lastName: 'Doe',
-          role: {
-            id: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
-            name: 'admin',
-            description: 'Administrator with full access'
-          },
-          tenant: {
-            id: '550e8400-e29b-41d4-a716-446655440000',
-            name: 'Default Company'
-          },
-          createdAt: '2024-01-01T00:00:00.000Z',
-          updatedAt: '2024-01-01T00:00:00.000Z'
-        }
-      ]
+  
+  @Post()
+  async create(
+    @Body() dto: CreateUserDto, 
+    @TenantId() tenantId: string,
+  ) {
+    try {
+      const user = await this.userService.create(dto, tenantId);
+      return { message: 'User created successfully', user };
+    } catch (error) {
+      throw new HttpException(
+        'Error creating user: ' + error.message,
+        HttpStatus.BAD_REQUEST,
+      );
     }
-  })
-  @ApiResponse({ 
-    status: 401, 
-    description: 'Unauthorized - Invalid or missing JWT token' 
-  })
-  @ApiResponse({ 
-    status: 403, 
-    description: 'Forbidden - Insufficient permissions' 
-  })
-  getUsers() {
-    return this.userService.findAll();
+  }
+
+
+  @Get()
+  async findAll(@TenantId() tenantId: string) {
+    try {
+      const users = await this.userService.findAll(tenantId);
+      if (!users || users.length === 0) {
+        throw new HttpException(
+          'No users found for this tenant',
+          HttpStatus.NOT_FOUND,
+        );
+      }
+      return { message: 'Users fetched successfully', users };
+    } catch (error) {
+      throw new HttpException(
+        'Error fetching users: ' + error.message,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  
+  @Get(':id')
+  async findOne(@Param('id') id: string, @TenantId() tenantId: string) {
+    try {
+      const user = await this.userService.findOne(id, tenantId);
+      if (!user) {
+        throw new HttpException(
+          `User with ID ${id} not found`,
+          HttpStatus.NOT_FOUND,
+        );
+      }
+      return { message: 'User fetched successfully', user };
+    } catch (error) {
+      throw new HttpException(
+        'Error fetching user: ' + error.message,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+
+  @Patch(':id')
+  async update(
+    @Param('id') id: string,
+    @Body() dto: UpdateUserDto,
+    @TenantId() tenantId: string,
+  ) {
+    try {
+      const updatedUser = await this.userService.update(id, dto, tenantId);
+      if (!updatedUser) {
+        throw new HttpException(
+          `User with ID ${id} not found or update failed`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      return { message: 'User updated successfully', updatedUser };
+    } catch (error) {
+      throw new HttpException(
+        'Error updating user: ' + error.message,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+
+  @Delete(':id')
+  async remove(@Param('id') id: string, @TenantId() tenantId: string) {
+    try {
+      const deleted = await this.userService.remove(id, tenantId);
+      if (!deleted) {
+        throw new HttpException(
+          `User with ID ${id} not found or deletion failed`,
+          HttpStatus.NOT_FOUND,
+        );
+      }
+      return { message: 'User has been deleted successfully.' };
+    } catch (error) {
+      throw new HttpException(
+        'Error deleting user: ' + error.message,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 }

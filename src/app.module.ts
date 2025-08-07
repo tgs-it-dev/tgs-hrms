@@ -46,7 +46,7 @@ import { LeaveModule } from './modules/leave/leave.module';
       },
     }),
 
-    // All Modules
+    
     UserModule,
     AuthModule,
     DepartmentModule,
