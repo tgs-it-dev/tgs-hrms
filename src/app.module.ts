@@ -15,6 +15,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -45,7 +46,7 @@ import { AppService } from './app.service';
       },
     }),
 
-    // All Modules
+    
     UserModule,
     AuthModule,
     DepartmentModule,
