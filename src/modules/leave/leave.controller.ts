@@ -42,6 +42,19 @@ export class LeaveController {
     return this.leaveService.createLeave(req.user.id, dto);
   }
 
+
+
+   @Get('all')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get all leave requests (Admin only)' })
+  @ApiResponse({ status: 200, description: 'Returns all leave requests' })
+  async findAllForAdmin(@Request() req: any) {
+    return this.leaveService.getAllLeaves(req.user.tenant_id);
+  }
+
+  
   @Get()
    @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

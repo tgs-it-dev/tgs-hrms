@@ -26,6 +26,17 @@ export class LeaveService {
     return this.leaveRepo.find();
   }
 
+  async getAllLeaves(tenantId: string) {
+ return this.leaveRepo.find({
+  where: {
+    user: {
+      tenant_id: tenantId,
+    },
+  },
+  relations: ['user'],
+});
+}
+
 async updateStatus(id: string, status: string, adminTenantId: string): Promise<Leave> {
   const leave = await this.leaveRepo.findOne({ where: { id }, relations: ['user'] });
 
