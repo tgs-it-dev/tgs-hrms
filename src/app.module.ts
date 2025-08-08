@@ -15,8 +15,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AttendanceModule } from './modules/attendance/attendace.module';
-
-
+import { LeaveModule } from './modules/leave/leave.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -56,7 +55,8 @@ import { AttendanceModule } from './modules/attendance/attendace.module';
     TenantModule,
     RoleModule,
     PermissionModule,
-    AttendanceModule
+    AttendanceModule,
+    LeaveModule, 
    
   ],
   controllers: [AppController],

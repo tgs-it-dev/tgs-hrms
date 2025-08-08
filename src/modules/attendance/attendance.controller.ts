@@ -21,7 +21,8 @@ import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from "./dto/update-attendance.dto"
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { Request } from 'express';
-
+import { RolesGuard } from 'src/common/guards/roles.guard';
+import { Roles } from 'src/common/guards/company.guard';
 @ApiTags('Attendance')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
@@ -46,6 +47,15 @@ async createAttendance(
   @ApiOperation({ summary: 'Get attendance list' })
   findAll(@Query('userId') userId?: string) {
     return this.attendanceService.findAll(userId);
+  }
+
+  @Get('all')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  @ApiOperation({ summary: 'Get all attendance records (Admin only)' })
+  @ApiResponse({ status: 200, description: 'Returns all attendance records for the tenant' })
+  async findAllForAdmin(@Req() req: any) {
+    return this.attendanceService.getAllAttendance(req.user.tenant_id);
   }
 
 }
