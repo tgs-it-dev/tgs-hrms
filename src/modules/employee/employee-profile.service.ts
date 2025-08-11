@@ -18,22 +18,22 @@ export class EmployeeProfileService {
     private readonly leaveRepo: Repository<Leave>,
   ) {}
 
-  async getEmployeeProfile(employeeId: string) {
-    // Fetch employee with related entities
+  async getEmployeeProfileByUserId(userId: string) {
+    // Fetch employee record by user_id with related entities
     const employee = await this.employeeRepo.findOne({
-  where: { id: employeeId },
-  relations: ['user', 'designation', 'designation.department', 'user.role'],
-});
+      where: { user_id: userId },
+      relations: ['user', 'designation', 'designation.department', 'user.role'],
+    });
 
     if (!employee) {
       throw new NotFoundException('Employee not found');
     }
 
-    const userId = employee.user.id;
+    const effectiveUserId = employee.user.id;
 
     // Attendance history grouped by date
     const attendanceRecords = await this.attendanceRepo.find({
-      where: { user_id: userId },
+      where: { user_id: effectiveUserId },
       order: { timestamp: 'ASC' },
     });
 
@@ -41,21 +41,27 @@ export class EmployeeProfileService {
 
     // Leave history
     const leaveHistory = await this.leaveRepo.find({
-      where: { user_id: userId },
+      where: { user_id: effectiveUserId },
       order: { from_date: 'DESC' },
     });
 
     return {
-      id: employee.id,
-      first_name: employee.user.first_name,
-      last_name: employee.user.first_name,
+      id: employee.user.id,
+      name: [employee.user.first_name, employee.user.last_name].filter(Boolean).join(' ').trim(),
       email: employee.user.email,
       role: employee.user.role.name,
       designation: employee.designation?.title || null,
       department: employee.designation?.department?.name || null,
       joinedAt: employee.created_at,
       attendanceSummary: groupedAttendance,
-      leaveHistory,
+      leaveHistory: leaveHistory.map((leave) => ({
+        id: leave.id,
+        fromDate: leave.from_date,
+        toDate: leave.to_date,
+        reason: leave.reason,
+        type: leave.type,
+        status: leave.status,
+      })),
     };
   }
 

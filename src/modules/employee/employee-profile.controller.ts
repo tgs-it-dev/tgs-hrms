@@ -21,7 +21,7 @@ import { EmployeeProfileDto } from './dto/employee-profile.dto';
 export class EmployeeProfileController {
   constructor(private readonly profileService: EmployeeProfileService) {}
 
-  @Get(':id/profile')
+  @Get('users/:user_id/profile')
   @ApiOperation({
     summary:
       'Get full employee profile (designation, department, attendance, leaves)',
@@ -31,7 +31,7 @@ export class EmployeeProfileController {
     type: EmployeeProfileDto,
     description: 'Returns full employee profile with history',
   })
-  async getProfile(@Param('id') employeeId: string) {
-    return this.profileService.getEmployeeProfile(employeeId);
+  async getProfile(@Param('user_id') userId: string) {
+    return this.profileService.getEmployeeProfileByUserId(userId);
   }
 }

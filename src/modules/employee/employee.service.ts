@@ -134,32 +134,56 @@ export class EmployeeService {
     return employee;
   }
 
-  async update(tenant_id: string, id: string, dto: UpdateEmployeeDto) {
-    const employee = await this.employeeRepo.findOneBy({ id });
-    if (!employee) throw new NotFoundException('Employee not found');
+ async update(tenant_id: string, id: string, dto: UpdateEmployeeDto) {
+  const employee = await this.employeeRepo.findOne({
+    where: { id },
+    relations: ['user', 'designation', 'designation.department'],
+  });
+  if (!employee) throw new NotFoundException('Employee not found');
 
-    const user = await this.userRepo.findOneBy({ id: employee.user_id });
-    if (!user || user.tenant_id !== tenant_id) {
-      throw new NotFoundException('Employee not found');
-    }
+  const user = employee.user;
+  if (!user || user.tenant_id !== tenant_id) {
+    throw new NotFoundException('Employee not found');
+  }
 
-    if (dto.designation_id) {
-      await this.validateDesignation(dto.designation_id, tenant_id);
-    }
+  if (dto.designation_id) {
+    const newDesignation = await this.validateDesignation(dto.designation_id, tenant_id);
+    employee.designation_id = newDesignation.id;
+    employee.designation = newDesignation;
+  }
 
-    Object.assign(employee, dto);
-
-    try {
-      return await this.employeeRepo.save(employee);
-    } catch (err) {
-      if (err instanceof QueryFailedError && (err as any).code === '23505') {
-        throw new ConflictException('Employee already exists.');
-      }
-      throw err;
+  if (dto.email && dto.email !== user.email) {
+    const existing = await this.userRepo.findOne({ where: { email: dto.email, tenant_id } });
+    if (existing && existing.id !== user.id) {
+      throw new ConflictException('User with this email already exists in the tenant.');
     }
   }
 
-  async remove(tenant_id: string, id: string): Promise<{ deleted: true; id: string }> {
+  let shouldSaveUser = false;
+  if (dto.first_name !== undefined) { user.first_name = dto.first_name; shouldSaveUser = true; }
+  if (dto.last_name !== undefined)  { user.last_name  = dto.last_name;  shouldSaveUser = true; }
+  if (dto.email !== undefined)      { user.email      = dto.email;      shouldSaveUser = true; }
+  if (dto.phone !== undefined)      { user.phone      = dto.phone;      shouldSaveUser = true; }
+  if (dto.password) {
+    user.password = await bcrypt.hash(dto.password, 10);
+    shouldSaveUser = true;
+  }
+
+  try {
+    if (shouldSaveUser) await this.userRepo.save(user);
+    await this.employeeRepo.save(employee);
+    return await this.employeeRepo.findOne({
+      where: { id },
+      relations: ['user', 'designation', 'designation.department'],
+    });
+  } catch (err) {
+    if (err instanceof QueryFailedError && (err as any).code === '23505') {
+      throw new ConflictException('Employee already exists.');
+    }
+    throw err;
+  }
+}
+async remove(tenant_id: string, id: string): Promise<{ deleted: true; id: string }> {
     await this.findOne(tenant_id, id);
     await this.employeeRepo.delete(id);
     return { deleted: true, id };
