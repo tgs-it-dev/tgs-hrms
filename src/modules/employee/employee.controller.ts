@@ -36,7 +36,7 @@ export class EmployeeController {
   constructor(private readonly service: EmployeeService) {}
 
   @Post()
-  @Roles('admin')
+  @Roles('admin',"system-admin")
   @ApiOperation({ summary: 'Create employee by assigning user to designation' })
   @ApiResponse({ status: 201, description: 'Employee created.' })
   @ApiResponse({ 
@@ -69,7 +69,7 @@ export class EmployeeController {
   }
 
   @Put(':id')
-  @Roles('admin')
+  @Roles('admin',"system-admin")
   @ApiOperation({ summary: 'Update employee designation' })
   @ApiResponse({ status: 200, description: 'Employee updated.' })
   @ApiResponse({ 
@@ -148,7 +148,7 @@ async findAll(
   }
 
   @Delete(':id')
-  @Roles('admin')
+  @Roles('admin' ,"system-admin")
   @ApiOperation({ summary: 'Delete employee by ID' })
   @ApiResponse({ status: 200, description: 'Employee deleted.' })
   @ApiResponse({ status: 404, description: 'Employee not found.' })

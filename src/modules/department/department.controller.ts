@@ -1,3 +1,5 @@
+
+
 import {
   Body,
   Controller,
@@ -6,6 +8,7 @@ import {
   Param,
   Post,
   Put,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -21,7 +24,6 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { TenantGuard } from 'src/common/guards/tenant.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { TenantId } from '../../common/decorators/company.deorator';
 
 @ApiTags('Departments')
 @ApiBearerAuth()
@@ -31,7 +33,7 @@ export class DepartmentController {
   constructor(private service: DepartmentService) {}
 
   @Post()
-  @Roles('admin')
+  @Roles('admin', 'system-admin')
   @ApiOperation({ summary: 'Create department' })
   @ApiResponse({ status: 201, description: 'Department created.' })
   @ApiResponse({
@@ -46,15 +48,13 @@ export class DepartmentController {
     },
   })
   @ApiResponse({ status: 400, description: 'Validation error.' })
-  async create(
-    @TenantId() tenant_id: string,
-    @Body() dto: CreateDepartmentDto,
-  ) {
+  async create(@Req() req, @Body() dto: CreateDepartmentDto) {
+    const tenant_id = req.user.tenantId;
     return await this.service.create(tenant_id, dto);
   }
 
   @Put(':id')
-  @Roles('admin')
+  @Roles('admin', 'system-admin')
   @ApiOperation({ summary: 'Update department' })
   @ApiResponse({ status: 200, description: 'Department updated.' })
   @ApiResponse({
@@ -69,42 +69,36 @@ export class DepartmentController {
     },
   })
   @ApiResponse({ status: 404, description: 'Department not found.' })
-  async update(
-    @TenantId() tenant_id: string,
-    @Param('id') id: string,
-    @Body() dto: UpdateDepartmentDto,
-  ) {
+  async update(@Req() req, @Param('id') id: string, @Body() dto: UpdateDepartmentDto) {
+    const tenant_id = req.user.tenantId;
     return await this.service.update(tenant_id, id, dto);
   }
 
   @Get()
   @ApiOperation({ summary: 'List all departments for tenant' })
   @ApiResponse({ status: 200, description: 'List of departments returned.' })
-  async findAll(@TenantId() tenant_id: string) {
+  async findAll(@Req() req) {
+    const tenant_id = req.user.tenantId;
     return await this.service.findAll(tenant_id);
   }
 
   @Get(':id')
-  @Roles('admin') // Optional: restrict by role
+  @Roles('admin', 'system-admin')
   @ApiOperation({ summary: 'Get department by ID' })
   @ApiResponse({ status: 200, description: 'Department found.' })
   @ApiResponse({ status: 404, description: 'Department not found.' })
-  async findOne(
-    @TenantId() tenant_id: string,
-    @Param('id') id: string,
-  ) {
+  async findOne(@Req() req, @Param('id') id: string) {
+    const tenant_id = req.user.tenantId;
     return await this.service.findOne(tenant_id, id);
   }
 
   @Delete(':id')
-  @Roles('admin')
+  @Roles('admin', 'system-admin')
   @ApiOperation({ summary: 'Delete department' })
   @ApiResponse({ status: 200, description: 'Department deleted successfully.' })
   @ApiResponse({ status: 404, description: 'Department not found.' })
-  async remove(
-    @TenantId() tenant_id: string,
-    @Param('id') id: string,
-  ) {
+  async remove(@Req() req, @Param('id') id: string) {
+    const tenant_id = req.user.tenantId;
     return await this.service.remove(tenant_id, id);
   }
 }

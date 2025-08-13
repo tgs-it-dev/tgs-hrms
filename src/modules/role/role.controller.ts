@@ -14,7 +14,7 @@ export class RoleController {
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('admin',"system-admin")
   @ApiOperation({ summary: 'Get all roles (Admin only)' })
   @ApiResponse({ 
     status: 200, 
@@ -43,7 +43,7 @@ export class RoleController {
 
   @Get(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('admin',"system-admin")
   @ApiOperation({ summary: 'Get role by ID (Admin only)' })
   @ApiParam({ 
     name: 'id', 
@@ -71,7 +71,7 @@ export class RoleController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('admin',"system-admin")
   @ApiOperation({ summary: 'Create a new role (Admin only)' })
   @ApiBody({ type: CreateRoleDto })
   @ApiResponse({ 
@@ -95,7 +95,7 @@ export class RoleController {
 
   @Put(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('admin',"system-admin")
   @ApiOperation({ summary: 'Update role by ID (Admin only)' })
   @ApiParam({ 
     name: 'id', 
@@ -117,7 +117,7 @@ export class RoleController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('admin',"system-admin")
   @ApiOperation({ summary: 'Delete role by ID (Admin only)' })
   @ApiParam({ 
     name: 'id', 
