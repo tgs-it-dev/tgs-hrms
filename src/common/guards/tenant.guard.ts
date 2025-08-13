@@ -1,4 +1,4 @@
-// src/common/guards/tenant.guard.ts
+
 import {
   CanActivate,
   ExecutionContext,
@@ -16,15 +16,15 @@ export class TenantGuard implements CanActivate {
       throw new ForbiddenException('User not found in request');
     }
 
-    // ✅ Allow system-admin access to all tenants
+    
     if (user.role?.name === 'system-admin') return true;
 
-    // ✅ Only check if tenantId exists
+    
     if (!user.tenantId) {
       throw new ForbiddenException('Tenant access denied: tenant ID missing');
     }
 
-    // ✅ No need to check against request.params or body anymore
+    
     return true;
   }
 }

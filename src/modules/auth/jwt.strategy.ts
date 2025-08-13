@@ -1,4 +1,3 @@
-// src/common/strategies/jwt.strategy.ts
 
 import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
@@ -18,8 +17,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     return {
       id: payload.sub,
       email: payload.email,
-      role: payload.role,           // Expects object like: { name: 'admin' }
-      tenantId: payload.tenant_id,  // ✅ Map snake_case to camelCase
-    };
+      role: payload.role,           
+      tenantId: payload.tenant_id,  
+    }
   }
 }
