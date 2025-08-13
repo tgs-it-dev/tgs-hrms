@@ -12,6 +12,7 @@ import {
   ApiBody,
   ApiResponse,
   ApiBearerAuth,
+  ApiOperation
 } from '@nestjs/swagger';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -105,12 +106,11 @@ export class AuthController {
   }
 
   @Post('reset-password')
-  @ApiBody({ type: ResetPasswordDto })
-  @ApiResponse({ status: 200, description: 'Password successfully reset' })
-  @ApiResponse({ status: 400, description: 'Invalid or expired token' })
-  async resetPassword(@Body() dto: ResetPasswordDto) {
-    return this.authService.resetPassword(dto);
-  }
+@ApiOperation({ summary: 'Reset password using token' })
+async resetPassword(@Body() dto: ResetPasswordDto) {
+  return this.authService.resetPassword(dto);
+}
+
 
   @Post('refresh')
   @ApiBody({
