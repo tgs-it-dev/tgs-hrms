@@ -1,24 +1,20 @@
 import {
-  Controller,
-  Post,
-  Get,
-  Body,
-  Param,
-  Delete,
-  Put,
-  Query,
-  UseGuards,
-  Req,
+	Controller,
+	Post,
+	Get,
+	Body,
+	Query,
+	UseGuards,
+	Req,
 } from '@nestjs/common';
 import {
-  ApiTags,
-  ApiBearerAuth,
-  ApiOperation,
-  ApiResponse,
+	ApiTags,
+	ApiBearerAuth,
+	ApiOperation,
+	ApiResponse,
 } from '@nestjs/swagger';
 import { AttendanceService } from './attendance.service';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
-import { UpdateAttendanceDto } from "./dto/update-attendance.dto"
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { Request } from 'express';
 import { RolesGuard } from 'src/common/guards/roles.guard';
@@ -28,37 +24,41 @@ import { Roles } from 'src/common/guards/company.guard';
 @UseGuards(JwtAuthGuard)
 @Controller('attendance')
 export class AttendanceController {
-  constructor(private readonly attendanceService: AttendanceService) {}
-
-@Post()
-@ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
-async createAttendance(
-  @Body() createAttendanceDto: CreateAttendanceDto,
-  @Req() req: Request
-) {
-    console.log('>> req.user =', req.user);
-  const userId = (req.user as any).id;
-
-  // Call with 2 arguments: userId and DTO
-  return this.attendanceService.create(userId, createAttendanceDto);
+	constructor(private readonly attendanceService: AttendanceService) {}
+	@Post()
+	@ApiOperation({ summary: 'Create a check-in/check-out event' })
+	async createAttendance(
+		@Body() createAttendanceDto: CreateAttendanceDto,
+		@Req() req: Request
+	) {
+		const userId = (req.user as any).id;
+		return this.attendanceService.create(userId, createAttendanceDto);
+	}
+	// Daily summaries (latest per type)
+	@Get()
+	@ApiOperation({ summary: 'Get daily summaries (latest check-in/out) for a user' })
+	findAll(@Query('userId') userId?: string) {
+	 return this.attendanceService.findAll(userId);
+	}
+	// Raw events for building multiple sessions per day in UI
+	@Get('events')
+	@ApiOperation({ summary: 'Get raw attendance events for a user' })
+	async events(@Req() req: Request, @Query('userId') userId?: string) {
+		const id = userId || (req.user as any).id;
+		return this.attendanceService.findEvents(id);
+	}
+	@Get('today')
+	@ApiOperation({ summary: 'Get today latest check-in and its matching check-out' })
+	async today(@Req() req: Request, @Query('userId') userId?: string) {
+		const id = userId || (req.user as any).id;
+		return this.attendanceService.getTodaySummary(id);
+	}
+	@Get('all')
+	@UseGuards(RolesGuard)
+	@Roles('admin')
+	@ApiOperation({ summary: 'Get all attendance records (Admin only)' })
+	@ApiResponse({ status: 200, description: 'Returns all attendance records for the tenant' })
+	async findAllForAdmin(@Req() req: any) {
+		return this.attendanceService.getAllAttendance(req.user.tenant_id);
+	}
 }
-  @Get()
-  @ApiOperation({ summary: 'Get attendance list' })
-  findAll(@Query('userId') userId?: string) {
-    return this.attendanceService.findAll(userId);
-  }
-
-  @Get('all')
-  @UseGuards(RolesGuard)
-  @Roles('admin')
-  @ApiOperation({ summary: 'Get all attendance records (Admin only)' })
-  @ApiResponse({ status: 200, description: 'Returns all attendance records for the tenant' })
-  async findAllForAdmin(@Req() req: any) {
-    return this.attendanceService.getAllAttendance(req.user.tenant_id);
-  }
-
-}
-
-
-
