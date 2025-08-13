@@ -1,5 +1,3 @@
-
-
 import {
   Body,
   Controller,
@@ -49,7 +47,7 @@ export class DepartmentController {
   })
   @ApiResponse({ status: 400, description: 'Validation error.' })
   async create(@Req() req, @Body() dto: CreateDepartmentDto) {
-    const tenant_id = req.user.tenantId;
+    const tenant_id = req.user.tenant_id;
     return await this.service.create(tenant_id, dto);
   }
 
@@ -70,7 +68,7 @@ export class DepartmentController {
   })
   @ApiResponse({ status: 404, description: 'Department not found.' })
   async update(@Req() req, @Param('id') id: string, @Body() dto: UpdateDepartmentDto) {
-    const tenant_id = req.user.tenantId;
+    const tenant_id = req.user.tenant_id;
     return await this.service.update(tenant_id, id, dto);
   }
 
@@ -78,7 +76,7 @@ export class DepartmentController {
   @ApiOperation({ summary: 'List all departments for tenant' })
   @ApiResponse({ status: 200, description: 'List of departments returned.' })
   async findAll(@Req() req) {
-    const tenant_id = req.user.tenantId;
+    const tenant_id = req.user.tenant_id;
     return await this.service.findAll(tenant_id);
   }
 
@@ -88,7 +86,7 @@ export class DepartmentController {
   @ApiResponse({ status: 200, description: 'Department found.' })
   @ApiResponse({ status: 404, description: 'Department not found.' })
   async findOne(@Req() req, @Param('id') id: string) {
-    const tenant_id = req.user.tenantId;
+    const tenant_id = req.user.tenant_id;
     return await this.service.findOne(tenant_id, id);
   }
 
@@ -98,7 +96,7 @@ export class DepartmentController {
   @ApiResponse({ status: 200, description: 'Department deleted successfully.' })
   @ApiResponse({ status: 404, description: 'Department not found.' })
   async remove(@Req() req, @Param('id') id: string) {
-    const tenant_id = req.user.tenantId;
+    const tenant_id = req.user.tenant_id;
     return await this.service.remove(tenant_id, id);
   }
 }
