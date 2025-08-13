@@ -155,4 +155,23 @@ async findAll(
   async remove(@TenantId() tenant_id: string, @Param('id') id: string) {
     return this.service.remove(tenant_id, id);
   }
+
+  
+  @Get(':id/details')
+  @ApiOperation({ summary: 'Get editable details for an employee' })
+  @ApiResponse({ status: 200, description: 'Editable details returned.' })
+  async getEditDetails(@TenantId() tenant_id: string, @Param('id') id: string) {
+    const emp = await this.service.findOne(tenant_id, id);
+    return {
+      id: emp.id,
+      first_name: emp.user.first_name,
+      last_name: emp.user.last_name,
+      email: emp.user.email,
+      phone: emp.user.phone,
+      designation_id: emp.designation_id,
+      department_id: emp.designation?.department?.id ?? null,
+    };
+  }
+
+
 }

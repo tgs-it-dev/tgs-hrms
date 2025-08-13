@@ -79,4 +79,12 @@ export class AttendanceService {
     if (!attendance) throw new NotFoundException('Attendance not found');
     return this.attendanceRepo.remove(attendance);
   }
+
+async getAllAttendance(tenantId: string) {
+  return this.attendanceRepo.find({
+    where: { user: { tenant_id: tenantId } },
+    relations: ['user'],
+  });
+}
+
 }
