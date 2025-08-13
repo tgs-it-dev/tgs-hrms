@@ -16,7 +16,7 @@ export class TenantController {
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('system-admin')
   @ApiOperation({ summary: 'Get all tenants (Admin only)' })
   @ApiResponse({ 
     status: 200, 
@@ -54,7 +54,7 @@ export class TenantController {
 
   @Get(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('system-admin')
   @ApiOperation({ summary: 'Get tenant by ID (Admin only)' })
   @ApiParam({ 
     name: 'id', 
@@ -92,7 +92,7 @@ export class TenantController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('system-admin')
   @ApiOperation({ summary: 'Create a new tenant (Admin only)' })
   @ApiBody({ type: CreateTenantDto })
   @ApiResponse({ 
@@ -125,7 +125,7 @@ export class TenantController {
 
   @Put(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('system-admin')
   @ApiOperation({ summary: 'Update tenant by ID (Admin only)' })
   @ApiParam({ 
     name: 'id', 
@@ -157,7 +157,7 @@ export class TenantController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('system-admin')
   @ApiOperation({ summary: 'Delete tenant by ID (Admin only)' })
   @ApiParam({ 
     name: 'id', 

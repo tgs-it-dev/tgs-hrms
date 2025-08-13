@@ -31,7 +31,7 @@ export class DesignationController {
   constructor(private service: DesignationService) {}
 
   @Post()
-  @Roles('admin')
+  @Roles('admin' ,'system-admin')
   @ApiOperation({ summary: 'Create designation' })
   @ApiResponse({ status: 201, description: 'Designation created.' })
   @ApiResponse({
@@ -50,7 +50,7 @@ export class DesignationController {
   }
 
   @Put(':id')
-  @Roles('admin')
+  @Roles('admin',"system-admin")
   @ApiOperation({ summary: 'Update designation' })
   @ApiResponse({ status: 200, description: 'Designation updated.' })
   @ApiResponse({
@@ -88,7 +88,7 @@ export class DesignationController {
   }
 
   @Delete(':id')
-  @Roles('admin')
+  @Roles('admin',"system-admin")
   @ApiOperation({ summary: 'Delete a designation' })
   @ApiResponse({ status: 200, description: 'Designation deleted.' })
   @ApiResponse({ status: 404, description: 'Designation not found.' })

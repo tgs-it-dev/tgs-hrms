@@ -14,7 +14,7 @@ export class PermissionController {
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('admin',"system-admin")
   @ApiOperation({ summary: 'Get all permissions (Admin only)' })
   @ApiResponse({ 
     status: 200, 
@@ -43,7 +43,7 @@ export class PermissionController {
 
   @Get(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('admin',"system-admin")
   @ApiOperation({ summary: 'Get permission by ID (Admin only)' })
   @ApiParam({ 
     name: 'id', 
@@ -71,7 +71,7 @@ export class PermissionController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('admin',"system-admin")
   @ApiOperation({ summary: 'Create a new permission (Admin only)' })
   @ApiBody({ type: CreatePermissionDto })
   @ApiResponse({ 
@@ -95,7 +95,7 @@ export class PermissionController {
 
   @Put(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('admin',"system-admin")
   @ApiOperation({ summary: 'Update permission by ID (Admin only)' })
   @ApiParam({ 
     name: 'id', 
@@ -117,7 +117,7 @@ export class PermissionController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('admin',"system-admin")
   @ApiOperation({ summary: 'Delete permission by ID (Admin only)' })
   @ApiParam({ 
     name: 'id', 

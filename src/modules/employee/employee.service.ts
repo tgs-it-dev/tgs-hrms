@@ -51,7 +51,6 @@ export class EmployeeService {
   async create(tenant_id: string, dto: CreateEmployeeDto) {
     await this.validateDesignation(dto.designation_id, tenant_id);
 
-    // Check if email already exists in tenant
     const existingUser = await this.userRepo.findOne({
       where: { email: dto.email, tenant_id },
     });
@@ -60,7 +59,6 @@ export class EmployeeService {
       throw new ConflictException('User with this email already exists in the tenant.');
     }
 
-    // Get employee role
     const employeeRole = await this.roleRepo.findOne({
       where: { name: 'Employee' },
     });
@@ -69,10 +67,8 @@ export class EmployeeService {
       throw new NotFoundException('Employee role not found.');
     }
 
-    // Hash the password
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
-    // Create the user
     const user = this.userRepo.create({
       email: dto.email,
       phone: dto.phone,
@@ -85,7 +81,6 @@ export class EmployeeService {
 
     const savedUser = await this.userRepo.save(user);
 
-    // Create the employee
     const employee = this.employeeRepo.create({
       user_id: savedUser.id,
       designation_id: dto.designation_id,
@@ -104,7 +99,6 @@ export class EmployeeService {
   async findAll(tenant_id: string, query: EmployeeQueryDto) {
     const { department_id, designation_id } = query;
 
-    // Build query builder for flexible filtering
     const qb = this.employeeRepo.createQueryBuilder('employee')
       .leftJoinAndSelect('employee.user', 'user')
       .leftJoinAndSelect('employee.designation', 'designation')
