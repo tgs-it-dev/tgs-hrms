@@ -27,22 +27,21 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
-    // Check if user already exists with the same email
-    const existingUser = await this.userRepository.findOne({ 
-      where: { email: dto.email.toLowerCase() } 
+    const existingUser = await this.userRepository.findOne({
+      where: { email: dto.email.toLowerCase() },
     });
 
     if (existingUser) {
-      throw new BadRequestException({ 
-        field: 'email', 
-        message: 'User with this email already exists' 
+      throw new BadRequestException({
+        field: 'email',
+        message: 'User with this email already exists',
       });
     }
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
     const user = this.userRepository.create({
-      email: dto.email.toLowerCase(), // Normalize email to lowercase
+      email: dto.email.toLowerCase(),
       password: hashedPassword,
       first_name: dto.first_name,
       last_name: dto.last_name,
@@ -56,25 +55,36 @@ export class AuthService {
   }
 
   async validateUser(email: string, password: string) {
-     const normalizedEmail = email.toLowerCase();  // 👈 Normalize to lowercase
+    const normalizedEmail = email.toLowerCase();
     this.logger.log(`Login attempt for email: ${normalizedEmail}`);
-    const user = await this.userRepository.findOne({ 
-      where: { email : normalizedEmail },
-      relations: ['role']
+
+    const user = await this.userRepository.findOne({
+      where: { email: normalizedEmail },
+      relations: ['role'],
     });
 
     if (!user) {
-    this.logger.warn(`Login failed: user not found for email: ${normalizedEmail}`);
-    // Use BadRequestException and include a field
-    throw new BadRequestException({ field: 'email', message: 'Email not found' });
-  }
+      this.logger.warn(`Login failed: user not found for email: ${normalizedEmail}`);
+      throw new BadRequestException({
+        field: 'email',
+        message: 'Email not found',
+      });
+    }
 
-  const isPasswordValid = await bcrypt.compare(password, user.password);
-  if (!isPasswordValid) {
-    this.logger.warn(`Login failed: invalid password for email: ${normalizedEmail}`);
-    // Use BadRequestException and include a field
-    throw new BadRequestException({ field: 'password', message: 'Incorrect password' });
-  }
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      this.logger.warn(`Login failed: invalid password for email: ${normalizedEmail}`);
+      throw new BadRequestException({
+        field: 'password',
+        message: 'Incorrect password',
+      });
+    }
+
+    
+    if (!user.role || !user.role.name) {
+      this.logger.error(`User role missing for email: ${normalizedEmail}`);
+      throw new UnauthorizedException('User role not found');
+    }
 
     const payload = {
       email: user.email,
@@ -94,7 +104,7 @@ export class AuthService {
     });
 
     user.refresh_token = refreshToken;
-await this.userRepository.save(user);
+    await this.userRepository.save(user);
 
     this.logger.log(`Login successful for email: ${normalizedEmail}`);
     return {
@@ -105,26 +115,21 @@ await this.userRepository.save(user);
   }
 
   async forgotPassword(dto: ForgotPasswordDto) {
-    const user = await this.userRepository.findOne({ 
-      where: { email: dto.email.toLowerCase() } 
+    const user = await this.userRepository.findOne({
+      where: { email: dto.email.toLowerCase() },
     });
 
     if (!user) {
       throw new BadRequestException('User not found');
     }
 
-    // Generate reset token (you might want to use a more secure method)
-    const resetToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    
-    // In a real application, you would:
-    // 1. Hash the reset token before storing
-    // 2. Send the reset token via email
-    // 3. Set an expiration time
-    
-    // For now, we'll just return the token
-    return { 
+    const resetToken =
+      Math.random().toString(36).substring(2, 15) +
+      Math.random().toString(36).substring(2, 15);
+
+    return {
       message: 'Password reset token generated',
-      resetToken: resetToken // In production, don't return this directly
+      resetToken,
     };
   }
 
@@ -156,19 +161,19 @@ async resetPassword(dto: ResetPasswordDto) {
         secret: this.configService.get<string>('JWT_SECRET'),
       });
 
-      const user = await this.userRepository.findOne({ 
+      const user = await this.userRepository.findOne({
         where: { id: payload.sub },
-        relations: ['role']
+        relations: ['role'],
       });
 
-      if (!user) {
+      if (!user || !user.role?.name) {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
       const newPayload = {
         email: user.email,
         sub: user.id,
-        role: user.role.name,
+        role: user.role.name.toLowerCase(),
         tenant_id: user.tenant_id,
       };
 
@@ -189,25 +194,17 @@ async resetPassword(dto: ResetPasswordDto) {
         secret: this.configService.get<string>('JWT_SECRET'),
       });
 
-      const user = await this.userRepository.findOne({ 
-        where: { id: payload.sub } 
+      const user = await this.userRepository.findOne({
+        where: { id: payload.sub },
       });
 
       if (!user) {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
-      // In a real application, you might want to blacklist the refresh token
-      // For now, we'll just return a success message
       return { message: 'Logged out successfully' };
     } catch (error) {
       throw new UnauthorizedException('Invalid refresh token');
     }
   }
 }
-
-
-
-
-
-

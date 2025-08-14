@@ -105,7 +105,6 @@ export class EmployeeService {
   async findAll(tenant_id: string, query: EmployeeQueryDto) {
     const { department_id, designation_id } = query;
 
-    // Build query builder for flexible filtering
     const qb = this.employeeRepo.createQueryBuilder('employee')
       .leftJoinAndSelect('employee.user', 'user')
       .leftJoinAndSelect('employee.designation', 'designation')
