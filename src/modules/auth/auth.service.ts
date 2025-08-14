@@ -13,6 +13,7 @@ import * as bcrypt from 'bcrypt';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ConfigService } from '@nestjs/config';
+import { NotFoundException } from '@nestjs/common';
 
 @Injectable()
 export class AuthService {
@@ -132,22 +133,27 @@ export class AuthService {
     };
   }
 
-  async resetPassword(dto: ResetPasswordDto) {
-    const user = await this.userRepository.findOne({
-      where: { email: dto.email.toLowerCase() },
-    });
 
-    if (!user) {
-      throw new BadRequestException('User not found');
-    }
-
-    const hashedPassword = await bcrypt.hash(dto.newPassword, 10);
-    user.password = hashedPassword;
-
-    await this.userRepository.save(user);
-
-    return { message: 'Password reset successfully' };
+async resetPassword(dto: ResetPasswordDto) {
+  this.logger.log(`Reset password attempt with token: ${dto.token}`);
+  const user = await this.userRepository.findOne({
+    where: { reset_token: dto.token }
+  });
+  if (!user) {
+    throw new NotFoundException('Invalid reset token');
   }
+  if (user.reset_token_expiry && new Date() > user.reset_token_expiry) {
+    throw new BadRequestException('Reset token has expired');
+  }
+  const hashedPassword = await bcrypt.hash(dto.password, 10);
+  await this.userRepository.update(user.id, {
+    password: hashedPassword,
+    reset_token: null,
+    reset_token_expiry: null,
+  });
+  return { message: 'Password reset successfully' };
+}
+
 
   async refreshToken(refreshToken: string) {
     try {

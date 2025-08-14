@@ -17,6 +17,12 @@ import { AppService } from './app.service';
 import { AttendanceModule } from './modules/attendance/attendace.module';
 import { TimesheetModule } from './modules/timesheet/timesheet.module';
 import { LeaveModule } from './modules/leave/leave.module';
+
+// Added imports for mailer
+import { MailerModule } from '@nestjs-modules/mailer';
+import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
+import { join } from 'path';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -47,7 +53,34 @@ import { LeaveModule } from './modules/leave/leave.module';
       },
     }),
 
-    
+    // ✅ Mailer Module configuration
+    MailerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async (config: ConfigService) => ({
+        transport: {
+          host: config.get<string>('SMTP_HOST'),
+          port: config.get<number>('SMTP_PORT'),
+          secure: false,
+          auth: {
+            user: config.get<string>('SMTP_USER'),
+            pass: config.get<string>('SMTP_PASS'),
+          },
+        },
+        defaults: {
+          from: config.get<string>('SMTP_FROM'),
+        },
+        template: {
+          dir: join(process.cwd(), 'src', 'templates'), // works in dev
+          adapter: new HandlebarsAdapter(),
+          options: {
+            strict: true,
+          },
+        },
+      }),
+    }),
+
+    // Existing modules
     UserModule,
     AuthModule,
     DepartmentModule,
@@ -59,7 +92,6 @@ import { LeaveModule } from './modules/leave/leave.module';
     AttendanceModule,
     TimesheetModule,
     LeaveModule, 
-   
   ],
   controllers: [AppController],
   providers: [AppService],

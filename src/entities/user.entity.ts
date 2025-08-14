@@ -63,8 +63,8 @@ export class User {
   refresh_token: string;
 
   @Column({ type: 'text', nullable: true })
-  reset_token: string;
+  reset_token: string | null;
 
   @Column({ type: 'timestamptz', nullable: true })
-  reset_token_expiry: Date;
+  reset_token_expiry: Date | null;
 }
