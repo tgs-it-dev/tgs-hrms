@@ -15,6 +15,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AttendanceModule } from './modules/attendance/attendace.module';
+import { TimesheetModule } from './modules/timesheet/timesheet.module';
 import { LeaveModule } from './modules/leave/leave.module';
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { LeaveModule } from './modules/leave/leave.module';
     RoleModule,
     PermissionModule,
     AttendanceModule,
+    TimesheetModule,
     LeaveModule, 
    
   ],
