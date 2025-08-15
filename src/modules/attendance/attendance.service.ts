@@ -1,25 +1,66 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Attendance } from '../../entities/attendance.entity';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
+import { TimesheetService } from '../timesheet/timesheet.service';
 
 @Injectable()
 export class AttendanceService {
   constructor(
     @InjectRepository(Attendance)
     private readonly attendanceRepo: Repository<Attendance>,
+    private readonly timesheetService: TimesheetService,
   ) {}
 
   async create(userId: string, dto: CreateAttendanceDto) {
+    const now = new Date();
+
+    
+    const startOfDayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+    const startOfNextDayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0));
+
+    const todays = await this.attendanceRepo
+      .createQueryBuilder('a')
+      .where('a.user_id = :userId', { userId })
+      .andWhere('a.timestamp >= :startOfDayUtc AND a.timestamp < :startOfNextDayUtc', {
+        startOfDayUtc,
+        startOfNextDayUtc,
+      })
+      .orderBy('a.timestamp', 'ASC')
+      .getMany();
+    const hasCheckInToday = todays.some(r => r.type === 'check-in');
+    const hasCheckOutToday = todays.some(r => r.type === 'check-out');
+
+    if (dto.type === 'check-in') {
+      if (hasCheckInToday) {
+        throw new BadRequestException('Already checked in today');
+      }
+    }
+
+    if (dto.type === 'check-out') {
+      if (!hasCheckInToday) {
+        throw new BadRequestException('You must check in before checking out');
+      }
+      if (hasCheckOutToday) {
+        throw new BadRequestException('Already checked out today');
+      }
+    }
+
     const attendance = this.attendanceRepo.create({
       type: dto.type,
       user_id: userId,
-      timestamp: new Date(), // Server UTC time
+      timestamp: now, 
     });
 
-    return this.attendanceRepo.save(attendance);
+    const saved = await this.attendanceRepo.save(attendance);
+
+    if (dto.type === 'check-out') {
+      await this.timesheetService.autoEndIfActive(userId);
+    }
+
+    return saved;
   }
 
   async findAll(userId?: string) {

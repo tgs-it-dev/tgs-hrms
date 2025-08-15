@@ -15,6 +15,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AttendanceModule } from './modules/attendance/attendace.module';
+import { TimesheetModule } from './modules/timesheet/timesheet.module';
 import { LeaveModule } from './modules/leave/leave.module';
 
 // Added imports for mailer
@@ -89,6 +90,7 @@ import { join } from 'path';
     RoleModule,
     PermissionModule,
     AttendanceModule,
+    TimesheetModule,
     LeaveModule, 
   ],
   controllers: [AppController],
