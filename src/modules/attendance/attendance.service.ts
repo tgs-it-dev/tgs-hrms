@@ -1,14 +1,17 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Attendance } from '../../entities/attendance.entity';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
+import { TimesheetService } from '../timesheet/timesheet.service'; // Import TimesheetService
+
 @Injectable()
 export class AttendanceService {
 	constructor(
 		@InjectRepository(Attendance)
 		private readonly attendanceRepo: Repository<Attendance>,
+		   private readonly timesheetService: TimesheetService, // Inject TimesheetService
 	) {}
 	async create(userId: string, dto: CreateAttendanceDto) {
 		const now = new Date();
@@ -18,6 +21,11 @@ export class AttendanceService {
 			timestamp: now,
 		});
 		const saved = await this.attendanceRepo.save(attendance);
+		// If the type is 'check-out', end the active work session by calling TimesheetService's autoEndIfActive
+  if (dto.type === 'check-out') {
+    await this.timesheetService.autoEndIfActive(userId);
+  }
+
 		return saved;
 	}
 	// Daily summary: one row per day (latest check-in/out of that day)
@@ -115,3 +123,8 @@ export class AttendanceService {
 		});
 	}
 }
+
+
+
+
+
