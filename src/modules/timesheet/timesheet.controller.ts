@@ -17,7 +17,7 @@ export class TimesheetController {
   async start(@Req() req: Request) {
     const userId = (req.user as any).id;
     return this.timesheetService.startWork(userId);
-    }
+  }
 
   @Post('end')
   async end(@Req() req: Request) {
@@ -39,5 +39,3 @@ export class TimesheetController {
     return this.timesheetService.summaryByTenant(tenantId, from, to);
   }
 }
-
-
