@@ -138,8 +138,69 @@ async findAll(
   return this.service.findAll(tenant_id, query);
 }
 
+@Get('joining-report')
+ @ApiOperation({ summary: 'Get employee joining report month-wise' })
+ @ApiResponse({
+   status: 200,
+   description: 'Employee joining report retrieved successfully.',
+   schema: {
+     example: [
+       {
+         "month": 1,
+         "year": 2025,
+         "total": 30
+       },
+       {
+         "month": 2,
+         "year": 2025,
+         "total": 20
+       }
+     ]
+   }
+ })
+ @ApiResponse({
+   status: 400,
+   description: 'Error fetching employee joining report.',
+   schema: {
+     example: {
+       message: 'Error fetching employee joining report.',
+       error: 'Bad Request',
+       statusCode: 400
+     }
+   }
+ })
+ async getEmployeeJoiningReport(@TenantId() tenant_id: string) {
+   return this.service.getEmployeeJoiningReport(tenant_id);
+ }
 
-  @Get(':id')
+@Get('gender-percentage')
+@ApiOperation({ summary: 'Get gender percentage of employees' })
+@ApiResponse({
+  status: 200,
+  description: 'Gender percentage retrieved successfully.',
+  schema: {
+    example: {
+      male: 60,  // Percentage of male employees
+      female: 40,  // Percentage of female employees
+    },
+  },
+})
+@ApiResponse({
+  status: 404,
+  description: 'No employees found for the tenant.',
+  schema: {
+    example: {
+      message: 'No employees found for this tenant.',
+      error: 'Not Found',
+      statusCode: 404,
+    },
+  },
+})
+async getGenderPercentage(@TenantId() tenant_id: string) {
+  return this.service.getGenderPercentage(tenant_id);  // No `findOne` or `id` logic here!
+}
+
+@Get(':id')
   @ApiOperation({ summary: 'Get single employee by ID' })
   @ApiResponse({ status: 200, description: 'Employee found.' })
   @ApiResponse({ status: 404, description: 'Employee not found.' })

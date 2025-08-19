@@ -36,6 +36,9 @@ export class User {
   @Column({ type: 'uuid' })
   role_id: string;
 
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  gender: 'male' | 'female' | null; // Gender field, nullable
+
   @Column({ type: 'uuid' })
   tenant_id: string;
 
