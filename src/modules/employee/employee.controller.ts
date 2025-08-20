@@ -26,6 +26,8 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { TenantGuard } from '../../common/guards/tenant.guard';
 import { TenantId } from '../../common/decorators/company.deorator';
+import { AttendanceService } from '../attendance/attendance.service';
+import { LeaveService } from '../leave/leave.service';
 
 
 @ApiTags('Employees')
@@ -33,7 +35,11 @@ import { TenantId } from '../../common/decorators/company.deorator';
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
 @Controller('employees')
 export class EmployeeController {
-  constructor(private readonly service: EmployeeService) {}
+  constructor(
+    private readonly service: EmployeeService,
+    private readonly attendanceService: AttendanceService,
+    private readonly leaveService: LeaveService,
+  ) {}
 
   @Post()
   @Roles('admin','system-admin')
@@ -198,6 +204,20 @@ async findAll(
 })
 async getGenderPercentage(@TenantId() tenant_id: string) {
   return this.service.getGenderPercentage(tenant_id);  // No `findOne` or `id` logic here!
+}
+
+@Get('leaves-this-month')
+@ApiOperation({ summary: 'Get total leaves applied by all employees for the current month' })
+@ApiResponse({ status: 200, description: 'Total leaves for the current month.' })
+async getLeavesThisMonth(@TenantId() tenant_id: string) {
+  return this.leaveService.getTotalLeavesForCurrentMonth(tenant_id);
+}
+
+@Get('attendance-this-month')
+@ApiOperation({ summary: 'Get total attendance for all employees for the current month (one per day per employee)' })
+@ApiResponse({ status: 200, description: 'Total attendance for the current month.' })
+async getAttendanceThisMonth(@TenantId() tenant_id: string) {
+  return this.attendanceService.getTotalAttendanceForCurrentMonth(tenant_id);
 }
 
 @Get(':id')

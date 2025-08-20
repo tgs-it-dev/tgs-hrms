@@ -122,6 +122,32 @@ export class AttendanceService {
 			relations: ['user'],
 		});
 	}
+
+  // Get total attendance for the current month (one per day per employee)
+  async getTotalAttendanceForCurrentMonth(tenantId: string): Promise<{ totalAttendance: number }> {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth(); // 0-based
+    const startOfMonth = new Date(year, month, 1);
+    const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59, 999);
+
+    // Query: count unique (user_id, date) pairs for the tenant in the month
+    const result = await this.attendanceRepo
+      .createQueryBuilder('attendance')
+      .leftJoin('attendance.user', 'user')
+      .where('user.tenant_id = :tenantId', { tenantId })
+      .andWhere('attendance.timestamp >= :startOfMonth AND attendance.timestamp <= :endOfMonth', {
+        startOfMonth,
+        endOfMonth,
+      })
+      .select(["attendance.user_id AS user_id", "DATE(attendance.timestamp) AS date"])
+      .groupBy('attendance.user_id')
+      .addGroupBy('DATE(attendance.timestamp)')
+      .getRawMany();
+
+    return { totalAttendance: result.length };
+  }
+
 }
 
 
