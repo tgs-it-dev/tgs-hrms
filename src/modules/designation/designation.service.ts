@@ -94,10 +94,14 @@ export class DesignationService {
     }
   }
 
-  async findAllByDepartment(department_id: string) {
+  async findAllByDepartment(department_id: string, page: number = 1) {
+    const limit = 25;
+    const skip = (page - 1) * limit;
     return await this.designationRepo.find({
       where: { department_id },
       order: { created_at: 'DESC' },
+      skip,
+      take: limit,
     });
   }
 

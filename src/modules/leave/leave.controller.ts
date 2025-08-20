@@ -50,8 +50,9 @@ export class LeaveController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all leave requests (Admin only)' })
   @ApiResponse({ status: 200, description: 'Returns all leave requests' })
-  async findAllForAdmin(@Request() req: any) {
-    return this.leaveService.getAllLeaves(req.user.tenant_id);
+  async findAllForAdmin(@Request() req: any, @Query('page') page?: string) {
+    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+    return this.leaveService.getAllLeaves(req.user.tenant_id, pageNumber);
   }
 
   
@@ -63,8 +64,9 @@ export class LeaveController {
     status: 200,
     description: 'Returns leave requests',
   })
-  async find(@Query('userId') userId?: string) {
-    return this.leaveService.getLeaves(userId);
+  async find(@Query('userId') userId?: string, @Query('page') page?: string) {
+    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+    return this.leaveService.getLeaves(userId, pageNumber);
   }
 
   @Patch(':id')

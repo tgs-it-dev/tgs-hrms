@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, NotFoundException, BadRequestException, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiBody } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
@@ -39,9 +39,10 @@ export class TenantController {
     status: 403, 
     description: 'Forbidden - Insufficient permissions' 
   })
-  async getTenants() {
+  async getTenants(@Query('page') page?: string) {
     try {
-      const tenants = await this.tenantService.findAll();
+      const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+      const tenants = await this.tenantService.findAll(pageNumber);
       return {
         statusCode: 200,
         message: 'List of tenants retrieved successfully.',

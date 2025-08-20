@@ -133,9 +133,11 @@ export class EmployeeController {
 })
 async findAll(
   @TenantId() tenant_id: string,
-  @Query() query: EmployeeQueryDto
+  @Query() query: EmployeeQueryDto,
+  @Query('page') page?: string
 ) {
-  return this.service.findAll(tenant_id, query);
+  const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+  return this.service.findAll(tenant_id, query, pageNumber);
 }
 
 @Get('joining-report')

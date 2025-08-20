@@ -53,14 +53,18 @@ export class UserService {
     return this.userRepo.save(user);
   }
 
-  async findAll(requestedTenantId: string, currentUserId: string) {
+  async findAll(requestedTenantId: string, currentUserId: string, page: number = 1) {
     const isAdmin = !(await this.isSystemAdmin(currentUserId));
 
+    const limit = 25;
+    const skip = (page - 1) * limit;
     return this.userRepo.find({
       where: {
         tenant_id: isAdmin ? requestedTenantId : undefined,
       },
       relations: ['role'],
+      skip,
+      take: limit,
     });
   }
 

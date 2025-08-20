@@ -12,6 +12,7 @@ import {
   HttpException,
   HttpStatus,
   Req,
+  Query,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -45,9 +46,10 @@ export class UserController {
 
   @Get()
   @Roles('system-admin', 'admin')
-  async findAll(@TenantId() tenantId: string, @Req() req) {
+  async findAll(@TenantId() tenantId: string, @Req() req, @Query('page') page?: string) {
     try {
-      const users = await this.userService.findAll(tenantId, req.user.userId);
+      const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+      const users = await this.userService.findAll(tenantId, req.user.userId, pageNumber);
       if (!users || users.length === 0) {
         throw new HttpException('No users found for this tenant', HttpStatus.NOT_FOUND);
       }
