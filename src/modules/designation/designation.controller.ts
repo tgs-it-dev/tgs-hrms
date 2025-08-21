@@ -7,6 +7,7 @@ import {
   Post,
   Put,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -75,8 +76,9 @@ export class DesignationController {
   @Get('department/:departmentId')
   @ApiOperation({ summary: 'List designations under a department' })
   @ApiResponse({ status: 200, description: 'List of designations.' })
-  async findAll(@Param('departmentId') departmentId: string) {
-    return this.service.findAllByDepartment(departmentId);
+  async findAll(@Param('departmentId') departmentId: string, @Query('page') page?: string) {
+    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+    return this.service.findAllByDepartment(departmentId, pageNumber);
   }
 
   @Get(':id')

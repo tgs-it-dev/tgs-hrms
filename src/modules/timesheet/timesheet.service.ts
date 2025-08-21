@@ -91,10 +91,14 @@ async startWork(userId: string) {
   }
 
   // List all the timesheets for a user
-  async list(userId: string) {
+  async list(userId: string, page: number = 1) {
+    const limit = 25;
+    const skip = (page - 1) * limit;
     const sessions = await this.timesheetRepo.find({
       where: { user_id: userId },
-      order: { start_time: 'DESC' }
+      order: { start_time: 'DESC' },
+      skip,
+      take: limit,
     });
 
     const sessionsWithDuration = sessions.map((s) => {

@@ -102,7 +102,7 @@ export class EmployeeService {
 
 
 
-  async findAll(tenant_id: string, query: EmployeeQueryDto) {
+  async findAll(tenant_id: string, query: EmployeeQueryDto, page: number = 1) {
     const { department_id, designation_id } = query;
 
     const qb = this.employeeRepo.createQueryBuilder('employee')
@@ -118,7 +118,9 @@ export class EmployeeService {
       qb.andWhere('employee.designation_id = :designation_id', { designation_id });
     }
 
-    return qb.getMany();
+    const limit = 25;
+    const skip = (page - 1) * limit;
+    return qb.skip(skip).take(limit).getMany();
   }
 
   async findOne(tenant_id: string, id: string) {

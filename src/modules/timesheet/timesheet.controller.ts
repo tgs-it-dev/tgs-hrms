@@ -26,9 +26,10 @@ export class TimesheetController {
   }
 
   @Get()
-  async list(@Req() req: Request) {
+  async list(@Req() req: Request, @Query('page') page?: string) {
     const userId = (req.user as any).id;
-    return this.timesheetService.list(userId);
+    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+    return this.timesheetService.list(userId, pageNumber);
   }
 
   @Get('summary')
