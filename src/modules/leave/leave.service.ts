@@ -55,4 +55,25 @@ async updateStatus(id: string, status: string, adminTenantId: string): Promise<L
   leave.status = status;
   return await this.leaveRepo.save(leave);
 }
+  // Get total leaves for the current month for a tenant
+  async getTotalLeavesForCurrentMonth(tenantId: string): Promise<{ totalLeaves: number }> {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth(); // 0-based
+    const startOfMonth = new Date(year, month, 1);
+    const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59, 999);
+
+    const leavesCount = await this.leaveRepo
+      .createQueryBuilder('leave')
+      .leftJoin('leave.user', 'user')
+      .where('user.tenant_id = :tenantId', { tenantId })
+      .andWhere('leave.created_at >= :startOfMonth AND leave.created_at <= :endOfMonth', {
+        startOfMonth,
+        endOfMonth,
+      })
+      .getCount();
+
+    return { totalLeaves: leavesCount };
+  }
+
 }

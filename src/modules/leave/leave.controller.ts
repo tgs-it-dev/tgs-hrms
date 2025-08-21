@@ -55,7 +55,6 @@ export class LeaveController {
     return this.leaveService.getAllLeaves(req.user.tenant_id, pageNumber);
   }
 
-  
   @Get()
    @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

@@ -10,11 +10,14 @@ import { EmployeeProfileController } from './employee-profile.controller';
 import { EmployeeProfileService } from './employee-profile.service';
 import { Attendance } from 'src/entities/attendance.entity';
 import { Leave } from 'src/entities/leave.entity';
+import { AttendanceModule } from '../attendance/attendace.module';
+import { LeaveModule } from '../leave/leave.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Employee, User, Designation,Role , Attendance , Leave]),
-    
+    AttendanceModule,
+    LeaveModule,
   ],
   controllers: [EmployeeController, EmployeeProfileController],
   providers: [EmployeeService,EmployeeProfileService],
