@@ -120,8 +120,10 @@ export class AttendanceService {
 		if (!attendance) throw new NotFoundException('Attendance not found');
 		return this.attendanceRepo.remove(attendance);
 	}
-	async getAllAttendance(tenantId: string, page: number = 1): Promise<PaginationResponse<Attendance>> {
-		const limit = 25;
+
+	async getAllAttendance(tenantId: string, page: number = 1) {
+		const limit = 4;
+
 		const skip = (page - 1) * limit;
 		const [items, total] = await this.attendanceRepo.findAndCount({
 			where: { user: { tenant_id: tenantId } },
