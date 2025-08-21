@@ -121,7 +121,7 @@ export class AttendanceService {
 		return this.attendanceRepo.remove(attendance);
 	}
 	async getAllAttendance(tenantId: string, page: number = 1) {
-		const limit = 25;
+		const limit = 4;
 		const skip = (page - 1) * limit;
 		return this.attendanceRepo.find({
 			where: { user: { tenant_id: tenantId } },
