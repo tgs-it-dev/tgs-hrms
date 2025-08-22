@@ -12,12 +12,14 @@ import { Attendance } from 'src/entities/attendance.entity';
 import { Leave } from 'src/entities/leave.entity';
 import { AttendanceModule } from '../attendance/attendace.module';
 import { LeaveModule } from '../leave/leave.module';
+import { CommonModule } from '../../common/common.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Employee, User, Designation,Role , Attendance , Leave]),
     AttendanceModule,
     LeaveModule,
+    CommonModule,
   ],
   controllers: [EmployeeController, EmployeeProfileController],
   providers: [EmployeeService,EmployeeProfileService],

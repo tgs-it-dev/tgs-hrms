@@ -41,10 +41,11 @@ export class PolicyController {
   @Get()
   @Roles('admin', 'system-admin', 'hr')
   @ApiOperation({ summary: 'List all policies (tenant-scoped)' })
-  async findAll(@Req() req, @Query('page') page?: string) {
+  async findAll(@Req() req, @Query('page') page?: string, @Query('size') size?: string) {
     const tenant_id = req.user.tenant_id;
     const pageNum = Math.max(1, parseInt(page || '1', 10) || 1);
-    return this.service.findAll(tenant_id, pageNum);
+    const pageSize = Math.max(1, Math.min(100, parseInt(size || '25', 10) || 25));
+    return this.service.findAll(tenant_id, pageNum, pageSize);
   }
 
   @Put(':id')

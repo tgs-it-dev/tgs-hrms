@@ -26,10 +26,11 @@ export class TimesheetController {
   }
 
   @Get()
-  async list(@Req() req: Request, @Query('page') page?: string) {
+  async list(@Req() req: Request, @Query('page') page?: string, @Query('size') size?: string) {
     const userId = (req.user as any).id;
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-    return this.timesheetService.list(userId, pageNumber);
+    const pageSize = Math.max(1, Math.min(100, parseInt(size || '25', 10) || 25));
+    return this.timesheetService.list(userId, pageNumber, pageSize);
   }
 
   @Get('summary')

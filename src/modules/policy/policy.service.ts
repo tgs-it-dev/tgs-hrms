@@ -9,12 +9,14 @@ import { Repository } from 'typeorm';
 import { Policy } from '../../entities/policy.entity';
 import { CreatePolicyDto } from './dto/create-policy.dto';
 import { UpdatePolicyDto } from './dto/update-policy.dto';
+import { PaginationService } from '../../common/services/pagination.service';
 
 @Injectable()
 export class PolicyService {
   constructor(
     @InjectRepository(Policy)
     private readonly repo: Repository<Policy>,
+    private paginationService: PaginationService,
   ) {}
 
   async create(tenant_id: string, dto: CreatePolicyDto) {
@@ -32,16 +34,14 @@ export class PolicyService {
     return await this.repo.save(policy);
   }
 
-  async findAll(tenant_id: string, page = 1) {
-    const limit = 25;
-    const skip = (page - 1) * limit;
-    const [items, total] = await this.repo.findAndCount({
-      where: { tenant_id },
-      order: { created_at: 'DESC' },
-      skip,
-      take: limit,
-    });
-    return { items, total, page, pageSize: limit, totalPages: Math.ceil(total / limit) };
+  async findAll(tenant_id: string, page = 1, size = 25) {
+    return this.paginationService.paginate(
+      this.repo,
+      page,
+      size,
+      { tenant_id },
+      { created_at: 'DESC' }
+    );
   }
 
   async findOne(tenant_id: string, id: string) {

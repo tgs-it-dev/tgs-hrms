@@ -12,6 +12,7 @@ import { User } from 'src/entities/user.entity';
 import { Role } from 'src/entities/role.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { PaginationService } from '../../common/services/pagination.service';
 
 @Injectable()
 export class UserService {
@@ -21,6 +22,7 @@ export class UserService {
 
     @InjectRepository(Role)
     private readonly roleRepo: Repository<Role>,
+    private paginationService: PaginationService,
   ) {}
 
   private async isSystemAdmin(userId: string): Promise<boolean> {
@@ -53,19 +55,19 @@ export class UserService {
     return this.userRepo.save(user);
   }
 
-  async findAll(requestedTenantId: string, currentUserId: string, page: number = 1) {
+  async findAll(requestedTenantId: string, currentUserId: string, page: number = 1, size: number = 25) {
     const isAdmin = !(await this.isSystemAdmin(currentUserId));
 
-    const limit = 25;
-    const skip = (page - 1) * limit;
-    return this.userRepo.find({
-      where: {
+    return this.paginationService.paginate(
+      this.userRepo,
+      page,
+      size,
+      {
         tenant_id: isAdmin ? requestedTenantId : undefined,
       },
-      relations: ['role'],
-      skip,
-      take: limit,
-    });
+      { created_at: 'DESC' },
+      ['role']
+    );
   }
 
   async findOne(userId: string, requestedTenantId: string, currentUserId: string) {

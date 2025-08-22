@@ -39,15 +39,11 @@ export class TenantController {
     status: 403, 
     description: 'Forbidden - Insufficient permissions' 
   })
-  async getTenants(@Query('page') page?: string) {
+  async getTenants(@Query('page') page?: string, @Query('size') size?: string) {
     try {
       const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-      const tenants = await this.tenantService.findAll(pageNumber);
-      return {
-        statusCode: 200,
-        message: 'List of tenants retrieved successfully.',
-        data: tenants,
-      };
+      const pageSize = Math.max(1, Math.min(100, parseInt(size || '25', 10) || 25));
+      return await this.tenantService.findAll(pageNumber, pageSize);
     } catch (err) {
       throw new BadRequestException('Failed to fetch tenants');
     }

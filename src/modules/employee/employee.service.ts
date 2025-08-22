@@ -15,6 +15,7 @@ import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { EmployeeQueryDto } from './dto/employee-query.dto';
 import { MailerService } from '@nestjs-modules/mailer';
 import { ConfigService } from '@nestjs/config';
+import { PaginationService } from '../../common/services/pagination.service';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 
@@ -32,6 +33,7 @@ export class EmployeeService {
     private readonly roleRepo: Repository<Role>,
     private readonly mailerService: MailerService,
     private readonly configService: ConfigService,
+    private paginationService: PaginationService,
   ) {}
 
   private async validateDesignation(designation_id: string, tenant_id: string): Promise<Designation> {
@@ -109,7 +111,7 @@ export class EmployeeService {
     }
 }
 
-  async findAll(tenant_id: string, query: EmployeeQueryDto, page: number = 1) {
+  async findAll(tenant_id: string, query: EmployeeQueryDto, page: number = 1, size: number = 25) {
     const { department_id, designation_id } = query;
 
     const qb = this.employeeRepo.createQueryBuilder('employee')
@@ -125,9 +127,7 @@ export class EmployeeService {
       qb.andWhere('employee.designation_id = :designation_id', { designation_id });
     }
 
-    const limit = 25;
-    const skip = (page - 1) * limit;
-    return qb.skip(skip).take(limit).getMany();
+    return this.paginationService.paginateQueryBuilder(qb, page, size);
   }
 
   async findOne(tenant_id: string, id: string) {

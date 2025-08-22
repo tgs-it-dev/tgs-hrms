@@ -76,9 +76,10 @@ export class DesignationController {
   @Get('department/:departmentId')
   @ApiOperation({ summary: 'List designations under a department' })
   @ApiResponse({ status: 200, description: 'List of designations.' })
-  async findAll(@Param('departmentId') departmentId: string, @Query('page') page?: string) {
+  async findAll(@Param('departmentId') departmentId: string, @Query('page') page?: string, @Query('size') size?: string) {
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-    return this.service.findAllByDepartment(departmentId, pageNumber);
+    const pageSize = Math.max(1, Math.min(100, parseInt(size || '25', 10) || 25));
+    return this.service.findAllByDepartment(departmentId, pageNumber, pageSize);
   }
 
   @Get(':id')

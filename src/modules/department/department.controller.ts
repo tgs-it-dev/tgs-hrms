@@ -76,10 +76,11 @@ export class DepartmentController {
   @Get()
   @ApiOperation({ summary: 'List all departments for tenant' })
   @ApiResponse({ status: 200, description: 'List of departments returned.' })
-  async findAll(@Req() req, @Query('page') page?: string) {
+  async findAll(@Req() req, @Query('page') page?: string, @Query('size') size?: string) {
     const tenant_id = req.user.tenant_id;
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-    return await this.service.findAll(tenant_id, pageNumber);
+    const pageSize = Math.max(1, Math.min(100, parseInt(size || '25', 10) || 25));
+    return await this.service.findAll(tenant_id, pageNumber, pageSize);
   }
 
   @Get(':id')

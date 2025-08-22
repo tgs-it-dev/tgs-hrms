@@ -1,16 +1,17 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiBody } from '@nestjs/swagger';
 import { CreatePermissionDto } from './dto/create-permission.dto';
 import { UpdatePermissionDto } from './dto/update-permission.dto';
 import { Roles } from 'src/common/guards/company.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
+import { PermissionService } from './permission.service';
 
 @ApiTags('Permissions')
 @ApiBearerAuth()
 @Controller('permissions')
 export class PermissionController {
-  constructor() {}
+  constructor(private readonly permissionService: PermissionService) {}
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -20,13 +21,18 @@ export class PermissionController {
     status: 200, 
     description: 'List of permissions retrieved successfully.',
     schema: {
-      example: [
-        {
-          id: '7ca8c920-9dad-11d1-80b4-00c04fd430c8',
-          name: 'read:employee',
-          description: 'Can read employees'
-        }
-      ]
+      example: {
+        data: [
+          {
+            id: '7ca8c920-9dad-11d1-80b4-00c04fd430c8',
+            name: 'read:employee',
+            description: 'Can read employees'
+          }
+        ],
+        total: 15,
+        page: 1,
+        size: 25
+      }
     }
   })
   @ApiResponse({ 
@@ -37,8 +43,10 @@ export class PermissionController {
     status: 403, 
     description: 'Forbidden - Insufficient permissions' 
   })
-  getPermissions() {
-    return { message: 'Get all permissions - Implementation pending' };
+  async getPermissions(@Query('page') page?: string, @Query('size') size?: string) {
+    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+    const pageSize = Math.max(1, Math.min(100, parseInt(size || '25', 10) || 25));
+    return this.permissionService.findAll(pageNumber, pageSize);
   }
 
   @Get(':id')
@@ -65,8 +73,8 @@ export class PermissionController {
     status: 404, 
     description: 'Permission not found' 
   })
-  getPermissionById(@Param('id') id: string) {
-    return { message: `Get permission by ID: ${id} - Implementation pending` };
+  async getPermissionById(@Param('id') id: string) {
+    return this.permissionService.findOne(id);
   }
 
   @Post()
@@ -89,8 +97,8 @@ export class PermissionController {
     status: 400, 
     description: 'Bad Request - Invalid permission data' 
   })
-  createPermission(@Body() createPermissionDto: CreatePermissionDto) {
-    return { message: 'Create permission - Implementation pending' };
+  async createPermission(@Body() createPermissionDto: CreatePermissionDto) {
+    return this.permissionService.create(createPermissionDto);
   }
 
   @Put(':id')
@@ -111,8 +119,8 @@ export class PermissionController {
     status: 404, 
     description: 'Permission not found' 
   })
-  updatePermission(@Param('id') id: string, @Body() updatePermissionDto: UpdatePermissionDto) {
-    return { message: `Update permission: ${id} - Implementation pending` };
+  async updatePermission(@Param('id') id: string, @Body() updatePermissionDto: UpdatePermissionDto) {
+    return this.permissionService.update(id, updatePermissionDto);
   }
 
   @Delete(':id')
@@ -132,7 +140,7 @@ export class PermissionController {
     status: 404, 
     description: 'Permission not found' 
   })
-  deletePermission(@Param('id') id: string) {
-    return { message: `Delete permission: ${id} - Implementation pending` };
+  async deletePermission(@Param('id') id: string) {
+    return this.permissionService.remove(id);
   }
 } 

@@ -140,10 +140,12 @@ export class EmployeeController {
 async findAll(
   @TenantId() tenant_id: string,
   @Query() query: EmployeeQueryDto,
-  @Query('page') page?: string
+  @Query('page') page?: string,
+  @Query('size') size?: string
 ) {
   const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-  return this.service.findAll(tenant_id, query, pageNumber);
+  const pageSize = Math.max(1, Math.min(100, parseInt(size || '25', 10) || 25));
+  return this.service.findAll(tenant_id, query, pageNumber, pageSize);
 }
 
 @Get('joining-report')

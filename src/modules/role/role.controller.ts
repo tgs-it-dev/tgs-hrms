@@ -1,16 +1,17 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiBody } from '@nestjs/swagger';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
+import { RoleService } from './role.service';
 
 @ApiTags('Roles')
 @ApiBearerAuth()
 @Controller('roles')
 export class RoleController {
-  constructor() {}
+  constructor(private readonly roleService: RoleService) {}
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -20,13 +21,18 @@ export class RoleController {
     status: 200, 
     description: 'List of roles retrieved successfully.',
     schema: {
-      example: [
-        {
-          id: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
-          name: 'admin',
-          description: 'Administrator with full access'
-        }
-      ]
+      example: {
+        data: [
+          {
+            id: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+            name: 'admin',
+            description: 'Administrator with full access'
+          }
+        ],
+        total: 10,
+        page: 1,
+        size: 25
+      }
     }
   })
   @ApiResponse({ 
@@ -37,8 +43,10 @@ export class RoleController {
     status: 403, 
     description: 'Forbidden - Insufficient permissions' 
   })
-  getRoles() {
-    return { message: 'Get all roles - Implementation pending' };
+  async getRoles(@Query('page') page?: string, @Query('size') size?: string) {
+    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+    const pageSize = Math.max(1, Math.min(100, parseInt(size || '25', 10) || 25));
+    return this.roleService.findAll(pageNumber, pageSize);
   }
 
   @Get(':id')
@@ -65,8 +73,8 @@ export class RoleController {
     status: 404, 
     description: 'Role not found' 
   })
-  getRoleById(@Param('id') id: string) {
-    return { message: `Get role by ID: ${id} - Implementation pending` };
+  async getRoleById(@Param('id') id: string) {
+    return this.roleService.findOne(id);
   }
 
   @Post()
@@ -89,8 +97,8 @@ export class RoleController {
     status: 400, 
     description: 'Bad Request - Invalid role data' 
   })
-  createRole(@Body() createRoleDto: CreateRoleDto) {
-    return { message: 'Create role - Implementation pending' };
+  async createRole(@Body() createRoleDto: CreateRoleDto) {
+    return this.roleService.create(createRoleDto);
   }
 
   @Put(':id')
@@ -111,8 +119,8 @@ export class RoleController {
     status: 404, 
     description: 'Role not found' 
   })
-  updateRole(@Param('id') id: string, @Body() updateRoleDto: UpdateRoleDto) {
-    return { message: `Update role: ${id} - Implementation pending` };
+  async updateRole(@Param('id') id: string, @Body() updateRoleDto: UpdateRoleDto) {
+    return this.roleService.update(id, updateRoleDto);
   }
 
   @Delete(':id')
@@ -132,7 +140,7 @@ export class RoleController {
     status: 404, 
     description: 'Role not found' 
   })
-  deleteRole(@Param('id') id: string) {
-    return { message: `Delete role: ${id} - Implementation pending` };
+  async deleteRole(@Param('id') id: string) {
+    return this.roleService.remove(id);
   }
 } 

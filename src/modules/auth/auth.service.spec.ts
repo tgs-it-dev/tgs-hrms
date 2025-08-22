@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { User, UserRole } from '../../entities/user.entity';
+import { User } from '../../entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
@@ -10,18 +10,31 @@ import { ConfigService } from '@nestjs/config';
 
 const mockPassword = bcrypt.hashSync('123456', 10);
 
-const mockUser: User = {
-  id: '1', 
-  email: 'admin@company.com',
-  password: mockPassword,
-  role: UserRole.ADMIN,
-  tenantId: '11111111-1111-1111-1111-111111111111', 
-  resetToken: '',
-  resetTokenExpiry: new Date(),
-  refreshToken: '',
-  name: 'Admin User',
+const mockRole = {
+  id: 'role-1',
+  name: 'Admin',
+  users: [],
+};
 
-  company: null,
+const mockUser: User = {
+  id: '1',
+  email: 'admin@company.com',
+  phone: '1234567890',
+  password: mockPassword,
+  first_name: 'Admin',
+  last_name: 'User',
+  role_id: mockRole.id,
+  role: mockRole as any,
+  gender: 'male',
+  tenant_id: '11111111-1111-1111-1111-111111111111',
+  tenant: null as any,
+  created_at: new Date(),
+  updated_at: new Date(),
+  employees: [],
+  attendances: [],
+  refresh_token: '',
+  reset_token: null,
+  reset_token_expiry: null,
 };
 
 const mockUserRepository = () => ({

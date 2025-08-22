@@ -4,14 +4,16 @@ import { Repository } from 'typeorm';
 import { Attendance } from '../../entities/attendance.entity';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
-import { TimesheetService } from '../timesheet/timesheet.service'; 
+import { TimesheetService } from '../timesheet/timesheet.service';
+import { PaginationService } from '../../common/services/pagination.service';
 
 @Injectable()
 export class AttendanceService {
 	constructor(
 		@InjectRepository(Attendance)
 		private readonly attendanceRepo: Repository<Attendance>,
-		   private readonly timesheetService: TimesheetService, 
+		private readonly timesheetService: TimesheetService,
+		private paginationService: PaginationService,
 	) {}
 	async create(userId: string, dto: CreateAttendanceDto) {
 		const now = new Date();
@@ -29,15 +31,17 @@ export class AttendanceService {
 		return saved;
 	}
 	
-	async findAll(userId?: string, page: number = 1) {
+	async findAll(userId?: string, page: number = 1, size: number = 25) {
 		const query = this.attendanceRepo.createQueryBuilder('attendance');
 		if (userId) {
 			query.where('attendance.user_id = :userId', { userId });
 		}
 		query.orderBy('attendance.timestamp', 'ASC');
-		const records = await query.getMany();
+		const result = await this.paginationService.paginateQueryBuilder(query, page, size);
+		
+		// Group the paginated results by date
 		const groupedByDate: Record<string, { checkIn?: Attendance; checkOut?: Attendance }> = {};
-		for (const record of records) {
+		for (const record of result.data) {
 			const date = record.timestamp.toISOString().split('T')[0];
 			if (!groupedByDate[date]) {
 				groupedByDate[date] = {};
@@ -49,6 +53,7 @@ export class AttendanceService {
 				groupedByDate[date].checkOut = record;
 			}
 		}
+		
 		const response = Object.entries(groupedByDate).map(([date, { checkIn, checkOut }]) => {
 			let workedHours = 0;
 			
@@ -65,21 +70,21 @@ export class AttendanceService {
 				workedHours,
 			};
 		});
-		const limit = 25;
-		const start = (page - 1) * limit;
-		return response.slice(start, start + limit);
+
+		return {
+			...result,
+			data: response
+		};
 	}
 	
-	async findEvents(userId?: string, page: number = 1) {
+	async findEvents(userId?: string, page: number = 1, size: number = 25) {
 		const qb = this.attendanceRepo.createQueryBuilder('attendance')
 			.leftJoinAndSelect('attendance.user', 'user')
 			.orderBy('attendance.timestamp', 'DESC');
 		if (userId) {
 			qb.where('attendance.user_id = :userId', { userId });
 		}
-		const limit = 25;
-		const skip = (page - 1) * limit;
-		return qb.skip(skip).take(limit).getMany();
+		return this.paginationService.paginateQueryBuilder(qb, page, size);
 	}
 	
 	async getTodaySummary(userId: string) {
@@ -120,15 +125,15 @@ export class AttendanceService {
 		if (!attendance) throw new NotFoundException('Attendance not found');
 		return this.attendanceRepo.remove(attendance);
 	}
-	async getAllAttendance(tenantId: string, page: number = 1) {
-		const limit = 25;
-		const skip = (page - 1) * limit;
-		return this.attendanceRepo.find({
-			where: { user: { tenant_id: tenantId } },
-			relations: ['user'],
-			skip,
-			take: limit,
-		});
+	async getAllAttendance(tenantId: string, page: number = 1, size: number = 25) {
+		return this.paginationService.paginate(
+			this.attendanceRepo,
+			page,
+			size,
+			{ user: { tenant_id: tenantId } },
+			{ timestamp: 'DESC' },
+			['user']
+		);
 	}
 
   // Get total attendance for the current month (one per day per employee)

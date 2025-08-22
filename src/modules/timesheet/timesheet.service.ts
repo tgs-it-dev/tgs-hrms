@@ -4,6 +4,7 @@ import { Repository, IsNull, Between } from 'typeorm';
 import { Timesheet } from '../../entities/timesheet.entity';
 import { Attendance } from '../../entities/attendance.entity';
 import { User } from '../../entities/user.entity';
+import { PaginationService } from '../../common/services/pagination.service';
 
 @Injectable()
 export class TimesheetService {
@@ -14,6 +15,7 @@ export class TimesheetService {
     private readonly attendanceRepo: Repository<Attendance>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    private paginationService: PaginationService,
   ) {}
 
   // Start the work timer only if the user has checked in
@@ -91,26 +93,25 @@ async startWork(userId: string) {
   }
 
   // List all the timesheets for a user
-  async list(userId: string, page: number = 1) {
-    const limit = 25;
-    const skip = (page - 1) * limit;
-    const sessions = await this.timesheetRepo.find({
-      where: { user_id: userId },
-      order: { start_time: 'DESC' },
-      skip,
-      take: limit,
-    });
+  async list(userId: string, page: number = 1, size: number = 25) {
+    const result = await this.paginationService.paginate(
+      this.timesheetRepo,
+      page,
+      size,
+      { user_id: userId },
+      { start_time: 'DESC' }
+    );
 
-    const sessionsWithDuration = sessions.map((s) => {
+    // Add duration calculation to each session
+    const sessionsWithDuration = result.data.map((s) => {
       const durationHours = s.duration_hours ?? (s.end_time ? Math.round(((new Date(s.end_time).getTime() - new Date(s.start_time).getTime()) / (1000 * 60 * 60)) * 100) / 100 : null);
       return { ...s, durationHours, employee_full_name: s.employee_full_name ?? undefined };
     });
 
-    const totalHours = Math.round((sessionsWithDuration.reduce((sum, s) => sum + (s.durationHours || 0), 0)) * 100) / 100;
-    const user = await this.userRepo.findOne({ where: { id: userId } });
-    const fullName = user ? `${user.first_name} ${user.last_name}` : undefined;
-    
-    return { employee: { userId, fullName }, totalHours, sessions: sessionsWithDuration };
+    return {
+      ...result,
+      data: sessionsWithDuration
+    };
   }
 
   // Tenant-wise summary (admin-only)

@@ -10,6 +10,7 @@ import { Designation } from '../../entities/designation.entity';
 import { Department } from '../../entities/department.entity';
 import { CreateDesignationDto } from './dto/create-designation.dto';
 import { UpdateDesignationDto } from './dto/update-designation.dto';
+import { PaginationService } from '../../common/services/pagination.service';
 
 @Injectable()
 export class DesignationService {
@@ -19,6 +20,7 @@ export class DesignationService {
 
     @InjectRepository(Department)
     private readonly departmentRepo: Repository<Department>,
+    private paginationService: PaginationService,
   ) {}
 
   async create(tenant_id: string, dto: CreateDesignationDto) {
@@ -94,15 +96,14 @@ export class DesignationService {
     }
   }
 
-  async findAllByDepartment(department_id: string, page: number = 1) {
-    const limit = 25;
-    const skip = (page - 1) * limit;
-    return await this.designationRepo.find({
-      where: { department_id },
-      order: { created_at: 'DESC' },
-      skip,
-      take: limit,
-    });
+  async findAllByDepartment(department_id: string, page: number = 1, size: number = 25) {
+    return this.paginationService.paginate(
+      this.designationRepo,
+      page,
+      size,
+      { department_id },
+      { created_at: 'DESC' }
+    );
   }
 
   async findOne(id: string) {

@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { User, UserRole } from '../../entities/user.entity';
+import { User } from '../../entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
@@ -10,20 +10,36 @@ import { ConfigService } from '@nestjs/config';
 
 const mockPassword = bcrypt.hashSync('123456', 10);
 
+// Mock Role entity
+const mockRole = {
+  id: 'role-1',
+  name: 'Admin',
+  users: [],
+};
 
+// Mock user according to User entity
 const mockUser: User = {
   id: '1',
   email: 'admin@company.com',
+  phone: '1234567890',
   password: mockPassword,
-  role: UserRole.ADMIN,
-  tenantId: '1', 
-  resetToken: '',
-  resetTokenExpiry: new Date(),
-  refreshToken: '',
-  name: 'Admin User',
-  company: null, 
+  first_name: 'Admin',
+  last_name: 'User',
+  role_id: mockRole.id,
+  role: mockRole as any, // Mock Role
+  gender: 'male',
+  tenant_id: '1', // Correct property name
+  tenant: null as any, // Mock Tenant if needed
+  created_at: new Date(),
+  updated_at: new Date(),
+  employees: [],
+  attendances: [],
+  refresh_token: '',
+  reset_token: null,
+  reset_token_expiry: null,
 };
 
+// Mock UserRepository
 const mockUserRepository = () => ({
   findOneBy: jest.fn().mockResolvedValue(mockUser),
   save: jest.fn(),
@@ -34,10 +50,12 @@ const mockUserRepository = () => ({
   }),
 });
 
+// Mock JwtService
 const mockJwtService = {
   sign: jest.fn().mockReturnValue('mocked-jwt-token'),
 };
 
+// Mock ConfigService
 const mockConfigService = {
   get: jest.fn().mockImplementation((key: string) => {
     if (key === 'JWT_SECRET') return 'mocked-secret';
@@ -65,7 +83,6 @@ describe('AuthService - Login', () => {
   });
 
   it('should validate and return access token for valid credentials', async () => {
-    
     jest.spyOn(bcrypt, 'compare').mockImplementation(() => Promise.resolve(true));
 
     const result = await service.validateUser('admin@company.com', '123456');

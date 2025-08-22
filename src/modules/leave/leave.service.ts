@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Leave } from 'src/entities/leave.entity';
 import { CreateLeaveDto } from './dto/create-leave.dto';
 import { User } from '../../entities/user.entity';
+import { PaginationService } from '../../common/services/pagination.service';
 
 @Injectable()
 export class LeaveService {
@@ -12,6 +13,7 @@ export class LeaveService {
     private leaveRepo: Repository<Leave>,
     @InjectRepository(User)
     private userRepo: Repository<User>,
+    private paginationService: PaginationService,
   ) {}
 
   async createLeave(user_id: string, dto: CreateLeaveDto): Promise<Leave> {
@@ -19,28 +21,38 @@ export class LeaveService {
     return await this.leaveRepo.save(leave);
   }
 
-  async getLeaves(user_id?: string, page: number = 1): Promise<Leave[]> {
-    const limit = 25;
-    const skip = (page - 1) * limit;
+  async getLeaves(user_id?: string, page: number = 1, size: number = 25) {
     if (user_id) {
-      return this.leaveRepo.find({ where: { user_id }, skip, take: limit });
+      return this.paginationService.paginate(
+        this.leaveRepo,
+        page,
+        size,
+        { user_id },
+        { created_at: 'DESC' }
+      );
     }
-    return this.leaveRepo.find({ skip, take: limit });
+    return this.paginationService.paginate(
+      this.leaveRepo,
+      page,
+      size,
+      {},
+      { created_at: 'DESC' }
+    );
   }
 
-  async getAllLeaves(tenantId: string, page: number = 1) {
-    const limit = 25;
-    const skip = (page - 1) * limit;
-    return this.leaveRepo.find({
-      where: {
+  async getAllLeaves(tenantId: string, page: number = 1, size: number = 25) {
+    return this.paginationService.paginate(
+      this.leaveRepo,
+      page,
+      size,
+      {
         user: {
           tenant_id: tenantId,
         },
       },
-      relations: ['user'],
-      skip,
-      take: limit,
-    });
+      { created_at: 'DESC' },
+      ['user']
+    );
   }
 
 async updateStatus(id: string, status: string, adminTenantId: string): Promise<Leave> {
