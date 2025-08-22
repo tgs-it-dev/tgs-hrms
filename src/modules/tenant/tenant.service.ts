@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Tenant } from '../../entities/tenant.entity';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
+import { PaginationResponse } from '../../common/interfaces/pagination.interface';
 
 @Injectable()
 export class TenantService {
@@ -12,10 +13,18 @@ export class TenantService {
     private readonly tenantRepo: Repository<Tenant>,
   ) {}
 
-  async findAll(page: number = 1): Promise<Tenant[]> {
+  async findAll(page: number = 1): Promise<PaginationResponse<Tenant>> {
     const limit = 25;
     const skip = (page - 1) * limit;
-    return this.tenantRepo.find({ skip, take: limit });
+    const [items, total] = await this.tenantRepo.findAndCount({ skip, take: limit });
+    
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    };
   }
 
   async findOne(id: string): Promise<Tenant> {

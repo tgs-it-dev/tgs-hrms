@@ -4,6 +4,7 @@ import { Repository, IsNull, Between } from 'typeorm';
 import { Timesheet } from '../../entities/timesheet.entity';
 import { Attendance } from '../../entities/attendance.entity';
 import { User } from '../../entities/user.entity';
+import { PaginationResponse } from '../../common/interfaces/pagination.interface';
 
 @Injectable()
 export class TimesheetService {
@@ -94,7 +95,7 @@ async startWork(userId: string) {
   async list(userId: string, page: number = 1) {
     const limit = 25;
     const skip = (page - 1) * limit;
-    const sessions = await this.timesheetRepo.find({
+    const [sessions, total] = await this.timesheetRepo.findAndCount({
       where: { user_id: userId },
       order: { start_time: 'DESC' },
       skip,
@@ -110,7 +111,18 @@ async startWork(userId: string) {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     const fullName = user ? `${user.first_name} ${user.last_name}` : undefined;
     
-    return { employee: { userId, fullName }, totalHours, sessions: sessionsWithDuration };
+    return { 
+      employee: { userId, fullName }, 
+      totalHours, 
+      sessions: sessionsWithDuration,
+      pagination: {
+        items: sessionsWithDuration,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    };
   }
 
   // Tenant-wise summary (admin-only)

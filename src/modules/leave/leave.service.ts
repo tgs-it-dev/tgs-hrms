@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Leave } from 'src/entities/leave.entity';
 import { CreateLeaveDto } from './dto/create-leave.dto';
 import { User } from '../../entities/user.entity';
+import { PaginationResponse } from '../../common/interfaces/pagination.interface';
 
 @Injectable()
 export class LeaveService {
@@ -19,19 +20,19 @@ export class LeaveService {
     return await this.leaveRepo.save(leave);
   }
 
-  async getLeaves(user_id?: string, page: number = 1): Promise<Leave[]> {
-    const limit = 25;
-    const skip = (page - 1) * limit;
+  async getLeaves(user_id?: string): Promise<Leave[]> {
     if (user_id) {
-      return this.leaveRepo.find({ where: { user_id }, skip, take: limit });
+      // No pagination for single user
+      return this.leaveRepo.find({ where: { user_id } });
     }
-    return this.leaveRepo.find({ skip, take: limit });
+    // For all-users (admin), this method should not be used for pagination. Use getAllLeaves for that.
+    return this.leaveRepo.find();
   }
 
-  async getAllLeaves(tenantId: string, page: number = 1) {
+  async getAllLeaves(tenantId: string, page: number = 1): Promise<PaginationResponse<Leave>> {
     const limit = 25;
     const skip = (page - 1) * limit;
-    return this.leaveRepo.find({
+    const [items, total] = await this.leaveRepo.findAndCount({
       where: {
         user: {
           tenant_id: tenantId,
@@ -41,6 +42,14 @@ export class LeaveService {
       skip,
       take: limit,
     });
+    
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    };
   }
 
 async updateStatus(id: string, status: string, adminTenantId: string): Promise<Leave> {

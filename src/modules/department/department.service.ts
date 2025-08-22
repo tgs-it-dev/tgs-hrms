@@ -9,6 +9,7 @@ import { Repository, QueryFailedError } from 'typeorm';
 import { Department } from '../../entities/department.entity';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
+import { PaginationResponse } from '../../common/interfaces/pagination.interface';
 
 @Injectable()
 export class DepartmentService {
@@ -82,15 +83,23 @@ export class DepartmentService {
     }
   }
 
-  async findAll(tenant_id: string, page: number = 1) {
-    const limit = 25;
+  async findAll(tenant_id: string, page: number = 1): Promise<PaginationResponse<Department>> {
+    const limit = 5;
     const skip = (page - 1) * limit;
-    return this.repo.find({
+    const [items, total] = await this.repo.findAndCount({
       where: { tenant_id },
       order: { created_at: 'DESC' },
       skip,
       take: limit,
     });
+    
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    };
   }
 
   async findOne(tenant_id: string, id: string) {

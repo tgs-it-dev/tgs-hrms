@@ -10,6 +10,7 @@ import { Designation } from '../../entities/designation.entity';
 import { Department } from '../../entities/department.entity';
 import { CreateDesignationDto } from './dto/create-designation.dto';
 import { UpdateDesignationDto } from './dto/update-designation.dto';
+import { PaginationResponse } from '../../common/interfaces/pagination.interface';
 
 @Injectable()
 export class DesignationService {
@@ -94,15 +95,23 @@ export class DesignationService {
     }
   }
 
-  async findAllByDepartment(department_id: string, page: number = 1) {
+  async findAllByDepartment(department_id: string, page: number = 1): Promise<PaginationResponse<Designation>> {
     const limit = 25;
     const skip = (page - 1) * limit;
-    return await this.designationRepo.find({
+    const [items, total] = await this.designationRepo.findAndCount({
       where: { department_id },
       order: { created_at: 'DESC' },
       skip,
       take: limit,
     });
+    
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    };
   }
 
   async findOne(id: string) {

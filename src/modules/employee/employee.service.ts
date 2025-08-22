@@ -17,6 +17,7 @@ import { MailerService } from '@nestjs-modules/mailer';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
+import { PaginationResponse } from '../../common/interfaces/pagination.interface';
 
 
 @Injectable()
@@ -109,7 +110,7 @@ export class EmployeeService {
     }
 }
 
-  async findAll(tenant_id: string, query: EmployeeQueryDto, page: number = 1) {
+  async findAll(tenant_id: string, query: EmployeeQueryDto, page: number = 1): Promise<PaginationResponse<Employee>> {
     const { department_id, designation_id } = query;
 
     const qb = this.employeeRepo.createQueryBuilder('employee')
@@ -127,7 +128,16 @@ export class EmployeeService {
 
     const limit = 25;
     const skip = (page - 1) * limit;
-    return qb.skip(skip).take(limit).getMany();
+    
+    const [items, total] = await qb.skip(skip).take(limit).getManyAndCount();
+    
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    };
   }
 
   async findOne(tenant_id: string, id: string) {

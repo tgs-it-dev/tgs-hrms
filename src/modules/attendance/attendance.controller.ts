@@ -37,17 +37,15 @@ export class AttendanceController {
 	
 	@Get()
 	@ApiOperation({ summary: 'Get daily summaries (latest check-in/out) for a user' })
-	findAll(@Query('userId') userId?: string, @Query('page') page?: string) {
-	 const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-	 return this.attendanceService.findAll(userId, pageNumber);
+	findAll(@Query('userId') userId?: string) {
+		return this.attendanceService.findAll(userId);
 	}
 	
 	@Get('events')
 	@ApiOperation({ summary: 'Get raw attendance events for a user' })
-	async events(@Req() req: Request, @Query('userId') userId?: string, @Query('page') page?: string) {
+	async events(@Req() req: Request, @Query('userId') userId?: string) {
 		const id = userId || (req.user as any).id;
-		const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-		return this.attendanceService.findEvents(id, pageNumber);
+		return this.attendanceService.findEvents(id);
 	}
 	@Get('today')
 	@ApiOperation({ summary: 'Get today latest check-in and its matching check-out' })

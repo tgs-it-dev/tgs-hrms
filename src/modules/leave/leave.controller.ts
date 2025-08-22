@@ -44,7 +44,19 @@ export class LeaveController {
 
 
 
-   @Get('all')
+   @Get()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get all leave requests (filtered by user_id)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns leave requests',
+  })
+  async find(@Query('userId') userId?: string) {
+    return this.leaveService.getLeaves(userId);
+  }
+
+  @Get('all')
   @UseGuards(RolesGuard)
   @Roles('admin')
   @ApiBearerAuth()
@@ -53,19 +65,6 @@ export class LeaveController {
   async findAllForAdmin(@Request() req: any, @Query('page') page?: string) {
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
     return this.leaveService.getAllLeaves(req.user.tenant_id, pageNumber);
-  }
-
-  @Get()
-   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get all leave requests (filtered by user_id)' })
-  @ApiResponse({
-    status: 200,
-    description: 'Returns leave requests',
-  })
-  async find(@Query('userId') userId?: string, @Query('page') page?: string) {
-    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-    return this.leaveService.getLeaves(userId, pageNumber);
   }
 
   @Patch(':id')

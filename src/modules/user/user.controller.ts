@@ -50,7 +50,7 @@ export class UserController {
     try {
       const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
       const users = await this.userService.findAll(tenantId, req.user.userId, pageNumber);
-      if (!users || users.length === 0) {
+      if (!users || users.items.length === 0) {
         throw new HttpException('No users found for this tenant', HttpStatus.NOT_FOUND);
       }
       return { message: 'Users fetched successfully', users };
