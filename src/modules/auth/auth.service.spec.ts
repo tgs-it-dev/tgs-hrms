@@ -1,27 +1,44 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { User, UserRole } from '../../entities/user.entity';
+import { User } from '../../entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
 import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+// Local enum (kyunki entity me UserRole nahi hai)
+enum UserRole {
+  ADMIN = 'ADMIN',
+  USER = 'USER',
+}
+
 const mockPassword = bcrypt.hashSync('123456', 10);
 
 const mockUser: User = {
-  id: '1', 
+  id: '1',
   email: 'admin@company.com',
+  phone: '1234567890',
   password: mockPassword,
-  role: UserRole.ADMIN,
-  tenantId: '11111111-1111-1111-1111-111111111111', 
-  resetToken: '',
-  resetTokenExpiry: new Date(),
-  refreshToken: '',
-  name: 'Admin User',
+  first_name: 'Admin',
+  last_name: 'User',
+  gender: null,
+  role_id: 'role-uuid',
+  tenant_id: '11111111-1111-1111-1111-111111111111',
+  created_at: new Date(),
+  updated_at: new Date(),
 
-  company: null,
+  // Relations
+  role: {} as any,
+  tenant: {} as any,
+  employees: [],
+  attendances: [],
+
+  // Tokens
+  refresh_token: '',
+  reset_token: '',
+  reset_token_expiry: new Date(),
 };
 
 const mockUserRepository = () => ({
@@ -41,7 +58,7 @@ const mockJwtService = {
 const mockConfigService = {
   get: jest.fn().mockImplementation((key: string) => {
     if (key === 'JWT_SECRET') return 'mocked-secret';
-    if (key === 'JWT_EXPIRES_IN') return '15m';
+    if (key === 'JWT_EXPIRES_IN') return '1d';
     return null;
   }),
 };

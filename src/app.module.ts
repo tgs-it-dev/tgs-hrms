@@ -18,6 +18,7 @@ import { AttendanceModule } from './modules/attendance/attendace.module';
 import { TimesheetModule } from './modules/timesheet/timesheet.module';
 import { LeaveModule } from './modules/leave/leave.module';
 import { PolicyModule } from './modules/policy/policy.module';
+import { HolidayModule } from './modules/holiday/holiday.module';
 
 // Added imports for mailer
 import { MailerModule } from '@nestjs-modules/mailer';
@@ -48,7 +49,7 @@ import { join } from 'path';
         return {
           secret,
           signOptions: {
-            expiresIn: config.get<string>('JWT_EXPIRES_IN', '15m'),
+            expiresIn: config.get<string>('JWT_EXPIRES_IN', '1d'),
           },
         };
       },
@@ -94,6 +95,7 @@ import { join } from 'path';
     TimesheetModule,
     LeaveModule, 
     PolicyModule,
+    HolidayModule,
   ],
   controllers: [AppController],
   providers: [AppService],

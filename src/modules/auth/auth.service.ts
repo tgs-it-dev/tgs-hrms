@@ -95,7 +95,7 @@ export class AuthService {
 
     const accessToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_SECRET'),
-      expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '15m',
+      expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '1d',
     });
 
     const refreshToken = this.jwtService.sign(payload, {
@@ -179,7 +179,7 @@ async resetPassword(dto: ResetPasswordDto) {
 
       const newAccessToken = this.jwtService.sign(newPayload, {
         secret: this.configService.get<string>('JWT_SECRET'),
-        expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '15m',
+        expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '1d',
       });
 
       return { accessToken: newAccessToken };
