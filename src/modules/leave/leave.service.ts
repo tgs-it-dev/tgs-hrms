@@ -19,29 +19,89 @@ export class LeaveService {
     return await this.leaveRepo.save(leave);
   }
 
-  async getLeaves(user_id?: string, page: number = 1): Promise<Leave[]> {
-    const limit = 25;
-    const skip = (page - 1) * limit;
-    if (user_id) {
-      return this.leaveRepo.find({ where: { user_id }, skip, take: limit });
-    }
-    return this.leaveRepo.find({ skip, take: limit });
-  }
+  // async getLeaves(user_id?: string, page: number = 1): Promise<Leave[]> {
+  //   const limit = 25;
+  //   const skip = (page - 1) * limit;
+  //   if (user_id) {
+  //     return this.leaveRepo.find({ where: { user_id }, skip, take: limit });
+  //   }
+  //   return this.leaveRepo.find({ skip, take: limit });
+  // }
 
-  async getAllLeaves(tenantId: string, page: number = 1) {
-    const limit = 25;
+  // async getAllLeaves(tenantId: string, page: number = 1) {
+  //   const limit = 25;
+  //   const skip = (page - 1) * limit;
+  //   return this.leaveRepo.find({
+  //     where: {
+  //       user: {
+  //         tenant_id: tenantId,
+  //       },
+  //     },
+  //     relations: ['user'],
+  //     skip,
+  //     take: limit,
+  //   });
+  // }
+
+
+  async getLeaves(user_id?: string, page: number = 1): Promise<{
+    items: Leave[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const limit = 10;
     const skip = (page - 1) * limit;
-    return this.leaveRepo.find({
+    let query = this.leaveRepo.createQueryBuilder('leave');
+    if (user_id) {
+      query = query.where('leave.user_id = :user_id', { user_id });
+    }
+    const [items, total] = await query
+      .orderBy('leave.created_at', 'DESC')
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+    const totalPages = Math.ceil(total / limit);
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages,
+    };
+  }
+  async getAllLeaves(tenantId: string, page: number = 1): Promise<{
+    items: Leave[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const limit = 10;
+    const skip = (page - 1) * limit;
+    const [items, total] = await this.leaveRepo.findAndCount({
       where: {
         user: {
           tenant_id: tenantId,
         },
       },
       relations: ['user'],
+      order: { created_at: 'DESC' },
       skip,
       take: limit,
     });
+    const totalPages = Math.ceil(total / limit);
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages,
+    };
   }
+
+
 
 async updateStatus(id: string, status: string, adminTenantId: string): Promise<Leave> {
   const leave = await this.leaveRepo.findOne({ where: { id }, relations: ['user'] });

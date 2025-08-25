@@ -17,46 +17,45 @@ export class TimesheetService {
   ) {}
 
   // Start the work timer only if the user has checked in
-async startWork(userId: string) {
-  const now = new Date();
-  // Define start and end of the day (UTC)
-  const startOfDayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
-  const startOfNextDayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0));
+  async startWork(userId: string) {
+    const now = new Date();
+    // Define start and end of the day (UTC)
+    const startOfDayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+    const startOfNextDayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0));
 
-  // Find the most recent attendance record for the user today
-  const latestAttendance = await this.attendanceRepo.createQueryBuilder('attendance')
-    .where('attendance.user_id = :userId', { userId })
-    .andWhere('attendance.timestamp >= :startOfDayUtc AND attendance.timestamp < :startOfNextDayUtc', {
-      startOfDayUtc,
-      startOfNextDayUtc,
-    })
-    .orderBy('attendance.timestamp', 'DESC')
-    .getOne();
+    // Find the most recent attendance record for the user today
+    const latestAttendance = await this.attendanceRepo.createQueryBuilder('attendance')
+      .where('attendance.user_id = :userId', { userId })
+      .andWhere('attendance.timestamp >= :startOfDayUtc AND attendance.timestamp < :startOfNextDayUtc', {
+        startOfDayUtc,
+        startOfNextDayUtc,
+      })
+      .orderBy('attendance.timestamp', 'DESC')
+      .getOne();
 
-  // No attendance record means the user hasn't checked in
-  if (!latestAttendance || latestAttendance.type !== 'check-in') {
-    throw new BadRequestException('You must check in before starting work');
+    // No attendance record means the user hasn't checked in
+    if (!latestAttendance || latestAttendance.type !== 'check-in') {
+      throw new BadRequestException('You must check in before starting work');
+    }
+
+    // Prevent starting a new session if one is already in progress
+    const activeSession = await this.timesheetRepo.findOne({ where: { user_id: userId, end_time: IsNull() } });
+    if (activeSession) {
+      throw new BadRequestException('Active work session already exists');
+    }
+
+    // Create a new timesheet entry tied to this check-in
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    const fullName = user ? `${user.first_name} ${user.last_name}` : null;
+    const record = this.timesheetRepo.create({
+      user_id: userId,
+      start_time: now,
+      end_time: null,
+      employee_full_name: fullName,
+    });
+
+    return this.timesheetRepo.save(record);
   }
-
-  // Prevent starting a new session if one is already in progress
-  const activeSession = await this.timesheetRepo.findOne({ where: { user_id: userId, end_time: IsNull() } });
-  if (activeSession) {
-    throw new BadRequestException('Active work session already exists');
-  }
-
-  // Create a new timesheet entry tied to this check-in
-  const user = await this.userRepo.findOne({ where: { id: userId } });
-  const fullName = user ? `${user.first_name} ${user.last_name}` : null;
-  const record = this.timesheetRepo.create({
-    user_id: userId,
-    start_time: now,
-    end_time: null,
-    employee_full_name: fullName,
-  });
-
-  return this.timesheetRepo.save(record);
-}
-
 
   // End the work session automatically when the user checks out
   async endWork(userId: string) {
@@ -90,11 +89,12 @@ async startWork(userId: string) {
     return this.timesheetRepo.save(activeSession);
   }
 
-  // List all the timesheets for a user
+  // List all the timesheets for a user with pagination
   async list(userId: string, page: number = 1) {
-    const limit = 25;
+    const limit = 10; // Consistent with other modules
     const skip = (page - 1) * limit;
-    const sessions = await this.timesheetRepo.find({
+    
+    const [sessions, total] = await this.timesheetRepo.findAndCount({
       where: { user_id: userId },
       order: { start_time: 'DESC' },
       skip,
@@ -110,11 +110,26 @@ async startWork(userId: string) {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     const fullName = user ? `${user.first_name} ${user.last_name}` : undefined;
     
-    return { employee: { userId, fullName }, totalHours, sessions: sessionsWithDuration };
+    const totalPages = Math.ceil(total / limit);
+    
+    return {
+      items: {
+        employee: { userId, fullName },
+        totalHours,
+        sessions: sessionsWithDuration
+      },
+      total,
+      page,
+      limit,
+      totalPages,
+    };
   }
 
-  // Tenant-wise summary (admin-only)
-  async summaryByTenant(tenantId: string, from?: string, to?: string) {
+  // Tenant-wise summary (admin-only) with pagination
+  async summaryByTenant(tenantId: string, from?: string, to?: string, page: number = 1) {
+    const limit = 25;
+    const skip = (page - 1) * limit;
+    
     const qb = this.timesheetRepo
       .createQueryBuilder('t')
       .innerJoin('t.user', 'u')
@@ -131,7 +146,12 @@ async startWork(userId: string) {
       qb.andWhere('t.start_time <= :toDate', { toDate });
     }
 
-    qb
+    // Get total count for pagination
+    const totalQuery = qb.clone();
+    const total = await totalQuery.getCount();
+
+    // Apply pagination and get results
+    const items = await qb
       .select('u.id', 'user_id')
       .addSelect("CONCAT(u.first_name, ' ', u.last_name)", 'employee_name')
       .addSelect(
@@ -141,8 +161,19 @@ async startWork(userId: string) {
       .groupBy('u.id')
       .addGroupBy('u.first_name')
       .addGroupBy('u.last_name')
-      .orderBy('employee_name', 'ASC');
+      .orderBy('employee_name', 'ASC')
+      .offset(skip)
+      .limit(limit)
+      .getRawMany();
 
-    return qb.getRawMany();
+    const totalPages = Math.ceil(total / limit);
+    
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages,
+    };
   }
 }

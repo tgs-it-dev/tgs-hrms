@@ -82,16 +82,13 @@ export class DepartmentService {
     }
   }
 
-  async findAll(tenant_id: string, page: number = 1) {
-    const limit = 25;
-    const skip = (page - 1) * limit;
+  async findAll(tenant_id: string) {
     return this.repo.find({
       where: { tenant_id },
       order: { created_at: 'DESC' },
-      skip,
-      take: limit,
     });
   }
+
 
   async findOne(tenant_id: string, id: string) {
     const dept = await this.repo.findOne({ where: { id, tenant_id } });

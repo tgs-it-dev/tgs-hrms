@@ -12,10 +12,8 @@ export class TenantService {
     private readonly tenantRepo: Repository<Tenant>,
   ) {}
 
-  async findAll(page: number = 1): Promise<Tenant[]> {
-    const limit = 25;
-    const skip = (page - 1) * limit;
-    return this.tenantRepo.find({ skip, take: limit });
+  async findAll(): Promise<Tenant[]> {
+    return this.tenantRepo.find();
   }
 
   async findOne(id: string): Promise<Tenant> {

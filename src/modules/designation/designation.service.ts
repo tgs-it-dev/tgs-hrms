@@ -97,12 +97,20 @@ export class DesignationService {
   async findAllByDepartment(department_id: string, page: number = 1) {
     const limit = 25;
     const skip = (page - 1) * limit;
-    return await this.designationRepo.find({
+    const [items, total] = await this.designationRepo.findAndCount({
       where: { department_id },
       order: { created_at: 'DESC' },
       skip,
       take: limit,
     });
+    const totalPages = Math.ceil(total / limit);
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages,
+    };
   }
 
   async findOne(id: string) {

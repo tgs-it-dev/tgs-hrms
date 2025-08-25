@@ -29,7 +29,6 @@ import { TenantId } from '../../common/decorators/company.deorator';
 import { AttendanceService } from '../attendance/attendance.service';
 import { LeaveService } from '../leave/leave.service';
 
-
 @ApiTags('Employees')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
@@ -108,121 +107,126 @@ export class EmployeeController {
     return this.service.update(tenant_id, id, dto);
   }
 
-@Get()
-@ApiOperation({ summary: 'List all employees for tenant with optional designation and department filters' })
-@ApiQuery({ 
-  name: 'designation_id', 
-  required: false, 
-  description: 'Filter employees by designation ID',
-  example: '6b99992a-d8ef-4c0c-91dc-2a23e391ac9c'
-})
-@ApiQuery({ 
-  name: 'department_id', 
-  required: false, 
-  description: 'Filter employees by department ID',
-  example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'
-})
-@ApiResponse({ 
-  status: 200, 
-  description: 'List of employees matching optional filters.' 
-})
-@ApiResponse({ 
-  status: 400, 
-  description: 'Invalid query parameters.',
-  schema: {
-    example: {
-      message: 'Invalid designation ID or department ID',
-      error: 'Bad Request',
-      statusCode: 400
+  @Get()
+  @ApiOperation({ summary: 'List all employees for tenant with optional designation and department filters' })
+  @ApiQuery({ 
+    name: 'designation_id', 
+    required: false, 
+    description: 'Filter employees by designation ID',
+    example: '6b99992a-d8ef-4c0c-91dc-2a23e391ac9c'
+  })
+  @ApiQuery({ 
+    name: 'department_id', 
+    required: false, 
+    description: 'Filter employees by department ID',
+    example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'
+  })
+  @ApiQuery({ 
+    name: 'page', 
+    required: true, 
+    description: 'Page number for pagination (required)',
+    example: '1'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Returns paginated list of employees matching optional filters.' 
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Invalid query parameters.',
+    schema: {
+      example: {
+        message: 'Invalid designation ID or department ID',
+        error: 'Bad Request',
+        statusCode: 400
+      }
     }
+  })
+  async findAll(
+    @TenantId() tenant_id: string,
+    @Query() query: EmployeeQueryDto
+  ) {
+    const pageNumber = Math.max(1, parseInt(query.page, 10) || 1);
+    return this.service.findAll(tenant_id, query, pageNumber);
   }
-})
-async findAll(
-  @TenantId() tenant_id: string,
-  @Query() query: EmployeeQueryDto,
-  @Query('page') page?: string
-) {
-  const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-  return this.service.findAll(tenant_id, query, pageNumber);
-}
 
-@Get('joining-report')
- @ApiOperation({ summary: 'Get employee joining report month-wise' })
- @ApiResponse({
-   status: 200,
-   description: 'Employee joining report retrieved successfully.',
-   schema: {
-     example: [
-       {
-         "month": 1,
-         "year": 2025,
-         "total": 30
-       },
-       {
-         "month": 2,
-         "year": 2025,
-         "total": 20
-       }
-     ]
-   }
- })
- @ApiResponse({
-   status: 400,
-   description: 'Error fetching employee joining report.',
-   schema: {
-     example: {
-       message: 'Error fetching employee joining report.',
-       error: 'Bad Request',
-       statusCode: 400
-     }
-   }
- })
- async getEmployeeJoiningReport(@TenantId() tenant_id: string) {
-   return this.service.getEmployeeJoiningReport(tenant_id);
- }
+  @Get('joining-report')
+  @ApiOperation({ summary: 'Get employee joining report month-wise' })
+  @ApiResponse({
+    status: 200,
+    description: 'Employee joining report retrieved successfully.',
+    schema: {
+      example: [
+        {
+          "month": 1,
+          "year": 2025,
+          "total": 30
+        },
+        {
+          "month": 2,
+          "year": 2025,
+          "total": 20
+        }
+      ]
+    }
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Error fetching employee joining report.',
+    schema: {
+      example: {
+        message: 'Error fetching employee joining report.',
+        error: 'Bad Request',
+        statusCode: 400
+      }
+    }
+  })
+  async getEmployeeJoiningReport(@TenantId() tenant_id: string) {
+    return this.service.getEmployeeJoiningReport(tenant_id);
+  }
 
-@Get('gender-percentage')
-@ApiOperation({ summary: 'Get gender percentage of employees' })
-@ApiResponse({
-  status: 200,
-  description: 'Gender percentage retrieved successfully.',
-  schema: {
-    example: {
-      male: 60,  // Percentage of male employees
-      female: 40,  // Percentage of female employees
+  @Get('gender-percentage')
+  @ApiOperation({ summary: 'Get gender percentage of employees' })
+  @ApiResponse({
+    status: 200,
+    description: 'Gender percentage retrieved successfully.',
+    schema: {
+      example: {
+        male: 60,  // Percentage of male employees
+        female: 40,  // Percentage of female employees
+      },
     },
-  },
-})
-@ApiResponse({
-  status: 404,
-  description: 'No employees found for the tenant.',
-  schema: {
-    example: {
-      message: 'No employees found for this tenant.',
-      error: 'Not Found',
-      statusCode: 404,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'No employees found for the tenant.',
+    schema: {
+      example: {
+        message: 'No employees found for this tenant.',
+        error: 'Not Found',
+        statusCode: 404,
+      },
     },
-  },
-})
-async getGenderPercentage(@TenantId() tenant_id: string) {
-  return this.service.getGenderPercentage(tenant_id);  // No `findOne` or `id` logic here!
-}
+  })
+  async getGenderPercentage(@TenantId() tenant_id: string) {
+    return this.service.getGenderPercentage(tenant_id);
+  }
 
-@Get('leaves-this-month')
-@ApiOperation({ summary: 'Get total leaves applied by all employees for the current month' })
-@ApiResponse({ status: 200, description: 'Total leaves for the current month.' })
-async getLeavesThisMonth(@TenantId() tenant_id: string) {
-  return this.leaveService.getTotalLeavesForCurrentMonth(tenant_id);
-}
+  @Get('leaves-this-month')
+  @ApiOperation({ summary: 'Get total leaves applied by all employees for the current month' })
+  @ApiResponse({ status: 200, description: 'Total leaves for the current month.' })
+  async getLeavesThisMonth(@TenantId() tenant_id: string) {
+    return this.leaveService.getTotalLeavesForCurrentMonth(tenant_id);
+  }
 
-@Get('attendance-this-month')
-@ApiOperation({ summary: 'Get total attendance for all employees for the current month (one per day per employee)' })
-@ApiResponse({ status: 200, description: 'Total attendance for the current month.' })
-async getAttendanceThisMonth(@TenantId() tenant_id: string) {
-  return this.attendanceService.getTotalAttendanceForCurrentMonth(tenant_id);
-}
+  @Get('attendance-this-month')
+  @ApiOperation({ summary: 'Get total attendance for all employees for the current month (one per day per employee)' })
+  @ApiResponse({ status: 200, description: 'Total attendance for the current month.' })
+  async getAttendanceThisMonth(@TenantId() tenant_id: string) {
+    return this.attendanceService.getTotalAttendanceForCurrentMonth(tenant_id);
+  }
 
-@Get(':id')
+  @Get(':id')
   @ApiOperation({ summary: 'Get single employee by ID' })
   @ApiResponse({ status: 200, description: 'Employee found.' })
   @ApiResponse({ status: 404, description: 'Employee not found.' })
@@ -239,7 +243,6 @@ async getAttendanceThisMonth(@TenantId() tenant_id: string) {
     return this.service.remove(tenant_id, id);
   }
 
-  
   @Get(':id/details')
   @ApiOperation({ summary: 'Get editable details for an employee' })
   @ApiResponse({ status: 200, description: 'Editable details returned.' })
@@ -255,6 +258,4 @@ async getAttendanceThisMonth(@TenantId() tenant_id: string) {
       department_id: emp.designation?.department?.id ?? null,
     };
   }
-
-
 }

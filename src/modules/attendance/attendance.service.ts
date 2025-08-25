@@ -4,15 +4,16 @@ import { Repository } from 'typeorm';
 import { Attendance } from '../../entities/attendance.entity';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
-import { TimesheetService } from '../timesheet/timesheet.service'; 
+import { TimesheetService } from '../timesheet/timesheet.service'; // Import TimesheetService
 
 @Injectable()
 export class AttendanceService {
 	constructor(
 		@InjectRepository(Attendance)
 		private readonly attendanceRepo: Repository<Attendance>,
-		   private readonly timesheetService: TimesheetService, 
+		private readonly timesheetService: TimesheetService, // Inject TimesheetService
 	) {}
+	
 	async create(userId: string, dto: CreateAttendanceDto) {
 		const now = new Date();
 		const attendance = this.attendanceRepo.create({
@@ -21,37 +22,47 @@ export class AttendanceService {
 			timestamp: now,
 		});
 		const saved = await this.attendanceRepo.save(attendance);
-		
-  if (dto.type === 'check-out') {
-    await this.timesheetService.autoEndIfActive(userId);
-  }
+		// If the type is 'check-out', end the active work session by calling TimesheetService's autoEndIfActive
+		if (dto.type === 'check-out') {
+			await this.timesheetService.autoEndIfActive(userId);
+		}
 
 		return saved;
 	}
 	
+	// Daily summary: one row per day (latest check-in/out of that day)
 	async findAll(userId?: string, page: number = 1) {
+		const limit =25;
+		const skip = (page - 1) * limit;
+		
 		const query = this.attendanceRepo.createQueryBuilder('attendance');
 		if (userId) {
 			query.where('attendance.user_id = :userId', { userId });
 		}
-		query.orderBy('attendance.timestamp', 'ASC');
-		const records = await query.getMany();
+		
+		const [records, total] = await query
+			.orderBy('attendance.timestamp', 'ASC')
+			.skip(skip)
+			.take(limit)
+			.getManyAndCount();
+			
 		const groupedByDate: Record<string, { checkIn?: Attendance; checkOut?: Attendance }> = {};
 		for (const record of records) {
 			const date = record.timestamp.toISOString().split('T')[0];
 			if (!groupedByDate[date]) {
 				groupedByDate[date] = {};
 			}
-		
+			// Latest per type wins
 			if (record.type === 'check-in') {
 				groupedByDate[date].checkIn = record;
 			} else if (record.type === 'check-out') {
 				groupedByDate[date].checkOut = record;
 			}
 		}
-		const response = Object.entries(groupedByDate).map(([date, { checkIn, checkOut }]) => {
+		
+		const items = Object.entries(groupedByDate).map(([date, { checkIn, checkOut }]) => {
 			let workedHours = 0;
-			
+			// Only count hours if checkout is after checkin
 			if (checkIn && checkOut && new Date(checkOut.timestamp) > new Date(checkIn.timestamp)) {
 				const diffMs = new Date(checkOut.timestamp).getTime() - new Date(checkIn.timestamp).getTime();
 				workedHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
@@ -65,23 +76,46 @@ export class AttendanceService {
 				workedHours,
 			};
 		});
-		const limit = 25;
-		const start = (page - 1) * limit;
-		return response.slice(start, start + limit);
+		
+		const totalPages = Math.ceil(total / limit);
+		return {
+			items,
+			total,
+			page,
+			limit,
+			totalPages,
+		};
 	}
 	
+	// Raw events list for building multiple sessions per day in UI
 	async findEvents(userId?: string, page: number = 1) {
+		const limit = 25;
+		const skip = (page - 1) * limit;
+		
 		const qb = this.attendanceRepo.createQueryBuilder('attendance')
 			.leftJoinAndSelect('attendance.user', 'user')
 			.orderBy('attendance.timestamp', 'DESC');
+			
 		if (userId) {
 			qb.where('attendance.user_id = :userId', { userId });
 		}
-		const limit = 25;
-		const skip = (page - 1) * limit;
-		return qb.skip(skip).take(limit).getMany();
+		
+		const [items, total] = await qb
+			.skip(skip)
+			.take(limit)
+			.getManyAndCount();
+			
+		const totalPages = Math.ceil(total / limit);
+		return {
+			items,
+			total,
+			page,
+			limit,
+			totalPages,
+		};
 	}
 	
+	// Return check-in and its matching checkout (checkout must be after latest check-in)
 	async getTodaySummary(userId: string) {
 		const now = new Date();
 		const startOfDayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
@@ -109,56 +143,64 @@ export class AttendanceService {
 			checkOut: matchingCheckOut?.timestamp || null,
 		};
 	}
+	
 	async update(id: string, dto: UpdateAttendanceDto) {
 		const attendance = await this.attendanceRepo.findOne({ where: { id } });
 		if (!attendance) throw new NotFoundException('Attendance not found');
 		Object.assign(attendance, dto);
 		return this.attendanceRepo.save(attendance);
 	}
+	
 	async remove(id: string) {
 		const attendance = await this.attendanceRepo.findOne({ where: { id } });
 		if (!attendance) throw new NotFoundException('Attendance not found');
 		return this.attendanceRepo.remove(attendance);
 	}
+	
 	async getAllAttendance(tenantId: string, page: number = 1) {
-		const limit = 4;
+		const limit = 20;
 		const skip = (page - 1) * limit;
-		return this.attendanceRepo.find({
+		
+		const [items, total] = await this.attendanceRepo.findAndCount({
 			where: { user: { tenant_id: tenantId } },
 			relations: ['user'],
+			order: { timestamp: 'DESC' },
 			skip,
 			take: limit,
 		});
+		
+		const totalPages = Math.ceil(total / limit);
+		return {
+			items,
+			total,
+			page,
+			limit,
+			totalPages,
+		};
 	}
 
-  // Get total attendance for the current month (one per day per employee)
-  async getTotalAttendanceForCurrentMonth(tenantId: string): Promise<{ totalAttendance: number }> {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth(); // 0-based
-    const startOfMonth = new Date(year, month, 1);
-    const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59, 999);
+	// Get total attendance for the current month (one per day per employee)
+	async getTotalAttendanceForCurrentMonth(tenantId: string): Promise<{ totalAttendance: number }> {
+		const now = new Date();
+		const year = now.getFullYear();
+		const month = now.getMonth(); // 0-based
+		const startOfMonth = new Date(year, month, 1);
+		const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59, 999);
 
-    // Query: count unique (user_id, date) pairs for the tenant in the month
-    const result = await this.attendanceRepo
-      .createQueryBuilder('attendance')
-      .leftJoin('attendance.user', 'user')
-      .where('user.tenant_id = :tenantId', { tenantId })
-      .andWhere('attendance.timestamp >= :startOfMonth AND attendance.timestamp <= :endOfMonth', {
-        startOfMonth,
-        endOfMonth,
-      })
-      .select(["attendance.user_id AS user_id", "DATE(attendance.timestamp) AS date"])
-      .groupBy('attendance.user_id')
-      .addGroupBy('DATE(attendance.timestamp)')
-      .getRawMany();
+		// Query: count unique (user_id, date) pairs for the tenant in the month
+		const result = await this.attendanceRepo
+			.createQueryBuilder('attendance')
+			.leftJoin('attendance.user', 'user')
+			.where('user.tenant_id = :tenantId', { tenantId })
+			.andWhere('attendance.timestamp >= :startOfMonth AND attendance.timestamp <= :endOfMonth', {
+				startOfMonth,
+				endOfMonth,
+			})
+			.select(["attendance.user_id AS user_id", "DATE(attendance.timestamp) AS date"])
+			.groupBy('attendance.user_id')
+			.addGroupBy('DATE(attendance.timestamp)')
+			.getRawMany();
 
-    return { totalAttendance: result.length };
-  }
-
+		return { totalAttendance: result.length };
+	}
 }
-
-
-
-
-

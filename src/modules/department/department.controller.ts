@@ -76,11 +76,11 @@ export class DepartmentController {
   @Get()
   @ApiOperation({ summary: 'List all departments for tenant' })
   @ApiResponse({ status: 200, description: 'List of departments returned.' })
-  async findAll(@Req() req, @Query('page') page?: string) {
+  async findAll(@Req() req) {
     const tenant_id = req.user.tenant_id;
-    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-    return await this.service.findAll(tenant_id, pageNumber);
+    return await this.service.findAll(tenant_id);
   }
+
 
   @Get(':id')
   @Roles('admin', 'system-admin')
