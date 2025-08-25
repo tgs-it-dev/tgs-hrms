@@ -99,17 +99,114 @@ export class AuthController {
   }
 
   @Post('forgot-password')
+  @Throttle({ default: { limit: 3, ttl: 300_000 } }) 
   @ApiBody({ type: ForgotPasswordDto })
-  @ApiResponse({ status: 200, description: 'Reset link sent to email' })
+  @ApiOperation({ 
+    summary: 'Request password reset',
+    description: 'Sends a password reset link to the provided email address. The link will expire in 1 hour.'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Password reset email sent',
+    schema: {
+      example: {
+        message: 'If an account with this email exists, a password reset link has been sent.'
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Invalid email format',
+    schema: {
+      example: {
+        message: 'Validation failed',
+        errors: [
+          { field: 'email', message: 'Email must be a valid email' }
+        ]
+      }
+    }
+  })
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgotPassword(dto);
   }
 
+  @Post('verify-reset-token')
+  @ApiOperation({ 
+    summary: 'Verify reset token',
+    description: 'Verifies if a reset token is valid and not expired. Useful for frontend validation.'
+  })
+  @ApiBody({
+    schema: {
+      properties: {
+        token: { type: 'string' },
+      },
+    },
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Token is valid',
+    schema: {
+      example: {
+        valid: true,
+        message: 'Token is valid'
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Token is invalid or expired',
+    schema: {
+      example: {
+        valid: false,
+        message: 'Invalid or expired reset token'
+      }
+    }
+  })
+  async verifyResetToken(@Body('token') token: string) {
+    return this.authService.verifyResetToken(token);
+  }
+
   @Post('reset-password')
-@ApiOperation({ summary: 'Reset password using token' })
-async resetPassword(@Body() dto: ResetPasswordDto) {
-  return this.authService.resetPassword(dto);
-}
+  @Throttle({ default: { limit: 5, ttl: 300_000 } }) 
+  @ApiOperation({ 
+    summary: 'Reset password using token',
+    description: 'Resets the user password using a valid reset token received via email.'
+  })
+  @ApiBody({ type: ResetPasswordDto })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Password reset successful',
+    schema: {
+      example: {
+        message: 'Password reset successfully'
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Invalid or expired token',
+    schema: {
+      example: {
+        message: 'Invalid or expired reset token'
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Password validation failed',
+    schema: {
+      example: {
+        message: 'Validation failed',
+        errors: [
+          { field: 'password', message: 'Password must be at least 6 characters long' },
+          { field: 'confirmPassword', message: 'Passwords do not match' }
+        ]
+      }
+    }
+  })
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto);
+  }
 
 
   @Post('refresh')

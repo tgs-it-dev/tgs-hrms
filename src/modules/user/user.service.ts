@@ -12,6 +12,7 @@ import { User } from 'src/entities/user.entity';
 import { Role } from 'src/entities/role.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { PaginationResponse } from '../../common/interfaces/pagination.interface';
 
 @Injectable()
 export class UserService {
@@ -53,12 +54,12 @@ export class UserService {
     return this.userRepo.save(user);
   }
 
-  async findAll(requestedTenantId: string, currentUserId: string, page: number = 1) {
+  async findAll(requestedTenantId: string, currentUserId: string, page: number = 1): Promise<PaginationResponse<User>> {
     const isAdmin = !(await this.isSystemAdmin(currentUserId));
 
     const limit = 25;
     const skip = (page - 1) * limit;
-    return this.userRepo.find({
+    const [items, total] = await this.userRepo.findAndCount({
       where: {
         tenant_id: isAdmin ? requestedTenantId : undefined,
       },
@@ -66,6 +67,14 @@ export class UserService {
       skip,
       take: limit,
     });
+    
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    };
   }
 
   async findOne(userId: string, requestedTenantId: string, currentUserId: string) {

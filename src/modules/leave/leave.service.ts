@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Leave } from 'src/entities/leave.entity';
 import { CreateLeaveDto } from './dto/create-leave.dto';
 import { User } from '../../entities/user.entity';
+import { PaginationResponse } from '../../common/interfaces/pagination.interface';
 
 @Injectable()
 export class LeaveService {

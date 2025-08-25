@@ -48,10 +48,9 @@ export class AttendanceController {
 	// Raw events for building multiple sessions per day in UI
 	@Get('events')
 	@ApiOperation({ summary: 'Get raw attendance events for a user' })
-	async events(@Req() req: Request, @Query('userId') userId?: string, @Query('page') page?: string) {
+	async events(@Req() req: Request, @Query('userId') userId?: string) {
 		const id = userId || (req.user as any).id;
-		const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-		return this.attendanceService.findEvents(id, pageNumber);
+		return this.attendanceService.findEvents(id);
 	}
 	
 	@Get('today')

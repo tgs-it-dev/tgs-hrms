@@ -9,6 +9,7 @@ import { Repository, QueryFailedError } from 'typeorm';
 import { Department } from '../../entities/department.entity';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
+import { PaginationResponse } from '../../common/interfaces/pagination.interface';
 
 @Injectable()
 export class DepartmentService {
@@ -87,6 +88,7 @@ export class DepartmentService {
       where: { tenant_id },
       order: { created_at: 'DESC' },
     });
+    
   }
 
 

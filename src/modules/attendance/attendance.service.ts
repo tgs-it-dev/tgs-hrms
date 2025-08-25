@@ -98,6 +98,8 @@ export class AttendanceService {
 			
 		if (userId) {
 			qb.where('attendance.user_id = :userId', { userId });
+			// No pagination for single user
+			return qb.getMany();
 		}
 		
 		const [items, total] = await qb
