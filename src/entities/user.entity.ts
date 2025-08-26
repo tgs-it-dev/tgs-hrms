@@ -13,6 +13,13 @@ import { Role } from './role.entity';
 import { Employee } from './employee.entity';
 import { Attendance } from './attendance.entity'; // ✅ Add this if not already
 
+export enum UserRole {
+  ADMIN = 'admin',
+  USER = 'user',
+  MANAGER = 'manager',
+  HR = 'hr',
+}
+
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')

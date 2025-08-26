@@ -7,19 +7,44 @@ import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Role } from '../../entities/role.entity';
+import { Tenant } from '../../entities/tenant.entity';
 
+const mockRole: Role = {
+  id: '11111111-1111-1111-1111-111111111111',
+  name: 'admin',
+  description: 'Administrator role',
+  users: [],
+  rolePermissions: [],
+};
+
+const mockTenant: Tenant = {
+  id: '11111111-1111-1111-1111-111111111111',
+  name: 'Test Company',
+  created_at: new Date(),
+  users: [],
+  departments: [],
+};
 
 const mockUser: User = {
   id: '1',
   email: 'admin@company.com',
   password: bcrypt.hashSync('123456', 10),
-  role: UserRole.ADMIN,
-  tenantId: '1', 
-  resetToken: 'valid-token',
-  resetTokenExpiry: new Date(Date.now() + 60000),
-  refreshToken: 'refresh-token',
-  name: 'Test User',
-  company: null, 
+  role_id: '11111111-1111-1111-1111-111111111111',
+  tenant_id: '11111111-1111-1111-1111-111111111111', 
+  reset_token: 'valid-token',
+  reset_token_expiry: new Date(Date.now() + 60000),
+  refresh_token: 'refresh-token',
+  first_name: 'Test',
+  last_name: 'User',
+  phone: '1234567890',
+  gender: null,
+  created_at: new Date(),
+  updated_at: new Date(),
+  role: mockRole,
+  tenant: mockTenant,
+  employees: [],
+  attendances: [],
 };
 
 const mockUserRepository = () => ({
@@ -78,7 +103,7 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
         resetToken: expect.any(String),
       });
       expect(userRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ resetToken: expect.any(String) })
+        expect.objectContaining({ reset_token: expect.any(String) })
       );
     });
 
@@ -98,23 +123,24 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
 
       jest.spyOn(userRepo, 'findOne').mockResolvedValue({
         ...mockUser,
-        resetToken: token,
-        resetTokenExpiry: new Date(Date.now() + 60000),
+        reset_token: token,
+        reset_token_expiry: new Date(Date.now() + 60000),
       });
 
       jest.spyOn(bcrypt, 'hash').mockImplementation(async () => 'hashedPassword');
 
       const result = await service.resetPassword({
         token,
-        newPassword: 'newpass123',
+        password: 'newpass123',
+        confirmPassword: 'newpass123',
       });
 
       expect(result).toEqual({ message: 'Password successfully reset' });
       expect(userRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({
           password: 'hashedPassword',
-          resetToken: null,
-          resetTokenExpiry: null,
+          reset_token: null,
+          reset_token_expiry: null,
         })
       );
     });
@@ -125,7 +151,7 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
       });
 
       await expect(
-        service.resetPassword({ token: 'wrong', newPassword: 'newpass123' })
+        service.resetPassword({ token: 'wrong', password: 'newpass123', confirmPassword: 'newpass123' })
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -134,14 +160,14 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
 
       const expiredUser = {
         ...mockUser,
-        resetToken: 'valid-token',
-        resetTokenExpiry: new Date(Date.now() - 60000),
+        reset_token: 'valid-token',
+        reset_token_expiry: new Date(Date.now() - 60000),
       };
 
       jest.spyOn(userRepo, 'findOne').mockResolvedValue(expiredUser);
 
       await expect(
-        service.resetPassword({ token: 'valid-token', newPassword: 'newpass123' })
+        service.resetPassword({ token: 'valid-token', password: 'newpass123', confirmPassword: 'newpass123' })
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -171,7 +197,7 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
       const result = await service.logout('refresh-token');
       expect(result).toEqual({ message: 'Successfully logged out' });
       expect(userRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ refreshToken: null })
+        expect.objectContaining({ refresh_token: null })
       );
     });
 

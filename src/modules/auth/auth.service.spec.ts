@@ -7,21 +7,46 @@ import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
 import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Role } from '../../entities/role.entity';
+import { Tenant } from '../../entities/tenant.entity';
 
 const mockPassword = bcrypt.hashSync('123456', 10);
+
+const mockRole: Role = {
+  id: '11111111-1111-1111-1111-111111111111',
+  name: 'admin',
+  description: 'Administrator role',
+  users: [],
+  rolePermissions: [],
+};
+
+const mockTenant: Tenant = {
+  id: '11111111-1111-1111-1111-111111111111',
+  name: 'Test Company',
+  created_at: new Date(),
+  users: [],
+  departments: [],
+};
 
 const mockUser: User = {
   id: '1', 
   email: 'admin@company.com',
   password: mockPassword,
-  role: UserRole.ADMIN,
-  tenantId: '11111111-1111-1111-1111-111111111111', 
-  resetToken: '',
-  resetTokenExpiry: new Date(),
-  refreshToken: '',
-  name: 'Admin User',
-
-  company: null,
+  role_id: '11111111-1111-1111-1111-111111111111',
+  tenant_id: '11111111-1111-1111-1111-111111111111', 
+  reset_token: '',
+  reset_token_expiry: new Date(),
+  refresh_token: '',
+  first_name: 'Admin',
+  last_name: 'User',
+  phone: '1234567890',
+  gender: null,
+  created_at: new Date(),
+  updated_at: new Date(),
+  role: mockRole,
+  tenant: mockTenant,
+  employees: [],
+  attendances: [],
 };
 
 const mockUserRepository = () => ({
