@@ -13,18 +13,8 @@ export class TenantService {
     private readonly tenantRepo: Repository<Tenant>,
   ) {}
 
-  async findAll(page: number = 1): Promise<PaginationResponse<Tenant>> {
-    const limit = 25;
-    const skip = (page - 1) * limit;
-    const [items, total] = await this.tenantRepo.findAndCount({ skip, take: limit });
-    
-    return {
-      items,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit)
-    };
+  async findAll(): Promise<Tenant[]> {
+    return this.tenantRepo.find();
   }
 
   async findOne(id: string): Promise<Tenant> {

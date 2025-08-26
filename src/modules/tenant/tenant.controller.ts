@@ -39,10 +39,9 @@ export class TenantController {
     status: 403, 
     description: 'Forbidden - Insufficient permissions' 
   })
-  async getTenants(@Query('page') page?: string) {
+  async getTenants() {
     try {
-      const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-      const tenants = await this.tenantService.findAll(pageNumber);
+      const tenants = await this.tenantService.findAll();
       return {
         statusCode: 200,
         message: 'List of tenants retrieved successfully.',

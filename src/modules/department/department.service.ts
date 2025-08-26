@@ -83,24 +83,14 @@ export class DepartmentService {
     }
   }
 
-  async findAll(tenant_id: string, page: number = 1): Promise<PaginationResponse<Department>> {
-    const limit = 5;
-    const skip = (page - 1) * limit;
-    const [items, total] = await this.repo.findAndCount({
+  async findAll(tenant_id: string) {
+    return this.repo.find({
       where: { tenant_id },
       order: { created_at: 'DESC' },
-      skip,
-      take: limit,
     });
     
-    return {
-      items,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit)
-    };
   }
+
 
   async findOne(tenant_id: string, id: string) {
     const dept = await this.repo.findOne({ where: { id, tenant_id } });

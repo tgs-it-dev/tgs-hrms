@@ -104,13 +104,13 @@ export class DesignationService {
       skip,
       take: limit,
     });
-    
+    const totalPages = Math.ceil(total / limit);
     return {
       items,
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit)
+      totalPages,
     };
   }
 

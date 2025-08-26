@@ -19,7 +19,6 @@ import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { PaginationResponse } from '../../common/interfaces/pagination.interface';
 
-
 @Injectable()
 export class EmployeeService {
   constructor(
@@ -51,7 +50,6 @@ export class EmployeeService {
 
     return designation;
   }
-
 
   async create(tenant_id: string, dto: CreateEmployeeDto) {
     // Validate the designation
@@ -108,35 +106,41 @@ export class EmployeeService {
         }
         throw err;
     }
-}
+  }
 
-  async findAll(tenant_id: string, query: EmployeeQueryDto, page: number = 1): Promise<PaginationResponse<Employee>> {
-    const { department_id, designation_id } = query;
-
+  // List all employees with pagination and filtering
+  async findAll(tenant_id: string, query: EmployeeQueryDto, page: number) {
+    const limit = 5; // Consistent with other modules
+    const skip = (page - 1) * limit;
+    
     const qb = this.employeeRepo.createQueryBuilder('employee')
       .leftJoinAndSelect('employee.user', 'user')
       .leftJoinAndSelect('employee.designation', 'designation')
       .leftJoinAndSelect('designation.department', 'department')
       .where('user.tenant_id = :tenant_id', { tenant_id });
-
-    if (department_id) {
-      qb.andWhere('designation.department_id = :department_id', { department_id });
-    }
-    if (designation_id) {
-      qb.andWhere('employee.designation_id = :designation_id', { designation_id });
-    }
-
-    const limit = 25;
-    const skip = (page - 1) * limit;
     
-    const [items, total] = await qb.skip(skip).take(limit).getManyAndCount();
+    // Add filters if provided
+    if (query.department_id) {
+      qb.andWhere('designation.department_id = :department_id', { department_id: query.department_id });
+    }
+    if (query.designation_id) {
+      qb.andWhere('employee.designation_id = :designation_id', { designation_id: query.designation_id });
+    }
+    
+    const [items, total] = await qb
+      .orderBy('employee.created_at', 'DESC')
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+    
+    const totalPages = Math.ceil(total / limit);
     
     return {
       items,
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit)
+      totalPages,
     };
   }
 
@@ -153,56 +157,57 @@ export class EmployeeService {
     return employee;
   }
 
- async update(tenant_id: string, id: string, dto: UpdateEmployeeDto) {
-  const employee = await this.employeeRepo.findOne({
-    where: { id },
-    relations: ['user', 'designation', 'designation.department'],
-  });
-  if (!employee) throw new NotFoundException('Employee not found');
-
-  const user = employee.user;
-  if (!user || user.tenant_id !== tenant_id) {
-    throw new NotFoundException('Employee not found');
-  }
-
-  if (dto.designation_id) {
-    const newDesignation = await this.validateDesignation(dto.designation_id, tenant_id);
-    employee.designation_id = newDesignation.id;
-    employee.designation = newDesignation;
-  }
-
-  if (dto.email && dto.email !== user.email) {
-    const existing = await this.userRepo.findOne({ where: { email: dto.email, tenant_id } });
-    if (existing && existing.id !== user.id) {
-      throw new ConflictException('User with this email already exists in the tenant.');
-    }
-  }
-
-  let shouldSaveUser = false;
-  if (dto.first_name !== undefined) { user.first_name = dto.first_name; shouldSaveUser = true; }
-  if (dto.last_name !== undefined)  { user.last_name  = dto.last_name;  shouldSaveUser = true; }
-  if (dto.email !== undefined)      { user.email      = dto.email;      shouldSaveUser = true; }
-  if (dto.phone !== undefined)      { user.phone      = dto.phone;      shouldSaveUser = true; }
-  if (dto.password) {
-    user.password = await bcrypt.hash(dto.password, 10);
-    shouldSaveUser = true;
-  }
-
-  try {
-    if (shouldSaveUser) await this.userRepo.save(user);
-    await this.employeeRepo.save(employee);
-    return await this.employeeRepo.findOne({
+  async update(tenant_id: string, id: string, dto: UpdateEmployeeDto) {
+    const employee = await this.employeeRepo.findOne({
       where: { id },
       relations: ['user', 'designation', 'designation.department'],
     });
-  } catch (err) {
-    if (err instanceof QueryFailedError && (err as any).code === '23505') {
-      throw new ConflictException('Employee already exists.');
+    if (!employee) throw new NotFoundException('Employee not found');
+
+    const user = employee.user;
+    if (!user || user.tenant_id !== tenant_id) {
+      throw new NotFoundException('Employee not found');
     }
-    throw err;
+
+    if (dto.designation_id) {
+      const newDesignation = await this.validateDesignation(dto.designation_id, tenant_id);
+      employee.designation_id = newDesignation.id;
+      employee.designation = newDesignation;
+    }
+
+    if (dto.email && dto.email !== user.email) {
+      const existing = await this.userRepo.findOne({ where: { email: dto.email, tenant_id } });
+      if (existing && existing.id !== user.id) {
+        throw new ConflictException('User with this email already exists in the tenant.');
+      }
+    }
+
+    let shouldSaveUser = false;
+    if (dto.first_name !== undefined) { user.first_name = dto.first_name; shouldSaveUser = true; }
+    if (dto.last_name !== undefined)  { user.last_name  = dto.last_name;  shouldSaveUser = true; }
+    if (dto.email !== undefined)      { user.email      = dto.email;      shouldSaveUser = true; }
+    if (dto.phone !== undefined)      { user.phone      = dto.phone;      shouldSaveUser = true; }
+    if (dto.password) {
+      user.password = await bcrypt.hash(dto.password, 10);
+      shouldSaveUser = true;
+    }
+
+    try {
+      if (shouldSaveUser) await this.userRepo.save(user);
+      await this.employeeRepo.save(employee);
+      return await this.employeeRepo.findOne({
+        where: { id },
+        relations: ['user', 'designation', 'designation.department'],
+      });
+    } catch (err) {
+      if (err instanceof QueryFailedError && (err as any).code === '23505') {
+        throw new ConflictException('Employee already exists.');
+      }
+      throw err;
+    }
   }
-}
-async remove(tenant_id: string, id: string): Promise<{ deleted: true; id: string }> {
+
+  async remove(tenant_id: string, id: string): Promise<{ deleted: true; id: string }> {
     await this.findOne(tenant_id, id);
     await this.employeeRepo.delete(id);
     return { deleted: true, id };
@@ -223,68 +228,66 @@ async remove(tenant_id: string, id: string): Promise<{ deleted: true; id: string
     });
   }
 
-async getGenderPercentage(tenant_id: string): Promise<{ male: number, female: number, total: number }> {
-  // Fetch only users who are employees (those who exist in the employee table)
-  const totalEmployees = await this.employeeRepo
-    .createQueryBuilder('employee')
-    .leftJoinAndSelect('employee.user', 'user')
-    .where('user.tenant_id = :tenant_id', { tenant_id })
-    .getCount();
+  async getGenderPercentage(tenant_id: string): Promise<{ male: number, female: number, total: number }> {
+    // Fetch only users who are employees (those who exist in the employee table)
+    const totalEmployees = await this.employeeRepo
+      .createQueryBuilder('employee')
+      .leftJoinAndSelect('employee.user', 'user')
+      .where('user.tenant_id = :tenant_id', { tenant_id })
+      .getCount();
 
-  console.log('Total Employees are:', totalEmployees);
+    console.log('Total Employees are:', totalEmployees);
 
-  if (totalEmployees === 0) {
-    return { male: 0, female: 0, total: 0 }; // If no employees, return 0%
+    if (totalEmployees === 0) {
+      return { male: 0, female: 0, total: 0 }; // If no employees, return 0%
+    }
+
+    // Count male employees
+    const maleCount = await this.employeeRepo
+      .createQueryBuilder('employee')
+      .leftJoin('employee.user', 'user')
+      .where('user.tenant_id = :tenant_id', { tenant_id })
+      .andWhere('user.gender = :gender', { gender: 'male' })
+      .getCount();
+    console.log('Total Male Employees are:', maleCount);
+
+    // Count female employees
+    const femaleCount = await this.employeeRepo
+      .createQueryBuilder('employee')
+      .leftJoin('employee.user', 'user')
+      .where('user.tenant_id = :tenant_id', { tenant_id })
+      .andWhere('user.gender = :gender', { gender: 'female' })
+      .getCount();
+    console.log('Total Female Employees are:', femaleCount);
+
+    return { male: maleCount, female: femaleCount, total: totalEmployees };
   }
 
-  // Count male employees
-  const maleCount = await this.employeeRepo
-    .createQueryBuilder('employee')
-    .leftJoin('employee.user', 'user')
-    .where('user.tenant_id = :tenant_id', { tenant_id })
-    .andWhere('user.gender = :gender', { gender: 'male' })
-    .getCount();
-  console.log('Total Male Employees are:', maleCount);
+  async getEmployeeJoiningReport(tenant_id: string): Promise<any[]> {
+    const results = await this.employeeRepo
+      .createQueryBuilder('employee')
+      .leftJoinAndSelect('employee.user', 'user')
+      .select("EXTRACT(MONTH FROM employee.created_at) AS month")
+      .addSelect("EXTRACT(YEAR FROM employee.created_at) AS year")
+      .addSelect("COUNT(employee.id) AS total")
+      .where("user.tenant_id = :tenant_id", { tenant_id })
+      .groupBy("EXTRACT(MONTH FROM employee.created_at)")
+      .addGroupBy("EXTRACT(YEAR FROM employee.created_at)")
+      .orderBy("year", "ASC")
+      .addOrderBy("month", "ASC")
+      .getRawMany();
 
-  // Count female employees
-  const femaleCount = await this.employeeRepo
-    .createQueryBuilder('employee')
-    .leftJoin('employee.user', 'user')
-    .where('user.tenant_id = :tenant_id', { tenant_id })
-    .andWhere('user.gender = :gender', { gender: 'female' })
-    .getCount();
-  console.log('Total Female Employees are:', femaleCount);
+    if (!results || results.length === 0) {
+      throw new BadRequestException('Error fetching employee joining report.');
+    }
 
-  return { male: maleCount, female: femaleCount, total: totalEmployees };
-}
- 
+    // Format the report data to a more readable format
+    const report = results.map((entry) => ({
+      month: parseInt(entry.month),  // Convert month to an integer
+      year: parseInt(entry.year),
+      total: parseInt(entry.total),
+    }));
 
-async getEmployeeJoiningReport(tenant_id: string): Promise<any[]> {
-  const results = await this.employeeRepo
-    .createQueryBuilder('employee')
-    .leftJoinAndSelect('employee.user', 'user')
-    .select("EXTRACT(MONTH FROM employee.created_at) AS month")
-    .addSelect("EXTRACT(YEAR FROM employee.created_at) AS year")
-    .addSelect("COUNT(employee.id) AS total")
-    .where("user.tenant_id = :tenant_id", { tenant_id })
-    .groupBy("EXTRACT(MONTH FROM employee.created_at)")
-    .addGroupBy("EXTRACT(YEAR FROM employee.created_at)")
-    .orderBy("year", "ASC")
-    .addOrderBy("month", "ASC")
-    .getRawMany();
-
-  if (!results || results.length === 0) {
-    throw new BadRequestException('Error fetching employee joining report.');
+    return report;
   }
-
-  // Format the report data to a more readable format
-  const report = results.map((entry) => ({
-    month: parseInt(entry.month),  // Convert month to an integer
-    year: parseInt(entry.year),
-    total: parseInt(entry.total),
-  }));
-
-  return report;
-}
-
 }
