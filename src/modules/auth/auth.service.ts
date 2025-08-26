@@ -14,6 +14,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ConfigService } from '@nestjs/config';
 import { NotFoundException } from '@nestjs/common';
+import { EmailService } from './email.service';
 
 @Injectable()
 export class AuthService {
@@ -24,6 +25,7 @@ export class AuthService {
     private userRepository: Repository<User>,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private emailService: EmailService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -115,42 +117,101 @@ export class AuthService {
   }
 
   async forgotPassword(dto: ForgotPasswordDto) {
+    this.logger.log(`Forgot password request for email: ${dto.email}`);
+
     const user = await this.userRepository.findOne({
       where: { email: dto.email.toLowerCase() },
     });
 
     if (!user) {
-      throw new BadRequestException('User not found');
+      this.logger.warn(`Forgot password failed: user not found for email: ${dto.email}`);
+      throw new BadRequestException('In Valid email address');
     }
 
-    const resetToken =
-      Math.random().toString(36).substring(2, 15) +
-      Math.random().toString(36).substring(2, 15);
+  
+    const resetToken = this.generateSecureToken();
+    
+    
+    const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); 
 
+    
+    await this.userRepository.update(user.id, {
+      reset_token: resetToken,
+      reset_token_expiry: resetTokenExpiry,
+    });
+
+    
+    const userName = `${user.first_name} ${user.last_name}`;
+    await this.emailService.sendPasswordResetEmail(user.email, resetToken, userName);
+
+    this.logger.log(`Password reset email sent to: ${user.email}`);
+    
     return {
-      message: 'Password reset token generated',
-      resetToken,
+      message: 'Check your email for the password reset link.',
     };
+  }
+
+  private generateSecureToken(): string {
+    const crypto = require('crypto');
+    return crypto.randomBytes(32).toString('hex');
+  }
+
+  async verifyResetToken(token: string) {
+    if (!token) {
+      return { valid: false, message: 'Token is required' };
+    }
+
+    const user = await this.userRepository.findOne({
+      where: { reset_token: token }
+    });
+
+    if (!user) {
+      return { valid: false, message: 'Invalid reset token' };
+    }
+
+    if (user.reset_token_expiry && new Date() > user.reset_token_expiry) {
+      return { valid: false, message: 'Reset token has expired' };
+    }
+
+    return { valid: true, message: 'Token is valid' };
   }
 
 
 async resetPassword(dto: ResetPasswordDto) {
   this.logger.log(`Reset password attempt with token: ${dto.token}`);
+
+  
   const user = await this.userRepository.findOne({
     where: { reset_token: dto.token }
   });
+
   if (!user) {
-    throw new NotFoundException('Invalid reset token');
+    this.logger.warn(`Reset password failed: invalid token`);
+    throw new BadRequestException('Invalid or expired reset token');
   }
+
+  
   if (user.reset_token_expiry && new Date() > user.reset_token_expiry) {
-    throw new BadRequestException('Reset token has expired');
+    this.logger.warn(`Reset password failed: expired token for user: ${user.email}`);
+    throw new BadRequestException('Reset token has expired. Please request a new password reset.');
   }
+
+  
   const hashedPassword = await bcrypt.hash(dto.password, 10);
+
+  
   await this.userRepository.update(user.id, {
     password: hashedPassword,
     reset_token: null,
     reset_token_expiry: null,
   });
+
+  
+  const userName = `${user.first_name} ${user.last_name}`;
+  await this.emailService.sendPasswordResetSuccessEmail(user.email, userName);
+
+  this.logger.log(`Password reset successful for user: ${user.email}`);
+  
   return { message: 'Password reset successfully' };
 }
 
@@ -189,6 +250,10 @@ async resetPassword(dto: ResetPasswordDto) {
   }
 
   async logout(refreshToken: string) {
+    if (!refreshToken) {
+      throw new BadRequestException('Refresh token is required');
+    }
+
     try {
       const payload = this.jwtService.verify(refreshToken, {
         secret: this.configService.get<string>('JWT_SECRET'),
@@ -202,8 +267,15 @@ async resetPassword(dto: ResetPasswordDto) {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
-      return { message: 'Logged out successfully' };
+      
+      await this.userRepository.update(user.id, {
+        refresh_token: null,
+      });
+
+      this.logger.log(`User logged out successfully: ${user.email}`);
+      return { message: 'Successfully logged out' };
     } catch (error) {
+      this.logger.warn(`Logout failed: invalid refresh token`);
       throw new UnauthorizedException('Invalid refresh token');
     }
   }

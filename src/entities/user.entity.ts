@@ -11,7 +11,7 @@ import {
 import { Tenant } from './tenant.entity';
 import { Role } from './role.entity';
 import { Employee } from './employee.entity';
-import { Attendance } from './attendance.entity'; // ✅ Add this if not already
+import { Attendance } from './attendance.entity'; 
 
 export enum UserRole {
   ADMIN = 'admin',
@@ -44,7 +44,7 @@ export class User {
   role_id: string;
 
   @Column({ type: 'varchar', length: 10, nullable: true })
-  gender: 'male' | 'female' | null; // Gender field, nullable
+  gender: 'male' | 'female' | null; 
 
   @Column({ type: 'uuid' })
   tenant_id: string;
@@ -66,11 +66,12 @@ export class User {
   @OneToMany(() => Employee, (employee) => employee.user)
   employees: Employee[];
 
-  @OneToMany(() => Attendance, (attendance) => attendance.user) // ✅ Add this
+  @OneToMany(() => Attendance, (attendance) => attendance.user) 
   attendances: Attendance[];
 
   @Column({ type: 'text', nullable: true })
-  refresh_token: string;
+  refresh_token: string | null;
+
 
   @Column({ type: 'text', nullable: true })
   reset_token: string | null;
