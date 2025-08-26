@@ -8,6 +8,7 @@ import {
   Put,
   UseGuards,
   Query,
+  Patch,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -15,6 +16,7 @@ import {
   ApiResponse,
   ApiTags,
   ApiQuery,
+  ApiParam,
 } from '@nestjs/swagger';
 import { EmployeeService } from './employee.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
@@ -39,6 +41,50 @@ export class EmployeeController {
     private readonly attendanceService: AttendanceService,
     private readonly leaveService: LeaveService,
   ) {}
+
+  @Post('manager')
+  @Roles('admin', 'system-admin')
+  @ApiOperation({ summary: 'Create a new manager employee' })
+  @ApiResponse({ 
+    status: 201, 
+    description: 'Manager created successfully with manager role assigned' 
+  })
+  async createManager(
+    @TenantId() tenant_id: string,
+    @Body() createEmployeeDto: CreateEmployeeDto,
+  ) {
+    return this.service.createManager(tenant_id, createEmployeeDto);
+  }
+
+  @Patch(':id/promote-to-manager')
+  @Roles('admin', 'system-admin')
+  @ApiOperation({ summary: 'Promote an existing employee to manager role' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Employee promoted to manager successfully' 
+  })
+  @ApiParam({ name: 'id', description: 'Employee ID to promote' })
+  async promoteToManager(
+    @TenantId() tenant_id: string,
+    @Param('id') id: string,
+  ) {
+    return this.service.promoteToManager(tenant_id, id);
+  }
+
+  @Patch(':id/demote-to-employee')
+  @Roles('admin', 'system-admin')
+  @ApiOperation({ summary: 'Demote a manager back to employee role' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Manager demoted to employee successfully' 
+  })
+  @ApiParam({ name: 'id', description: 'Manager ID to demote' })
+  async demoteToEmployee(
+    @TenantId() tenant_id: string,
+    @Param('id') id: string,
+  ) {
+    return this.service.demoteToEmployee(tenant_id, id);
+  }
 
   @Post()
   @Roles('admin','system-admin')

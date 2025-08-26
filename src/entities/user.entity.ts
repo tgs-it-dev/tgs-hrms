@@ -11,7 +11,8 @@ import {
 import { Tenant } from './tenant.entity';
 import { Role } from './role.entity';
 import { Employee } from './employee.entity';
-import { Attendance } from './attendance.entity'; 
+import { Attendance } from './attendance.entity';
+import { Team } from './team.entity';
 
 export enum UserRole {
   ADMIN = 'admin',
@@ -69,9 +70,11 @@ export class User {
   @OneToMany(() => Attendance, (attendance) => attendance.user) 
   attendances: Attendance[];
 
+  @OneToMany(() => Team, (team) => team.manager)
+  managedTeams: Team[];
+
   @Column({ type: 'text', nullable: true })
   refresh_token: string | null;
-
 
   @Column({ type: 'text', nullable: true })
   reset_token: string | null;
