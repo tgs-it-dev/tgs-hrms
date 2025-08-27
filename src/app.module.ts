@@ -49,7 +49,7 @@ import { join } from 'path';
         return {
           secret,
           signOptions: {
-            expiresIn: config.get<string>('JWT_EXPIRES_IN', '15m'),
+            expiresIn: config.get<string>('JWT_EXPIRES_IN', '24h'),
           },
         };
       },

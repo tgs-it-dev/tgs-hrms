@@ -97,7 +97,7 @@ export class AuthService {
 
     const accessToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_SECRET'),
-      expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '15m',
+      expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '24h',
     });
 
     const refreshToken = this.jwtService.sign(payload, {
@@ -217,6 +217,10 @@ async resetPassword(dto: ResetPasswordDto) {
 
 
   async refreshToken(refreshToken: string) {
+    if (!refreshToken) {
+      throw new BadRequestException('Refresh token is required');
+    }
+
     try {
       const payload = this.jwtService.verify(refreshToken, {
         secret: this.configService.get<string>('JWT_SECRET'),
@@ -227,7 +231,19 @@ async resetPassword(dto: ResetPasswordDto) {
         relations: ['role'],
       });
 
-      if (!user || !user.role?.name) {
+      if (!user) {
+        this.logger.warn(`Refresh token failed: user not found for id: ${payload.sub}`);
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+
+      if (!user.role?.name) {
+        this.logger.warn(`Refresh token failed: user role missing for id: ${payload.sub}`);
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+
+      // Verify that the stored refresh token matches the provided one
+      if (user.refresh_token !== refreshToken) {
+        this.logger.warn(`Refresh token failed: token mismatch for user: ${user.email}`);
         throw new UnauthorizedException('Invalid refresh token');
       }
 
@@ -240,11 +256,16 @@ async resetPassword(dto: ResetPasswordDto) {
 
       const newAccessToken = this.jwtService.sign(newPayload, {
         secret: this.configService.get<string>('JWT_SECRET'),
-        expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '15m',
+        expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '24h',
       });
 
+      this.logger.log(`Access token refreshed successfully for user: ${user.email}`);
       return { accessToken: newAccessToken };
     } catch (error) {
+      if (error instanceof UnauthorizedException || error instanceof BadRequestException) {
+        throw error;
+      }
+      this.logger.warn(`Refresh token failed: ${error.message}`);
       throw new UnauthorizedException('Invalid refresh token');
     }
   }

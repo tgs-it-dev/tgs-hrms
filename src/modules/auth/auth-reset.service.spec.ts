@@ -52,6 +52,7 @@ const mockUserRepository = () => ({
   findOneBy: jest.fn().mockResolvedValue(mockUser),
   findOne: jest.fn().mockResolvedValue(mockUser),
   save: jest.fn(),
+  update: jest.fn().mockResolvedValue({ affected: 1 }),
 });
 
 describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
@@ -111,7 +112,7 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
     it('should send reset email for valid email', async () => {
       const result = await service.forgotPassword({ email: 'admin@company.com' });
       expect(result).toEqual({
-        message: 'If an account with this email exists, a password reset link has been sent.',
+        message: 'Check your email for the password reset link.',
       });
       expect(userRepo.update).toHaveBeenCalledWith(
         mockUser.id,

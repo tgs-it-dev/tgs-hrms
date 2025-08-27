@@ -9,6 +9,7 @@ import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Role } from '../../entities/role.entity';
 import { Tenant } from '../../entities/tenant.entity';
+import { EmailService } from './email.service';
 
 const mockPassword = bcrypt.hashSync('123456', 10);
 
@@ -57,6 +58,7 @@ const mockUserRepository = () => ({
     if (where.email === mockUser.email) return Promise.resolve(mockUser);
     return Promise.resolve(null);
   }),
+  update: jest.fn().mockResolvedValue({ affected: 1 }),
 });
 
 const mockJwtService = {
@@ -66,9 +68,14 @@ const mockJwtService = {
 const mockConfigService = {
   get: jest.fn().mockImplementation((key: string) => {
     if (key === 'JWT_SECRET') return 'mocked-secret';
-    if (key === 'JWT_EXPIRES_IN') return '15m';
+    if (key === 'JWT_EXPIRES_IN') return '24h';
     return null;
   }),
+};
+
+const mockEmailService = {
+  sendPasswordResetEmail: jest.fn().mockResolvedValue(undefined),
+  sendPasswordResetSuccessEmail: jest.fn().mockResolvedValue(undefined),
 };
 
 describe('AuthService - Login', () => {
@@ -82,6 +89,7 @@ describe('AuthService - Login', () => {
         { provide: getRepositoryToken(User), useFactory: mockUserRepository },
         { provide: JwtService, useValue: mockJwtService },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: EmailService, useValue: mockEmailService },
       ],
     }).compile();
 
