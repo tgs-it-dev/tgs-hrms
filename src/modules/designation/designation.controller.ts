@@ -73,13 +73,6 @@ export class DesignationController {
     return this.service.update(id, dto);
   }
 
-  // @Get('department/:departmentId')
-  // @ApiOperation({ summary: 'List designations under a department' })
-  // @ApiResponse({ status: 200, description: 'List of designations.' })
-  // async findAll(@Param('departmentId') departmentId: string, @Query('page') page?: string) {
-  //   const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-  //   return this.service.findAllByDepartment(departmentId, pageNumber);
-  // }
 
 
   // DesignationController.ts

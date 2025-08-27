@@ -237,13 +237,70 @@ export class TeamService {
     await this.employeeRepo.save(employee);
   }
 
+  // async getAvailableEmployees(
+  //   tenantId: string,
+  //   managerId: string,
+  //   page = 1,
+  //   search?: string
+  // ): Promise<{
+  //   items: Employee[];
+  //   total: number;
+  //   page: number;
+  //   limit: number;
+  //   totalPages: number;
+  // }> {
+  //   const limit = 25;
+  //   const skip = (page - 1) * limit;
+
+  //   // Get manager's department
+  //   const manager = await this.employeeRepo.findOne({
+  //     where: { user_id: managerId },
+  //     relations: ['designation', 'designation.department']
+  //   });
+
+  //   if (!manager?.designation?.department) {
+  //     throw new BadRequestException('Manager must belong to a department');
+  //   }
+
+  //   const qb = this.employeeRepo.createQueryBuilder('e')
+  //     .leftJoinAndSelect('e.user', 'u')
+  //     .leftJoinAndSelect('e.designation', 'd')
+  //     .leftJoinAndSelect('d.department', 'dep')
+  //     .where('u.tenant_id = :tenantId', { tenantId })
+  //     .andWhere('dep.id = :deptId', { deptId: manager.designation.department.id })
+  //     .andWhere('e.team_id IS NULL') // Only employees not in any team
+  //     .andWhere('e.user_id != :managerId', { managerId }); // Exclude manager
+
+  //   if (search) {
+  //     qb.andWhere('(u.first_name ILIKE :search OR u.last_name ILIKE :search)', { 
+  //       search: `%${search}%` 
+  //     });
+  //   }
+
+  //   const [items, total] = await qb
+  //     .orderBy('u.first_name', 'ASC')
+  //     .skip(skip)
+  //     .take(limit)
+  //     .getManyAndCount();
+
+  //   const totalPages = Math.ceil(total / limit);
+
+  //   return {
+  //     items,
+  //     total,
+  //     page,
+  //     limit,
+  //     totalPages,
+  //   };
+  // }
+
   async getAvailableEmployees(
     tenantId: string,
     managerId: string,
     page = 1,
     search?: string
   ): Promise<{
-    items: Employee[];
+    items: any[]; // Changed from Employee[] to any[]
     total: number;
     page: number;
     limit: number;
@@ -251,42 +308,53 @@ export class TeamService {
   }> {
     const limit = 25;
     const skip = (page - 1) * limit;
-
     // Get manager's department
     const manager = await this.employeeRepo.findOne({
       where: { user_id: managerId },
       relations: ['designation', 'designation.department']
     });
-
     if (!manager?.designation?.department) {
       throw new BadRequestException('Manager must belong to a department');
     }
-
     const qb = this.employeeRepo.createQueryBuilder('e')
       .leftJoinAndSelect('e.user', 'u')
       .leftJoinAndSelect('e.designation', 'd')
       .leftJoinAndSelect('d.department', 'dep')
       .where('u.tenant_id = :tenantId', { tenantId })
       .andWhere('dep.id = :deptId', { deptId: manager.designation.department.id })
-      .andWhere('e.team_id IS NULL') // Only employees not in any team
-      .andWhere('e.user_id != :managerId', { managerId }); // Exclude manager
-
+      .andWhere('e.team_id IS NULL')
+      .andWhere('e.user_id != :managerId', { managerId });
     if (search) {
-      qb.andWhere('(u.first_name ILIKE :search OR u.last_name ILIKE :search)', { 
-        search: `%${search}%` 
+      qb.andWhere('(u.first_name ILIKE :search OR u.last_name ILIKE :search)', {
+        search: `%${search}%`
       });
     }
-
     const [items, total] = await qb
       .orderBy('u.first_name', 'ASC')
       .skip(skip)
       .take(limit)
       .getManyAndCount();
-
     const totalPages = Math.ceil(total / limit);
-
+    // Transform the data to match frontend expectations
+    const transformedItems = items.map(employee => ({
+      id: employee.id,
+      user: {
+        id: employee.user.id,
+        first_name: employee.user.first_name,
+        last_name: employee.user.last_name,
+        email: employee.user.email,
+      },
+      designation: {
+        id: employee.designation.id,
+        title: employee.designation.title,
+      },
+      department: {
+        id: employee.designation.department.id,
+        name: employee.designation.department.name,
+      }
+    }));
     return {
-      items,
+      items: transformedItems, // Return transformed data
       total,
       page,
       limit,
@@ -294,12 +362,51 @@ export class TeamService {
     };
   }
 
+  // async getAllMembersForManager(
+  //   tenantId: string,
+  //   managerId: string,
+  //   page = 1
+  // ): Promise<{
+  //   items: Employee[];
+  //   total: number;
+  //   page: number;
+  //   limit: number;
+  //   totalPages: number;
+  // }> {
+  //   const limit = 25;
+  //   const skip = (page - 1) * limit;
+
+  //   const qb = this.employeeRepo.createQueryBuilder('e')
+  //     .leftJoinAndSelect('e.user', 'u')
+  //     .leftJoinAndSelect('e.designation', 'd')
+  //     .leftJoinAndSelect('d.department', 'dep')
+  //     .leftJoin('e.team', 't')
+  //     .where('u.tenant_id = :tenantId', { tenantId })
+  //     .andWhere('t.manager_id = :managerId', { managerId })
+  //     .andWhere('e.user_id != :managerId', { managerId }); // Exclude manager
+
+  //   const [items, total] = await qb
+  //     .orderBy('e.created_at', 'DESC')
+  //     .skip(skip)
+  //     .take(limit)
+  //     .getManyAndCount();
+
+  //   const totalPages = Math.ceil(total / limit);
+
+  //   return {
+  //     items,
+  //     total,
+  //     page,
+  //     limit,
+  //     totalPages,
+  //   };
+  // }
   async getAllMembersForManager(
     tenantId: string,
     managerId: string,
     page = 1
   ): Promise<{
-    items: Employee[];
+    items: any[];
     total: number;
     page: number;
     limit: number;
@@ -307,7 +414,6 @@ export class TeamService {
   }> {
     const limit = 25;
     const skip = (page - 1) * limit;
-
     const qb = this.employeeRepo.createQueryBuilder('e')
       .leftJoinAndSelect('e.user', 'u')
       .leftJoinAndSelect('e.designation', 'd')
@@ -315,22 +421,38 @@ export class TeamService {
       .leftJoin('e.team', 't')
       .where('u.tenant_id = :tenantId', { tenantId })
       .andWhere('t.manager_id = :managerId', { managerId })
-      .andWhere('e.user_id != :managerId', { managerId }); // Exclude manager
-
+      .andWhere('e.user_id != :managerId', { managerId });
     const [items, total] = await qb
       .orderBy('e.created_at', 'DESC')
       .skip(skip)
       .take(limit)
       .getManyAndCount();
-
     const totalPages = Math.ceil(total / limit);
-
+    // Transform the data
+    const transformedItems = items.map(employee => ({
+      id: employee.id,
+      user: {
+        id: employee.user.id,
+        first_name: employee.user.first_name,
+        last_name: employee.user.last_name,
+        email: employee.user.email,
+      },
+      designation: {
+        id: employee.designation.id,
+        title: employee.designation.title,
+      },
+      department: {
+        id: employee.designation.department.id,
+        name: employee.designation.department.name,
+      }
+    }));
     return {
-      items,
+      items: transformedItems,
       total,
       page,
       limit,
       totalPages,
     };
   }
+  
 }
