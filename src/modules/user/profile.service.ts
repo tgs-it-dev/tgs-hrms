@@ -23,6 +23,7 @@ export class ProfileService {
       last_name: user.last_name,
       email: user.email,
       phone: user.phone,
+      profile_pic: user.profile_pic,
       role: user.role?.name,
       tenant: user.tenant?.name,
       created_at: user.created_at,

@@ -47,6 +47,9 @@ export class User {
   @Column({ type: 'varchar', length: 10, nullable: true })
   gender: 'male' | 'female' | null; 
 
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  profile_pic: string | null;
+
   @Column({ type: 'uuid' })
   tenant_id: string;
 
