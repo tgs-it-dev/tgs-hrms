@@ -14,11 +14,10 @@ describe('DepartmentService', () => {
 
   const mockDepartment: Department = {
     id: deptId,
-    tenantId,
+    tenant_id: tenantId,
     name: 'Operations',
     description: 'Engineering dept',
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    created_at: new Date(),
     tenant: {
       id: tenantId,
       name: 'Mock Tenant',
@@ -92,11 +91,10 @@ describe('DepartmentService', () => {
   it('should throw ConflictException when updating to name used by another department', async () => {
     const anotherDepartment: Department = {
       id: 'other-id',
-      tenantId,
+      tenant_id: tenantId,
       name: 'Engineering',
       description: 'Duplicate name',
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      created_at: new Date(),
       tenant: {
         id: tenantId,
         name: 'Mock Tenant',

@@ -9,6 +9,7 @@ import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Role } from '../../entities/role.entity';
 import { Tenant } from '../../entities/tenant.entity';
+import { EmailService } from './email.service';
 
 const mockRole: Role = {
   id: '11111111-1111-1111-1111-111111111111',
@@ -51,7 +52,13 @@ const mockUserRepository = () => ({
   findOneBy: jest.fn().mockResolvedValue(mockUser),
   findOne: jest.fn().mockResolvedValue(mockUser),
   save: jest.fn(),
+  update: jest.fn().mockResolvedValue({ affected: 1 }),
 });
+
+const mockEmailService = {
+  sendPasswordResetEmail: jest.fn().mockResolvedValue(undefined),
+  sendPasswordResetSuccessEmail: jest.fn().mockResolvedValue(undefined),
+};
 
 describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
   let service: AuthService;
@@ -86,6 +93,7 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
             }),
           },
         },
+        { provide: EmailService, useValue: mockEmailService },
       ],
     }).compile();
 
@@ -99,11 +107,14 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
     it('should generate reset token for valid email', async () => {
       const result = await service.forgotPassword({ email: 'admin@company.com' });
       expect(result).toEqual({
-        message: 'Reset link sent to email',
-        resetToken: expect.any(String),
+        message: 'Check your email for the password reset link.',
       });
-      expect(userRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ reset_token: expect.any(String) })
+      expect(userRepo.update).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ 
+          reset_token: expect.any(String),
+          reset_token_expiry: expect.any(Date)
+        })
       );
     });
 
@@ -135,20 +146,19 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
         confirmPassword: 'newpass123',
       });
 
-      expect(result).toEqual({ message: 'Password successfully reset' });
-      expect(userRepo.save).toHaveBeenCalledWith(
+      expect(result).toEqual({ message: 'Password reset successfully' });
+      expect(userRepo.update).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           password: 'hashedPassword',
-          resetToken: null,
-          resetTokenExpiry: null,
+          reset_token: null,
+          reset_token_expiry: null,
         })
       );
     });
 
     it('should throw for invalid token', async () => {
-      jest.spyOn(jwtService, 'verify').mockImplementation(() => {
-        throw new Error();
-      });
+      jest.spyOn(userRepo, 'findOne').mockResolvedValue(null);
 
       await expect(
         service.resetPassword({ token: 'wrong', password: 'newpass123', confirmPassword: 'newpass123' })
@@ -156,12 +166,10 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
     });
 
     it('should throw for expired token', async () => {
-      jest.spyOn(jwtService, 'verify').mockReturnValue({ sub: mockUser.id });
-
       const expiredUser = {
         ...mockUser,
-        resetToken: 'valid-token',
-        resetTokenExpiry: new Date(Date.now() - 60000),
+        reset_token: 'valid-token',
+        reset_token_expiry: new Date(Date.now() - 60000),
       };
 
       jest.spyOn(userRepo, 'findOne').mockResolvedValue(expiredUser);
@@ -196,8 +204,9 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
     it('should clear refresh token on logout', async () => {
       const result = await service.logout('refresh-token');
       expect(result).toEqual({ message: 'Successfully logged out' });
-      expect(userRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ refreshToken: null })
+      expect(userRepo.update).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ refresh_token: null })
       );
     });
 

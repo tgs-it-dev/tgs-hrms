@@ -18,6 +18,8 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { LogoutDto } from './dto/logout.dto';
 import { Throttle } from '@nestjs/throttler';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
@@ -210,17 +212,31 @@ export class AuthController {
 
 
   @Post('refresh')
-  @ApiBody({
-    schema: {
-      properties: {
-        refreshToken: { type: 'string' },
-      },
-    },
+  @ApiOperation({ 
+    summary: 'Refresh access token',
+    description: 'Generate a new access token using a valid refresh token. Access tokens expire after 24 hours.'
   })
-  @ApiResponse({ status: 200, description: 'Token refreshed' })
-  @ApiResponse({ status: 401, description: 'Invalid refresh token' })
-  async refresh(@Body('refreshToken') refreshToken: string) {
-    return this.authService.refreshToken(refreshToken);
+  @ApiBody({ type: RefreshTokenDto })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'New access token generated successfully',
+    schema: {
+      example: {
+        accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 401, 
+    description: 'Invalid or expired refresh token',
+    schema: {
+      example: {
+        message: 'Invalid refresh token'
+      }
+    }
+  })
+  async refresh(@Body() dto: RefreshTokenDto) {
+    return this.authService.refreshToken(dto.refreshToken);
   }
 
   @ApiBearerAuth()
@@ -233,16 +249,30 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Post('logout')
-  @ApiBody({
-    schema: {
-      properties: {
-        refreshToken: { type: 'string' },
-      },
-    },
+  @ApiOperation({ 
+    summary: 'Logout user',
+    description: 'Invalidate the refresh token to log out the user'
   })
-  @ApiResponse({ status: 200, description: 'User logged out successfully' })
-  @ApiResponse({ status: 400, description: 'Refresh token missing or invalid' })
-  async logout(@Body('refreshToken') refreshToken: string) {
-    return this.authService.logout(refreshToken);
+  @ApiBody({ type: LogoutDto })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'User logged out successfully',
+    schema: {
+      example: {
+        message: 'Successfully logged out'
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Refresh token missing or invalid',
+    schema: {
+      example: {
+        message: 'Refresh token is required'
+      }
+    }
+  })
+  async logout(@Body() dto: LogoutDto) {
+    return this.authService.logout(dto.refreshToken);
   }
 }
