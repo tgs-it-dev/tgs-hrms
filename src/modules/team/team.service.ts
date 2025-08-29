@@ -343,6 +343,7 @@ export class TeamService {
         first_name: employee.user.first_name,
         last_name: employee.user.last_name,
         email: employee.user.email,
+        profile_pic: employee.user.profile_pic,
       },
       designation: {
         id: employee.designation.id,
@@ -436,6 +437,7 @@ export class TeamService {
         first_name: employee.user.first_name,
         last_name: employee.user.last_name,
         email: employee.user.email,
+        profile_pic: employee.user.profile_pic,
       },
       designation: {
         id: employee.designation.id,

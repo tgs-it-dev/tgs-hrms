@@ -54,6 +54,7 @@ export class EmployeeProfileService {
       department: employee.designation?.department?.name || null,
       joinedAt: employee.created_at,
       attendanceSummary: groupedAttendance,
+      profile_pic: employee.user.profile_pic,
       leaveHistory: leaveHistory.map((leave) => ({
         id: leave.id,
         fromDate: leave.from_date,
