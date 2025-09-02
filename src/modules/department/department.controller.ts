@@ -23,16 +23,19 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { TenantGuard } from 'src/common/guards/tenant.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { Permissions } from '../../common/decorators/permissions.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
 
 @ApiTags('Departments')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, TenantGuard, RolesGuard, PermissionsGuard)
 @Controller('departments')
 export class DepartmentController {
   constructor(private service: DepartmentService) {}
 
   @Post()
   @Roles('admin', 'system-admin')
+  @Permissions('manage_departments')
   @ApiOperation({ summary: 'Create department' })
   @ApiResponse({ status: 201, description: 'Department created.' })
   @ApiResponse({
@@ -54,6 +57,7 @@ export class DepartmentController {
 
   @Put(':id')
   @Roles('admin', 'system-admin')
+  @Permissions('manage_departments')
   @ApiOperation({ summary: 'Update department' })
   @ApiResponse({ status: 200, description: 'Department updated.' })
   @ApiResponse({
@@ -83,7 +87,8 @@ export class DepartmentController {
 
 
   @Get(':id')
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin', 'manager')
+  @Permissions('manage_departments', 'view_reports')
   @ApiOperation({ summary: 'Get department by ID' })
   @ApiResponse({ status: 200, description: 'Department found.' })
   @ApiResponse({ status: 404, description: 'Department not found.' })
@@ -94,6 +99,7 @@ export class DepartmentController {
 
   @Delete(':id')
   @Roles('admin', 'system-admin')
+  @Permissions('manage_departments')
   @ApiOperation({ summary: 'Delete department' })
   @ApiResponse({ status: 200, description: 'Department deleted successfully.' })
   @ApiResponse({ status: 404, description: 'Department not found.' })
