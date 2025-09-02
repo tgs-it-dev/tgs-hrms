@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsOptional, IsString, IsUUID,IsEnum } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsOptional, IsString, IsUUID, IsEnum } from 'class-validator';
 
 export class CreateEmployeeDto {
   @ApiProperty({ example: 'john.doe@example.com' })
@@ -35,8 +35,17 @@ export class CreateEmployeeDto {
   @IsNotEmpty()
   designation_id: string;
 
+  @ApiProperty({ 
+    example: 'uuid-of-team', 
+    required: false,
+    description: 'Optional. Team ID to assign the employee to during creation'
+  })
+  @IsOptional()
+  @IsUUID()
+  team_id?: string;
+
   @ApiProperty({ enum: ['male', 'female'], required: false })
   @IsOptional()
   @IsEnum(['male', 'female'])
-  gender?: 'male' | 'female';  // Include gender field in employee creation DTO
+  gender?: 'male' | 'female';
 }
