@@ -371,7 +371,7 @@ export class EmployeeService {
   }
 
   private async sendPasswordResetEmail(email: string, resetToken: string) {
-    const resetUrl = `${this.configService.get('FRONTEND_URL')}/reset-password?token=${resetToken}`;
+    const resetUrl = `${this.configService.get('FRONTEND_URL')}/confirm-password?token=${resetToken}`;
     await this.mailerService.sendMail({
       to: email,
       subject: 'Welcome to HRMS - Set Your Password',

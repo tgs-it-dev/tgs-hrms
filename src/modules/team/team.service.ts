@@ -237,63 +237,6 @@ export class TeamService {
     await this.employeeRepo.save(employee);
   }
 
-  // async getAvailableEmployees(
-  //   tenantId: string,
-  //   managerId: string,
-  //   page = 1,
-  //   search?: string
-  // ): Promise<{
-  //   items: Employee[];
-  //   total: number;
-  //   page: number;
-  //   limit: number;
-  //   totalPages: number;
-  // }> {
-  //   const limit = 25;
-  //   const skip = (page - 1) * limit;
-
-  //   // Get manager's department
-  //   const manager = await this.employeeRepo.findOne({
-  //     where: { user_id: managerId },
-  //     relations: ['designation', 'designation.department']
-  //   });
-
-  //   if (!manager?.designation?.department) {
-  //     throw new BadRequestException('Manager must belong to a department');
-  //   }
-
-  //   const qb = this.employeeRepo.createQueryBuilder('e')
-  //     .leftJoinAndSelect('e.user', 'u')
-  //     .leftJoinAndSelect('e.designation', 'd')
-  //     .leftJoinAndSelect('d.department', 'dep')
-  //     .where('u.tenant_id = :tenantId', { tenantId })
-  //     .andWhere('dep.id = :deptId', { deptId: manager.designation.department.id })
-  //     .andWhere('e.team_id IS NULL') // Only employees not in any team
-  //     .andWhere('e.user_id != :managerId', { managerId }); // Exclude manager
-
-  //   if (search) {
-  //     qb.andWhere('(u.first_name ILIKE :search OR u.last_name ILIKE :search)', { 
-  //       search: `%${search}%` 
-  //     });
-  //   }
-
-  //   const [items, total] = await qb
-  //     .orderBy('u.first_name', 'ASC')
-  //     .skip(skip)
-  //     .take(limit)
-  //     .getManyAndCount();
-
-  //   const totalPages = Math.ceil(total / limit);
-
-  //   return {
-  //     items,
-  //     total,
-  //     page,
-  //     limit,
-  //     totalPages,
-  //   };
-  // }
-
   async getAvailableEmployees(
     tenantId: string,
     managerId: string,
@@ -362,46 +305,6 @@ export class TeamService {
       totalPages,
     };
   }
-
-  // async getAllMembersForManager(
-  //   tenantId: string,
-  //   managerId: string,
-  //   page = 1
-  // ): Promise<{
-  //   items: Employee[];
-  //   total: number;
-  //   page: number;
-  //   limit: number;
-  //   totalPages: number;
-  // }> {
-  //   const limit = 25;
-  //   const skip = (page - 1) * limit;
-
-  //   const qb = this.employeeRepo.createQueryBuilder('e')
-  //     .leftJoinAndSelect('e.user', 'u')
-  //     .leftJoinAndSelect('e.designation', 'd')
-  //     .leftJoinAndSelect('d.department', 'dep')
-  //     .leftJoin('e.team', 't')
-  //     .where('u.tenant_id = :tenantId', { tenantId })
-  //     .andWhere('t.manager_id = :managerId', { managerId })
-  //     .andWhere('e.user_id != :managerId', { managerId }); // Exclude manager
-
-  //   const [items, total] = await qb
-  //     .orderBy('e.created_at', 'DESC')
-  //     .skip(skip)
-  //     .take(limit)
-  //     .getManyAndCount();
-
-  //   const totalPages = Math.ceil(total / limit);
-
-  //   return {
-  //     items,
-  //     total,
-  //     page,
-  //     limit,
-  //     totalPages,
-  //   };
-  // }
   async getAllMembersForManager(
     tenantId: string,
     managerId: string,
@@ -457,4 +360,31 @@ export class TeamService {
     };
   }
   
+
+  async getAvailableManagers(tenantId: string): Promise<any[]> {
+    // Get all users with manager role who are not assigned to any team
+    const managers = await this.userRepo
+      .createQueryBuilder('user')
+      .leftJoin('user.role', 'role')
+      .leftJoin('teams', 'teams', 'teams.manager_id = user.id')
+      .where('user.tenant_id = :tenantId', { tenantId })
+      .andWhere('role.name = :role', { role: 'Manager' })
+      .andWhere('teams.id IS NULL')
+      .select([
+        'user.id',
+        'user.first_name',
+        'user.last_name',
+        'user.email'
+      ])
+      .getMany();
+    return managers.map(user => ({
+      id: user.id,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      email: user.email,
+      role: 'Manager'
+    }));
+  }
+  
+
 }

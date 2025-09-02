@@ -122,6 +122,17 @@ export class TeamController {
     return this.teamService.getAllMembersForManager(tenantId, managerId, pageNumber);
   }
 
+  @Get('available-managers')
+  @Roles('admin', 'system-admin')
+  @ApiOperation({ summary: 'Get available managers for team assignment' })
+  @ApiResponse({ status: 200, description: 'Returns list of available managers' })
+  async getAvailableManagers(@TenantId() tenantId: string) {
+    return this.teamService.getAvailableManagers(tenantId);
+  }
+
+
+
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a specific team by ID' })
   @ApiParam({ name: 'id', description: 'Team ID' })
@@ -237,6 +248,11 @@ export class TeamController {
     await this.teamService.remove(tenantId, id);
     return { message: 'Team deleted successfully' };
   }
+
+
+
+
+
 }
 
 
