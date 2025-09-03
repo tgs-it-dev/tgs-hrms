@@ -23,16 +23,19 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { TenantGuard } from '../../common/guards/tenant.guard';
 import { TenantId } from '../../common/decorators/company.deorator';
+import { Permissions } from '../../common/decorators/permissions.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
 
 @ApiTags('Designations')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, TenantGuard, RolesGuard, PermissionsGuard)
 @Controller('designations')
 export class DesignationController {
   constructor(private service: DesignationService) {}
 
   @Post()
-  @Roles('admin' ,'system-admin')
+  @Roles('admin', 'system-admin')
+  @Permissions('manage_designations')
   @ApiOperation({ summary: 'Create designation' })
   @ApiResponse({ status: 201, description: 'Designation created.' })
   @ApiResponse({
@@ -51,7 +54,8 @@ export class DesignationController {
   }
 
   @Put(':id')
-  @Roles('admin',"system-admin")
+  @Roles('admin', 'system-admin')
+  @Permissions('manage_designations')
   @ApiOperation({ summary: 'Update designation' })
   @ApiResponse({ status: 200, description: 'Designation updated.' })
   @ApiResponse({
@@ -103,7 +107,8 @@ async findAllByDepartment(
   }
 
   @Delete(':id')
-  @Roles('admin',"system-admin")
+  @Roles('admin', 'system-admin')
+  @Permissions('manage_designations')
   @ApiOperation({ summary: 'Delete a designation' })
   @ApiResponse({ status: 200, description: 'Designation deleted.' })
   @ApiResponse({ status: 404, description: 'Designation not found.' })

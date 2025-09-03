@@ -28,10 +28,12 @@ import { TenantGuard } from '../../common/guards/tenant.guard';
 import { TenantId } from '../../common/decorators/company.deorator';
 import { AttendanceService } from '../attendance/attendance.service';
 import { LeaveService } from '../leave/leave.service';
+import { Permissions } from '../../common/decorators/permissions.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
 
 @ApiTags('Employees')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, TenantGuard, RolesGuard, PermissionsGuard)
 @Controller('employees')
 export class EmployeeController {
   constructor(
@@ -41,7 +43,8 @@ export class EmployeeController {
   ) {}
 
   @Post()
-  @Roles('admin','system-admin')
+  @Roles('admin', 'system-admin')
+  @Permissions('manage_employees')
   @ApiOperation({ summary: 'Create employee by assigning user to designation' })
   @ApiResponse({ status: 201, description: 'Employee created.' })
   @ApiResponse({ 
@@ -74,7 +77,8 @@ export class EmployeeController {
   }
 
   @Put(':id')
-  @Roles('admin','system-admin')
+  @Roles('admin', 'system-admin')
+  @Permissions('manage_employees')
   @ApiOperation({ summary: 'Update employee designation' })
   @ApiResponse({ status: 200, description: 'Employee updated.' })
   @ApiResponse({ 
@@ -108,6 +112,8 @@ export class EmployeeController {
   }
 
   @Get()
+  @Roles('admin', 'system-admin', 'manager')
+  @Permissions('manage_employees', 'view_team_reports')
   @ApiOperation({ summary: 'List all employees for tenant with optional designation and department filters' })
   @ApiQuery({ 
     name: 'designation_id', 
@@ -151,6 +157,8 @@ export class EmployeeController {
   }
 
   @Get('joining-report')
+  @Roles('admin', 'system-admin', 'manager')
+  @Permissions('view_reports', 'view_team_reports')
   @ApiOperation({ summary: 'Get employee joining report month-wise' })
   @ApiResponse({
     status: 200,
@@ -186,6 +194,8 @@ export class EmployeeController {
   }
 
   @Get('gender-percentage')
+  @Roles('admin', 'system-admin', 'manager')
+  @Permissions('view_reports', 'view_team_reports')
   @ApiOperation({ summary: 'Get gender percentage of employees' })
   @ApiResponse({
     status: 200,
@@ -213,6 +223,8 @@ export class EmployeeController {
   }
 
   @Get('leaves-this-month')
+  @Roles('admin', 'system-admin', 'manager')
+  @Permissions('view_reports', 'view_team_reports')
   @ApiOperation({ summary: 'Get total leaves applied by all employees for the current month' })
   @ApiResponse({ status: 200, description: 'Total leaves for the current month.' })
   async getLeavesThisMonth(@TenantId() tenant_id: string) {
@@ -220,6 +232,8 @@ export class EmployeeController {
   }
 
   @Get('attendance-this-month')
+  @Roles('admin', 'system-admin', 'manager')
+  @Permissions('view_reports', 'view_team_reports')
   @ApiOperation({ summary: 'Get total attendance for all employees for the current month (one per day per employee)' })
   @ApiResponse({ status: 200, description: 'Total attendance for the current month.' })
   async getAttendanceThisMonth(@TenantId() tenant_id: string) {
@@ -227,6 +241,8 @@ export class EmployeeController {
   }
 
   @Get(':id')
+  @Roles('admin', 'system-admin', 'manager')
+  @Permissions('manage_employees', 'view_team_reports')
   @ApiOperation({ summary: 'Get single employee by ID' })
   @ApiResponse({ status: 200, description: 'Employee found.' })
   @ApiResponse({ status: 404, description: 'Employee not found.' })
@@ -235,7 +251,8 @@ export class EmployeeController {
   }
 
   @Delete(':id')
-  @Roles('admin' ,'system-admin')
+  @Roles('admin', 'system-admin')
+  @Permissions('manage_employees')
   @ApiOperation({ summary: 'Delete employee by ID' })
   @ApiResponse({ status: 200, description: 'Employee deleted.' })
   @ApiResponse({ status: 404, description: 'Employee not found.' })
@@ -244,6 +261,8 @@ export class EmployeeController {
   }
 
   @Get(':id/details')
+  @Roles('admin', 'system-admin', 'manager')
+  @Permissions('manage_employees', 'view_team_reports')
   @ApiOperation({ summary: 'Get editable details for an employee' })
   @ApiResponse({ status: 200, description: 'Editable details returned.' })
   async getEditDetails(@TenantId() tenant_id: string, @Param('id') id: string) {

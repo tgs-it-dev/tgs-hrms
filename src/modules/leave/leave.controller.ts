@@ -22,6 +22,8 @@ import { UpdateLeaveDto } from './dto/update-leave.dto';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
+import { Permissions } from 'src/common/decorators/permissions.decorator';
+import { PermissionsGuard } from 'src/common/guards/permissions.guard';
 
 
 @ApiTags('Leaves')
@@ -81,10 +83,11 @@ export class LeaveController {
     return this.leaveService.getLeaves(userId, pageNumber);
   }
   @Get('all')
-  @UseGuards(RolesGuard)
-  @Roles('admin')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('admin', 'system-admin', 'manager')
+  @Permissions('manage_leaves', 'manage_team_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get all leave requests (Admin only)' })
+  @ApiOperation({ summary: 'Get all leave requests (Admin/Manager only)' })
   @ApiResponse({ status: 200, description: 'Returns all leave requests' })
   async findAllForAdmin(
     @Request() req: any,
@@ -98,10 +101,11 @@ export class LeaveController {
 
 
   @Patch(':id')
-  @UseGuards(RolesGuard)
-  @Roles('admin')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('admin', 'system-admin', 'manager')
+  @Permissions('manage_leaves', 'approve_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Approve or reject a leave request (Admin only)' })
+  @ApiOperation({ summary: 'Approve or reject a leave request (Admin/Manager only)' })
   @ApiResponse({
     status: 200,
     description: 'Leave status updated successfully',

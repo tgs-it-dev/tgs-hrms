@@ -22,16 +22,19 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { TenantId } from 'src/common/decorators/company.deorator';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Permissions } from 'src/common/decorators/permissions.decorator';
+import { PermissionsGuard } from 'src/common/guards/permissions.guard';
 
 @ApiTags('Users')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
 @Controller('users')
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
   @Post()
-  @Roles('system-admin')
+  @Roles('system-admin', 'admin')
+  @Permissions('manage_users')
   async create(@Body() dto: CreateUserDto, @TenantId() tenantId: string) {
     try {
       const user = await this.userService.create(dto, tenantId);
@@ -45,7 +48,8 @@ export class UserController {
   }
 
   @Get()
-  @Roles('system-admin', 'admin')
+  @Roles('system-admin', 'admin', 'manager')
+  @Permissions('manage_users', 'view_team_reports')
   async findAll(@TenantId() tenantId: string, @Req() req, @Query('page') page?: string) {
     try {
       const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
@@ -63,7 +67,8 @@ export class UserController {
   }
 
   @Get(':id')
-  @Roles('system-admin', 'admin')
+  @Roles('system-admin', 'admin', 'manager')
+  @Permissions('manage_users', 'view_team_reports')
   async findOne(@Param('id') id: string, @TenantId() tenantId: string, @Req() req) {
     try {
       const user = await this.userService.findOne(id, tenantId, req.user.userId);
@@ -78,6 +83,7 @@ export class UserController {
 
   @Patch(':id')
   @Roles('system-admin', 'admin')
+  @Permissions('manage_users')
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateUserDto,
@@ -97,6 +103,7 @@ export class UserController {
 
   @Delete(':id')
   @Roles('system-admin', 'admin')
+  @Permissions('manage_users')
   async remove(@Param('id') id: string, @TenantId() tenantId: string, @Req() req) {
     try {
       const deleted = await this.userService.remove(id, tenantId, req.user.userId);
