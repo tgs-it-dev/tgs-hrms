@@ -65,6 +65,7 @@ export class LeaveService {
         user: {
           tenant_id: tenantId,
         },
+        status: In(['pending', 'approved', 'rejected']), // Exclude withdrawn leaves
       },
       relations: ['user'],
       order: { created_at: 'DESC' },
@@ -93,6 +94,25 @@ async updateStatus(id: string, status: string, adminTenantId: string): Promise<L
   }
 
   leave.status = status;
+  return await this.leaveRepo.save(leave);
+}
+
+async withdrawLeave(id: string, userId: string): Promise<Leave> {
+  const leave = await this.leaveRepo.findOne({ where: { id } });
+
+  if (!leave) throw new NotFoundException('Leave not found');
+
+  // Check if the user owns this leave request
+  if (leave.user_id !== userId) {
+    throw new ForbiddenException('You can only withdraw your own leave requests');
+  }
+
+  // Check if the leave is still pending (can't withdraw approved/rejected/withdrawn leaves)
+  if (leave.status !== 'pending') {
+    throw new ForbiddenException('You can only withdraw pending leave requests');
+  }
+
+  leave.status = 'withdrawn';
   return await this.leaveRepo.save(leave);
 }
   // Get total leaves for the current month for a tenant
@@ -169,10 +189,11 @@ async getTeamLeaves(managerId: string, tenantId: string, page: number = 1): Prom
     };
   }
 
-  // Get leave requests for team members
+  // Get leave requests for team members (exclude withdrawn leaves)
   const [items, total] = await this.leaveRepo.findAndCount({
     where: {
       user_id: In(userIds),
+      status: In(['pending', 'approved', 'rejected']), // Exclude withdrawn leaves
     },
     relations: ['user'],
     order: { created_at: 'DESC' },
@@ -231,10 +252,11 @@ async getTeamMembersWithLeaveApplications(managerId: string, tenantId: string): 
   // Get user IDs of team members
   const teamMemberUserIds = teamMembers.map(member => member.user_id);
 
-  // Get leave applications count for each team member
+  // Get leave applications count for each team member (exclude withdrawn leaves)
   const leaveApplications = await this.leaveRepo
     .createQueryBuilder('leave')
     .where('leave.user_id IN (:...userIds)', { userIds: teamMemberUserIds })
+    .andWhere('leave.status IN (:...statuses)', { statuses: ['pending', 'approved', 'rejected'] })
     .select(['leave.user_id', 'COUNT(leave.id) as totalApplications'])
     .groupBy('leave.user_id')
     .getRawMany();

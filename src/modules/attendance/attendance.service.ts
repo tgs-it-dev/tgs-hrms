@@ -5,12 +5,15 @@ import { Attendance } from '../../entities/attendance.entity';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
 import { TimesheetService } from '../timesheet/timesheet.service'; // Import TimesheetService
+import { Employee } from '../../entities/employee.entity'; // Import Employee entity
 
 @Injectable()
 export class AttendanceService {
 	constructor(
 		@InjectRepository(Attendance)
 		private readonly attendanceRepo: Repository<Attendance>,
+		@InjectRepository(Employee)
+		private readonly employeeRepo: Repository<Employee>,
 		private readonly timesheetService: TimesheetService, // Inject TimesheetService
 	) {}
 	
@@ -204,5 +207,131 @@ export class AttendanceService {
 			.getRawMany();
 
 		return { totalAttendance: result.length };
+	}
+
+	// Get team attendance for managers (similar to TeamLeaves)
+	async getTeamAttendance(managerId: string, tenantId: string, page: number = 1): Promise<{
+	  items: Array<{
+	    user_id: string;
+	    first_name: string;
+	    last_name: string;
+	    email: string;
+	    profile_pic?: string;
+	    designation: string;
+	    department: string;
+	    attendance: {
+	      date: string;
+	      checkIn: Date | null;
+	      checkOut: Date | null;
+	      workedHours: number;
+	    }[];
+	    totalDaysWorked: number;
+	    totalHoursWorked: number;
+	  }>;
+	  total: number;
+	  page: number;
+	  limit: number;
+	  totalPages: number;
+	}> {
+	  const limit = 10;
+	  const skip = (page - 1) * limit;
+
+	  // Get team member user IDs
+	  const teamMembers = await this.employeeRepo
+	    .createQueryBuilder('employee')
+	    .leftJoinAndSelect('employee.user', 'user')
+	    .leftJoinAndSelect('employee.designation', 'designation')
+	    .leftJoinAndSelect('designation.department', 'department')
+	    .leftJoin('employee.team', 'team')
+	    .where('user.tenant_id = :tenantId', { tenantId })
+	    .andWhere('team.manager_id = :managerId', { managerId })
+	    .andWhere('employee.user_id != :managerId', { managerId })
+	    .skip(skip)
+	    .take(limit)
+	    .getMany();
+ 
+
+		console.log('team Members :' , teamMembers)
+	  const userIds = teamMembers.map(member => member.user_id);
+
+	 console.log('User Id',userIds) 
+	  if (userIds.length === 0) {
+	    return {
+	      items: [],
+	      total: 0,
+	      page,
+	      limit,
+	      totalPages: 0,
+	    };
+	  }
+
+	  // Get attendance records for team members
+	  const attendanceRecords = await this.attendanceRepo
+	    .createQueryBuilder('attendance')
+	    .where('attendance.user_id IN (:...userIds)', { userIds })
+	    .orderBy('attendance.timestamp', 'ASC')
+	    .getMany();
+
+		console.log('Team Attendance :' , attendanceRecords)
+
+	  // Group attendance by user and date
+	  const groupedAttendance: Record<string, Record<string, { checkIn?: Attendance; checkOut?: Attendance }>> = {};
+	  for (const record of attendanceRecords) {
+	    const date = record.timestamp.toISOString().split('T')[0];
+	    if (!groupedAttendance[record.user_id]) {
+	      groupedAttendance[record.user_id] = {};
+	    }
+	    if (!groupedAttendance[record.user_id][date]) {
+	      groupedAttendance[record.user_id][date] = {};
+	    }
+	    if (record.type === 'check-in') {
+	      groupedAttendance[record.user_id][date].checkIn = record;
+	    } else if (record.type === 'check-out') {
+	      groupedAttendance[record.user_id][date].checkOut = record;
+	    }
+	  }
+
+	  // Transform the data
+	  const transformedMembers = teamMembers.map(member => {
+	    const userAttendance = groupedAttendance[member.user_id] || {};
+	    const attendanceData = Object.entries(userAttendance).map(([date, { checkIn, checkOut }]) => {
+	      let workedHours = 0;
+	      if (checkIn && checkOut && new Date(checkOut.timestamp) > new Date(checkIn.timestamp)) {
+	        const diffMs = new Date(checkOut.timestamp).getTime() - new Date(checkIn.timestamp).getTime();
+	        workedHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
+	      }
+	      return {
+	        date,
+	        checkIn: checkIn?.timestamp || null,
+	        checkOut: checkOut && checkIn && new Date(checkOut.timestamp) > new Date(checkIn.timestamp)
+	          ? checkOut.timestamp
+	          : null,
+	        workedHours,
+	      };
+	    });
+	    const totalDaysWorked = attendanceData.filter(day => day.checkIn && day.checkOut).length;
+	    const totalHoursWorked = attendanceData.reduce((sum, day) => sum + day.workedHours, 0);
+	    return {
+	      user_id: member.user_id,
+	      first_name: member.user.first_name,
+	      last_name: member.user.last_name,
+	      email: member.user.email,
+	      profile_pic: member.user.profile_pic || undefined,
+	      designation: member.designation?.title || 'N/A',
+	      department: member.designation?.department?.name || 'N/A',
+	      attendance: attendanceData,
+	      totalDaysWorked,
+	      totalHoursWorked: Math.round(totalHoursWorked * 100) / 100,
+	    };
+	  });
+
+	  const totalPages = Math.ceil(teamMembers.length / limit);
+	  return {
+	    items: transformedMembers,
+	    total: teamMembers.length,
+	    page,
+	    limit,
+	    totalPages,
+	  };
 	}
 }

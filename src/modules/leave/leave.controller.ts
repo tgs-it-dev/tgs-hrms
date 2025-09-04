@@ -207,6 +207,26 @@ export class LeaveController {
   async updateStatus(@Param('id') id: string, @Body() dto: UpdateLeaveDto, @Request() req) {
     return this.leaveService.updateStatus(id, dto.status, req.user.tenant_id);
   }
+
+  @Patch(':id/withdraw')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Withdraw a leave request (User can only withdraw their own pending requests)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Leave request withdrawn successfully',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Can only withdraw own pending leave requests',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Leave request not found',
+  })
+  async withdrawLeave(@Param('id') id: string, @Request() req: any) {
+    return this.leaveService.withdrawLeave(id, req.user.id);
+  }
 }
 
 
