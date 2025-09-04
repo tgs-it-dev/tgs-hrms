@@ -2,7 +2,9 @@ import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, NotFoundExc
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiBody } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
-import { Roles } from 'src/common/guards/company.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
+import { Permissions } from 'src/common/decorators/permissions.decorator';
+import { PermissionsGuard } from 'src/common/guards/permissions.guard';
 import { TenantService } from './tenant.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
@@ -15,8 +17,9 @@ export class TenantController {
   constructor(private readonly tenantService: TenantService) {}
 
   @Get()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles('system-admin')
+  @Permissions('manage_tenants')
   @ApiOperation({ summary: 'Get all tenants (Admin only)' })
   @ApiResponse({ 
     status: 200, 
@@ -53,8 +56,9 @@ export class TenantController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles('system-admin')
+  @Permissions('manage_tenants')
   @ApiOperation({ summary: 'Get tenant by ID (Admin only)' })
   @ApiParam({ 
     name: 'id', 
@@ -91,8 +95,9 @@ export class TenantController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles('system-admin')
+  @Permissions('manage_tenants')
   @ApiOperation({ summary: 'Create a new tenant (Admin only)' })
   @ApiBody({ type: CreateTenantDto })
   @ApiResponse({ 
@@ -124,8 +129,9 @@ export class TenantController {
   }
 
   @Put(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles('system-admin')
+  @Permissions('manage_tenants')
   @ApiOperation({ summary: 'Update tenant by ID (Admin only)' })
   @ApiParam({ 
     name: 'id', 

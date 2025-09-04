@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not } from 'typeorm';
+import { Repository, Not, DataSource } from 'typeorm';
 import { Team } from '../../entities/team.entity';
 import { Employee } from '../../entities/employee.entity';
 import { User } from '../../entities/user.entity';
@@ -16,6 +16,7 @@ export class TeamService {
     private readonly employeeRepo: Repository<Employee>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    private readonly dataSource: DataSource,
   ) {}
 
   async create(tenantId: string, dto: CreateTeamDto): Promise<Team> {
@@ -93,35 +94,82 @@ export class TeamService {
   }
 
   async update(tenantId: string, id: string, dto: UpdateTeamDto): Promise<Team> {
-    const team = await this.findOne(tenantId, id);
+    // Use transaction to ensure data consistency
+    return await this.dataSource.transaction(async (manager) => {
+      const teamRepo = manager.getRepository(Team);
+      const userRepo = manager.getRepository(User);
 
-    if (dto.manager_id && dto.manager_id !== team.manager_id) {
-      // Verify the new manager exists and belongs to the tenant
-      const newManager = await this.userRepo.findOne({
-        where: { id: dto.manager_id, tenant_id: tenantId },
-        relations: ['role'],
+      // Find the team
+      const team = await teamRepo.findOne({
+        where: { id, manager: { tenant_id: tenantId } },
+        relations: ['manager', 'manager.role'],
       });
 
-      if (!newManager) {
-        throw new NotFoundException('New manager not found in this tenant');
+      if (!team) {
+        throw new NotFoundException('Team not found');
       }
 
-      if (newManager.role.name !== 'manager') {
-        throw new BadRequestException('User must have manager role to manage a team');
+      // Validate manager change if provided
+      if (dto.manager_id && dto.manager_id !== team.manager_id) {
+        console.log(`Updating team ${id} manager from ${team.manager_id} to ${dto.manager_id}`);
+
+        // Verify the new manager exists and belongs to the tenant
+        const newManager = await userRepo.findOne({
+          where: { id: dto.manager_id, tenant_id: tenantId },
+          relations: ['role'],
+        });
+
+        if (!newManager) {
+          throw new NotFoundException('New manager not found in this tenant');
+        }
+
+        if (newManager.role.name !== 'Manager') {
+          throw new BadRequestException('User must have manager role to manage a team');
+        }
+
+        // Check if new manager is already managing another team
+        const existingTeam = await teamRepo.findOne({
+          where: { manager_id: dto.manager_id, id: Not(id) },
+        });
+
+        if (existingTeam) {
+          throw new BadRequestException('New manager is already managing another team');
+        }
       }
 
-      // Check if new manager is already managing another team
-      const existingTeam = await this.teamRepo.findOne({
-        where: { manager_id: dto.manager_id, id: Not(id) },
+      // Update team properties
+      const updateData: Partial<Team> = {};
+      
+      if (dto.name !== undefined) {
+        updateData.name = dto.name;
+      }
+      if (dto.description !== undefined) {
+        updateData.description = dto.description;
+      }
+      if (dto.manager_id !== undefined) {
+        updateData.manager_id = dto.manager_id;
+      }
+
+      // Update the team in database
+      await teamRepo.update(id, updateData);
+
+      console.log('Team updated successfully:', {
+        id,
+        updates: updateData
       });
 
-      if (existingTeam) {
-        throw new BadRequestException('New manager is already managing another team');
-      }
-    }
+      // Return the updated team with fresh data
+      const updatedTeam = await teamRepo.findOne({
+        where: { id, manager: { tenant_id: tenantId } },
+        relations: ['manager', 'manager.role', 'teamMembers', 'teamMembers.user', 'teamMembers.designation'],
+      });
 
-    Object.assign(team, dto);
-    return this.teamRepo.save(team);
+      if (!updatedTeam) {
+        throw new NotFoundException('Team not found after update');
+      }
+
+      return updatedTeam;
+    });
   }
 
   async remove(tenantId: string, id: string): Promise<void> {

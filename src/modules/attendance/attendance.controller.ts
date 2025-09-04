@@ -18,7 +18,9 @@ import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { Request } from 'express';
 import { RolesGuard } from 'src/common/guards/roles.guard';
-import { Roles } from 'src/common/guards/company.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
+import { Permissions } from 'src/common/decorators/permissions.decorator';
+import { PermissionsGuard } from 'src/common/guards/permissions.guard';
 
 @ApiTags('Attendance')
 @ApiBearerAuth()
@@ -61,9 +63,10 @@ export class AttendanceController {
 	}
 	
 	@Get('all')
-	@UseGuards(RolesGuard)
-	@Roles('admin')
-	@ApiOperation({ summary: 'Get all attendance records (Admin only)' })
+	@UseGuards(RolesGuard, PermissionsGuard)
+	@Roles('admin', 'system-admin', 'manager')
+	@Permissions('manage_attendance')
+	@ApiOperation({ summary: 'Get all attendance records (Admin/Manager only)' })
 	@ApiResponse({ status: 200, description: 'Returns all attendance records for the tenant' })
 	async findAllForAdmin(@Req() req: any, @Query('page') page?: string) {
 		const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
