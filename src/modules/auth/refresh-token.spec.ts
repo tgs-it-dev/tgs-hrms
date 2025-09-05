@@ -16,6 +16,7 @@ describe('AuthService - Refresh Token', () => {
     findOne: jest.fn(),
     save: jest.fn(),
     update: jest.fn(),
+    query: jest.fn(),
   };
 
   const mockJwtService = {
@@ -90,8 +91,14 @@ describe('AuthService - Refresh Token', () => {
         tenant_id: 1,
       };
 
+      const mockPermissions = [
+        { name: 'read:users' },
+        { name: 'write:users' }
+      ];
+
       mockJwtService.verify.mockReturnValue(mockPayload);
       mockUserRepository.findOne.mockResolvedValue(mockUser);
+      mockUserRepository.query.mockResolvedValue(mockPermissions);
       mockJwtService.sign.mockReturnValue(mockNewAccessToken);
 
       const result = await service.refreshToken(mockRefreshToken);
@@ -110,6 +117,7 @@ describe('AuthService - Refresh Token', () => {
           sub: 1,
           role: 'user',
           tenant_id: 1,
+          permissions: ['read:users', 'write:users'],
         },
         {
           secret: 'mocked-secret',
