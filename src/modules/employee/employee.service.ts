@@ -10,6 +10,7 @@ import { Employee } from '../../entities/employee.entity';
 import { User } from '../../entities/user.entity';
 import { Designation } from '../../entities/designation.entity';
 import { Role } from '../../entities/role.entity';
+import { Team } from '../../entities/team.entity';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { EmployeeQueryDto } from './dto/employee-query.dto';
@@ -30,6 +31,8 @@ export class EmployeeService {
     private readonly designationRepo: Repository<Designation>,
     @InjectRepository(Role)
     private readonly roleRepo: Repository<Role>,
+    @InjectRepository(Team)
+    private readonly teamRepo: Repository<Team>,
     private readonly mailerService: MailerService,
     private readonly configService: ConfigService,
   ) {}
@@ -51,9 +54,144 @@ export class EmployeeService {
     return designation;
   }
 
+  private async validateTeam(team_id: string, tenant_id: string): Promise<Team> {
+    const team = await this.teamRepo.findOne({
+      where: { id: team_id },
+      relations: ['manager'],
+    });
+
+    if (!team) {
+      throw new BadRequestException('Invalid team ID');
+    }
+
+    if (team.manager.tenant_id !== tenant_id) {
+      throw new BadRequestException('Team does not belong to this tenant');
+    }
+
+    return team;
+  }
+
+  async promoteToManager(tenant_id: string, id: string) {
+    // Find the employee
+    const employee = await this.findOne(tenant_id, id);
+    
+    // Get the Manager role
+    const managerRole = await this.roleRepo.findOne({ where: { name: 'manager' } });
+    if (!managerRole) throw new NotFoundException('Manager role not found. Please create a manager role first.');
+
+    // Update the user's role to manager
+    const user = employee.user;
+    user.role_id = managerRole.id;
+    
+    try {
+      await this.userRepo.save(user);
+      
+      // Return updated employee with new role
+      return await this.employeeRepo.findOne({
+        where: { id },
+        relations: ['user', 'designation', 'designation.department', 'team'],
+      });
+    } catch (err) {
+      throw new BadRequestException('Failed to promote employee to manager');
+    }
+  }
+
+  async demoteToEmployee(tenant_id: string, id: string) {
+    // Find the employee
+    const employee = await this.findOne(tenant_id, id);
+    
+    // Get the Employee role
+    const employeeRole = await this.roleRepo.findOne({ where: { name: 'Employee' } });
+    if (!employeeRole) throw new NotFoundException('Employee role not found.');
+
+    // Update the user's role back to employee
+    const user = employee.user;
+    user.role_id = employeeRole.id;
+    
+    try {
+      await this.userRepo.save(user);
+      
+      // Return updated employee with new role
+      return await this.employeeRepo.findOne({
+        where: { id },
+        relations: ['user', 'designation', 'designation.department', 'team'],
+      });
+    } catch (err) {
+      throw new BadRequestException('Failed to demote manager to employee');
+    }
+  }
+
+  async createManager(tenant_id: string, dto: CreateEmployeeDto) {
+    // Validate the designation
+    await this.validateDesignation(dto.designation_id, tenant_id);
+
+    // Validate team if provided
+    if (dto.team_id) {
+      await this.validateTeam(dto.team_id, tenant_id);
+    }
+
+    // Check if the user already exists in the tenant
+    const existingUser = await this.userRepo.findOne({ where: { email: dto.email, tenant_id } });
+    if (existingUser) throw new ConflictException('User with this email already exists in the tenant.');
+
+    // Get the Manager role (not Employee role)
+    const managerRole = await this.roleRepo.findOne({ where: { name: 'Manager' } });
+    if (!managerRole) throw new NotFoundException('Manager role not found. Please create a manager role first.');
+
+    // Set the password (either from the DTO or generate a temporary one)
+    const password = dto.password || this.generateTemporaryPassword();
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Generate the password reset token and expiry
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenExpiry = new Date();
+    resetTokenExpiry.setHours(resetTokenExpiry.getHours() + 24);
+
+    // Create the user object with manager role
+    const user = this.userRepo.create({
+        email: dto.email,
+        phone: dto.phone,
+        password: hashedPassword,
+        first_name: dto.first_name,
+        last_name: dto.last_name,
+        gender: dto.gender,
+        role_id: managerRole.id, // Manager role instead of Employee role
+        tenant_id,
+        reset_token: resetToken,
+        reset_token_expiry: resetTokenExpiry,
+    });
+
+    // Save the user to the database
+    const savedUser = await this.userRepo.save(user);
+
+    // Create the employee record
+    const employee = this.employeeRepo.create({
+        user_id: savedUser.id,
+        designation_id: dto.designation_id,
+        team_id: dto.team_id || null,
+    });
+
+    // Save the employee record and handle any errors
+    try {
+        const savedEmployee = await this.employeeRepo.save(employee);
+        await this.sendPasswordResetEmail(dto.email, resetToken);
+        return savedEmployee;
+    } catch (err) {
+        if (err instanceof QueryFailedError && (err as any).code === '23505') {
+            throw new ConflictException('Manager already exists.');
+        }
+        throw err;
+    }
+  }
+
   async create(tenant_id: string, dto: CreateEmployeeDto) {
     // Validate the designation
     await this.validateDesignation(dto.designation_id, tenant_id);
+
+    // Validate team if provided
+    if (dto.team_id) {
+      await this.validateTeam(dto.team_id, tenant_id);
+    }
 
     // Check if the user already exists in the tenant
     const existingUser = await this.userRepo.findOne({ where: { email: dto.email, tenant_id } });
@@ -79,7 +217,7 @@ export class EmployeeService {
         password: hashedPassword,
         first_name: dto.first_name,
         last_name: dto.last_name,
-        gender: dto.gender,  // Added gender field here
+        gender: dto.gender,
         role_id: employeeRole.id,
         tenant_id,
         reset_token: resetToken,
@@ -93,12 +231,13 @@ export class EmployeeService {
     const employee = this.employeeRepo.create({
         user_id: savedUser.id,
         designation_id: dto.designation_id,
+        team_id: dto.team_id || null,
     });
 
     // Save the employee record and handle any errors
     try {
         const savedEmployee = await this.employeeRepo.save(employee);
-        await this.sendPasswordResetEmail(dto.email, resetToken);  // Send password reset email
+        await this.sendPasswordResetEmail(dto.email, resetToken);
         return savedEmployee;
     } catch (err) {
         if (err instanceof QueryFailedError && (err as any).code === '23505') {
@@ -110,13 +249,14 @@ export class EmployeeService {
 
   // List all employees with pagination and filtering
   async findAll(tenant_id: string, query: EmployeeQueryDto, page: number) {
-    const limit = 5; // Consistent with other modules
+    const limit = 10; // Consistent with other modules
     const skip = (page - 1) * limit;
     
     const qb = this.employeeRepo.createQueryBuilder('employee')
       .leftJoinAndSelect('employee.user', 'user')
       .leftJoinAndSelect('employee.designation', 'designation')
       .leftJoinAndSelect('designation.department', 'department')
+      .leftJoinAndSelect('employee.team', 'team')
       .where('user.tenant_id = :tenant_id', { tenant_id });
     
     // Add filters if provided
@@ -147,7 +287,7 @@ export class EmployeeService {
   async findOne(tenant_id: string, id: string) {
     const employee = await this.employeeRepo.findOne({
       where: { id },
-      relations: ['user', 'designation', 'designation.department'],
+      relations: ['user', 'designation', 'designation.department', 'team'],
     });
 
     if (!employee || employee.user.tenant_id !== tenant_id) {
@@ -175,6 +315,18 @@ export class EmployeeService {
       employee.designation = newDesignation;
     }
 
+    // Handle team_id update
+    if (dto.team_id !== undefined) {
+      if (dto.team_id) {
+        // Validate the new team
+        await this.validateTeam(dto.team_id, tenant_id);
+        employee.team_id = dto.team_id;
+      } else {
+        // Remove from team (set to null)
+        employee.team_id = null;
+      }
+    }
+
     if (dto.email && dto.email !== user.email) {
       const existing = await this.userRepo.findOne({ where: { email: dto.email, tenant_id } });
       if (existing && existing.id !== user.id) {
@@ -197,7 +349,7 @@ export class EmployeeService {
       await this.employeeRepo.save(employee);
       return await this.employeeRepo.findOne({
         where: { id },
-        relations: ['user', 'designation', 'designation.department'],
+        relations: ['user', 'designation', 'designation.department', 'team'],
       });
     } catch (err) {
       if (err instanceof QueryFailedError && (err as any).code === '23505') {
