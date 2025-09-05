@@ -59,6 +59,7 @@ const mockUserRepository = () => ({
     return Promise.resolve(null);
   }),
   update: jest.fn().mockResolvedValue({ affected: 1 }),
+  query: jest.fn().mockResolvedValue([]),
 });
 
 const mockJwtService = {

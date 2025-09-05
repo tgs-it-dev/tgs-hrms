@@ -59,6 +59,7 @@ const mockUserRepository = () => ({
     if (where.email === mockUser.email) return Promise.resolve(mockUser);
     return Promise.resolve(null);
   }),
+  query: jest.fn().mockResolvedValue([]),
 });
 
 const mockJwtService = {

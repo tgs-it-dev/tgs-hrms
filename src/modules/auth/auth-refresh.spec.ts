@@ -53,6 +53,7 @@ const mockUserRepository = () => ({
   findOne: jest.fn().mockResolvedValue(mockUser),
   save: jest.fn(),
   update: jest.fn().mockResolvedValue({ affected: 1 }),
+  query: jest.fn().mockResolvedValue([]),
 });
 
 const mockEmailService = {
