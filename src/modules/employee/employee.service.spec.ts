@@ -6,6 +6,7 @@ import { User } from '../../entities/user.entity';
 import { Department } from '../../entities/department.entity';
 import { Designation } from '../../entities/designation.entity';
 import { Role } from '../../entities/role.entity';
+import { Team } from '../../entities/team.entity';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { ConflictException, NotFoundException } from '@nestjs/common';
@@ -57,6 +58,7 @@ const mockUserRepo = {
 const mockDepartmentRepo = { findOneBy: jest.fn() };
 const mockDesignationRepo = { findOne: jest.fn(), findOneBy: jest.fn() };
 const mockRoleRepo = { findOne: jest.fn(), create: jest.fn(), save: jest.fn() };
+const mockTeamRepo = { findOne: jest.fn() };
 
 describe('EmployeeService', () => {
   let service: EmployeeService;
@@ -69,6 +71,7 @@ describe('EmployeeService', () => {
         { provide: getRepositoryToken(User), useValue: mockUserRepo },
         { provide: getRepositoryToken(Designation), useValue: mockDesignationRepo },
         { provide: getRepositoryToken(Role), useValue: mockRoleRepo },
+        { provide: getRepositoryToken(Team), useValue: mockTeamRepo },
         { provide: getRepositoryToken(Department), useValue: mockDepartmentRepo },
         { provide: MailerService, useValue: { sendMail: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn() } },
