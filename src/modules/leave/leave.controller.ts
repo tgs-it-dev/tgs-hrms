@@ -40,9 +40,31 @@ export class LeaveController {
     status: 201,
     description: 'Leave request created successfully',
   })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - Leave cannot be applied on holidays',
+    schema: {
+      example: {
+        message: 'Leave cannot be applied on holidays',
+        details: {
+          holidays: [
+            {
+              id: 'holiday-uuid',
+              name: 'New Year Day',
+              date: '2025-01-01',
+              description: 'Public holiday celebrating the new year',
+              is_active: true,
+              tenant_id: 'tenant-uuid'
+            }
+          ],
+          message: 'You cannot apply for leave on the following holidays: New Year Day (2025-01-01). Please choose different dates.'
+        }
+      }
+    }
+  })
   async create(@Body() dto: CreateLeaveDto, @Request() req:any) {
     console.log('>> req.user =', req.user);
-    return this.leaveService.createLeave(req.user.id, dto);
+    return this.leaveService.createLeave(req.user.id, dto, req.user.tenant_id);
   }
 
 

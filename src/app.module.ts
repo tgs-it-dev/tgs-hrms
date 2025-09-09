@@ -20,6 +20,7 @@ import { LeaveModule } from './modules/leave/leave.module';
 import { PolicyModule } from './modules/policy/policy.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { TeamModule } from './modules/team/team.module';
+import { HolidayModule } from './modules/holiday/holiday.module';
 
 // Added imports for mailer
 import { MailerModule } from '@nestjs-modules/mailer';
@@ -98,6 +99,7 @@ import { join } from 'path';
     LeaveModule,
     ReportsModule,
     TeamModule,
+    HolidayModule,
   ],
   controllers: [AppController],
   providers: [AppService],

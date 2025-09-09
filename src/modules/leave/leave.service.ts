@@ -1,11 +1,13 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
-import { Leave } from 'src/entities/leave.entity';
+import { Leave } from '../../entities/leave.entity';
 import { CreateLeaveDto } from './dto/create-leave.dto';
 import { User } from '../../entities/user.entity';
 import { PaginationResponse } from '../../common/interfaces/pagination.interface';
-import { Employee } from 'src/entities/employee.entity';
+import { Employee } from '../../entities/employee.entity';
+import { HolidayService } from '../holiday/holiday.service';
+import { Holiday } from '../../entities/holiday.entity';
 
 @Injectable()
 export class LeaveService {
@@ -15,10 +17,53 @@ export class LeaveService {
     @InjectRepository(User)
     private userRepo: Repository<User>,
     @InjectRepository(Employee)
-    private readonly employeeRepo: Repository<Employee>, // NEW
+    private readonly employeeRepo: Repository<Employee>,
+    private readonly holidayService: HolidayService,
   ) {}
 
-  async createLeave(user_id: string, dto: CreateLeaveDto): Promise<Leave> {
+  async createLeave(user_id: string, dto: CreateLeaveDto, tenant_id: string): Promise<Leave> {
+    // Get user information to get tenant_id
+    const user = await this.userRepo.findOne({ where: { id: user_id } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Check for holidays in the leave date range
+    const fromDate = new Date(dto.from_date);
+    const toDate = new Date(dto.to_date);
+    
+    // Check each date in the range for holidays
+    const holidaysInRange: Holiday[] = [];
+    const currentDate = new Date(fromDate);
+    
+    while (currentDate <= toDate) {
+      // Only use the date part for comparison to avoid timezone issues
+      const dateString = currentDate.toISOString().split('T')[0];
+      const holidays = await this.holidayService.getHolidaysByDateRange(
+        tenant_id,
+        new Date(dateString),
+        new Date(dateString)
+      );
+      if (holidays.length > 0) {
+        holidaysInRange.push(holidays[0]);
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // If there are holidays in the leave period, throw an error with details
+    if (holidaysInRange.length > 0) {
+      const holidayNames = holidaysInRange.map(h => h.name).join(', ');
+      const holidayDates = holidaysInRange.map(h => h.date).join(', ');
+      
+      throw new BadRequestException({
+        message: 'Leave cannot be applied on holidays',
+        details: {
+          holidays: holidaysInRange,
+          message: `You cannot apply for leave on the following holidays: ${holidayNames} (${holidayDates}). Please choose different dates.`
+        }
+      });
+    }
+
     const leave = this.leaveRepo.create({ ...dto, user_id });
     return await this.leaveRepo.save(leave);
   }
