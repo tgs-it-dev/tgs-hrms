@@ -46,7 +46,7 @@ async function bootstrap() {
 
   const config = new DocumentBuilder()
     .setTitle('HRMS Backend APIs')
-    .setDescription('APIs for login, registration and tenant-based access for Department and Designation')
+    .setDescription('')
     .setVersion('1.0')
     .addBearerAuth()
     .build();

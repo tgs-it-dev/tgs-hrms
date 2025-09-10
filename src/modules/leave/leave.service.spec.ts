@@ -35,7 +35,6 @@ describe('LeaveService', () => {
   };
 
   const mockHolidayService = {
-    isHoliday: jest.fn(),
     getHolidaysByDateRange: jest.fn(),
   };
 
@@ -98,14 +97,18 @@ describe('LeaveService', () => {
 
     it('should create leave successfully when no holidays are present', async () => {
       mockUserRepository.findOne.mockResolvedValue(mockUser);
-      mockHolidayService.isHoliday.mockResolvedValue(false);
+      mockHolidayService.getHolidaysByDateRange.mockResolvedValue([]);
       mockLeaveRepository.create.mockReturnValue(mockLeave);
       mockLeaveRepository.save.mockResolvedValue(mockLeave);
 
       const result = await service.createLeave(userId, createLeaveDto, tenantId);
 
       expect(mockUserRepository.findOne).toHaveBeenCalledWith({ where: { id: userId } });
-      expect(mockHolidayService.isHoliday).toHaveBeenCalledWith(tenantId, new Date('2025-01-01'));
+      expect(mockHolidayService.getHolidaysByDateRange).toHaveBeenCalledWith(
+        tenantId,
+        new Date('2025-01-01'),
+        new Date('2025-01-01'),
+      );
       expect(mockLeaveRepository.create).toHaveBeenCalledWith({ ...createLeaveDto, user_id: userId });
       expect(mockLeaveRepository.save).toHaveBeenCalledWith(mockLeave);
       expect(result).toEqual(mockLeave);
@@ -122,7 +125,6 @@ describe('LeaveService', () => {
       };
 
       mockUserRepository.findOne.mockResolvedValue(mockUser);
-      mockHolidayService.isHoliday.mockResolvedValue(true);
       mockHolidayService.getHolidaysByDateRange.mockResolvedValue([mockHoliday]);
 
       await expect(service.createLeave(userId, createLeaveDto, tenantId)).rejects.toThrow(
@@ -130,7 +132,6 @@ describe('LeaveService', () => {
       );
 
       expect(mockUserRepository.findOne).toHaveBeenCalledWith({ where: { id: userId } });
-      expect(mockHolidayService.isHoliday).toHaveBeenCalledWith(tenantId, new Date('2025-01-01'));
       expect(mockHolidayService.getHolidaysByDateRange).toHaveBeenCalledWith(
         tenantId,
         new Date('2025-01-01'),
@@ -148,7 +149,6 @@ describe('LeaveService', () => {
       );
 
       expect(mockUserRepository.findOne).toHaveBeenCalledWith({ where: { id: userId } });
-      expect(mockHolidayService.isHoliday).not.toHaveBeenCalled();
       expect(mockLeaveRepository.create).not.toHaveBeenCalled();
       expect(mockLeaveRepository.save).not.toHaveBeenCalled();
     });
@@ -180,21 +180,16 @@ describe('LeaveService', () => {
       };
 
       mockUserRepository.findOne.mockResolvedValue(mockUser);
-      mockHolidayService.isHoliday
-        .mockResolvedValueOnce(true)  // 2025-01-01
-        .mockResolvedValueOnce(true)  // 2025-01-02
-        .mockResolvedValueOnce(false); // 2025-01-03
-
       mockHolidayService.getHolidaysByDateRange
         .mockResolvedValueOnce([mockHoliday1])  // 2025-01-01
-        .mockResolvedValueOnce([mockHoliday2]); // 2025-01-02
+        .mockResolvedValueOnce([mockHoliday2])  // 2025-01-02
+        .mockResolvedValueOnce([]);            // 2025-01-03
 
       await expect(service.createLeave(userId, multiDayLeaveDto, tenantId)).rejects.toThrow(
         BadRequestException,
       );
 
-      expect(mockHolidayService.isHoliday).toHaveBeenCalledTimes(3);
-      expect(mockHolidayService.getHolidaysByDateRange).toHaveBeenCalledTimes(2);
+      expect(mockHolidayService.getHolidaysByDateRange).toHaveBeenCalledTimes(3);
     });
   });
 });
