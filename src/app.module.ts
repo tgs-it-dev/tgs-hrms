@@ -19,6 +19,7 @@ import { TimesheetModule } from './modules/timesheet/timesheet.module';
 import { LeaveModule } from './modules/leave/leave.module';
 import { PolicyModule } from './modules/policy/policy.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { TeamModule } from './modules/team/team.module';
 
 // Added imports for mailer
 import { MailerModule } from '@nestjs-modules/mailer';
@@ -96,6 +97,7 @@ import { join } from 'path';
     PolicyModule,
     LeaveModule,
     ReportsModule,
+    TeamModule,
   ],
   controllers: [AppController],
   providers: [AppService],

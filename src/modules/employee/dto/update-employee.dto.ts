@@ -31,4 +31,12 @@ export class UpdateEmployeeDto {
   @IsUUID()
   @IsOptional()
   designation_id?: string;
+
+  @ApiPropertyOptional({ 
+    example: 'uuid-of-team',
+    description: 'Team ID to assign the employee to. Set to null to remove from team.'
+  })
+  @IsUUID()
+  @IsOptional()
+  team_id?: string;
 }

@@ -2,9 +2,11 @@ import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nes
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiBody } from '@nestjs/swagger';
 import { CreatePermissionDto } from './dto/create-permission.dto';
 import { UpdatePermissionDto } from './dto/update-permission.dto';
-import { Roles } from 'src/common/guards/company.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
+import { Permissions } from 'src/common/decorators/permissions.decorator';
+import { PermissionsGuard } from 'src/common/guards/permissions.guard';
 
 @ApiTags('Permissions')
 @ApiBearerAuth()
@@ -13,8 +15,9 @@ export class PermissionController {
   constructor() {}
 
   @Get()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles('admin',"system-admin")
+  @Permissions('manage_permissions')
   @ApiOperation({ summary: 'Get all permissions (Admin only)' })
   @ApiResponse({ 
     status: 200, 
@@ -42,8 +45,9 @@ export class PermissionController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles('admin',"system-admin")
+  @Permissions('manage_permissions')
   @ApiOperation({ summary: 'Get permission by ID (Admin only)' })
   @ApiParam({ 
     name: 'id', 
@@ -70,8 +74,9 @@ export class PermissionController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles('admin',"system-admin")
+  @Permissions('manage_permissions')
   @ApiOperation({ summary: 'Create a new permission (Admin only)' })
   @ApiBody({ type: CreatePermissionDto })
   @ApiResponse({ 
@@ -94,8 +99,9 @@ export class PermissionController {
   }
 
   @Put(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles('admin',"system-admin")
+  @Permissions('manage_permissions')
   @ApiOperation({ summary: 'Update permission by ID (Admin only)' })
   @ApiParam({ 
     name: 'id', 

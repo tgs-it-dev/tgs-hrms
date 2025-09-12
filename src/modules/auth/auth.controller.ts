@@ -3,10 +3,10 @@ import {
   Body,
   Controller,
   Post,
-  Param,
   UseGuards,
+  Get,
+  Req,
 } from '@nestjs/common';
-import { AuthService } from './auth.service';
 import {
   ApiTags,
   ApiBody,
@@ -14,6 +14,7 @@ import {
   ApiBearerAuth,
   ApiOperation
 } from '@nestjs/swagger';
+import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -23,7 +24,10 @@ import { LogoutDto } from './dto/logout.dto';
 import { Throttle } from '@nestjs/throttler';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
-import { Roles } from 'src/common/guards/company.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
+import { Permissions } from 'src/common/decorators/permissions.decorator';
+import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
@@ -241,10 +245,27 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Post('admin-data')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles('admin', 'system-admin')
+  @Permissions('manage_users')
   getAdminData() {
     return { message: 'Only Admin can access this route' };
+  }
+
+  @ApiBearerAuth()
+  @Get('test-permissions')
+  @UseGuards(JwtAuthGuard)
+  async testPermissions(@Req() req: any) {
+    return {
+      message: 'Permissions test endpoint',
+      user: {
+        id: req.user.id,
+        email: req.user.email,
+        role: req.user.role,
+        tenant_id: req.user.tenant_id,
+        permissions: req.user.permissions
+      }
+    };
   }
 
   @ApiBearerAuth()
