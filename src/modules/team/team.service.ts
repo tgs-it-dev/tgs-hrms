@@ -111,7 +111,6 @@ export class TeamService {
 
       // Validate manager change if provided
       if (dto.manager_id && dto.manager_id !== team.manager_id) {
-        console.log(`Updating team ${id} manager from ${team.manager_id} to ${dto.manager_id}`);
 
         // Verify the new manager exists and belongs to the tenant
         const newManager = await userRepo.findOne({
@@ -153,10 +152,6 @@ export class TeamService {
       // Update the team in database
       await teamRepo.update(id, updateData);
 
-      console.log('Team updated successfully:', {
-        id,
-        updates: updateData
-      });
 
       // Return the updated team with fresh data
       const updatedTeam = await teamRepo.findOne({

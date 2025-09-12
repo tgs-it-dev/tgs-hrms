@@ -31,7 +31,8 @@ export class DepartmentService {
 
     try {
       const department = this.repo.create({
-        ...dto,
+        name: dto.name,
+        description: dto.description || null, // Explicitly handle empty description
         tenant_id,
         tenant: { id: tenant_id } as any, // attach tenant relation
       });
@@ -69,7 +70,15 @@ export class DepartmentService {
       }
     }
 
-    Object.assign(department, dto);
+    // Handle description explicitly - if empty string, set to null
+    if (dto.description !== undefined) {
+      department.description = dto.description === '' || dto.description === null ? null : dto.description;
+    }
+    
+    // Handle name update
+    if (dto.name !== undefined) {
+      department.name = dto.name;
+    }
 
     try {
       return await this.repo.save(department);
