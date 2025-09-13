@@ -37,7 +37,6 @@ export class AttendanceService {
 	async findAll(userId?: string, page: number = 1) {
 		const limit =25;
 		const skip = (page - 1) * limit;
-		
 		const query = this.attendanceRepo.createQueryBuilder('attendance');
 		if (userId) {
 			query.where('attendance.user_id = :userId', { userId });
@@ -92,24 +91,24 @@ export class AttendanceService {
 	
 	// Raw events list for building multiple sessions per day in UI
 	async findEvents(userId?: string, page: number = 1) {
-		const limit = 25;
+		const limit = 20;
 		const skip = (page - 1) * limit;
 		
 		const qb = this.attendanceRepo.createQueryBuilder('attendance')
 			.leftJoinAndSelect('attendance.user', 'user')
 			.orderBy('attendance.timestamp', 'DESC');
-			
-		if (userId) {
-			qb.where('attendance.user_id = :userId', { userId });
-			// No pagination for single user
-			return qb.getMany();
-		}
+		
+			if (userId) {
+				qb.where('attendance.user_id = :userId', { userId });
+			  }
 		
 		const [items, total] = await qb
 			.skip(skip)
 			.take(limit)
 			.getManyAndCount();
-			
+
+
+
 		const totalPages = Math.ceil(total / limit);
 		return {
 			items,

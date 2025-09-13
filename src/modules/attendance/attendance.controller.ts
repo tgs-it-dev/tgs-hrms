@@ -52,6 +52,7 @@ export class AttendanceController {
 	@ApiOperation({ summary: 'Get raw attendance events for a user' })
 	async events(@Req() req: Request, @Query('userId') userId?: string) {
 		const id = userId || (req.user as any).id;
+		// console.log(userId)
 		return this.attendanceService.findEvents(id);
 	}
 	

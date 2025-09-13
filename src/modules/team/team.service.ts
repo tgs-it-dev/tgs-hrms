@@ -47,7 +47,7 @@ export class TeamService {
     const team = this.teamRepo.create({
       ...dto,
     });
-
+    
     return this.teamRepo.save(team);
   }
 
