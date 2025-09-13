@@ -107,43 +107,41 @@ export class EmployeeService {
         throw err;
     }
   }
+async findAll(tenant_id: string, query: EmployeeQueryDto, page: number) {
+  const limit = 5; 
+  const skip = (page - 1) * limit;
 
-  // List all employees with pagination and filtering
-  async findAll(tenant_id: string, query: EmployeeQueryDto, page: number) {
-    const limit = 5; // Consistent with other modules
-    const skip = (page - 1) * limit;
-    
-    const qb = this.employeeRepo.createQueryBuilder('employee')
-      .leftJoinAndSelect('employee.user', 'user')
-      .leftJoinAndSelect('employee.designation', 'designation')
-      .leftJoinAndSelect('designation.department', 'department')
-      .where('user.tenant_id = :tenant_id', { tenant_id })
-      .andWhere('employee.status = :status', { status: 'active' });
-    
-    // Add filters if provided
-    if (query.department_id) {
-      qb.andWhere('designation.department_id = :department_id', { department_id: query.department_id });
-    }
-    if (query.designation_id) {
-      qb.andWhere('employee.designation_id = :designation_id', { designation_id: query.designation_id });
-    }
-    
-    const [items, total] = await qb
-      .orderBy('employee.created_at', 'DESC')
-      .skip(skip)
-      .take(limit)
-      .getManyAndCount();
-    
-    const totalPages = Math.ceil(total / limit);
-    
-    return {
-      items,
-      total,
-      page,
-      limit,
-      totalPages,
-    };
+  const qb = this.employeeRepo.createQueryBuilder('employee')
+    .leftJoinAndSelect('employee.user', 'user')
+    .leftJoinAndSelect('employee.designation', 'designation')
+    .leftJoinAndSelect('designation.department', 'department')
+    .where('user.tenant_id = :tenant_id', { tenant_id });
+
+  // Filters
+  if (query.department_id) {
+    qb.andWhere('designation.department_id = :department_id', { department_id: query.department_id });
   }
+  if (query.designation_id) {
+    qb.andWhere('employee.designation_id = :designation_id', { designation_id: query.designation_id });
+  }
+
+  const [items, total] = await qb
+    .orderBy('employee.created_at', 'DESC')
+    .skip(skip)
+    .take(limit)
+    .getManyAndCount();
+
+  const totalPages = Math.ceil(total / limit);
+
+  return {
+    items,
+    total,
+    page,
+    limit,
+    totalPages,
+  };
+}
+
 
   async findOne(tenant_id: string, id: string) {
     const employee = await this.employeeRepo.findOne({
@@ -228,8 +226,7 @@ export class EmployeeService {
       context: { resetUrl, email },
     });
   }
-
-  async getGenderPercentage(tenant_id: string): Promise<{
+async getGenderPercentage(tenant_id: string): Promise<{
   male: number;
   female: number;
   total: number;
@@ -259,25 +256,27 @@ export class EmployeeService {
     .andWhere('employee.status = :status', { status: 'inactive' })
     .getCount();
 
-  // Male employees (all statuses)
+  // Active male employees
   const male = await this.employeeRepo
     .createQueryBuilder('employee')
     .leftJoin('employee.user', 'user')
     .where('user.tenant_id = :tenant_id', { tenant_id })
     .andWhere('user.gender = :gender', { gender: 'male' })
+    .andWhere('employee.status = :status', { status: 'active' })
     .getCount();
 
-  // Female employees (all statuses)
+  // Active female employees
   const female = await this.employeeRepo
     .createQueryBuilder('employee')
     .leftJoin('employee.user', 'user')
     .where('user.tenant_id = :tenant_id', { tenant_id })
     .andWhere('user.gender = :gender', { gender: 'female' })
+    .andWhere('employee.status = :status', { status: 'active' })
     .getCount();
 
   return {
-    male,
-    female,
+    male,              // ab yeh sirf active males count karega
+    female,            // ab yeh sirf active females count karega
     total: totalEmployees,
     activeEmployees,
     inactiveEmployees,
