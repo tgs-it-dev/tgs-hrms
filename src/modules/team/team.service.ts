@@ -19,37 +19,79 @@ export class TeamService {
     private readonly dataSource: DataSource,
   ) {}
 
+  // async create(tenantId: string, dto: CreateTeamDto): Promise<Team> {
+  //   // Verify the manager exists and belongs to the tenant
+  //   const manager = await this.userRepo.findOne({
+  //     where: { id: dto.manager_id, tenant_id: tenantId },
+  //     relations: ['role'],
+  //   });
+
+  //   if (!manager) {
+  //     throw new NotFoundException('Manager not found in this tenant');
+  //   }
+
+  //   // Verify the manager has a manager role
+  //   if (manager.role.name !== 'Manager') {
+  //     throw new BadRequestException('User must have manager role to create a team');
+  //   }
+
+  //   // Check if manager is already managing another team
+  //   const existingTeam = await this.teamRepo.findOne({
+  //     where: { manager_id: dto.manager_id },
+  //   });
+
+  //   if (existingTeam) {
+  //     throw new BadRequestException('Manager is already managing another team');
+  //   }
+
+  //   const team = this.teamRepo.create({
+  //     ...dto,
+  //   });
+
+  //   return this.teamRepo.save(team);
+  // }
+
   async create(tenantId: string, dto: CreateTeamDto): Promise<Team> {
     // Verify the manager exists and belongs to the tenant
     const manager = await this.userRepo.findOne({
       where: { id: dto.manager_id, tenant_id: tenantId },
       relations: ['role'],
     });
-
     if (!manager) {
       throw new NotFoundException('Manager not found in this tenant');
     }
-
     // Verify the manager has a manager role
     if (manager.role.name !== 'Manager') {
       throw new BadRequestException('User must have manager role to create a team');
     }
-
     // Check if manager is already managing another team
     const existingTeam = await this.teamRepo.findOne({
       where: { manager_id: dto.manager_id },
     });
-
     if (existingTeam) {
       throw new BadRequestException('Manager is already managing another team');
     }
-
-    const team = this.teamRepo.create({
-      ...dto,
+    // Use transaction to ensure data consistency
+    return await this.dataSource.transaction(async (manager) => {
+      const teamRepo = manager.getRepository(Team);
+      const employeeRepo = manager.getRepository(Employee);
+      // Create the team
+      const team = teamRepo.create({
+        ...dto,
+      });
+      const savedTeam = await teamRepo.save(team);
+      // Find the manager's employee record and assign team_id
+      const managerEmployee = await employeeRepo.findOne({
+        where: { user_id: dto.manager_id }
+      });
+      if (managerEmployee) {
+        managerEmployee.team_id = savedTeam.id;
+        await employeeRepo.save(managerEmployee);
+      }
+      return savedTeam;
     });
-    
-    return this.teamRepo.save(team);
   }
+  
 
   async findAll(tenantId: string, page: number = 1): Promise<{
     items: Team[];
@@ -179,6 +221,49 @@ export class TeamService {
     await this.teamRepo.remove(team);
   }
 
+  // async getTeamMembers(tenantId: string, teamId: string, page: number = 1): Promise<{
+  //   items: Employee[];
+  //   total: number;
+  //   page: number;
+  //   limit: number;
+  //   totalPages: number;
+  // }> {
+  //   const limit = 25;
+  //   const skip = (page - 1) * limit;
+
+  //   // First get the team to find the manager_id
+  //   const team = await this.teamRepo.findOne({
+  //     where: { id: teamId },
+  //     select: ['manager_id']
+  //   });
+
+  //   if (!team) {
+  //     throw new NotFoundException('Team not found');
+  //   }
+
+  //   const [items, total] = await this.employeeRepo.findAndCount({
+  //     where: { 
+  //       team_id: teamId,
+  //       user: { tenant_id: tenantId },
+  //       user_id: team.manager_id ? Not(team.manager_id) : undefined // Exclude manager
+  //     },
+  //     relations: ['user', 'designation', 'designation.department'],
+  //     order: { created_at: 'ASC' },
+  //     skip,
+  //     take: limit,
+  //   });
+
+  //   const totalPages = Math.ceil(total / limit);
+
+  //   return {
+  //     items,
+  //     total,
+  //     page,
+  //     limit,
+  //     totalPages,
+  //   };
+  // }
+
   async getTeamMembers(tenantId: string, teamId: string, page: number = 1): Promise<{
     items: Employee[];
     total: number;
@@ -188,31 +273,18 @@ export class TeamService {
   }> {
     const limit = 25;
     const skip = (page - 1) * limit;
-
-    // First get the team to find the manager_id
-    const team = await this.teamRepo.findOne({
-      where: { id: teamId },
-      select: ['manager_id']
-    });
-
-    if (!team) {
-      throw new NotFoundException('Team not found');
-    }
-
+    // Get all team members including the manager
     const [items, total] = await this.employeeRepo.findAndCount({
-      where: { 
+      where: {
         team_id: teamId,
-        user: { tenant_id: tenantId },
-        user_id: team.manager_id ? Not(team.manager_id) : undefined // Exclude manager
+        user: { tenant_id: tenantId }
       },
       relations: ['user', 'designation', 'designation.department'],
       order: { created_at: 'ASC' },
       skip,
       take: limit,
     });
-
     const totalPages = Math.ceil(total / limit);
-
     return {
       items,
       total,
@@ -232,9 +304,9 @@ export class TeamService {
     });
 
     // Filter out the manager from team members for each team
-    teams.forEach(team => {
-      team.teamMembers = team.teamMembers.filter(member => member.user_id !== managerId);
-    });
+    // teams.forEach(team => {
+    //   team.teamMembers = team.teamMembers.filter(member => member.user_id !== managerId);
+    // });
 
     return teams;
   }
