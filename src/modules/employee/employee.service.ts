@@ -229,43 +229,61 @@ export class EmployeeService {
     });
   }
 
-  async getGenderPercentage(tenant_id: string): Promise<{ male: number, female: number, total: number }> {
-    // Fetch only users who are employees (those who exist in the employee table)
-    const totalEmployees = await this.employeeRepo
-      .createQueryBuilder('employee')
-      .leftJoinAndSelect('employee.user', 'user')
-      .where('user.tenant_id = :tenant_id', { tenant_id })
-      .andWhere('employee.status = :status', { status: 'active' })
-      .getCount();
+  async getGenderPercentage(tenant_id: string): Promise<{
+  male: number;
+  female: number;
+  total: number;
+  activeEmployees: number;
+  inactiveEmployees: number;
+}> {
+  // Total employees (all statuses)
+  const totalEmployees = await this.employeeRepo
+    .createQueryBuilder('employee')
+    .leftJoin('employee.user', 'user')
+    .where('user.tenant_id = :tenant_id', { tenant_id })
+    .getCount();
 
-    console.log('Total Employees are:', totalEmployees);
+  // Active employees
+  const activeEmployees = await this.employeeRepo
+    .createQueryBuilder('employee')
+    .leftJoin('employee.user', 'user')
+    .where('user.tenant_id = :tenant_id', { tenant_id })
+    .andWhere('employee.status = :status', { status: 'active' })
+    .getCount();
 
-    if (totalEmployees === 0) {
-      return { male: 0, female: 0, total: 0 }; // If no employees, return 0%
-    }
+  // Inactive employees
+  const inactiveEmployees = await this.employeeRepo
+    .createQueryBuilder('employee')
+    .leftJoin('employee.user', 'user')
+    .where('user.tenant_id = :tenant_id', { tenant_id })
+    .andWhere('employee.status = :status', { status: 'inactive' })
+    .getCount();
 
-    // Count male employees
-    const maleCount = await this.employeeRepo
-      .createQueryBuilder('employee')
-      .leftJoin('employee.user', 'user')
-      .where('user.tenant_id = :tenant_id', { tenant_id })
-      .andWhere('employee.status = :status', { status: 'active' })
-      .andWhere('user.gender = :gender', { gender: 'male' })
-      .getCount();
-    console.log('Total Male Employees are:', maleCount);
+  // Male employees (all statuses)
+  const male = await this.employeeRepo
+    .createQueryBuilder('employee')
+    .leftJoin('employee.user', 'user')
+    .where('user.tenant_id = :tenant_id', { tenant_id })
+    .andWhere('user.gender = :gender', { gender: 'male' })
+    .getCount();
 
-    // Count female employees
-    const femaleCount = await this.employeeRepo
-      .createQueryBuilder('employee')
-      .leftJoin('employee.user', 'user')
-      .where('user.tenant_id = :tenant_id', { tenant_id })
-      .andWhere('employee.status = :status', { status: 'active' })
-      .andWhere('user.gender = :gender', { gender: 'female' })
-      .getCount();
-    console.log('Total Female Employees are:', femaleCount);
+  // Female employees (all statuses)
+  const female = await this.employeeRepo
+    .createQueryBuilder('employee')
+    .leftJoin('employee.user', 'user')
+    .where('user.tenant_id = :tenant_id', { tenant_id })
+    .andWhere('user.gender = :gender', { gender: 'female' })
+    .getCount();
 
-    return { male: maleCount, female: femaleCount, total: totalEmployees };
-  }
+  return {
+    male,
+    female,
+    total: totalEmployees,
+    activeEmployees,
+    inactiveEmployees,
+  };
+}
+
 
   async getEmployeeJoiningReport(tenant_id: string): Promise<any[]> {
     const results = await this.employeeRepo
