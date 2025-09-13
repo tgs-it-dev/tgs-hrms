@@ -20,6 +20,9 @@ export class Employee {
   @Column({ type: 'uuid' })
   designation_id: string;
 
+  @Column({ type: 'varchar', length: 20, default: 'active' })
+  status: 'active' | 'inactive';
+
   @CreateDateColumn()
   created_at: Date;
 

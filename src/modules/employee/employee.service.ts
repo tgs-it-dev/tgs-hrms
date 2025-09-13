@@ -117,7 +117,8 @@ export class EmployeeService {
       .leftJoinAndSelect('employee.user', 'user')
       .leftJoinAndSelect('employee.designation', 'designation')
       .leftJoinAndSelect('designation.department', 'department')
-      .where('user.tenant_id = :tenant_id', { tenant_id });
+      .where('user.tenant_id = :tenant_id', { tenant_id })
+      .andWhere('employee.status = :status', { status: 'active' });
     
     // Add filters if provided
     if (query.department_id) {
@@ -234,6 +235,7 @@ export class EmployeeService {
       .createQueryBuilder('employee')
       .leftJoinAndSelect('employee.user', 'user')
       .where('user.tenant_id = :tenant_id', { tenant_id })
+      .andWhere('employee.status = :status', { status: 'active' })
       .getCount();
 
     console.log('Total Employees are:', totalEmployees);
@@ -247,6 +249,7 @@ export class EmployeeService {
       .createQueryBuilder('employee')
       .leftJoin('employee.user', 'user')
       .where('user.tenant_id = :tenant_id', { tenant_id })
+      .andWhere('employee.status = :status', { status: 'active' })
       .andWhere('user.gender = :gender', { gender: 'male' })
       .getCount();
     console.log('Total Male Employees are:', maleCount);
@@ -256,6 +259,7 @@ export class EmployeeService {
       .createQueryBuilder('employee')
       .leftJoin('employee.user', 'user')
       .where('user.tenant_id = :tenant_id', { tenant_id })
+      .andWhere('employee.status = :status', { status: 'active' })
       .andWhere('user.gender = :gender', { gender: 'female' })
       .getCount();
     console.log('Total Female Employees are:', femaleCount);
