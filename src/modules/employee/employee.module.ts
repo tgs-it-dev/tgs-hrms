@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Employee } from '../../entities/employee.entity';
 import { User } from '../../entities/user.entity';
 import { Designation } from '../../entities/designation.entity';
+import { Team } from '../../entities/team.entity';
 import { EmployeeController } from './employee.controller';
 import { EmployeeService } from './employee.service';
 import { Role } from 'src/entities/role.entity';
@@ -15,11 +16,11 @@ import { LeaveModule } from '../leave/leave.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Employee, User, Designation,Role , Attendance , Leave]),
+    TypeOrmModule.forFeature([Employee, User, Designation, Role, Team, Attendance, Leave]),
     AttendanceModule,
     LeaveModule,
   ],
   controllers: [EmployeeController, EmployeeProfileController],
-  providers: [EmployeeService,EmployeeProfileService],
+  providers: [EmployeeService, EmployeeProfileService],
 })
 export class EmployeeModule {}

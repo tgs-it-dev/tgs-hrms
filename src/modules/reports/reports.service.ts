@@ -72,41 +72,12 @@ export class ReportsService {
         days[dateStr].push(att);
       }
       let totalDaysWorked = 0;
-      let lateEntries = 0;
-      let earlyEntries = 0;
-      // For each day, check first check-in time
-      for (const [date, records] of Object.entries(days)) {
+      // For each day, count as worked
+      for (const _ of Object.entries(days)) {
         totalDaysWorked++;
-        // Sort by time
-        records.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-        const first = records[0];
-        const pkCheckIn = new Date(first.timestamp.getTime() + 5 * 60 * 60 * 1000);
-        const hour = pkCheckIn.getHours();
-        const min = pkCheckIn.getMinutes();
-        // 5PM = 17:00, 6PM = 18:00
-        if (hour > 18 || (hour === 18 && min > 0)) {
-          lateEntries++;
-        } else if (hour < 17) {
-          earlyEntries++;
-        } else if (hour === 18 && min === 0) {
-          // exactly 6:00PM is not late
-        } else if (hour === 17 && min < 0) {
-          earlyEntries++;
-        } else if (hour === 17 && min >= 0) {
-          // on time
-        } else if (hour === 18 && min === 0) {
-          // on time
-        }
       }
-      // Calculate absences (days in month - totalDaysWorked)
-      const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
-      // Optionally, skip weekends here if needed
-      const absences = daysInMonth - totalDaysWorked;
       result[uid] = {
         totalDaysWorked,
-        lateEntries,
-        earlyEntries,
-        absences,
       };
     }
     return result;
@@ -114,6 +85,19 @@ export class ReportsService {
 
   // 2. Leave Summary
   async getLeaveSummary(userId?: string) {
+    // Annual entitlement per category
+    const ANNUAL_ENTITLEMENT = {
+      vacation: 4,
+      casual: 4,
+      sick: 3,
+      other: 1,
+      emergency: 2,
+    };
+    const CATEGORIES = Object.keys(ANNUAL_ENTITLEMENT);
+    // Monthly cap
+    const MONTHLY_CAP_EMPLOYEE = 2;
+    const MONTHLY_CAP_MANAGER = 3;
+
     // Get all users if userId not provided
     let userIds: string[] = [];
     if (userId) {
@@ -122,17 +106,66 @@ export class ReportsService {
       const users = await this.userRepo.find();
       userIds = users.map(u => u.id);
     }
-    // For each user, group leaves by type
     const result: Record<string, any> = {};
+    const now = new Date();
+    const year = now.getFullYear();
+    const monthIdx = now.getMonth(); // 0-based
+    const startOfMonth = new Date(Date.UTC(year, monthIdx, 1, 0, 0, 0));
+    const endOfMonth = new Date(Date.UTC(year, monthIdx + 1, 0, 23, 59, 59, 999));
     for (const uid of userIds) {
-      const leaves = await this.leaveRepo.find({ where: { user_id: uid } });
-      const summary: Record<string, { used: number }> = {};
+      // Fetch user with role
+      const user = await this.userRepo.findOne({ where: { id: uid }, relations: ['role'] });
+      const isManager = user && user.role && user.role.name && user.role.name.toLowerCase() === 'manager';
+      const monthlyCap = isManager ? MONTHLY_CAP_MANAGER : MONTHLY_CAP_EMPLOYEE;
+      // Get all approved leaves for the year
+      const startOfYear = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+      const endOfYear = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+      const leaves = await this.leaveRepo.find({
+        where: {
+          user_id: uid,
+          status: 'approved',
+          from_date: Between(startOfYear, endOfYear),
+        },
+      });
+      // Used annual
+      const used: Record<string, number> = {};
+      let totalUsed = 0;
+      for (const cat of CATEGORIES) used[cat] = 0;
       for (const leave of leaves) {
-        if (!summary[leave.type]) summary[leave.type] = { used: 0 };
-        summary[leave.type].used++;
+        if (CATEGORIES.includes(leave.type)) {
+          used[leave.type]++;
+          totalUsed++;
+        }
       }
-      // If you have a leave policy, you can add remaining here
-      result[uid] = summary;
+      // Used this month
+      const leavesThisMonth = leaves.filter(l => l.from_date >= startOfMonth && l.from_date <= endOfMonth);
+      const usedThisMonth: Record<string, number> = {};
+      let totalUsedThisMonth = 0;
+      for (const cat of CATEGORIES) usedThisMonth[cat] = 0;
+      for (const leave of leavesThisMonth) {
+        if (CATEGORIES.includes(leave.type)) {
+          usedThisMonth[leave.type]++;
+          totalUsedThisMonth++;
+        }
+      }
+      // Remaining annual
+      const remaining: Record<string, number> = {};
+      let totalRemaining = 0;
+      for (const cat of CATEGORIES) {
+        remaining[cat] = Math.max(ANNUAL_ENTITLEMENT[cat] - used[cat], 0);
+        totalRemaining += remaining[cat];
+      }
+      // Compose response
+      result[uid] = {
+        annualEntitlement: { ...ANNUAL_ENTITLEMENT },
+        used: { ...used },
+        usedThisMonth: { ...usedThisMonth },
+        remaining: { ...remaining },
+        totalRemaining,
+        monthlyCap,
+        totalUsedThisMonth,
+        canApplyThisMonth: Math.max(monthlyCap - totalUsedThisMonth, 0),
+      };
     }
     return result;
   }

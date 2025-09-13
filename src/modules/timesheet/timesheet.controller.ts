@@ -4,7 +4,9 @@ import { TimesheetService } from './timesheet.service';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { Request } from 'express';
 import { RolesGuard } from 'src/common/guards/roles.guard';
-import { Roles } from 'src/common/guards/company.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
+import { Permissions } from 'src/common/decorators/permissions.decorator';
+import { PermissionsGuard } from 'src/common/guards/permissions.guard';
 
 @ApiTags('Timesheet')
 @ApiBearerAuth()
@@ -42,9 +44,10 @@ export class TimesheetController {
   }
 
   @Get('summary')
-  @UseGuards(RolesGuard)
-  @Roles('admin')
-  @ApiOperation({ summary: 'Get tenant-wide timesheet summary (Admin only)' })
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('admin', 'system-admin', 'manager')
+  @Permissions('manage_timesheets', 'view_team_timesheets')
+  @ApiOperation({ summary: 'Get tenant-wide timesheet summary (Admin/Manager only)' })
   @ApiResponse({ status: 200, description: 'Returns paginated timesheet summary for all employees' })
   async summary(
     @Req() req: any, 

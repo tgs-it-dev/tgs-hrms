@@ -28,6 +28,42 @@ export class AuthService {
     private emailService: EmailService,
   ) {}
 
+  private async getUserPermissions(userId: string): Promise<string[]> {
+    try {
+      this.logger.log(`Loading permissions for user ${userId}`);
+      
+      // First get the user with role to ensure we have the role_id
+      const user = await this.userRepository.findOne({
+        where: { id: userId },
+        relations: ['role'],
+      });
+      
+      if (!user || !user.role) {
+        this.logger.warn(`User ${userId} has no role assigned`);
+        return [];
+      }
+      
+      // Use a raw query to get permissions for the user's role
+      const result = await this.userRepository.query(`
+        SELECT p.name 
+        FROM permissions p 
+        JOIN role_permissions rp ON p.id = rp.permission_id 
+        WHERE rp.role_id = $1
+      `, [user.role.id]);
+      
+      this.logger.log(`Raw permission query result: ${JSON.stringify(result)}`);
+      
+      const permissions = result.map((row: any) => row.name.toLowerCase());
+      this.logger.log(`Processed permissions for user ${userId}: ${JSON.stringify(permissions)}`);
+      
+      return permissions;
+    } catch (error) {
+      this.logger.error(`Failed to load permissions for user ${userId}: ${error.message}`);
+      this.logger.error(`Error stack: ${error.stack}`);
+      return [];
+    }
+  }
+
   async register(dto: RegisterDto) {
     const existingUser = await this.userRepository.findOne({
       where: { email: dto.email.toLowerCase() },
@@ -88,12 +124,21 @@ export class AuthService {
       throw new UnauthorizedException('User role not found');
     }
 
+    // Get user permissions
+    const permissions = await this.getUserPermissions(user.id);
+    
+    this.logger.log(`User ${user.email} has role: ${user.role.name}`);
+    this.logger.log(`User ${user.email} permissions: ${JSON.stringify(permissions)}`);
+
     const payload = {
       email: user.email,
       sub: user.id,
       role: user.role.name.toLowerCase(),
       tenant_id: user.tenant_id,
+      permissions,
     };
+    
+    this.logger.log(`JWT payload for user ${user.email}: ${JSON.stringify(payload)}`);
 
     const accessToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_SECRET'),
@@ -113,6 +158,7 @@ export class AuthService {
       accessToken,
       refreshToken,
       user,
+      permissions
     };
   }
 
@@ -247,12 +293,21 @@ async resetPassword(dto: ResetPasswordDto) {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
+      // Get user permissions
+      const permissions = await this.getUserPermissions(user.id);
+      
+      this.logger.log(`Refresh: User ${user.email} has role: ${user.role.name}`);
+      this.logger.log(`Refresh: User ${user.email} permissions: ${JSON.stringify(permissions)}`);
+
       const newPayload = {
         email: user.email,
         sub: user.id,
         role: user.role.name.toLowerCase(),
         tenant_id: user.tenant_id,
+        permissions,
       };
+      
+      this.logger.log(`Refresh: JWT payload for user ${user.email}: ${JSON.stringify(newPayload)}`);
 
       const newAccessToken = this.jwtService.sign(newPayload, {
         secret: this.configService.get<string>('JWT_SECRET'),

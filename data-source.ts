@@ -11,6 +11,7 @@ import { Employee } from './src/entities/employee.entity';
 import { Attendance } from './src/entities/attendance.entity';
 import { Timesheet } from './src/entities/timesheet.entity';
 import { Leave } from './src/entities/leave.entity';
+import { Team } from './src/entities/team.entity';
 import * as dotenv from 'dotenv';
 dotenv.config(); 
 
@@ -21,7 +22,7 @@ export const AppDataSource = new DataSource({
   username: process.env.DB_USER,
   password: process.env.DB_PASS,
   database: process.env.DB_NAME,
-  entities: [Tenant, User, Role, Permission, RolePermission, Department, Designation, Employee, Attendance, Timesheet, Leave],
+  entities: [Tenant, User, Role, Permission, RolePermission, Department, Designation, Employee, Attendance, Timesheet, Leave, Team],
   migrations: ['src/migrations/**/*.ts'],
   synchronize: false,
   logging: true,  

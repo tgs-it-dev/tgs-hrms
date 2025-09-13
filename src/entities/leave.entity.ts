@@ -33,7 +33,7 @@ export class Leave {
   @Column({ type: 'varchar' })
   type: string;
 
-  @Column({ type: 'varchar', default: 'pending' }) // 'approved' or 'rejected'
+  @Column({ type: 'varchar', default: 'pending' }) // 'approved', 'rejected', or 'withdrawn'
   status: string;
 
   @CreateDateColumn()

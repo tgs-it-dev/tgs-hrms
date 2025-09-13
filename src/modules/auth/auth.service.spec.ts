@@ -42,12 +42,14 @@ const mockUser: User = {
   last_name: 'User',
   phone: '1234567890',
   gender: null,
+  profile_pic: null,
   created_at: new Date(),
   updated_at: new Date(),
   role: mockRole,
   tenant: mockTenant,
   employees: [],
   attendances: [],
+  managedTeams: [],
 };
 
 const mockUserRepository = () => ({
@@ -59,6 +61,7 @@ const mockUserRepository = () => ({
     if (where.email === mockUser.email) return Promise.resolve(mockUser);
     return Promise.resolve(null);
   }),
+  query: jest.fn().mockResolvedValue([]),
 });
 
 const mockJwtService = {
