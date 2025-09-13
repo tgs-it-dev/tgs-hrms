@@ -72,21 +72,15 @@ export class EmployeeService {
   }
 
   async promoteToManager(tenant_id: string, id: string) {
-    // Find the employee
     const employee = await this.findOne(tenant_id, id);
-    
-    // Get the Manager role
     const managerRole = await this.roleRepo.findOne({ where: { name: 'manager' } });
     if (!managerRole) throw new NotFoundException('Manager role not found. Please create a manager role first.');
 
-    // Update the user's role to manager
     const user = employee.user;
     user.role_id = managerRole.id;
-    
+
     try {
       await this.userRepo.save(user);
-      
-      // Return updated employee with new role
       return await this.employeeRepo.findOne({
         where: { id },
         relations: ['user', 'designation', 'designation.department', 'team'],
@@ -97,21 +91,15 @@ export class EmployeeService {
   }
 
   async demoteToEmployee(tenant_id: string, id: string) {
-    // Find the employee
     const employee = await this.findOne(tenant_id, id);
-    
-    // Get the Employee role
     const employeeRole = await this.roleRepo.findOne({ where: { name: 'Employee' } });
     if (!employeeRole) throw new NotFoundException('Employee role not found.');
 
-    // Update the user's role back to employee
     const user = employee.user;
     user.role_id = employeeRole.id;
-    
+
     try {
       await this.userRepo.save(user);
-      
-      // Return updated employee with new role
       return await this.employeeRepo.findOne({
         where: { id },
         relations: ['user', 'designation', 'designation.department', 'team'],
@@ -122,158 +110,137 @@ export class EmployeeService {
   }
 
   async createManager(tenant_id: string, dto: CreateEmployeeDto) {
-    // Validate the designation
     await this.validateDesignation(dto.designation_id, tenant_id);
 
-    // Validate team if provided
     if (dto.team_id) {
       await this.validateTeam(dto.team_id, tenant_id);
     }
 
-    // Check if the user already exists in the tenant
     const existingUser = await this.userRepo.findOne({ where: { email: dto.email, tenant_id } });
     if (existingUser) throw new ConflictException('User with this email already exists in the tenant.');
 
-    // Get the Manager role (not Employee role)
     const managerRole = await this.roleRepo.findOne({ where: { name: 'Manager' } });
     if (!managerRole) throw new NotFoundException('Manager role not found. Please create a manager role first.');
 
-    // Set the password (either from the DTO or generate a temporary one)
     const password = dto.password || this.generateTemporaryPassword();
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Generate the password reset token and expiry
     const resetToken = crypto.randomBytes(32).toString('hex');
     const resetTokenExpiry = new Date();
     resetTokenExpiry.setHours(resetTokenExpiry.getHours() + 24);
 
-    // Create the user object with manager role
     const user = this.userRepo.create({
-        email: dto.email,
-        phone: dto.phone,
-        password: hashedPassword,
-        first_name: dto.first_name,
-        last_name: dto.last_name,
-        gender: dto.gender,
-        role_id: managerRole.id, // Manager role instead of Employee role
-        tenant_id,
-        reset_token: resetToken,
-        reset_token_expiry: resetTokenExpiry,
+      email: dto.email,
+      phone: dto.phone,
+      password: hashedPassword,
+      first_name: dto.first_name,
+      last_name: dto.last_name,
+      gender: dto.gender,
+      role_id: managerRole.id,
+      tenant_id,
+      reset_token: resetToken,
+      reset_token_expiry: resetTokenExpiry,
     });
 
-    // Save the user to the database
     const savedUser = await this.userRepo.save(user);
 
-    // Create the employee record
     const employee = this.employeeRepo.create({
-        user_id: savedUser.id,
-        designation_id: dto.designation_id,
-        team_id: dto.team_id || null,
+      user_id: savedUser.id,
+      designation_id: dto.designation_id,
+      team_id: dto.team_id || null,
     });
 
-    // Save the employee record and handle any errors
     try {
-        const savedEmployee = await this.employeeRepo.save(employee);
-        await this.sendPasswordResetEmail(dto.email, resetToken);
-        return savedEmployee;
+      const savedEmployee = await this.employeeRepo.save(employee);
+      await this.sendPasswordResetEmail(dto.email, resetToken);
+      return savedEmployee;
     } catch (err) {
-        if (err instanceof QueryFailedError && (err as any).code === '23505') {
-            throw new ConflictException('Manager already exists.');
-        }
-        throw err;
+      if (err instanceof QueryFailedError && (err as any).code === '23505') {
+        throw new ConflictException('Manager already exists.');
+      }
+      throw err;
     }
   }
 
   async create(tenant_id: string, dto: CreateEmployeeDto) {
-    // Validate the designation
     await this.validateDesignation(dto.designation_id, tenant_id);
 
-    // Validate team if provided
     if (dto.team_id) {
       await this.validateTeam(dto.team_id, tenant_id);
     }
 
-    // Check if the user already exists in the tenant
     const existingUser = await this.userRepo.findOne({ where: { email: dto.email, tenant_id } });
     if (existingUser) throw new ConflictException('User with this email already exists in the tenant.');
 
-    // Get the Employee role
     const employeeRole = await this.roleRepo.findOne({ where: { name: 'Employee' } });
     if (!employeeRole) throw new NotFoundException('Employee role not found.');
 
-    // Set the password (either from the DTO or generate a temporary one)
     const password = dto.password || this.generateTemporaryPassword();
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Generate the password reset token and expiry
     const resetToken = crypto.randomBytes(32).toString('hex');
     const resetTokenExpiry = new Date();
     resetTokenExpiry.setHours(resetTokenExpiry.getHours() + 24);
 
-    // Create the user object
     const user = this.userRepo.create({
-        email: dto.email,
-        phone: dto.phone,
-        password: hashedPassword,
-        first_name: dto.first_name,
-        last_name: dto.last_name,
-        gender: dto.gender,
-        role_id: employeeRole.id,
-        tenant_id,
-        reset_token: resetToken,
-        reset_token_expiry: resetTokenExpiry,
+      email: dto.email,
+      phone: dto.phone,
+      password: hashedPassword,
+      first_name: dto.first_name,
+      last_name: dto.last_name,
+      gender: dto.gender,
+      role_id: employeeRole.id,
+      tenant_id,
+      reset_token: resetToken,
+      reset_token_expiry: resetTokenExpiry,
     });
 
-    // Save the user to the database
     const savedUser = await this.userRepo.save(user);
 
-    // Create the employee record
     const employee = this.employeeRepo.create({
-        user_id: savedUser.id,
-        designation_id: dto.designation_id,
-        team_id: dto.team_id || null,
+      user_id: savedUser.id,
+      designation_id: dto.designation_id,
+      team_id: dto.team_id || null,
     });
 
-    // Save the employee record and handle any errors
     try {
-        const savedEmployee = await this.employeeRepo.save(employee);
-        await this.sendPasswordResetEmail(dto.email, resetToken);
-        return savedEmployee;
+      const savedEmployee = await this.employeeRepo.save(employee);
+      await this.sendPasswordResetEmail(dto.email, resetToken);
+      return savedEmployee;
     } catch (err) {
-        if (err instanceof QueryFailedError && (err as any).code === '23505') {
-            throw new ConflictException('Employee already exists.');
-        }
-        throw err;
+      if (err instanceof QueryFailedError && (err as any).code === '23505') {
+        throw new ConflictException('Employee already exists.');
+      }
+      throw err;
     }
   }
 
-  // List all employees with pagination and filtering
   async findAll(tenant_id: string, query: EmployeeQueryDto, page: number) {
-    const limit = 10; // Consistent with other modules
+    const limit = 10;
     const skip = (page - 1) * limit;
-    
+
     const qb = this.employeeRepo.createQueryBuilder('employee')
       .leftJoinAndSelect('employee.user', 'user')
       .leftJoinAndSelect('employee.designation', 'designation')
       .leftJoinAndSelect('designation.department', 'department')
       .leftJoinAndSelect('employee.team', 'team')
       .where('user.tenant_id = :tenant_id', { tenant_id });
-    // Add filters if provided
+
     if (query.department_id) {
       qb.andWhere('designation.department_id = :department_id', { department_id: query.department_id });
     }
     if (query.designation_id) {
       qb.andWhere('employee.designation_id = :designation_id', { designation_id: query.designation_id });
     }
-    
+
     const [items, total] = await qb
       .orderBy('employee.created_at', 'DESC')
       .skip(skip)
       .take(limit)
       .getManyAndCount();
-    
+
     const totalPages = Math.ceil(total / limit);
-    
+
     return {
       items,
       total,
@@ -314,14 +281,11 @@ export class EmployeeService {
       employee.designation = newDesignation;
     }
 
-    // Handle team_id update
     if (dto.team_id !== undefined) {
       if (dto.team_id) {
-        // Validate the new team
         await this.validateTeam(dto.team_id, tenant_id);
         employee.team_id = dto.team_id;
       } else {
-        // Remove from team (set to null)
         employee.team_id = null;
       }
     }
@@ -380,60 +344,56 @@ export class EmployeeService {
   }
 
   async getGenderPercentage(tenant_id: string): Promise<{
-  male: number;
-  female: number;
-  total: number;
-  activeEmployees: number;
-  inactiveEmployees: number;
-}> {
-  // Total employees (all statuses)
-  const totalEmployees = await this.employeeRepo
-    .createQueryBuilder('employee')
-    .leftJoin('employee.user', 'user')
-    .where('user.tenant_id = :tenant_id', { tenant_id })
-    .getCount();
+    male: number;
+    female: number;
+    total: number;
+    activeEmployees: number;
+    inactiveEmployees: number;
+  }> {
+    const totalEmployees = await this.employeeRepo
+      .createQueryBuilder('employee')
+      .leftJoin('employee.user', 'user')
+      .where('user.tenant_id = :tenant_id', { tenant_id })
+      .getCount();
 
-  // Active employees
-  const activeEmployees = await this.employeeRepo
-    .createQueryBuilder('employee')
-    .leftJoin('employee.user', 'user')
-    .where('user.tenant_id = :tenant_id', { tenant_id })
-    .andWhere('employee.status = :status', { status: 'active' })
-    .getCount();
+    const activeEmployees = await this.employeeRepo
+      .createQueryBuilder('employee')
+      .leftJoin('employee.user', 'user')
+      .where('user.tenant_id = :tenant_id', { tenant_id })
+      .andWhere('employee.status = :status', { status: 'active' })
+      .getCount();
 
-  // Inactive employees
-  const inactiveEmployees = await this.employeeRepo
-    .createQueryBuilder('employee')
-    .leftJoin('employee.user', 'user')
-    .where('user.tenant_id = :tenant_id', { tenant_id })
-    .andWhere('employee.status = :status', { status: 'inactive' })
-    .getCount();
+    const inactiveEmployees = await this.employeeRepo
+      .createQueryBuilder('employee')
+      .leftJoin('employee.user', 'user')
+      .where('user.tenant_id = :tenant_id', { tenant_id })
+      .andWhere('employee.status = :status', { status: 'inactive' })
+      .getCount();
 
-  // Male employees (all statuses)
-  const male = await this.employeeRepo
-    .createQueryBuilder('employee')
-    .leftJoin('employee.user', 'user')
-    .where('user.tenant_id = :tenant_id', { tenant_id })
-    .andWhere('user.gender = :gender', { gender: 'male' })
-    .getCount();
+    const male = await this.employeeRepo
+      .createQueryBuilder('employee')
+      .leftJoin('employee.user', 'user')
+      .where('user.tenant_id = :tenant_id', { tenant_id })
+      .andWhere('user.gender = :gender', { gender: 'male' })
+      .andWhere('employee.status = :status', { status: 'active' })
+      .getCount();
 
-  // Female employees (all statuses)
-  const female = await this.employeeRepo
-    .createQueryBuilder('employee')
-    .leftJoin('employee.user', 'user')
-    .where('user.tenant_id = :tenant_id', { tenant_id })
-    .andWhere('user.gender = :gender', { gender: 'female' })
-    .getCount();
+    const female = await this.employeeRepo
+      .createQueryBuilder('employee')
+      .leftJoin('employee.user', 'user')
+      .where('user.tenant_id = :tenant_id', { tenant_id })
+      .andWhere('user.gender = :gender', { gender: 'female' })
+      .andWhere('employee.status = :status', { status: 'active' })
+      .getCount();
 
-  return {
-    male,
-    female,
-    total: totalEmployees,
-    activeEmployees,
-    inactiveEmployees,
-  };
-}
-
+    return {
+      male,
+      female,
+      total: totalEmployees,
+      activeEmployees,
+      inactiveEmployees,
+    };
+  }
 
   async getEmployeeJoiningReport(tenant_id: string): Promise<any[]> {
     const results = await this.employeeRepo
@@ -453,13 +413,10 @@ export class EmployeeService {
       throw new BadRequestException('Error fetching employee joining report.');
     }
 
-    // Format the report data to a more readable format
-    const report = results.map((entry) => ({
-      month: parseInt(entry.month),  // Convert month to an integer
+    return results.map((entry) => ({
+      month: parseInt(entry.month),
       year: parseInt(entry.year),
       total: parseInt(entry.total),
     }));
-
-    return report;
   }
 }
