@@ -47,14 +47,41 @@ export class AttendanceController {
 		return this.attendanceService.findAll(userId, pageNumber);
 	}
 	
-	// Raw events for building multiple sessions per day in UI
-	@Get('events')
-	@ApiOperation({ summary: 'Get raw attendance events for a user' })
-	async events(@Req() req: Request, @Query('userId') userId?: string) {
-		const id = userId || (req.user as any).id;
-		// console.log(userId)
-		return this.attendanceService.findEvents(id);
+
+	@Get('all')
+	async findAllForAdmin(
+	  @Req() req: any,
+	  @Query('page') page?: string,
+	  @Query('startDate') startDate?: string,
+	  @Query('endDate') endDate?: string
+	) {
+	  const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+	  return this.attendanceService.getAllAttendance(req.user.tenant_id, pageNumber, startDate, endDate);
 	}
+	@Get('events')
+	async events(
+	  @Req() req: Request,
+	  @Query('userId') userId?: string,
+	  @Query('page') page?: string,
+	  @Query('startDate') startDate?: string,
+	  @Query('endDate') endDate?: string
+	) {
+	  const id = userId || (req.user as any).id;
+	  const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+	  return this.attendanceService.findEvents(id, pageNumber, startDate, endDate);
+	}
+
+
+
+
+	// Raw events for building multiple sessions per day in UI
+	// @Get('events')
+	// @ApiOperation({ summary: 'Get raw attendance events for a user' })
+	// async events(@Req() req: Request, @Query('userId') userId?: string) {
+	// 	const id = userId || (req.user as any).id;
+	// 	// console.log(userId)
+	// 	return this.attendanceService.findEvents(id);
+	// }
 	
 	@Get('today')
 	@ApiOperation({ summary: 'Get today latest check-in and its matching check-out' })
@@ -63,16 +90,16 @@ export class AttendanceController {
 		return this.attendanceService.getTodaySummary(id);
 	}
 	
-	@Get('all')
-	@UseGuards(RolesGuard, PermissionsGuard)
-	@Roles('admin', 'system-admin', 'manager')
-	@Permissions('manage_attendance')
-	@ApiOperation({ summary: 'Get all attendance records (Admin/Manager only)' })
-	@ApiResponse({ status: 200, description: 'Returns all attendance records for the tenant' })
-	async findAllForAdmin(@Req() req: any, @Query('page') page?: string) {
-		const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-		return this.attendanceService.getAllAttendance(req.user.tenant_id, pageNumber);
-	}
+	// @Get('all')
+	// @UseGuards(RolesGuard, PermissionsGuard)
+	// @Roles('admin', 'system-admin', 'manager')
+	// @Permissions('manage_attendance')
+	// @ApiOperation({ summary: 'Get all attendance records (Admin/Manager only)' })
+	// @ApiResponse({ status: 200, description: 'Returns all attendance records for the tenant' })
+	// async findAllForAdmin(@Req() req: any, @Query('page') page?: string) {
+	// 	const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+	// 	return this.attendanceService.getAllAttendance(req.user.tenant_id, pageNumber);
+	// }
 
   @Get('team')
   @UseGuards(RolesGuard, PermissionsGuard)

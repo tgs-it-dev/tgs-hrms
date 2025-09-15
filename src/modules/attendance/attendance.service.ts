@@ -35,7 +35,7 @@ export class AttendanceService {
 	
 	// Daily summary: one row per day (latest check-in/out of that day)
 	async findAll(userId?: string, page: number = 1) {
-		const limit =25;
+		const limit =20;
 		const skip = (page - 1) * limit;
 		const query = this.attendanceRepo.createQueryBuilder('attendance');
 		if (userId) {
@@ -90,34 +90,35 @@ export class AttendanceService {
 	}
 	
 	// Raw events list for building multiple sessions per day in UI
-	async findEvents(userId?: string, page: number = 1) {
-		const limit = 20;
-		const skip = (page - 1) * limit;
+	// async findEvents(userId?: string, page: number = 1) {
+	// 	const limit = 20;
+	// 	const skip = (page - 1) * limit;
 		
-		const qb = this.attendanceRepo.createQueryBuilder('attendance')
-			.leftJoinAndSelect('attendance.user', 'user')
-			.orderBy('attendance.timestamp', 'DESC');
+	// 	const qb = this.attendanceRepo.createQueryBuilder('attendance')
+	// 		.leftJoinAndSelect('attendance.user', 'user')
+	// 		.orderBy('attendance.timestamp', 'DESC');
 		
-			if (userId) {
-				qb.where('attendance.user_id = :userId', { userId });
-			  }
+	// 		if (userId) {
+	// 			qb.where('attendance.user_id = :userId', { userId });
+	// 		  }
 		
-		const [items, total] = await qb
-			.skip(skip)
-			.take(limit)
-			.getManyAndCount();
+	// 	const [items, total] = await qb
+	// 		.skip(skip)
+	// 		.take(limit)
+	// 		.getManyAndCount();
 
 
 
-		const totalPages = Math.ceil(total / limit);
-		return {
-			items,
-			total,
-			page,
-			limit,
-			totalPages,
-		};
-	}
+	// 	const totalPages = Math.ceil(total / limit);
+	// 	return {
+	// 		items,
+	// 		total,
+	// 		page,
+	// 		limit,
+	// 		totalPages,
+	// 	};
+	// }
+
 	
 	// Return check-in and its matching checkout (checkout must be after latest check-in)
 	async getTodaySummary(userId: string) {
@@ -161,28 +162,32 @@ export class AttendanceService {
 		return this.attendanceRepo.remove(attendance);
 	}
 	
-	async getAllAttendance(tenantId: string, page: number = 1) {
-		const limit = 20;
-		const skip = (page - 1) * limit;
+	// async getAllAttendance(tenantId: string, page: number = 1) {
+	// 	const limit = 20;
+	// 	const skip = (page - 1) * limit;
 		
-		const [items, total] = await this.attendanceRepo.findAndCount({
-			where: { user: { tenant_id: tenantId } },
-			relations: ['user'],
-			order: { timestamp: 'DESC' },
-			skip,
-			take: limit,
-		});
+	// 	const [items, total] = await this.attendanceRepo.findAndCount({
+	// 		where: { user: { tenant_id: tenantId } },
+	// 		relations: ['user'],
+	// 		order: { timestamp: 'DESC' },
+	// 		skip,
+	// 		take: limit,
+	// 	});
 		
-		const totalPages = Math.ceil(total / limit);
-		return {
-			items,
-			total,
-			page,
-			limit,
-			totalPages,
-		};
-	}
-
+	// 	const totalPages = Math.ceil(total / limit);
+	// 	return {
+	// 		items,
+	// 		total,
+	// 		page,
+	// 		limit,
+	// 		totalPages,
+	// 	};
+	// }
+	  
+	
+	
+	
+	
 	// Get total attendance for the current month (one per day per employee)
 	async getTotalAttendanceForCurrentMonth(tenantId: string): Promise<{ totalAttendance: number }> {
 		const now = new Date();
@@ -207,6 +212,36 @@ export class AttendanceService {
 
 		return { totalAttendance: result.length };
 	}
+
+	async getAllAttendance(tenantId: string, page = 1, startDate?: string, endDate?: string) {
+		const limit = 20;
+		const skip = (page - 1) * limit;
+		const qb = this.attendanceRepo
+		  .createQueryBuilder('attendance')
+		  .leftJoinAndSelect('attendance.user', 'user')
+		  .where('user.tenant_id = :tenantId', { tenantId });
+		if (startDate) qb.andWhere('attendance.timestamp >= :start', { start: new Date(startDate) });
+		if (endDate) qb.andWhere('attendance.timestamp <= :end', { end: new Date(endDate + 'T23:59:59.999Z') });
+		qb.orderBy('attendance.timestamp', 'DESC').skip(skip).take(limit);
+		const [items, total] = await qb.getManyAndCount();
+		const totalPages = Math.ceil(total / limit);
+		return { items, total, page, limit, totalPages };
+	  }
+	  async findEvents(userId?: string, page = 1, startDate?: string, endDate?: string) {
+		const limit = 20;
+		const skip = (page - 1) * limit;
+		const qb = this.attendanceRepo
+		  .createQueryBuilder('attendance')
+		  .leftJoinAndSelect('attendance.user', 'user')
+		  .orderBy('attendance.timestamp', 'DESC');
+		if (userId) qb.where('attendance.user_id = :userId', { userId });
+		if (startDate) qb.andWhere('attendance.timestamp >= :start', { start: new Date(startDate) });
+		if (endDate) qb.andWhere('attendance.timestamp <= :end', { end: new Date(endDate + 'T23:59:59.999Z') });
+		const [items, total] = await qb.skip(skip).take(limit).getManyAndCount();
+		const totalPages = Math.ceil(total / limit);
+		return { items, total, page, limit, totalPages };
+	  }
+
 
 	// Get team attendance for managers (similar to TeamLeaves)
 	async getTeamAttendance(managerId: string, tenantId: string, page: number = 1): Promise<{

@@ -93,7 +93,7 @@ async updateStatus(id: string, status: string, adminTenantId: string): Promise<L
     throw new ForbiddenException('Access denied');
   }
 
-  leave.status = status;
+  leave.status = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
   return await this.leaveRepo.save(leave);
 }
 
