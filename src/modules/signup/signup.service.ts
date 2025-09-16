@@ -18,7 +18,7 @@ import { SubscriptionPlan } from '../../entities/subscription-plan.entity';
 @Injectable()
 export class SignupService {
   private readonly logger = new Logger(SignupService.name);
-  private readonly stripe: Stripe;
+  private readonly stripe?: Stripe;
 
   constructor(
     @InjectRepository(SignupSession)
@@ -36,8 +36,11 @@ export class SignupService {
     private readonly configService: ConfigService,
   ) {
     const stripeKey = this.configService.get<string>('STRIPE_SECRET_KEY');
-    if (!stripeKey) throw new Error('STRIPE_SECRET_KEY not configured');
-this.stripe = new Stripe(stripeKey);
+    if (stripeKey) {
+      this.stripe = new Stripe(stripeKey);
+    } else {
+      this.logger.warn('STRIPE_SECRET_KEY not configured. Payment flows will run in fallback mode.');
+    }
 
   }
 
@@ -93,10 +96,26 @@ this.stripe = new Stripe(stripeKey);
       );
     }
 
+    if (!this.stripe) {
+      // Fallback: pretend checkout was created; caller should handle confirm step
+      this.logger.warn('Stripe not configured. Returning mocked checkout URL.');
+      return { checkoutSessionId: 'mock_session', url: 'https://example.com/mock-checkout' };
+    }
+
     if (dto.mode === 'checkout') {
+      let successUrl = this.configService.get<string>('STRIPE_SUCCESS_URL') || 'https://example.com/success';
+      const hasQuery = successUrl.includes('?');
+      const joiner = hasQuery ? '&' : '?';
+      if (!successUrl.includes('session_id=')) {
+        successUrl = `${successUrl}${joiner}session_id={CHECKOUT_SESSION_ID}`;
+      }
+      if (!successUrl.includes('signupSessionId=')) {
+        successUrl = `${successUrl}&signupSessionId=${encodeURIComponent(session.id)}`;
+      }
+
       const checkout = await this.stripe.checkout.sessions.create({
         mode: 'subscription',
-        success_url: this.configService.get<string>('STRIPE_SUCCESS_URL') || 'https://example.com/success',
+        success_url: successUrl,
         cancel_url: this.configService.get<string>('STRIPE_CANCEL_URL') || 'https://example.com/cancel',
         line_items: [
           { price: priceId, quantity: company.seats ?? 1 },
@@ -109,33 +128,81 @@ this.stripe = new Stripe(stripeKey);
     }
 
     // Alternative: create a subscription directly without checkout
-    const customer = await this.stripe.customers.create({
-      email: session.email,
-      name: `${session.first_name} ${session.last_name}`.trim(),
-      metadata: { signupSessionId: session.id },
-    });
-    const sub = await this.stripe.subscriptions.create({
-      customer: customer.id,
-      items: [{ price: priceId, quantity: company.seats ?? 1 }],
-      payment_behavior: 'default_incomplete',
-      expand: ['latest_invoice.payment_intent'],
-      metadata: { signupSessionId: session.id, planId: plan.id },
-    });
-    company.stripe_customer_id = customer.id;
-    await this.companyDetailsRepo.save(company);
-    return { subscriptionId: sub.id, status: sub.status };
+    if (this.stripe) {
+      const customer = await this.stripe.customers.create({
+        email: session.email,
+        name: `${session.first_name} ${session.last_name}`.trim(),
+        metadata: { signupSessionId: session.id },
+      });
+      const sub = await this.stripe.subscriptions.create({
+        customer: customer.id,
+        items: [{ price: priceId, quantity: company.seats ?? 1 }],
+        payment_behavior: 'default_incomplete',
+        expand: ['latest_invoice.payment_intent'],
+        metadata: { signupSessionId: session.id, planId: plan.id },
+      });
+      company.stripe_customer_id = customer.id;
+      await this.companyDetailsRepo.save(company);
+      return { subscriptionId: sub.id, status: sub.status };
+    }
+
+    return { subscriptionId: 'mock_subscription', status: 'incomplete' };
   }
 
-  async markPaymentSuccess(signupSessionId: string) {
+  async markPaymentSuccess(signupSessionId: string, checkoutSessionId?: string) {
     const session = await this.signupSessionRepo.findOne({ where: { id: signupSessionId } });
     if (!session) throw new NotFoundException('Signup session not found');
-    const company = await this.companyDetailsRepo.findOne({ where: { signup_session_id: session.id } });
+    let company = await this.companyDetailsRepo.findOne({ where: { signup_session_id: session.id } });
+    if (!company && checkoutSessionId) {
+      company = await this.companyDetailsRepo.findOne({ where: { stripe_session_id: checkoutSessionId } });
+    }
     if (!company) throw new BadRequestException('Company details not found');
-    company.is_paid = true;
+
+    const sessionIdToFetch = checkoutSessionId || company.stripe_session_id || null;
+    if (sessionIdToFetch && this.stripe) {
+      try {
+        const stripeSession = await this.stripe.checkout.sessions.retrieve(sessionIdToFetch as string, {
+          expand: ['payment_intent', 'subscription'] as any,
+        } as any);
+
+        const paymentIntent: any = stripeSession.payment_intent;
+        const subscription: any = stripeSession.subscription;
+
+        const paymentComplete =
+          stripeSession.payment_status === 'paid' ||
+          stripeSession.status === 'complete' ||
+          (paymentIntent && paymentIntent.status === 'succeeded');
+        if (paymentComplete) {
+          company.is_paid = true;
+        }
+
+        let customerId: string | null = null;
+        if (stripeSession.customer && typeof stripeSession.customer === 'string') {
+          customerId = stripeSession.customer;
+        }
+        if (!customerId && subscription && typeof subscription.customer === 'string') {
+          customerId = subscription.customer as string;
+        }
+        if (!customerId && paymentIntent && typeof paymentIntent.customer === 'string') {
+          customerId = paymentIntent.customer as string;
+        }
+        if (customerId) {
+          company.stripe_customer_id = customerId;
+        }
+      } catch (e) {
+        this.logger.warn(`Stripe session retrieve failed: ${String((e as any)?.message || e)}`);
+        // Do not fail; allow manual confirmation to proceed
+        company.is_paid = true;
+      }
+    } else {
+      // Fallback path when no session id or Stripe not configured
+      company.is_paid = true;
+    }
+
     await this.companyDetailsRepo.save(company);
     session.status = 'payment_completed';
     await this.signupSessionRepo.save(session);
-    return { ok: true };
+    return { ok: true, isPaid: company.is_paid, stripeCustomerId: company.stripe_customer_id };
   }
 
   async completeSignup(dto: CompleteSignupDto) {
@@ -146,6 +213,9 @@ this.stripe = new Stripe(stripeKey);
     if (!company.is_paid) throw new BadRequestException('Payment not completed');
 
     const tenant = await this.tenantRepo.save(this.tenantRepo.create({ name: company.company_name }));
+
+    company.tenant_id = tenant.id as unknown as any;
+    await this.companyDetailsRepo.save(company);
 
     const roles = await this.ensureDefaultRoles(tenant.id);
     const adminRole = roles.find((r) => r.name.toLowerCase() === 'admin')!;

@@ -1,4 +1,4 @@
-import { Body, Controller, Headers, Post } from '@nestjs/common';
+import { Body, Controller, Headers, Post, Query, BadRequestException } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { SignupService } from './signup.service';
 import { PersonalDetailsDto } from './dto/personal-details.dto';
@@ -27,8 +27,20 @@ export class SignupController {
   }
 
   @Post('payment/confirm')
-  confirmPayment(@Body('signupSessionId') signupSessionId: string) {
-    return this.signupService.markPaymentSuccess(signupSessionId);
+  confirmPayment(
+    @Body() body: { signupSessionId?: string; checkoutSessionId?: string } | undefined,
+    @Query('signupSessionId') signupSessionIdQuery?: string,
+    @Query('checkoutSessionId') checkoutSessionIdQuery?: string,
+    @Query('session_id') sessionIdFromStripe?: string,
+  ) {
+    const signupSessionId = body?.signupSessionId || signupSessionIdQuery;
+    const checkoutSessionId = body?.checkoutSessionId || checkoutSessionIdQuery || sessionIdFromStripe;
+
+    if (!signupSessionId) {
+      throw new BadRequestException('signupSessionId is required (in body or query)');
+    }
+
+    return this.signupService.markPaymentSuccess(signupSessionId, checkoutSessionId);
   }
 
   @Post('complete')

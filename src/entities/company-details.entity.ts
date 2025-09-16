@@ -1,5 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToOne, JoinColumn, ManyToOne } from 'typeorm';
 import { SignupSession } from './signup-session.entity';
+import { Tenant } from './tenant.entity';
 
 @Entity('company_details')
 export class CompanyDetails {
@@ -36,6 +37,13 @@ export class CompanyDetails {
   @OneToOne(() => SignupSession, (session) => session.companyDetails, { nullable: false })
   @JoinColumn({ name: 'signup_session_id' })
   signupSession: SignupSession;
+
+  @Column({ type: 'uuid' })
+  tenant_id: string;
+
+  @ManyToOne(() => Tenant, (tenant) => tenant.departments, { nullable: false })
+  @JoinColumn({ name: 'tenant_id' })
+  tenant: Tenant;
 
   @CreateDateColumn()
   created_at: Date;
