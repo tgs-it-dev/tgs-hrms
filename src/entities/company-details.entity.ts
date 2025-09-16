@@ -16,9 +16,6 @@ export class CompanyDetails {
   @Column({ type: 'varchar' })
   plan_id: string;
 
-  @Column({ type: 'int' })
-  seats: number;
-
   @Column({ type: 'boolean', default: false })
   is_paid: boolean;
 
