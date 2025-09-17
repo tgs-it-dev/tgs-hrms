@@ -21,6 +21,7 @@ import { PolicyModule } from './modules/policy/policy.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { TeamModule } from './modules/team/team.module';
 import { SignupModule } from './modules/signup/signup.module';
+import { SubscriptionModule } from './modules/subscription/subscription.module';
 
 // Added imports for mailer
 import { MailerModule } from '@nestjs-modules/mailer';
@@ -100,6 +101,7 @@ import { join } from 'path';
     ReportsModule,
     TeamModule,
     SignupModule,
+    SubscriptionModule,
   ],
   controllers: [AppController],
   providers: [AppService],
