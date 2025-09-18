@@ -71,7 +71,6 @@ export class SignupService {
       company_name: dto.companyName,
       domain: dto.domain,
       plan_id: dto.planId,
-      seats: dto.seats,
       signup_session_id: session.id,
       is_paid: false,
     });
@@ -102,30 +101,58 @@ export class SignupService {
       return { checkoutSessionId: 'mock_session', url: 'https://example.com/mock-checkout' };
     }
 
-    if (dto.mode === 'checkout') {
-      let successUrl = this.configService.get<string>('STRIPE_SUCCESS_URL') || 'https://example.com/success';
-      const hasQuery = successUrl.includes('?');
-      const joiner = hasQuery ? '&' : '?';
-      if (!successUrl.includes('session_id=')) {
-        successUrl = `${successUrl}${joiner}session_id={CHECKOUT_SESSION_ID}`;
-      }
-      if (!successUrl.includes('signupSessionId=')) {
-        successUrl = `${successUrl}&signupSessionId=${encodeURIComponent(session.id)}`;
-      }
+    // if (dto.mode === 'checkout') {
+    //   let successUrl = this.configService.get<string>('STRIPE_SUCCESS_URL') || 'https://example.com/success';
+    //   const hasQuery = successUrl.includes('?');
+    //   const joiner = hasQuery ? '&' : '?';
+    //   if (!successUrl.includes('session_id=')) {
+    //     successUrl = `${successUrl}${joiner}session_id={CHECKOUT_SESSION_ID}`;
+    //   }
+    //   if (!successUrl.includes('signupSessionId=')) {
+    //     successUrl = `${successUrl}&signupSessionId=${encodeURIComponent(session.id)}`;
+    //   }
 
-      const checkout = await this.stripe.checkout.sessions.create({
-        mode: 'subscription',
-        success_url: successUrl,
-        cancel_url: this.configService.get<string>('STRIPE_CANCEL_URL') || 'https://example.com/cancel',
-        line_items: [
-          { price: priceId, quantity: company.seats ?? 1 },
-        ],
-        metadata: { signupSessionId: session.id, planId: plan.id },
-      });
-      company.stripe_session_id = checkout.id;
-      await this.companyDetailsRepo.save(company);
-      return { checkoutSessionId: checkout.id, url: checkout.url };
-    }
+    //   const checkout = await this.stripe.checkout.sessions.create({
+    //     mode: 'subscription',
+    //     success_url: successUrl,
+    //     cancel_url: this.configService.get<string>('STRIPE_CANCEL_URL') || 'https://example.com/cancel',
+    //     line_items: [
+    //       { price: priceId, quantity: 1 },
+    //     ],
+    //     metadata: { signupSessionId: session.id, planId: plan.id },
+    //   });
+    //   company.stripe_session_id = checkout.id;
+    //   await this.companyDetailsRepo.save(company);
+    //   return { checkoutSessionId: checkout.id, url: checkout.url };
+    // }
+
+
+    // In your existing startPayment method
+if (dto.mode === 'checkout') {
+  let successUrl = this.configService.get<string>('STRIPE_SUCCESS_URL') || 'http://localhost:5173/signup/success';
+  const hasQuery = successUrl.includes('?');
+  const joiner = hasQuery ? '&' : '?';
+  if (!successUrl.includes('session_id=')) {
+    successUrl = `${successUrl}${joiner}session_id={CHECKOUT_SESSION_ID}`;
+  }
+  if (!successUrl.includes('signupSessionId=')) {
+    successUrl = `${successUrl}&signupSessionId=${encodeURIComponent(session.id)}`;
+  }
+
+  const checkout = await this.stripe.checkout.sessions.create({
+    mode: 'subscription',
+    success_url: successUrl,
+    cancel_url: this.configService.get<string>('STRIPE_CANCEL_URL') || 'http://localhost:5173/signup/cancel',
+    line_items: [
+      { price: priceId, quantity: 1 },
+    ],
+    metadata: { signupSessionId: session.id, planId: plan.id },
+  });
+  
+  company.stripe_session_id = checkout.id;
+  await this.companyDetailsRepo.save(company);
+  return { checkoutSessionId: checkout.id, url: checkout.url };
+}
 
     // Alternative: create a subscription directly without checkout
     if (this.stripe) {
@@ -136,12 +163,18 @@ export class SignupService {
       });
       const sub = await this.stripe.subscriptions.create({
         customer: customer.id,
-        items: [{ price: priceId, quantity: company.seats ?? 1 }],
+        items: [{ price: priceId, quantity: 1 }],
         payment_behavior: 'default_incomplete',
         expand: ['latest_invoice.payment_intent'],
         metadata: { signupSessionId: session.id, planId: plan.id },
       });
       company.stripe_customer_id = customer.id;
+      // Save PI id if available on expanded latest invoice
+      const latestInvoice: any = (sub as any)?.latest_invoice;
+      const createdPiId: string | undefined = latestInvoice?.payment_intent?.id;
+      if (createdPiId) {
+        company.stripe_payment_intent_id = createdPiId;
+      }
       await this.companyDetailsRepo.save(company);
       return { subscriptionId: sub.id, status: sub.status };
     }
@@ -162,11 +195,29 @@ export class SignupService {
     if (sessionIdToFetch && this.stripe) {
       try {
         const stripeSession = await this.stripe.checkout.sessions.retrieve(sessionIdToFetch as string, {
-          expand: ['payment_intent', 'subscription'] as any,
+          // Payment intent can be on multiple nested paths depending on flow
+          expand: [
+            'payment_intent',
+            'subscription',
+            'subscription.latest_invoice.payment_intent',
+            'invoice.payment_intent',
+          ] as any,
         } as any);
 
-        const paymentIntent: any = stripeSession.payment_intent;
-        const subscription: any = stripeSession.subscription;
+        let paymentIntent: any = (stripeSession as any).payment_intent;
+        let subscription: any = (stripeSession as any).subscription;
+        if (!paymentIntent && subscription && typeof subscription === 'object') {
+          const fromExpanded = (subscription as any)?.latest_invoice?.payment_intent;
+          if (fromExpanded) {
+            paymentIntent = fromExpanded;
+          }
+        }
+        if (!paymentIntent) {
+          const fromInvoice = (stripeSession as any)?.invoice?.payment_intent;
+          if (fromInvoice) {
+            paymentIntent = fromInvoice;
+          }
+        }
 
         const paymentComplete =
           stripeSession.payment_status === 'paid' ||
@@ -180,14 +231,27 @@ export class SignupService {
         if (stripeSession.customer && typeof stripeSession.customer === 'string') {
           customerId = stripeSession.customer;
         }
-        if (!customerId && subscription && typeof subscription.customer === 'string') {
-          customerId = subscription.customer as string;
+        if (!customerId && subscription && typeof (subscription as any).customer === 'string') {
+          customerId = (subscription as any).customer as string;
         }
         if (!customerId && paymentIntent && typeof paymentIntent.customer === 'string') {
           customerId = paymentIntent.customer as string;
         }
         if (customerId) {
           company.stripe_customer_id = customerId;
+        }
+        // Persist Payment Intent ID
+        if (paymentIntent && typeof paymentIntent.id === 'string') {
+          company.stripe_payment_intent_id = paymentIntent.id;
+        } else if (subscription && typeof subscription === 'string') {
+          // Fallback: retrieve subscription for expanded latest invoice PI
+          const sub = await this.stripe.subscriptions.retrieve(subscription as string, {
+            expand: ['latest_invoice.payment_intent'],
+          } as any);
+          const piId = (sub as any)?.latest_invoice?.payment_intent?.id;
+          if (piId) {
+            company.stripe_payment_intent_id = piId;
+          }
         }
       } catch (e) {
         this.logger.warn(`Stripe session retrieve failed: ${String((e as any)?.message || e)}`);
@@ -202,7 +266,18 @@ export class SignupService {
     await this.companyDetailsRepo.save(company);
     session.status = 'payment_completed';
     await this.signupSessionRepo.save(session);
-    return { ok: true, isPaid: company.is_paid, stripeCustomerId: company.stripe_customer_id };
+    // return { ok: true, isPaid: company.is_paid, 
+    //   stripeCustomerId: company.stripe_customer_id, 
+    //   stripePaymentIntentId: company.stripe_payment_intent_id };
+    return { 
+      ok: true, 
+      isPaid: company.is_paid, 
+      stripeCustomerId: company.stripe_customer_id, 
+      stripePaymentIntentId: company.stripe_payment_intent_id,
+      status: company.is_paid ? 'succeeded' : 'failed',
+      transactionId: company.stripe_payment_intent_id || company.stripe_session_id
+    };
+
   }
 
   async completeSignup(dto: CompleteSignupDto) {

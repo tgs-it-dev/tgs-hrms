@@ -14,9 +14,6 @@ export class SubscriptionPlan {
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
-  @Column({ type: 'int', nullable: true })
-  seats: number | null;
-
   @CreateDateColumn()
   created_at: Date;
 

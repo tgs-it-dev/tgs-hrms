@@ -21,11 +21,11 @@ export class SignupController {
     return this.signupService.saveCompanyDetails(dto);
   }
 
-  @Post('payment')
-  startPayment(@Body() dto: PaymentDto) {
-    return this.signupService.startPayment(dto);
-  }
-
+ // In your SignupController
+@Post('payment')  // This should be the endpoint
+async startPayment(@Body() paymentDto: PaymentDto) {
+  return this.signupService.startPayment(paymentDto);
+}
   @Post('payment/confirm')
   confirmPayment(
     @Body() body: { signupSessionId?: string; checkoutSessionId?: string } | undefined,
