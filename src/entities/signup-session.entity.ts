@@ -1,4 +1,11 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToOne } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToOne,
+} from 'typeorm';
 import { CompanyDetails } from './company-details.entity';
 
 @Entity('signup_sessions')
@@ -33,5 +40,3 @@ export class SignupSession {
   @OneToOne(() => CompanyDetails, (company) => company.signupSession)
   companyDetails: CompanyDetails;
 }
-
-

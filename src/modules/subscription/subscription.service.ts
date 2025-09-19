@@ -1,35 +1,3 @@
-// import { Injectable } from '@nestjs/common';
-// import { InjectRepository } from '@nestjs/typeorm';
-// import { Repository } from 'typeorm';
-// import { SubscriptionPlan } from '../../entities/subscription-plan.entity';
-
-// @Injectable()
-// export class SubscriptionService {
-//   constructor(
-//     @InjectRepository(SubscriptionPlan)
-//     private readonly subscriptionPlanRepo: Repository<SubscriptionPlan>,
-//   ) {}
-
-//   async getAllSubscriptionPlans(): Promise<SubscriptionPlan[]> {
-//     return this.subscriptionPlanRepo.find({
-//       order: {
-//         created_at: 'ASC',
-//       },
-//     });
-//   }
-
-//   async getSubscriptionPlanById(id: string): Promise<SubscriptionPlan | null> {
-//     return this.subscriptionPlanRepo.findOne({
-//       where: { id },
-//     });
-//   }
-// }
-
-
-
-
-
-// src/modules/subscription/subscription.service.ts
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
@@ -45,11 +13,14 @@ export class SubscriptionService {
   constructor(
     @InjectRepository(SubscriptionPlan)
     private readonly subscriptionPlanRepo: Repository<SubscriptionPlan>,
-    private readonly configService: ConfigService,
+    private readonly configService: ConfigService
   ) {
     const stripeKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (stripeKey) this.stripe = new Stripe(stripeKey);
-    else this.logger.warn('STRIPE_SECRET_KEY not configured; prices endpoint will return mocked values.');
+    else
+      this.logger.warn(
+        'STRIPE_SECRET_KEY not configured; prices endpoint will return mocked values.'
+      );
   }
 
   async getAllSubscriptionPlans(): Promise<SubscriptionPlan[]> {
@@ -68,10 +39,10 @@ export class SubscriptionService {
         priceId,
         currency: 'usd',
         unit_amount: [900, 1900, 3000][index] || 1000, // cents
-        interval: 'month'
+        interval: 'month',
       }));
     }
-  
+
     try {
       // Fetch prices from Stripe
       const prices = await Promise.all(
@@ -81,7 +52,7 @@ export class SubscriptionService {
             priceId,
             currency: price.currency?.toUpperCase() || 'USD',
             unit_amount: price.unit_amount || 0,
-            interval: price.recurring?.interval || 'month'
+            interval: price.recurring?.interval || 'month',
           };
         })
       );

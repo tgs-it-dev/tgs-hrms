@@ -35,6 +35,3 @@ export class Team {
   @OneToMany(() => Employee, (employee) => employee.team)
   teamMembers: Employee[];
 }
-
-
-

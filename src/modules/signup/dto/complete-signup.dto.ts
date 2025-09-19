@@ -7,4 +7,3 @@ export class CompleteSignupDto {
   @IsNotEmpty()
   signupSessionId: string;
 }
-

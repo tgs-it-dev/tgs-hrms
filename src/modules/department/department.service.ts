@@ -15,7 +15,7 @@ import { PaginationResponse } from '../../common/interfaces/pagination.interface
 export class DepartmentService {
   constructor(
     @InjectRepository(Department)
-    private repo: Repository<Department>,
+    private repo: Repository<Department>
   ) {}
 
   async create(tenant_id: string, dto: CreateDepartmentDto) {
@@ -24,9 +24,7 @@ export class DepartmentService {
     });
 
     if (existing) {
-      throw new ConflictException(
-        `Department '${dto.name}' already exists in your company.`,
-      );
+      throw new ConflictException(`Department '${dto.name}' already exists in your company.`);
     }
 
     try {
@@ -40,9 +38,7 @@ export class DepartmentService {
       return await this.repo.save(department);
     } catch (err) {
       if (err instanceof QueryFailedError && (err as any).code === '23505') {
-        throw new ConflictException(
-          'Department name must be unique within your company',
-        );
+        throw new ConflictException('Department name must be unique within your company');
       }
       if (err instanceof QueryFailedError && (err as any).code === '23502') {
         throw new BadRequestException('Department name is required.');
@@ -65,16 +61,17 @@ export class DepartmentService {
 
       if (existing && existing.id !== id) {
         throw new ConflictException(
-          `Department name '${dto.name}' already exists for this tenant.`,
+          `Department name '${dto.name}' already exists for this tenant.`
         );
       }
     }
 
     // Handle description explicitly - if empty string, set to null
     if (dto.description !== undefined) {
-      department.description = dto.description === '' || dto.description === null ? null : dto.description;
+      department.description =
+        dto.description === '' || dto.description === null ? null : dto.description;
     }
-    
+
     // Handle name update
     if (dto.name !== undefined) {
       department.name = dto.name;
@@ -84,9 +81,7 @@ export class DepartmentService {
       return await this.repo.save(department);
     } catch (err) {
       if (err instanceof QueryFailedError && (err as any).code === '23505') {
-        throw new ConflictException(
-          'Department name must be unique within your company',
-        );
+        throw new ConflictException('Department name must be unique within your company');
       }
       throw err;
     }
@@ -97,9 +92,7 @@ export class DepartmentService {
       where: { tenant_id },
       order: { created_at: 'DESC' },
     });
-    
   }
-
 
   async findOne(tenant_id: string, id: string) {
     const dept = await this.repo.findOne({ where: { id, tenant_id } });

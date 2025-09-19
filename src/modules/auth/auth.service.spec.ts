@@ -30,11 +30,11 @@ const mockTenant: Tenant = {
 };
 
 const mockUser: User = {
-  id: '1', 
+  id: '1',
   email: 'admin@company.com',
   password: mockPassword,
   role_id: '11111111-1111-1111-1111-111111111111',
-  tenant_id: '11111111-1111-1111-1111-111111111111', 
+  tenant_id: '11111111-1111-1111-1111-111111111111',
   reset_token: '',
   reset_token_expiry: new Date(),
   refresh_token: '',
@@ -109,14 +109,14 @@ describe('AuthService - Login', () => {
 
   it('should throw error for invalid email', async () => {
     await expect(service.validateUser('wrong@company.com', '123456')).rejects.toThrow(
-      BadRequestException,
+      BadRequestException
     );
   });
 
   it('should throw error for invalid password', async () => {
     jest.spyOn(bcrypt, 'compare').mockImplementation(() => Promise.resolve(false));
     await expect(service.validateUser('admin@company.com', 'wrongpass')).rejects.toThrow(
-      BadRequestException,
+      BadRequestException
     );
   });
 });

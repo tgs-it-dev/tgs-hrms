@@ -13,23 +13,31 @@ export class TimesheetService {
     @InjectRepository(Attendance)
     private readonly attendanceRepo: Repository<Attendance>,
     @InjectRepository(User)
-    private readonly userRepo: Repository<User>,
+    private readonly userRepo: Repository<User>
   ) {}
 
   // Start the work timer only if the user has checked in
   async startWork(userId: string) {
     const now = new Date();
     // Define start and end of the day (UTC)
-    const startOfDayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
-    const startOfNextDayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0));
+    const startOfDayUtc = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0)
+    );
+    const startOfNextDayUtc = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0)
+    );
 
     // Find the most recent attendance record for the user today
-    const latestAttendance = await this.attendanceRepo.createQueryBuilder('attendance')
+    const latestAttendance = await this.attendanceRepo
+      .createQueryBuilder('attendance')
       .where('attendance.user_id = :userId', { userId })
-      .andWhere('attendance.timestamp >= :startOfDayUtc AND attendance.timestamp < :startOfNextDayUtc', {
-        startOfDayUtc,
-        startOfNextDayUtc,
-      })
+      .andWhere(
+        'attendance.timestamp >= :startOfDayUtc AND attendance.timestamp < :startOfNextDayUtc',
+        {
+          startOfDayUtc,
+          startOfNextDayUtc,
+        }
+      )
       .orderBy('attendance.timestamp', 'DESC')
       .getOne();
 
@@ -39,7 +47,9 @@ export class TimesheetService {
     }
 
     // Prevent starting a new session if one is already in progress
-    const activeSession = await this.timesheetRepo.findOne({ where: { user_id: userId, end_time: IsNull() } });
+    const activeSession = await this.timesheetRepo.findOne({
+      where: { user_id: userId, end_time: IsNull() },
+    });
     if (activeSession) {
       throw new BadRequestException('Active work session already exists');
     }
@@ -59,11 +69,18 @@ export class TimesheetService {
 
   // End the work session automatically when the user checks out
   async endWork(userId: string) {
-    const activeSession = await this.timesheetRepo.findOne({ where: { user_id: userId, end_time: IsNull() } });
+    const activeSession = await this.timesheetRepo.findOne({
+      where: { user_id: userId, end_time: IsNull() },
+    });
     if (!activeSession) throw new NotFoundException('No active work session found');
 
     activeSession.end_time = new Date();
-    activeSession.duration_hours = Math.round(((activeSession.end_time.getTime() - new Date(activeSession.start_time).getTime()) / (1000 * 60 * 60)) * 100) / 100;
+    activeSession.duration_hours =
+      Math.round(
+        ((activeSession.end_time.getTime() - new Date(activeSession.start_time).getTime()) /
+          (1000 * 60 * 60)) *
+          100
+      ) / 100;
 
     if (!activeSession.employee_full_name) {
       const user = await this.userRepo.findOne({ where: { id: userId } });
@@ -75,11 +92,18 @@ export class TimesheetService {
 
   // Automatically stop the active timer if there is one
   async autoEndIfActive(userId: string) {
-    const activeSession = await this.timesheetRepo.findOne({ where: { user_id: userId, end_time: IsNull() } });
+    const activeSession = await this.timesheetRepo.findOne({
+      where: { user_id: userId, end_time: IsNull() },
+    });
     if (!activeSession) return null;
 
     activeSession.end_time = new Date();
-    activeSession.duration_hours = Math.round(((activeSession.end_time.getTime() - new Date(activeSession.start_time).getTime()) / (1000 * 60 * 60)) * 100) / 100;
+    activeSession.duration_hours =
+      Math.round(
+        ((activeSession.end_time.getTime() - new Date(activeSession.start_time).getTime()) /
+          (1000 * 60 * 60)) *
+          100
+      ) / 100;
 
     if (!activeSession.employee_full_name) {
       const user = await this.userRepo.findOne({ where: { id: userId } });
@@ -93,7 +117,7 @@ export class TimesheetService {
   async list(userId: string, page: number = 1) {
     const limit = 10; // Consistent with other modules
     const skip = (page - 1) * limit;
-    
+
     const [sessions, total] = await this.timesheetRepo.findAndCount({
       where: { user_id: userId },
       order: { start_time: 'DESC' },
@@ -102,21 +126,31 @@ export class TimesheetService {
     });
 
     const sessionsWithDuration = sessions.map((s) => {
-      const durationHours = s.duration_hours ?? (s.end_time ? Math.round(((new Date(s.end_time).getTime() - new Date(s.start_time).getTime()) / (1000 * 60 * 60)) * 100) / 100 : null);
+      const durationHours =
+        s.duration_hours ??
+        (s.end_time
+          ? Math.round(
+              ((new Date(s.end_time).getTime() - new Date(s.start_time).getTime()) /
+                (1000 * 60 * 60)) *
+                100
+            ) / 100
+          : null);
       return { ...s, durationHours, employee_full_name: s.employee_full_name ?? undefined };
     });
 
-    const totalHours = Math.round((sessionsWithDuration.reduce((sum, s) => sum + (s.durationHours || 0), 0)) * 100) / 100;
+    const totalHours =
+      Math.round(sessionsWithDuration.reduce((sum, s) => sum + (s.durationHours || 0), 0) * 100) /
+      100;
     const user = await this.userRepo.findOne({ where: { id: userId } });
     const fullName = user ? `${user.first_name} ${user.last_name}` : undefined;
-    
+
     const totalPages = Math.ceil(total / limit);
-    
+
     return {
       items: {
         employee: { userId, fullName },
         totalHours,
-        sessions: sessionsWithDuration
+        sessions: sessionsWithDuration,
       },
       total,
       page,
@@ -129,7 +163,7 @@ export class TimesheetService {
   async summaryByTenant(tenantId: string, from?: string, to?: string, page: number = 1) {
     const limit = 25;
     const skip = (page - 1) * limit;
-    
+
     const qb = this.timesheetRepo
       .createQueryBuilder('t')
       .innerJoin('t.user', 'u')
@@ -155,8 +189,8 @@ export class TimesheetService {
       .select('u.id', 'user_id')
       .addSelect("CONCAT(u.first_name, ' ', u.last_name)", 'employee_name')
       .addSelect(
-        "ROUND(SUM(EXTRACT(EPOCH FROM (t.end_time - t.start_time)) / 3600)::numeric, 2)",
-        'total_hours',
+        'ROUND(SUM(EXTRACT(EPOCH FROM (t.end_time - t.start_time)) / 3600)::numeric, 2)',
+        'total_hours'
       )
       .groupBy('u.id')
       .addGroupBy('u.first_name')
@@ -167,7 +201,7 @@ export class TimesheetService {
       .getRawMany();
 
     const totalPages = Math.ceil(total / limit);
-    
+
     return {
       items,
       total,

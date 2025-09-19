@@ -6,10 +6,7 @@ export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
   @Get('attendance-summary')
-  async attendanceSummary(
-    @Query('userId') userId?: string,
-    @Query('month') month?: string,
-  ) {
+  async attendanceSummary(@Query('userId') userId?: string, @Query('month') month?: string) {
     return this.reportsService.getAttendanceSummary(userId, month);
   }
 
@@ -23,5 +20,3 @@ export class ReportsController {
     return this.reportsService.getHeadcount();
   }
 }
-
-

@@ -10,7 +10,9 @@ import { Role } from '../../entities/role.entity';
 import { SubscriptionPlan } from '../../entities/subscription-plan.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([SignupSession, CompanyDetails, Tenant, User, Role, SubscriptionPlan])],
+  imports: [
+    TypeOrmModule.forFeature([SignupSession, CompanyDetails, Tenant, User, Role, SubscriptionPlan]),
+  ],
   controllers: [SignupController],
   providers: [SignupService],
 })

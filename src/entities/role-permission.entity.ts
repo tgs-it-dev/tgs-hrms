@@ -1,10 +1,4 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  ManyToOne,
-  JoinColumn,
-} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { Role } from './role.entity';
 import { Permission } from './permission.entity';
 
@@ -26,4 +20,4 @@ export class RolePermission {
   @ManyToOne(() => Permission, (permission) => permission.rolePermissions, { nullable: false })
   @JoinColumn({ name: 'permission_id' })
   permission: Permission;
-} 
+}

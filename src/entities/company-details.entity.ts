@@ -1,4 +1,13 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToOne, JoinColumn, ManyToOne } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToOne,
+  JoinColumn,
+  ManyToOne,
+} from 'typeorm';
 import { SignupSession } from './signup-session.entity';
 import { Tenant } from './tenant.entity';
 
@@ -48,5 +57,3 @@ export class CompanyDetails {
   @UpdateDateColumn()
   updated_at: Date;
 }
-
-

@@ -11,5 +11,3 @@ export class PaymentDto {
   @IsEnum(['checkout', 'payment_intent'] as any)
   mode: 'checkout' | 'payment_intent';
 }
-
-

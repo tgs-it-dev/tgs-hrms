@@ -1,10 +1,4 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  CreateDateColumn,
-  OneToMany,
-} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToMany } from 'typeorm';
 import { User } from './user.entity';
 import { Department } from './department.entity';
 
@@ -24,4 +18,4 @@ export class Tenant {
 
   @OneToMany(() => Department, (department) => department.tenant)
   departments: Department[];
-} 
+}

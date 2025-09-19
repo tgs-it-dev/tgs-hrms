@@ -24,6 +24,3 @@ export class CreateTeamDto {
   })
   manager_id: string;
 }
-
-
-

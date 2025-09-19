@@ -9,7 +9,7 @@ import * as dotenv from 'dotenv';
 dotenv.config({ path: '.env.test' });
 
 const adminToken = makeBearerToken('admin');
-const userToken  = makeBearerToken('user');
+const userToken = makeBearerToken('user');
 
 describe('DepartmentController (e2e)', () => {
   let app: INestApplication<App>;

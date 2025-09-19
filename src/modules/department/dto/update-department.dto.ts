@@ -21,9 +21,3 @@ export class UpdateDepartmentDto extends PartialType(CreateDepartmentDto) {
   @IsString()
   description?: string | null;
 }
-
-
-
-
-
-

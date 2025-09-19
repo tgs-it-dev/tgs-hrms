@@ -37,5 +37,3 @@ export class Timesheet {
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
 }
-
-

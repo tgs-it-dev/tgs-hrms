@@ -14,39 +14,38 @@ async function bootstrap() {
     prefix: '/',
   });
 
-  
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true, 
-      forbidNonWhitelisted: true, 
-      transform: true, 
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
       transformOptions: {
         enableImplicitConversion: true,
       },
       exceptionFactory: (errors) => {
-        
-        const errorMessages = errors.map(error => ({
+        const errorMessages = errors.map((error) => ({
           field: error.property,
           message: Object.values(error.constraints || {}).join(', '),
         }));
-        
+
         return new BadRequestException({
           message: 'Missing Fields Error',
           errors: errorMessages,
         });
       },
-    }),
+    })
   );
 
-  
   app.enableCors({
     origin: '*',
-    credentials: true, 
+    credentials: true,
   });
 
   const config = new DocumentBuilder()
     .setTitle('HRMS Backend APIs')
-    .setDescription('APIs for login, registration and tenant-based access for Department and Designation')
+    .setDescription(
+      'APIs for login, registration and tenant-based access for Department and Designation'
+    )
     .setVersion('1.0')
     .addBearerAuth()
     .build();
@@ -58,6 +57,3 @@ async function bootstrap() {
   await app.listen(port, host);
 }
 bootstrap();
-
-
-

@@ -91,10 +91,7 @@ describe('AuthService - Refresh Token', () => {
         tenant_id: 1,
       };
 
-      const mockPermissions = [
-        { name: 'read:users' },
-        { name: 'write:users' }
-      ];
+      const mockPermissions = [{ name: 'read:users' }, { name: 'write:users' }];
 
       mockJwtService.verify.mockReturnValue(mockPayload);
       mockUserRepository.findOne.mockResolvedValue(mockUser);
@@ -122,7 +119,7 @@ describe('AuthService - Refresh Token', () => {
         {
           secret: 'mocked-secret',
           expiresIn: '24h',
-        },
+        }
       );
     });
 
@@ -141,7 +138,7 @@ describe('AuthService - Refresh Token', () => {
     it('should throw UnauthorizedException when user role is missing', async () => {
       const mockPayload = { sub: 1 };
       const userWithoutRole = { ...mockUser, role: null };
-      
+
       mockJwtService.verify.mockReturnValue(mockPayload);
       mockUserRepository.findOne.mockResolvedValue(userWithoutRole);
 
@@ -151,7 +148,7 @@ describe('AuthService - Refresh Token', () => {
     it('should throw UnauthorizedException when stored refresh token does not match', async () => {
       const mockPayload = { sub: 1 };
       const userWithDifferentToken = { ...mockUser, refresh_token: 'different-token' };
-      
+
       mockJwtService.verify.mockReturnValue(mockPayload);
       mockUserRepository.findOne.mockResolvedValue(userWithDifferentToken);
 

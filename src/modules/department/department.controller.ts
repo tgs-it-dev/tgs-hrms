@@ -10,12 +10,7 @@ import {
   UseGuards,
   Query,
 } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOperation,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { DepartmentService } from './department.service';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
@@ -86,7 +81,6 @@ export class DepartmentController {
     const tenant_id = req.user.tenant_id;
     return await this.service.findAll(tenant_id);
   }
-
 
   @Get(':id')
   @Roles('admin', 'system-admin')

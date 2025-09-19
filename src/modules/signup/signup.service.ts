@@ -33,22 +33,25 @@ export class SignupService {
     private readonly roleRepo: Repository<Role>,
     @InjectRepository(SubscriptionPlan)
     private readonly planRepo: Repository<SubscriptionPlan>,
-    private readonly configService: ConfigService,
-
+    private readonly configService: ConfigService
   ) {
     const stripeKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (stripeKey) {
       this.stripe = new Stripe(stripeKey);
     } else {
-      this.logger.warn('STRIPE_SECRET_KEY not configured. Payment flows will run in fallback mode.');
+      this.logger.warn(
+        'STRIPE_SECRET_KEY not configured. Payment flows will run in fallback mode.'
+      );
     }
-
   }
 
   async savePersonalDetails(dto: PersonalDetailsDto) {
     const existingUser = await this.userRepo.findOne({ where: { email: dto.email.toLowerCase() } });
     if (existingUser) {
-      throw new BadRequestException({ field: 'email', message: 'User with this email already exists' });
+      throw new BadRequestException({
+        field: 'email',
+        message: 'User with this email already exists',
+      });
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
@@ -82,108 +85,67 @@ export class SignupService {
   }
 
   async startPayment(dto: PaymentDto) {
-//     const session = await this.signupSessionRepo.findOne({ where: { id: dto.signupSessionId }, relations: ['companyDetails'] });
-//     if (!session) throw new NotFoundException('Signup session not found');
-//     const company = await this.companyDetailsRepo.findOne({ where: { signup_session_id: session.id } });
-//     if (!company) throw new BadRequestException('Company details not found');
-
-//     const plan = await this.planRepo.findOne({ where: { id: company.plan_id } });
-//     if (!plan) throw new BadRequestException('Invalid planId');
-//     const priceId = (plan.stripePriceId || '').trim();
-//     if (!priceId || !priceId.startsWith('price_')) {
-//       throw new BadRequestException(
-//         'Invalid stripePriceId configured for plan. Expected a Stripe Price ID starting with "price_". Update the plan to use a valid recurring Price from your Stripe Dashboard.'
-//       );
-//     }
-
-//     if (!this.stripe) {
-//       // Fallback: pretend checkout was created; caller should handle confirm step
-//       this.logger.warn('Stripe not configured. Returning mocked checkout URL.');
-//       return { checkoutSessionId: 'mock_session', url: 'https://example.com/mock-checkout' };
-//     }
-
-//     // In your existing startPayment method
-// if (dto.mode === 'checkout') {
-//   let successUrl = this.configService.get<string>('STRIPE_SUCCESS_URL') || 'http://192.168.0.141:5173/signup/success';
-//   const hasQuery = successUrl.includes('?');
-//   const joiner = hasQuery ? '&' : '?';
-//   if (!successUrl.includes('session_id=')) {
-//     successUrl = `${successUrl}${joiner}session_id={CHECKOUT_SESSION_ID}`;
-//   }
-//   if (!successUrl.includes('signupSessionId=')) {
-//     successUrl = `${successUrl}&signupSessionId=${encodeURIComponent(session.id)}`;
-//   }
-
-//   const checkout = await this.stripe.checkout.sessions.create({
-//     mode: 'subscription',
-//     success_url: successUrl,
-//     cancel_url: this.configService.get<string>('STRIPE_CANCEL_URL') || 'http://localhost:5173/signup/cancel',
-//     line_items: [
-//       { price: priceId, quantity: 1 },
-//     ],
-//     metadata: { signupSessionId: session.id, planId: plan.id },
-//   });
-  
-//   company.stripe_session_id = checkout.id;
-//   await this.companyDetailsRepo.save(company);
-//   return { checkoutSessionId: checkout.id, url: checkout.url };
-// }
-
-
-const session = await this.signupSessionRepo.findOne({ where: { id: dto.signupSessionId }, relations: ['companyDetails'] });
-  if (!session) throw new NotFoundException('Signup session not found');
-  const company = await this.companyDetailsRepo.findOne({ where: { signup_session_id: session.id } });
-  if (!company) throw new BadRequestException('Company details not found');
-
-  const plan = await this.planRepo.findOne({ where: { id: company.plan_id } });
-  if (!plan) throw new BadRequestException('Invalid planId');
-  const priceId = (plan.stripePriceId || '').trim();
-  if (!priceId || !priceId.startsWith('price_')) {
-    throw new BadRequestException(
-      'Invalid stripePriceId configured for plan. Expected a Stripe Price ID starting with "price_". Update the plan to use a valid recurring Price from your Stripe Dashboard.'
-    );
-  }
-
-  if (!this.stripe) {
-    this.logger.warn('Stripe not configured. Returning mocked checkout URL.');
-    return { checkoutSessionId: 'mock_session', url: 'https://example.com/mock-checkout' };
-  }
-
-  if (dto.mode === 'checkout') {
-    // Get base URL from environment
-    let successUrl = this.configService.get<string>('STRIPE_SUCCESS_URL') || 'http://192.168.0.141:5173/signup/confirm-payment';
-    
-    // Add session_id parameter
-    const hasQuery = successUrl.includes('?');
-    const joiner = hasQuery ? '&' : '?';
-    if (!successUrl.includes('session_id=')) {
-      successUrl = `${successUrl}${joiner}session_id={CHECKOUT_SESSION_ID}`;
-    }
-    
-    // Add signupSessionId parameter
-    if (!successUrl.includes('signupSessionId=')) {
-      successUrl = `${successUrl}&signupSessionId=${session.id}`;
-    }
-
-    console.log('=== STRIPE SUCCESS URL DEBUG ===');
-    console.log('Base URL:', this.configService.get<string>('STRIPE_SUCCESS_URL'));
-    console.log('Final success URL:', successUrl);
-    console.log('Session ID:', session.id);
-
-    const checkout = await this.stripe.checkout.sessions.create({
-      mode: 'subscription',
-      success_url: successUrl,
-      cancel_url: this.configService.get<string>('STRIPE_CANCEL_URL') || 'http://192.168.0.141:5173/signup/select-plan',
-      line_items: [
-        { price: priceId, quantity: 1 },
-      ],
-      metadata: { signupSessionId: session.id, planId: plan.id },
+    const session = await this.signupSessionRepo.findOne({
+      where: { id: dto.signupSessionId },
+      relations: ['companyDetails'],
     });
-    
-    company.stripe_session_id = checkout.id;
-    await this.companyDetailsRepo.save(company);
-    return { checkoutSessionId: checkout.id, url: checkout.url };
-  }
+    if (!session) throw new NotFoundException('Signup session not found');
+    const company = await this.companyDetailsRepo.findOne({
+      where: { signup_session_id: session.id },
+    });
+    if (!company) throw new BadRequestException('Company details not found');
+
+    const plan = await this.planRepo.findOne({ where: { id: company.plan_id } });
+    if (!plan) throw new BadRequestException('Invalid planId');
+    const priceId = (plan.stripePriceId || '').trim();
+    if (!priceId || !priceId.startsWith('price_')) {
+      throw new BadRequestException(
+        'Invalid stripePriceId configured for plan. Expected a Stripe Price ID starting with "price_". Update the plan to use a valid recurring Price from your Stripe Dashboard.'
+      );
+    }
+
+    if (!this.stripe) {
+      this.logger.warn('Stripe not configured. Returning mocked checkout URL.');
+      return { checkoutSessionId: 'mock_session', url: 'https://example.com/mock-checkout' };
+    }
+
+    if (dto.mode === 'checkout') {
+      // Get base URL from environment
+      let successUrl =
+        this.configService.get<string>('STRIPE_SUCCESS_URL') ||
+        'http://192.168.0.141:5173/signup/confirm-payment';
+
+      // Add session_id parameter
+      const hasQuery = successUrl.includes('?');
+      const joiner = hasQuery ? '&' : '?';
+      if (!successUrl.includes('session_id=')) {
+        successUrl = `${successUrl}${joiner}session_id={CHECKOUT_SESSION_ID}`;
+      }
+
+      // Add signupSessionId parameter
+      if (!successUrl.includes('signupSessionId=')) {
+        successUrl = `${successUrl}&signupSessionId=${session.id}`;
+      }
+
+      console.log('=== STRIPE SUCCESS URL DEBUG ===');
+      console.log('Base URL:', this.configService.get<string>('STRIPE_SUCCESS_URL'));
+      console.log('Final success URL:', successUrl);
+      console.log('Session ID:', session.id);
+
+      const checkout = await this.stripe.checkout.sessions.create({
+        mode: 'subscription',
+        success_url: successUrl,
+        cancel_url:
+          this.configService.get<string>('STRIPE_CANCEL_URL') ||
+          'http://192.168.0.141:5173/signup/select-plan',
+        line_items: [{ price: priceId, quantity: 1 }],
+        metadata: { signupSessionId: session.id, planId: plan.id },
+      });
+
+      company.stripe_session_id = checkout.id;
+      await this.companyDetailsRepo.save(company);
+      return { checkoutSessionId: checkout.id, url: checkout.url };
+    }
     // Alternative: create a subscription directly without checkout
     if (this.stripe) {
       const customer = await this.stripe.customers.create({
@@ -215,24 +177,31 @@ const session = await this.signupSessionRepo.findOne({ where: { id: dto.signupSe
   async markPaymentSuccess(signupSessionId: string, checkoutSessionId?: string) {
     const session = await this.signupSessionRepo.findOne({ where: { id: signupSessionId } });
     if (!session) throw new NotFoundException('Signup session not found');
-    let company = await this.companyDetailsRepo.findOne({ where: { signup_session_id: session.id } });
+    let company = await this.companyDetailsRepo.findOne({
+      where: { signup_session_id: session.id },
+    });
     if (!company && checkoutSessionId) {
-      company = await this.companyDetailsRepo.findOne({ where: { stripe_session_id: checkoutSessionId } });
+      company = await this.companyDetailsRepo.findOne({
+        where: { stripe_session_id: checkoutSessionId },
+      });
     }
     if (!company) throw new BadRequestException('Company details not found');
 
     const sessionIdToFetch = checkoutSessionId || company.stripe_session_id || null;
     if (sessionIdToFetch && this.stripe) {
       try {
-        const stripeSession = await this.stripe.checkout.sessions.retrieve(sessionIdToFetch as string, {
-          // Payment intent can be on multiple nested paths depending on flow
-          expand: [
-            'payment_intent',
-            'subscription',
-            'subscription.latest_invoice.payment_intent',
-            'invoice.payment_intent',
-          ] as any,
-        } as any);
+        const stripeSession = await this.stripe.checkout.sessions.retrieve(
+          sessionIdToFetch as string,
+          {
+            // Payment intent can be on multiple nested paths depending on flow
+            expand: [
+              'payment_intent',
+              'subscription',
+              'subscription.latest_invoice.payment_intent',
+              'invoice.payment_intent',
+            ] as any,
+          } as any
+        );
 
         let paymentIntent: any = (stripeSession as any).payment_intent;
         let subscription: any = (stripeSession as any).subscription;
@@ -275,9 +244,12 @@ const session = await this.signupSessionRepo.findOne({ where: { id: dto.signupSe
           company.stripe_payment_intent_id = paymentIntent.id;
         } else if (subscription && typeof subscription === 'string') {
           // Fallback: retrieve subscription for expanded latest invoice PI
-          const sub = await this.stripe.subscriptions.retrieve(subscription as string, {
-            expand: ['latest_invoice.payment_intent'],
-          } as any);
+          const sub = await this.stripe.subscriptions.retrieve(
+            subscription as string,
+            {
+              expand: ['latest_invoice.payment_intent'],
+            } as any
+          );
           const piId = (sub as any)?.latest_invoice?.payment_intent?.id;
           if (piId) {
             company.stripe_payment_intent_id = piId;
@@ -296,25 +268,28 @@ const session = await this.signupSessionRepo.findOne({ where: { id: dto.signupSe
     await this.companyDetailsRepo.save(company);
     session.status = 'payment_completed';
     await this.signupSessionRepo.save(session);
-    return { 
-      ok: true, 
-      isPaid: company.is_paid, 
-      stripeCustomerId: company.stripe_customer_id, 
+    return {
+      ok: true,
+      isPaid: company.is_paid,
+      stripeCustomerId: company.stripe_customer_id,
       stripePaymentIntentId: company.stripe_payment_intent_id,
       status: company.is_paid ? 'succeeded' : 'failed',
-      transactionId: company.stripe_payment_intent_id || company.stripe_session_id
+      transactionId: company.stripe_payment_intent_id || company.stripe_session_id,
     };
-
   }
 
   async completeSignup(dto: CompleteSignupDto) {
     const session = await this.signupSessionRepo.findOne({ where: { id: dto.signupSessionId } });
     if (!session) throw new NotFoundException('Signup session not found');
-    const company = await this.companyDetailsRepo.findOne({ where: { signup_session_id: session.id } });
+    const company = await this.companyDetailsRepo.findOne({
+      where: { signup_session_id: session.id },
+    });
     if (!company) throw new BadRequestException('Company details not found');
     if (!company.is_paid) throw new BadRequestException('Payment not completed');
 
-    const tenant = await this.tenantRepo.save(this.tenantRepo.create({ name: company.company_name }));
+    const tenant = await this.tenantRepo.save(
+      this.tenantRepo.create({ name: company.company_name })
+    );
 
     company.tenant_id = tenant.id as unknown as any;
     await this.companyDetailsRepo.save(company);
@@ -332,8 +307,6 @@ const session = await this.signupSessionRepo.findOne({ where: { id: dto.signupSe
       role_id: adminRole.id,
     });
     await this.userRepo.save(user);
-
-
 
     session.status = 'completed';
     await this.signupSessionRepo.save(session);

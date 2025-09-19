@@ -90,25 +90,47 @@ describe('EmployeeService', () => {
   // ---------------- Create Tests ----------------
   describe('create', () => {
     it('should throw conflict if email exists in same tenant', async () => {
-      mockDesignationRepo.findOne.mockResolvedValue({ id: 'desig-uuid', department: { tenant_id: tenantId } });
-      mockUserRepo.findOne.mockResolvedValue({ id: 'existing-user', email: createDto.email, tenant_id: tenantId });
+      mockDesignationRepo.findOne.mockResolvedValue({
+        id: 'desig-uuid',
+        department: { tenant_id: tenantId },
+      });
+      mockUserRepo.findOne.mockResolvedValue({
+        id: 'existing-user',
+        email: createDto.email,
+        tenant_id: tenantId,
+      });
 
       await expect(service.create(tenantId, createDto)).rejects.toThrow(
-        'User with this email already exists in the tenant.',
+        'User with this email already exists in the tenant.'
       );
     });
 
     it('should allow creation if email exists in another tenant', async () => {
-      mockDesignationRepo.findOne.mockResolvedValue({ id: 'desig-uuid', department: { tenant_id: tenantId } });
+      mockDesignationRepo.findOne.mockResolvedValue({
+        id: 'desig-uuid',
+        department: { tenant_id: tenantId },
+      });
       mockUserRepo.findOne.mockResolvedValue(null);
 
       mockUserRepo.create.mockReturnValue({ ...createDto, id: 'user-uuid' });
       mockUserRepo.save.mockResolvedValue({ ...createDto, id: 'user-uuid' });
-      mockEmployeeRepo.create.mockReturnValue({ id: 'emp-uuid', user_id: 'user-uuid', designation_id: 'desig-uuid' });
-      mockEmployeeRepo.save.mockResolvedValue({ id: 'emp-uuid', user_id: 'user-uuid', designation_id: 'desig-uuid' });
+      mockEmployeeRepo.create.mockReturnValue({
+        id: 'emp-uuid',
+        user_id: 'user-uuid',
+        designation_id: 'desig-uuid',
+      });
+      mockEmployeeRepo.save.mockResolvedValue({
+        id: 'emp-uuid',
+        user_id: 'user-uuid',
+        designation_id: 'desig-uuid',
+      });
 
       const result = await service.create(tenantId, createDto);
-      expect(result).toEqual({ id: 'emp-uuid', user_id: 'user-uuid', designation_id: 'desig-uuid' });
+      expect(result).toEqual({
+        id: 'emp-uuid',
+        user_id: 'user-uuid',
+        designation_id: 'desig-uuid',
+      });
     });
   });
 
@@ -146,10 +168,14 @@ describe('EmployeeService', () => {
 
     it('should throw conflict if new email exists in same tenant', async () => {
       // Simulate conflict: user with the new email exists in the same tenant
-      mockUserRepo.findOne.mockResolvedValue({ id: 'other-user', email: updateDto.email, tenant_id: tenantId });
+      mockUserRepo.findOne.mockResolvedValue({
+        id: 'other-user',
+        email: updateDto.email,
+        tenant_id: tenantId,
+      });
       const conflictDto = { ...updateDto };
       await expect(service.update(tenantId, existingEmployee.id, conflictDto)).rejects.toThrow(
-        'User with this email already exists in the tenant.',
+        'User with this email already exists in the tenant.'
       );
     });
 

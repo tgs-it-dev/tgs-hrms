@@ -70,5 +70,3 @@ export class PolicyController {
     return this.service.softDelete(tenant_id, id);
   }
 }
-
-

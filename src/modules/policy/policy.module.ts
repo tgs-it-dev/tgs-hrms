@@ -11,5 +11,3 @@ import { PolicyController } from './policy.controller';
   exports: [PolicyService],
 })
 export class PolicyModule {}
-
-

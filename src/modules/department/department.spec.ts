@@ -22,7 +22,7 @@ describe('DepartmentService', () => {
       id: tenantId,
       name: 'Mock Tenant',
     } as any,
-    designations: [], 
+    designations: [],
   };
 
   beforeEach(async () => {
@@ -64,7 +64,7 @@ describe('DepartmentService', () => {
     jest.spyOn(repo, 'findOne').mockResolvedValue(mockDepartment);
 
     await expect(
-      service.create(tenantId, { name: 'Engineering', description: '' }),
+      service.create(tenantId, { name: 'Engineering', description: '' })
     ).rejects.toThrow(ConflictException);
   });
 
@@ -99,23 +99,23 @@ describe('DepartmentService', () => {
         id: tenantId,
         name: 'Mock Tenant',
       } as any,
-      designations: [], 
+      designations: [],
     };
 
     jest.spyOn(repo, 'findOneBy').mockResolvedValue(mockDepartment);
     jest.spyOn(repo, 'findOne').mockResolvedValue(anotherDepartment);
 
-    await expect(
-      service.update(tenantId, deptId, { name: 'Engineering' }),
-    ).rejects.toThrow(ConflictException);
+    await expect(service.update(tenantId, deptId, { name: 'Engineering' })).rejects.toThrow(
+      ConflictException
+    );
   });
 
   it('should throw NotFoundException when updating non-existent department', async () => {
     jest.spyOn(repo, 'findOneBy').mockResolvedValue(null);
 
-    await expect(
-      service.update(tenantId, 'non-existent-id', { name: 'New Name' }),
-    ).rejects.toThrow(NotFoundException);
+    await expect(service.update(tenantId, 'non-existent-id', { name: 'New Name' })).rejects.toThrow(
+      NotFoundException
+    );
   });
 
   it('should delete department successfully', async () => {

@@ -15,6 +15,3 @@ import { Employee } from '../../entities/employee.entity';
   providers: [ReportsService],
 })
 export class ReportsModule {}
-
-
-
