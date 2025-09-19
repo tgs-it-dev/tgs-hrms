@@ -34,6 +34,7 @@ export class SignupService {
     @InjectRepository(SubscriptionPlan)
     private readonly planRepo: Repository<SubscriptionPlan>,
     private readonly configService: ConfigService,
+
   ) {
     const stripeKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (stripeKey) {
@@ -81,79 +82,108 @@ export class SignupService {
   }
 
   async startPayment(dto: PaymentDto) {
-    const session = await this.signupSessionRepo.findOne({ where: { id: dto.signupSessionId }, relations: ['companyDetails'] });
-    if (!session) throw new NotFoundException('Signup session not found');
-    const company = await this.companyDetailsRepo.findOne({ where: { signup_session_id: session.id } });
-    if (!company) throw new BadRequestException('Company details not found');
+//     const session = await this.signupSessionRepo.findOne({ where: { id: dto.signupSessionId }, relations: ['companyDetails'] });
+//     if (!session) throw new NotFoundException('Signup session not found');
+//     const company = await this.companyDetailsRepo.findOne({ where: { signup_session_id: session.id } });
+//     if (!company) throw new BadRequestException('Company details not found');
 
-    const plan = await this.planRepo.findOne({ where: { id: company.plan_id } });
-    if (!plan) throw new BadRequestException('Invalid planId');
-    const priceId = (plan.stripePriceId || '').trim();
-    if (!priceId || !priceId.startsWith('price_')) {
-      throw new BadRequestException(
-        'Invalid stripePriceId configured for plan. Expected a Stripe Price ID starting with "price_". Update the plan to use a valid recurring Price from your Stripe Dashboard.'
-      );
-    }
+//     const plan = await this.planRepo.findOne({ where: { id: company.plan_id } });
+//     if (!plan) throw new BadRequestException('Invalid planId');
+//     const priceId = (plan.stripePriceId || '').trim();
+//     if (!priceId || !priceId.startsWith('price_')) {
+//       throw new BadRequestException(
+//         'Invalid stripePriceId configured for plan. Expected a Stripe Price ID starting with "price_". Update the plan to use a valid recurring Price from your Stripe Dashboard.'
+//       );
+//     }
 
-    if (!this.stripe) {
-      // Fallback: pretend checkout was created; caller should handle confirm step
-      this.logger.warn('Stripe not configured. Returning mocked checkout URL.');
-      return { checkoutSessionId: 'mock_session', url: 'https://example.com/mock-checkout' };
-    }
+//     if (!this.stripe) {
+//       // Fallback: pretend checkout was created; caller should handle confirm step
+//       this.logger.warn('Stripe not configured. Returning mocked checkout URL.');
+//       return { checkoutSessionId: 'mock_session', url: 'https://example.com/mock-checkout' };
+//     }
 
-    // if (dto.mode === 'checkout') {
-    //   let successUrl = this.configService.get<string>('STRIPE_SUCCESS_URL') || 'https://example.com/success';
-    //   const hasQuery = successUrl.includes('?');
-    //   const joiner = hasQuery ? '&' : '?';
-    //   if (!successUrl.includes('session_id=')) {
-    //     successUrl = `${successUrl}${joiner}session_id={CHECKOUT_SESSION_ID}`;
-    //   }
-    //   if (!successUrl.includes('signupSessionId=')) {
-    //     successUrl = `${successUrl}&signupSessionId=${encodeURIComponent(session.id)}`;
-    //   }
+//     // In your existing startPayment method
+// if (dto.mode === 'checkout') {
+//   let successUrl = this.configService.get<string>('STRIPE_SUCCESS_URL') || 'http://192.168.0.141:5173/signup/success';
+//   const hasQuery = successUrl.includes('?');
+//   const joiner = hasQuery ? '&' : '?';
+//   if (!successUrl.includes('session_id=')) {
+//     successUrl = `${successUrl}${joiner}session_id={CHECKOUT_SESSION_ID}`;
+//   }
+//   if (!successUrl.includes('signupSessionId=')) {
+//     successUrl = `${successUrl}&signupSessionId=${encodeURIComponent(session.id)}`;
+//   }
 
-    //   const checkout = await this.stripe.checkout.sessions.create({
-    //     mode: 'subscription',
-    //     success_url: successUrl,
-    //     cancel_url: this.configService.get<string>('STRIPE_CANCEL_URL') || 'https://example.com/cancel',
-    //     line_items: [
-    //       { price: priceId, quantity: 1 },
-    //     ],
-    //     metadata: { signupSessionId: session.id, planId: plan.id },
-    //   });
-    //   company.stripe_session_id = checkout.id;
-    //   await this.companyDetailsRepo.save(company);
-    //   return { checkoutSessionId: checkout.id, url: checkout.url };
-    // }
-
-
-    // In your existing startPayment method
-if (dto.mode === 'checkout') {
-  let successUrl = this.configService.get<string>('STRIPE_SUCCESS_URL') || 'http://localhost:5173/signup/success';
-  const hasQuery = successUrl.includes('?');
-  const joiner = hasQuery ? '&' : '?';
-  if (!successUrl.includes('session_id=')) {
-    successUrl = `${successUrl}${joiner}session_id={CHECKOUT_SESSION_ID}`;
-  }
-  if (!successUrl.includes('signupSessionId=')) {
-    successUrl = `${successUrl}&signupSessionId=${encodeURIComponent(session.id)}`;
-  }
-
-  const checkout = await this.stripe.checkout.sessions.create({
-    mode: 'subscription',
-    success_url: successUrl,
-    cancel_url: this.configService.get<string>('STRIPE_CANCEL_URL') || 'http://localhost:5173/signup/cancel',
-    line_items: [
-      { price: priceId, quantity: 1 },
-    ],
-    metadata: { signupSessionId: session.id, planId: plan.id },
-  });
+//   const checkout = await this.stripe.checkout.sessions.create({
+//     mode: 'subscription',
+//     success_url: successUrl,
+//     cancel_url: this.configService.get<string>('STRIPE_CANCEL_URL') || 'http://localhost:5173/signup/cancel',
+//     line_items: [
+//       { price: priceId, quantity: 1 },
+//     ],
+//     metadata: { signupSessionId: session.id, planId: plan.id },
+//   });
   
-  company.stripe_session_id = checkout.id;
-  await this.companyDetailsRepo.save(company);
-  return { checkoutSessionId: checkout.id, url: checkout.url };
-}
+//   company.stripe_session_id = checkout.id;
+//   await this.companyDetailsRepo.save(company);
+//   return { checkoutSessionId: checkout.id, url: checkout.url };
+// }
 
+
+const session = await this.signupSessionRepo.findOne({ where: { id: dto.signupSessionId }, relations: ['companyDetails'] });
+  if (!session) throw new NotFoundException('Signup session not found');
+  const company = await this.companyDetailsRepo.findOne({ where: { signup_session_id: session.id } });
+  if (!company) throw new BadRequestException('Company details not found');
+
+  const plan = await this.planRepo.findOne({ where: { id: company.plan_id } });
+  if (!plan) throw new BadRequestException('Invalid planId');
+  const priceId = (plan.stripePriceId || '').trim();
+  if (!priceId || !priceId.startsWith('price_')) {
+    throw new BadRequestException(
+      'Invalid stripePriceId configured for plan. Expected a Stripe Price ID starting with "price_". Update the plan to use a valid recurring Price from your Stripe Dashboard.'
+    );
+  }
+
+  if (!this.stripe) {
+    this.logger.warn('Stripe not configured. Returning mocked checkout URL.');
+    return { checkoutSessionId: 'mock_session', url: 'https://example.com/mock-checkout' };
+  }
+
+  if (dto.mode === 'checkout') {
+    // Get base URL from environment
+    let successUrl = this.configService.get<string>('STRIPE_SUCCESS_URL') || 'http://192.168.0.141:5173/signup/confirm-payment';
+    
+    // Add session_id parameter
+    const hasQuery = successUrl.includes('?');
+    const joiner = hasQuery ? '&' : '?';
+    if (!successUrl.includes('session_id=')) {
+      successUrl = `${successUrl}${joiner}session_id={CHECKOUT_SESSION_ID}`;
+    }
+    
+    // Add signupSessionId parameter
+    if (!successUrl.includes('signupSessionId=')) {
+      successUrl = `${successUrl}&signupSessionId=${session.id}`;
+    }
+
+    console.log('=== STRIPE SUCCESS URL DEBUG ===');
+    console.log('Base URL:', this.configService.get<string>('STRIPE_SUCCESS_URL'));
+    console.log('Final success URL:', successUrl);
+    console.log('Session ID:', session.id);
+
+    const checkout = await this.stripe.checkout.sessions.create({
+      mode: 'subscription',
+      success_url: successUrl,
+      cancel_url: this.configService.get<string>('STRIPE_CANCEL_URL') || 'http://192.168.0.141:5173/signup/select-plan',
+      line_items: [
+        { price: priceId, quantity: 1 },
+      ],
+      metadata: { signupSessionId: session.id, planId: plan.id },
+    });
+    
+    company.stripe_session_id = checkout.id;
+    await this.companyDetailsRepo.save(company);
+    return { checkoutSessionId: checkout.id, url: checkout.url };
+  }
     // Alternative: create a subscription directly without checkout
     if (this.stripe) {
       const customer = await this.stripe.customers.create({
@@ -266,9 +296,6 @@ if (dto.mode === 'checkout') {
     await this.companyDetailsRepo.save(company);
     session.status = 'payment_completed';
     await this.signupSessionRepo.save(session);
-    // return { ok: true, isPaid: company.is_paid, 
-    //   stripeCustomerId: company.stripe_customer_id, 
-    //   stripePaymentIntentId: company.stripe_payment_intent_id };
     return { 
       ok: true, 
       isPaid: company.is_paid, 
@@ -305,6 +332,8 @@ if (dto.mode === 'checkout') {
       role_id: adminRole.id,
     });
     await this.userRepo.save(user);
+
+
 
     session.status = 'completed';
     await this.signupSessionRepo.save(session);
