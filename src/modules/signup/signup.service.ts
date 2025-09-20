@@ -295,7 +295,11 @@ export class SignupService {
     await this.companyDetailsRepo.save(company);
 
     const roles = await this.ensureDefaultRoles(tenant.id);
-    const adminRole = roles.find((r) => r.name.toLowerCase() === 'admin')!;
+    // Find the 'Admin' role (case-sensitive)
+    const adminRole = roles.find((r) => r.name === 'Admin');
+    if (!adminRole) {
+      throw new Error("'Admin' role not found in roles table. Please seed the roles table with the required roles.");
+    }
 
     const user = this.userRepo.create({
       email: session.email,
@@ -315,20 +319,14 @@ export class SignupService {
   }
 
   private async ensureDefaultRoles(tenantId: string): Promise<Role[]> {
-    const defaultRoles = [
-      { name: 'admin', description: 'Tenant administrator' },
-      { name: 'hr', description: 'HR manager' },
-      { name: 'employee', description: 'Regular employee' },
-    ];
-
+    // Fetch all existing roles for this tenant (or global roles if not tenant-specific)
+    const roleNames = ['Admin', 'Employee', 'Manager', 'User', 'System Admin'];
     const roles: Role[] = [];
-    for (const def of defaultRoles) {
-      let role = await this.roleRepo.findOne({ where: { name: def.name } });
-      if (!role) {
-        role = this.roleRepo.create({ name: def.name, description: def.description });
-        role = await this.roleRepo.save(role);
+    for (const name of roleNames) {
+      let role = await this.roleRepo.findOne({ where: { name } });
+      if (role) {
+        roles.push(role);
       }
-      roles.push(role);
     }
     return roles;
   }
