@@ -98,8 +98,16 @@ async function bootstrap() {
   );
 
   // ✅ Allow only your frontend in production
+  // app.enableCors({
+  //   origin: process.env.FRONTEND_URL || '*',
+  //   credentials: true,
+  // });
+
   app.enableCors({
-    origin: process.env.FRONTEND_URL || '*',
+    origin: [
+      'http://localhost:5173', // Local dev frontend
+      'https://snazzy-raindrop-644615.netlify.app', // Production frontend
+    ],
     credentials: true,
   });
 
