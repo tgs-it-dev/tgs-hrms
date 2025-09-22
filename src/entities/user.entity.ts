@@ -45,7 +45,7 @@ export class User {
   role_id: string;
 
   @Column({ type: 'varchar', length: 10, nullable: true })
-  gender: 'male' | 'female' | null; 
+  gender: 'male' | 'female' | null;
 
   @Column({ type: 'varchar', length: 500, nullable: true })
   profile_pic: string | null;
@@ -70,7 +70,7 @@ export class User {
   @OneToMany(() => Employee, (employee) => employee.user)
   employees: Employee[];
 
-  @OneToMany(() => Attendance, (attendance) => attendance.user) 
+  @OneToMany(() => Attendance, (attendance) => attendance.user)
   attendances: Attendance[];
 
   @OneToMany(() => Team, (team) => team.manager)

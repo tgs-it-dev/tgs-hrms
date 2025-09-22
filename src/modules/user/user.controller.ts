@@ -38,10 +38,7 @@ export class UserController {
 
   // Public: no auth required
   @Get(':id/profile-picture')
-  async getProfilePicture(
-    @Param('id') id: string,
-    @Res() res: Response,
-  ) {
+  async getProfilePicture(@Param('id') id: string, @Res() res: Response) {
     try {
       const profilePictureData = await this.userService.getProfilePicture(id);
       if (!profilePictureData) {
@@ -71,10 +68,7 @@ export class UserController {
       const user = await this.userService.create(dto, tenantId);
       return { message: 'User created successfully', user };
     } catch (error) {
-      throw new HttpException(
-        'Error creating user: ' + error.message,
-        HttpStatus.BAD_REQUEST,
-      );
+      throw new HttpException('Error creating user: ' + error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
@@ -94,7 +88,7 @@ export class UserController {
     } catch (error) {
       throw new HttpException(
         'Error fetching users: ' + error.message,
-        HttpStatus.INTERNAL_SERVER_ERROR,
+        HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
   }
@@ -111,7 +105,7 @@ export class UserController {
     } catch (error) {
       throw new HttpException(
         'Error fetching user: ' + error.message,
-        HttpStatus.INTERNAL_SERVER_ERROR,
+        HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
   }
@@ -125,7 +119,7 @@ export class UserController {
     @Param('id') id: string,
     @Body() dto: UpdateUserDto,
     @TenantId() tenantId: string,
-    @Req() req,
+    @Req() req
   ) {
     try {
       const updatedUser = await this.userService.update(id, dto, tenantId, req.user.userId);
@@ -133,7 +127,7 @@ export class UserController {
     } catch (error) {
       throw new HttpException(
         'Error updating user: ' + error.message,
-        HttpStatus.INTERNAL_SERVER_ERROR,
+        HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
   }
@@ -149,14 +143,14 @@ export class UserController {
       if (!deleted) {
         throw new HttpException(
           `User with ID ${id} not found or deletion failed`,
-          HttpStatus.NOT_FOUND,
+          HttpStatus.NOT_FOUND
         );
       }
       return { message: 'User has been deleted successfully.' };
     } catch (error) {
       throw new HttpException(
         'Error deleting user: ' + error.message,
-        HttpStatus.INTERNAL_SERVER_ERROR,
+        HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
   }
@@ -173,23 +167,26 @@ export class UserController {
           new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
           new FileTypeValidator({ fileType: '.(jpg|jpeg|png|gif)' }),
         ],
-      }),
+      })
     )
     file: Express.Multer.File,
     @TenantId() tenantId: string,
-    @Req() req,
+    @Req() req
   ) {
     try {
       const authenticatedUserId = req.user?.userId || req.user?.id || req.user?.sub;
       if (id !== authenticatedUserId) {
-        throw new HttpException('You can only update your own profile picture', HttpStatus.FORBIDDEN);
+        throw new HttpException(
+          'You can only update your own profile picture',
+          HttpStatus.FORBIDDEN
+        );
       }
       const updatedUser = await this.userService.updateProfilePicture(id, file, tenantId);
       return { message: 'Profile picture updated successfully', user: updatedUser };
     } catch (error) {
       throw new HttpException(
         'Error updating profile picture: ' + error.message,
-        HttpStatus.BAD_REQUEST,
+        HttpStatus.BAD_REQUEST
       );
     }
   }
@@ -197,22 +194,21 @@ export class UserController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Delete(':id/profile-picture')
-  async removeProfilePicture(
-    @Param('id') id: string,
-    @TenantId() tenantId: string,
-    @Req() req,
-  ) {
+  async removeProfilePicture(@Param('id') id: string, @TenantId() tenantId: string, @Req() req) {
     try {
       const authenticatedUserId = req.user?.userId || req.user?.id || req.user?.sub;
       if (id !== authenticatedUserId) {
-        throw new HttpException('You can only remove your own profile picture', HttpStatus.FORBIDDEN);
+        throw new HttpException(
+          'You can only remove your own profile picture',
+          HttpStatus.FORBIDDEN
+        );
       }
       const updatedUser = await this.userService.removeProfilePicture(id, tenantId);
       return { message: 'Profile picture removed successfully', user: updatedUser };
     } catch (error) {
       throw new HttpException(
         'Error removing profile picture: ' + error.message,
-        HttpStatus.BAD_REQUEST,
+        HttpStatus.BAD_REQUEST
       );
     }
   }

@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  UnauthorizedException,
-  BadRequestException,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from '../../entities/user.entity';
 import { Repository } from 'typeorm';
@@ -25,37 +20,40 @@ export class AuthService {
     private userRepository: Repository<User>,
     private jwtService: JwtService,
     private configService: ConfigService,
-    private emailService: EmailService,
+    private emailService: EmailService
   ) {}
 
   private async getUserPermissions(userId: string): Promise<string[]> {
     try {
       this.logger.log(`Loading permissions for user ${userId}`);
-      
+
       // First get the user with role to ensure we have the role_id
       const user = await this.userRepository.findOne({
         where: { id: userId },
         relations: ['role'],
       });
-      
+
       if (!user || !user.role) {
         this.logger.warn(`User ${userId} has no role assigned`);
         return [];
       }
-      
+
       // Use a raw query to get permissions for the user's role
-      const result = await this.userRepository.query(`
+      const result = await this.userRepository.query(
+        `
         SELECT p.name 
         FROM permissions p 
         JOIN role_permissions rp ON p.id = rp.permission_id 
         WHERE rp.role_id = $1
-      `, [user.role.id]);
-      
+      `,
+        [user.role.id]
+      );
+
       this.logger.log(`Raw permission query result: ${JSON.stringify(result)}`);
-      
+
       const permissions = result.map((row: any) => row.name.toLowerCase());
       this.logger.log(`Processed permissions for user ${userId}: ${JSON.stringify(permissions)}`);
-      
+
       return permissions;
     } catch (error) {
       this.logger.error(`Failed to load permissions for user ${userId}: ${error.message}`);
@@ -118,7 +116,6 @@ export class AuthService {
       });
     }
 
-    
     if (!user.role || !user.role.name) {
       this.logger.error(`User role missing for email: ${normalizedEmail}`);
       throw new UnauthorizedException('User role not found');
@@ -126,7 +123,7 @@ export class AuthService {
 
     // Get user permissions
     const permissions = await this.getUserPermissions(user.id);
-    
+
     this.logger.log(`User ${user.email} has role: ${user.role.name}`);
     this.logger.log(`User ${user.email} permissions: ${JSON.stringify(permissions)}`);
 
@@ -137,7 +134,7 @@ export class AuthService {
       tenant_id: user.tenant_id,
       permissions,
     };
-    
+
     this.logger.log(`JWT payload for user ${user.email}: ${JSON.stringify(payload)}`);
 
     const accessToken = this.jwtService.sign(payload, {
@@ -158,7 +155,7 @@ export class AuthService {
       accessToken,
       refreshToken,
       user,
-      permissions
+      permissions,
     };
   }
 
@@ -174,24 +171,20 @@ export class AuthService {
       throw new BadRequestException('In Valid email address');
     }
 
-  
     const resetToken = this.generateSecureToken();
-    
-    
-    const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); 
 
-    
+    const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
+
     await this.userRepository.update(user.id, {
       reset_token: resetToken,
       reset_token_expiry: resetTokenExpiry,
     });
 
-    
     const userName = `${user.first_name} ${user.last_name}`;
     await this.emailService.sendPasswordResetEmail(user.email, resetToken, userName);
 
     this.logger.log(`Password reset email sent to: ${user.email}`);
-    
+
     return {
       message: 'Check your email for the password reset link.',
     };
@@ -208,7 +201,7 @@ export class AuthService {
     }
 
     const user = await this.userRepository.findOne({
-      where: { reset_token: token }
+      where: { reset_token: token },
     });
 
     if (!user) {
@@ -222,45 +215,40 @@ export class AuthService {
     return { valid: true, message: 'Token is valid' };
   }
 
+  async resetPassword(dto: ResetPasswordDto) {
+    this.logger.log(`Reset password attempt with token: ${dto.token}`);
 
-async resetPassword(dto: ResetPasswordDto) {
-  this.logger.log(`Reset password attempt with token: ${dto.token}`);
+    const user = await this.userRepository.findOne({
+      where: { reset_token: dto.token },
+    });
 
-  
-  const user = await this.userRepository.findOne({
-    where: { reset_token: dto.token }
-  });
+    if (!user) {
+      this.logger.warn(`Reset password failed: invalid token`);
+      throw new BadRequestException('Invalid or expired reset token');
+    }
 
-  if (!user) {
-    this.logger.warn(`Reset password failed: invalid token`);
-    throw new BadRequestException('Invalid or expired reset token');
+    if (user.reset_token_expiry && new Date() > user.reset_token_expiry) {
+      this.logger.warn(`Reset password failed: expired token for user: ${user.email}`);
+      throw new BadRequestException(
+        'Reset token has expired. Please request a new password reset.'
+      );
+    }
+
+    const hashedPassword = await bcrypt.hash(dto.password, 10);
+
+    await this.userRepository.update(user.id, {
+      password: hashedPassword,
+      reset_token: null,
+      reset_token_expiry: null,
+    });
+
+    const userName = `${user.first_name} ${user.last_name}`;
+    await this.emailService.sendPasswordResetSuccessEmail(user.email, userName);
+
+    this.logger.log(`Password reset successful for user: ${user.email}`);
+
+    return { message: 'Password reset successfully' };
   }
-
-  
-  if (user.reset_token_expiry && new Date() > user.reset_token_expiry) {
-    this.logger.warn(`Reset password failed: expired token for user: ${user.email}`);
-    throw new BadRequestException('Reset token has expired. Please request a new password reset.');
-  }
-
-  
-  const hashedPassword = await bcrypt.hash(dto.password, 10);
-
-  
-  await this.userRepository.update(user.id, {
-    password: hashedPassword,
-    reset_token: null,
-    reset_token_expiry: null,
-  });
-
-  
-  const userName = `${user.first_name} ${user.last_name}`;
-  await this.emailService.sendPasswordResetSuccessEmail(user.email, userName);
-
-  this.logger.log(`Password reset successful for user: ${user.email}`);
-  
-  return { message: 'Password reset successfully' };
-}
-
 
   async refreshToken(refreshToken: string) {
     if (!refreshToken) {
@@ -295,7 +283,7 @@ async resetPassword(dto: ResetPasswordDto) {
 
       // Get user permissions
       const permissions = await this.getUserPermissions(user.id);
-      
+
       this.logger.log(`Refresh: User ${user.email} has role: ${user.role.name}`);
       this.logger.log(`Refresh: User ${user.email} permissions: ${JSON.stringify(permissions)}`);
 
@@ -306,7 +294,7 @@ async resetPassword(dto: ResetPasswordDto) {
         tenant_id: user.tenant_id,
         permissions,
       };
-      
+
       this.logger.log(`Refresh: JWT payload for user ${user.email}: ${JSON.stringify(newPayload)}`);
 
       const newAccessToken = this.jwtService.sign(newPayload, {
@@ -343,7 +331,6 @@ async resetPassword(dto: ResetPasswordDto) {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
-      
       await this.userRepository.update(user.id, {
         refresh_token: null,
       });

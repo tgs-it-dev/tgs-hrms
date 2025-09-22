@@ -22,7 +22,7 @@ export class ReportsService {
     @InjectRepository(Designation)
     private readonly designationRepo: Repository<Designation>,
     @InjectRepository(Employee)
-    private readonly employeeRepo: Repository<Employee>,
+    private readonly employeeRepo: Repository<Employee>
   ) {}
 
   // 1. Attendance Summary
@@ -47,7 +47,7 @@ export class ReportsService {
       userIds = [userId];
     } else {
       const users = await this.userRepo.find();
-      userIds = users.map(u => u.id);
+      userIds = users.map((u) => u.id);
     }
 
     // Prepare result
@@ -104,7 +104,7 @@ export class ReportsService {
       userIds = [userId];
     } else {
       const users = await this.userRepo.find();
-      userIds = users.map(u => u.id);
+      userIds = users.map((u) => u.id);
     }
     const result: Record<string, any> = {};
     const now = new Date();
@@ -115,7 +115,8 @@ export class ReportsService {
     for (const uid of userIds) {
       // Fetch user with role
       const user = await this.userRepo.findOne({ where: { id: uid }, relations: ['role'] });
-      const isManager = user && user.role && user.role.name && user.role.name.toLowerCase() === 'manager';
+      const isManager =
+        user && user.role && user.role.name && user.role.name.toLowerCase() === 'manager';
       const monthlyCap = isManager ? MONTHLY_CAP_MANAGER : MONTHLY_CAP_EMPLOYEE;
       // Get all approved leaves for the year
       const startOfYear = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
@@ -138,7 +139,9 @@ export class ReportsService {
         }
       }
       // Used this month
-      const leavesThisMonth = leaves.filter(l => l.from_date >= startOfMonth && l.from_date <= endOfMonth);
+      const leavesThisMonth = leaves.filter(
+        (l) => l.from_date >= startOfMonth && l.from_date <= endOfMonth
+      );
       const usedThisMonth: Record<string, number> = {};
       let totalUsedThisMonth = 0;
       for (const cat of CATEGORIES) usedThisMonth[cat] = 0;

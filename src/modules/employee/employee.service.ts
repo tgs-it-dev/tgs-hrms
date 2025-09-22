@@ -34,10 +34,13 @@ export class EmployeeService {
     @InjectRepository(Team)
     private readonly teamRepo: Repository<Team>,
     private readonly mailerService: MailerService,
-    private readonly configService: ConfigService,
+    private readonly configService: ConfigService
   ) {}
 
-  private async validateDesignation(designation_id: string, tenant_id: string): Promise<Designation> {
+  private async validateDesignation(
+    designation_id: string,
+    tenant_id: string
+  ): Promise<Designation> {
     const designation = await this.designationRepo.findOne({
       where: { id: designation_id },
       relations: ['department'],
@@ -74,7 +77,8 @@ export class EmployeeService {
   async promoteToManager(tenant_id: string, id: string) {
     const employee = await this.findOne(tenant_id, id);
     const managerRole = await this.roleRepo.findOne({ where: { name: 'manager' } });
-    if (!managerRole) throw new NotFoundException('Manager role not found. Please create a manager role first.');
+    if (!managerRole)
+      throw new NotFoundException('Manager role not found. Please create a manager role first.');
 
     const user = employee.user;
     user.role_id = managerRole.id;
@@ -117,10 +121,12 @@ export class EmployeeService {
     }
 
     const existingUser = await this.userRepo.findOne({ where: { email: dto.email, tenant_id } });
-    if (existingUser) throw new ConflictException('User with this email already exists in the tenant.');
+    if (existingUser)
+      throw new ConflictException('User with this email already exists in the tenant.');
 
     const managerRole = await this.roleRepo.findOne({ where: { name: 'Manager' } });
-    if (!managerRole) throw new NotFoundException('Manager role not found. Please create a manager role first.');
+    if (!managerRole)
+      throw new NotFoundException('Manager role not found. Please create a manager role first.');
 
     const password = dto.password || this.generateTemporaryPassword();
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -170,7 +176,8 @@ export class EmployeeService {
     }
 
     const existingUser = await this.userRepo.findOne({ where: { email: dto.email, tenant_id } });
-    if (existingUser) throw new ConflictException('User with this email already exists in the tenant.');
+    if (existingUser)
+      throw new ConflictException('User with this email already exists in the tenant.');
 
     const employeeRole = await this.roleRepo.findOne({ where: { name: 'Employee' } });
     if (!employeeRole) throw new NotFoundException('Employee role not found.');
@@ -219,7 +226,8 @@ export class EmployeeService {
     const limit = 10;
     const skip = (page - 1) * limit;
 
-    const qb = this.employeeRepo.createQueryBuilder('employee')
+    const qb = this.employeeRepo
+      .createQueryBuilder('employee')
       .leftJoinAndSelect('employee.user', 'user')
       .leftJoinAndSelect('employee.designation', 'designation')
       .leftJoinAndSelect('designation.department', 'department')
@@ -227,10 +235,14 @@ export class EmployeeService {
       .where('user.tenant_id = :tenant_id', { tenant_id });
 
     if (query.department_id) {
-      qb.andWhere('designation.department_id = :department_id', { department_id: query.department_id });
+      qb.andWhere('designation.department_id = :department_id', {
+        department_id: query.department_id,
+      });
     }
     if (query.designation_id) {
-      qb.andWhere('employee.designation_id = :designation_id', { designation_id: query.designation_id });
+      qb.andWhere('employee.designation_id = :designation_id', {
+        designation_id: query.designation_id,
+      });
     }
 
     const [items, total] = await qb
@@ -298,10 +310,22 @@ export class EmployeeService {
     }
 
     let shouldSaveUser = false;
-    if (dto.first_name !== undefined) { user.first_name = dto.first_name; shouldSaveUser = true; }
-    if (dto.last_name !== undefined)  { user.last_name  = dto.last_name;  shouldSaveUser = true; }
-    if (dto.email !== undefined)      { user.email      = dto.email;      shouldSaveUser = true; }
-    if (dto.phone !== undefined)      { user.phone      = dto.phone;      shouldSaveUser = true; }
+    if (dto.first_name !== undefined) {
+      user.first_name = dto.first_name;
+      shouldSaveUser = true;
+    }
+    if (dto.last_name !== undefined) {
+      user.last_name = dto.last_name;
+      shouldSaveUser = true;
+    }
+    if (dto.email !== undefined) {
+      user.email = dto.email;
+      shouldSaveUser = true;
+    }
+    if (dto.phone !== undefined) {
+      user.phone = dto.phone;
+      shouldSaveUser = true;
+    }
     if (dto.password) {
       user.password = await bcrypt.hash(dto.password, 10);
       shouldSaveUser = true;
@@ -330,7 +354,9 @@ export class EmployeeService {
 
   private generateTemporaryPassword(): string {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-    return Array.from({ length: 12 }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
+    return Array.from({ length: 12 }, () =>
+      chars.charAt(Math.floor(Math.random() * chars.length))
+    ).join('');
   }
 
   private async sendPasswordResetEmail(email: string, resetToken: string) {
@@ -399,14 +425,14 @@ export class EmployeeService {
     const results = await this.employeeRepo
       .createQueryBuilder('employee')
       .leftJoinAndSelect('employee.user', 'user')
-      .select("EXTRACT(MONTH FROM employee.created_at) AS month")
-      .addSelect("EXTRACT(YEAR FROM employee.created_at) AS year")
-      .addSelect("COUNT(employee.id) AS total")
-      .where("user.tenant_id = :tenant_id", { tenant_id })
-      .groupBy("EXTRACT(MONTH FROM employee.created_at)")
-      .addGroupBy("EXTRACT(YEAR FROM employee.created_at)")
-      .orderBy("year", "ASC")
-      .addOrderBy("month", "ASC")
+      .select('EXTRACT(MONTH FROM employee.created_at) AS month')
+      .addSelect('EXTRACT(YEAR FROM employee.created_at) AS year')
+      .addSelect('COUNT(employee.id) AS total')
+      .where('user.tenant_id = :tenant_id', { tenant_id })
+      .groupBy('EXTRACT(MONTH FROM employee.created_at)')
+      .addGroupBy('EXTRACT(YEAR FROM employee.created_at)')
+      .orderBy('year', 'ASC')
+      .addOrderBy('month', 'ASC')
       .getRawMany();
 
     if (!results || results.length === 0) {

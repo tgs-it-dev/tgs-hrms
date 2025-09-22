@@ -34,10 +34,7 @@ export class TimesheetController {
   @Get()
   @ApiOperation({ summary: 'List timesheet sessions for a user' })
   @ApiResponse({ status: 200, description: 'Returns paginated timesheet sessions' })
-  async list(
-    @Req() req: Request,
-    @Query('page') page?: string
-  ) {
+  async list(@Req() req: Request, @Query('page') page?: string) {
     const userId = (req.user as any).id;
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
     return this.timesheetService.list(userId, pageNumber);
@@ -48,10 +45,13 @@ export class TimesheetController {
   @Roles('admin', 'system-admin', 'manager')
   @Permissions('manage_timesheets', 'view_team_timesheets')
   @ApiOperation({ summary: 'Get tenant-wide timesheet summary (Admin/Manager only)' })
-  @ApiResponse({ status: 200, description: 'Returns paginated timesheet summary for all employees' })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns paginated timesheet summary for all employees',
+  })
   async summary(
-    @Req() req: any, 
-    @Query('from') from?: string, 
+    @Req() req: any,
+    @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('page') page?: string
   ) {

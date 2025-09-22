@@ -6,7 +6,7 @@ import * as path from 'path';
 export class FileUploadService {
   async uploadProfilePicture(file: Express.Multer.File, userId: string): Promise<string> {
     const uploadDir = path.join(process.cwd(), 'public', 'profile-pictures');
-    
+
     // Create directory if it doesn't exist
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
@@ -29,7 +29,7 @@ export class FileUploadService {
 
     const fileName = profilePicUrl.split('/').pop();
     if (!fileName) return;
-    
+
     const filePath = path.join(process.cwd(), 'public', 'profile-pictures', fileName);
 
     if (fs.existsSync(filePath)) {

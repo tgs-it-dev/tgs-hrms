@@ -12,7 +12,7 @@ import {
 } from 'class-validator';
 
 const allowedCategories = ['attendance', 'leave', 'general', 'compensation', 'conduct'] as const;
-export type PolicyCategory = typeof allowedCategories[number];
+export type PolicyCategory = (typeof allowedCategories)[number];
 
 export class CreatePolicyDto {
   @ApiProperty({ example: 'Attendance Rules', description: 'Short title for the policy' })
@@ -21,7 +21,7 @@ export class CreatePolicyDto {
   @MinLength(2)
   @MaxLength(150)
   @Matches(/^[a-zA-Z0-9 &'()\-]+$/, {
-    message: 'Title can only contain letters, numbers, spaces, and -&() characters.'
+    message: 'Title can only contain letters, numbers, spaces, and -&() characters.',
   })
   title: string;
 
@@ -46,5 +46,3 @@ export class CreatePolicyDto {
   @IsBoolean()
   is_active?: boolean;
 }
-
-

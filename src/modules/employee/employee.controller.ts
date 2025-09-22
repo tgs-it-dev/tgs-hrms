@@ -41,50 +41,41 @@ export class EmployeeController {
   constructor(
     private readonly service: EmployeeService,
     private readonly attendanceService: AttendanceService,
-    private readonly leaveService: LeaveService,
+    private readonly leaveService: LeaveService
   ) {}
 
   @Post('manager')
   @Roles('admin', 'system-admin')
   @ApiOperation({ summary: 'Create a new manager employee' })
-  @ApiResponse({ 
-    status: 201, 
-    description: 'Manager created successfully with manager role assigned' 
+  @ApiResponse({
+    status: 201,
+    description: 'Manager created successfully with manager role assigned',
   })
-  async createManager(
-    @TenantId() tenant_id: string,
-    @Body() createEmployeeDto: CreateEmployeeDto,
-  ) {
+  async createManager(@TenantId() tenant_id: string, @Body() createEmployeeDto: CreateEmployeeDto) {
     return this.service.createManager(tenant_id, createEmployeeDto);
   }
 
   @Patch(':id/promote-to-manager')
   @Roles('admin', 'system-admin')
   @ApiOperation({ summary: 'Promote an existing employee to manager role' })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Employee promoted to manager successfully' 
+  @ApiResponse({
+    status: 200,
+    description: 'Employee promoted to manager successfully',
   })
   @ApiParam({ name: 'id', description: 'Employee ID to promote' })
-  async promoteToManager(
-    @TenantId() tenant_id: string,
-    @Param('id') id: string,
-  ) {
+  async promoteToManager(@TenantId() tenant_id: string, @Param('id') id: string) {
     return this.service.promoteToManager(tenant_id, id);
   }
 
   @Patch(':id/demote-to-employee')
   @Roles('admin', 'system-admin')
   @ApiOperation({ summary: 'Demote a manager back to employee role' })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Manager demoted to employee successfully' 
+  @ApiResponse({
+    status: 200,
+    description: 'Manager demoted to employee successfully',
   })
   @ApiParam({ name: 'id', description: 'Manager ID to demote' })
-  async demoteToEmployee(
-    @TenantId() tenant_id: string,
-    @Param('id') id: string,
-  ) {
+  async demoteToEmployee(@TenantId() tenant_id: string, @Param('id') id: string) {
     return this.service.demoteToEmployee(tenant_id, id);
   }
 
@@ -93,32 +84,29 @@ export class EmployeeController {
   @Permissions('manage_employees')
   @ApiOperation({ summary: 'Create employee by assigning user to designation' })
   @ApiResponse({ status: 201, description: 'Employee created.' })
-  @ApiResponse({ 
-    status: 400, 
+  @ApiResponse({
+    status: 400,
     description: 'Invalid user or designation.',
     schema: {
       example: {
         message: 'Invalid user for this tenant.',
         error: 'Bad Request',
-        statusCode: 400
-      }
-    }
+        statusCode: 400,
+      },
+    },
   })
-  @ApiResponse({ 
-    status: 409, 
+  @ApiResponse({
+    status: 409,
     description: 'User is already an employee in this tenant.',
     schema: {
       example: {
         message: 'User is already an employee in this tenant.',
         error: 'Conflict',
-        statusCode: 409
-      }
-    }
+        statusCode: 409,
+      },
+    },
   })
-  async create(
-    @TenantId() tenant_id: string,
-    @Body() dto: CreateEmployeeDto,
-  ) {
+  async create(@TenantId() tenant_id: string, @Body() dto: CreateEmployeeDto) {
     return this.service.create(tenant_id, dto);
   }
 
@@ -127,32 +115,32 @@ export class EmployeeController {
   @Permissions('manage_employees')
   @ApiOperation({ summary: 'Update employee designation' })
   @ApiResponse({ status: 200, description: 'Employee updated.' })
-  @ApiResponse({ 
-    status: 400, 
+  @ApiResponse({
+    status: 400,
     description: 'Invalid designation.',
     schema: {
       example: {
         message: 'Invalid designation ID',
         error: 'Bad Request',
-        statusCode: 400
-      }
-    }
+        statusCode: 400,
+      },
+    },
   })
-  @ApiResponse({ 
-    status: 404, 
+  @ApiResponse({
+    status: 404,
     description: 'Employee not found.',
     schema: {
       example: {
         message: 'Employee not found',
         error: 'Not Found',
-        statusCode: 404
-      }
-    }
+        statusCode: 404,
+      },
+    },
   })
   async update(
     @TenantId() tenant_id: string,
     @Param('id') id: string,
-    @Body() dto: UpdateEmployeeDto,
+    @Body() dto: UpdateEmployeeDto
   ) {
     return this.service.update(tenant_id, id, dto);
   }
@@ -160,44 +148,43 @@ export class EmployeeController {
   @Get()
   @Roles('admin', 'system-admin')
   @Permissions('manage_employees')
-  @ApiOperation({ summary: 'List all employees for tenant with optional designation and department filters' })
-  @ApiQuery({ 
-    name: 'designation_id', 
-    required: false, 
+  @ApiOperation({
+    summary: 'List all employees for tenant with optional designation and department filters',
+  })
+  @ApiQuery({
+    name: 'designation_id',
+    required: false,
     description: 'Filter employees by designation ID',
-    example: '6b99992a-d8ef-4c0c-91dc-2a23e391ac9c'
+    example: '6b99992a-d8ef-4c0c-91dc-2a23e391ac9c',
   })
-  @ApiQuery({ 
-    name: 'department_id', 
-    required: false, 
+  @ApiQuery({
+    name: 'department_id',
+    required: false,
     description: 'Filter employees by department ID',
-    example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'
+    example: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
   })
-  @ApiQuery({ 
-    name: 'page', 
-    required: true, 
+  @ApiQuery({
+    name: 'page',
+    required: true,
     description: 'Page number for pagination (required)',
-    example: '1'
+    example: '1',
   })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Returns paginated list of employees matching optional filters.' 
+  @ApiResponse({
+    status: 200,
+    description: 'Returns paginated list of employees matching optional filters.',
   })
-  @ApiResponse({ 
-    status: 400, 
+  @ApiResponse({
+    status: 400,
     description: 'Invalid query parameters.',
     schema: {
       example: {
         message: 'Invalid designation ID or department ID',
         error: 'Bad Request',
-        statusCode: 400
-      }
-    }
+        statusCode: 400,
+      },
+    },
   })
-  async findAll(
-    @TenantId() tenant_id: string,
-    @Query() query: EmployeeQueryDto
-  ) {
+  async findAll(@TenantId() tenant_id: string, @Query() query: EmployeeQueryDto) {
     const pageNumber = Math.max(1, parseInt(query.page, 10) || 1);
     return this.service.findAll(tenant_id, query, pageNumber);
   }
@@ -212,17 +199,17 @@ export class EmployeeController {
     schema: {
       example: [
         {
-          "month": 1,
-          "year": 2025,
-          "total": 30
+          month: 1,
+          year: 2025,
+          total: 30,
         },
         {
-          "month": 2,
-          "year": 2025,
-          "total": 20
-        }
-      ]
-    }
+          month: 2,
+          year: 2025,
+          total: 20,
+        },
+      ],
+    },
   })
   @ApiResponse({
     status: 400,
@@ -231,9 +218,9 @@ export class EmployeeController {
       example: {
         message: 'Error fetching employee joining report.',
         error: 'Bad Request',
-        statusCode: 400
-      }
-    }
+        statusCode: 400,
+      },
+    },
   })
   async getEmployeeJoiningReport(@TenantId() tenant_id: string) {
     return this.service.getEmployeeJoiningReport(tenant_id);
@@ -248,8 +235,8 @@ export class EmployeeController {
     description: 'Gender percentage retrieved successfully.',
     schema: {
       example: {
-        male: 60,  // Percentage of male employees
-        female: 40,  // Percentage of female employees
+        male: 60, // Percentage of male employees
+        female: 40, // Percentage of female employees
       },
     },
   })
@@ -280,7 +267,10 @@ export class EmployeeController {
   @Get('attendance-this-month')
   @Roles('admin', 'system-admin')
   @Permissions('view_reports', 'view_team_reports')
-  @ApiOperation({ summary: 'Get total attendance for all employees for the current month (one per day per employee)' })
+  @ApiOperation({
+    summary:
+      'Get total attendance for all employees for the current month (one per day per employee)',
+  })
   @ApiResponse({ status: 200, description: 'Total attendance for the current month.' })
   async getAttendanceThisMonth(@TenantId() tenant_id: string) {
     return this.attendanceService.getTotalAttendanceForCurrentMonth(tenant_id);

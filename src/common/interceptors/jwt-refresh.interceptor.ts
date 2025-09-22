@@ -14,7 +14,7 @@ import { ConfigService } from '@nestjs/config';
 export class JwtRefreshInterceptor implements NestInterceptor {
   constructor(
     private jwtService: JwtService,
-    private configService: ConfigService,
+    private configService: ConfigService
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
@@ -24,10 +24,10 @@ export class JwtRefreshInterceptor implements NestInterceptor {
         if (error instanceof UnauthorizedException && error.message === 'Unauthorized') {
           const request = context.switchToHttp().getRequest();
           const authHeader = request.headers.authorization;
-          
+
           if (authHeader && authHeader.startsWith('Bearer ')) {
             const token = authHeader.substring(7);
-            
+
             try {
               // Try to decode the token to check if it's expired
               const decoded = this.jwtService.decode(token);
@@ -35,25 +35,31 @@ export class JwtRefreshInterceptor implements NestInterceptor {
                 const currentTime = Math.floor(Date.now() / 1000);
                 if (decoded.exp < currentTime) {
                   // Token is expired, return a specific error message
-                  return throwError(() => new UnauthorizedException({
-                    message: 'Access token expired',
-                    code: 'TOKEN_EXPIRED',
-                    shouldRefresh: true,
-                  }));
+                  return throwError(
+                    () =>
+                      new UnauthorizedException({
+                        message: 'Access token expired',
+                        code: 'TOKEN_EXPIRED',
+                        shouldRefresh: true,
+                      })
+                  );
                 }
               }
             } catch (decodeError) {
               // Token is malformed
-              return throwError(() => new UnauthorizedException({
-                message: 'Invalid access token',
-                code: 'INVALID_TOKEN',
-              }));
+              return throwError(
+                () =>
+                  new UnauthorizedException({
+                    message: 'Invalid access token',
+                    code: 'INVALID_TOKEN',
+                  })
+              );
             }
           }
         }
-        
+
         return throwError(() => error);
-      }),
+      })
     );
   }
 }

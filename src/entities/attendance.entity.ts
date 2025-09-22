@@ -29,5 +29,4 @@ export class Attendance {
 
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
-
 }

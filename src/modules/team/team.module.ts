@@ -13,6 +13,3 @@ import { TeamController } from './team.controller';
   exports: [TeamService],
 })
 export class TeamModule {}
-
-
-

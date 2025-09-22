@@ -44,5 +44,3 @@ export class Policy {
   @DeleteDateColumn({ type: 'timestamptz', nullable: true })
   deleted_at: Date | null;
 }
-
-

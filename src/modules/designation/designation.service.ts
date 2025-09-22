@@ -19,7 +19,7 @@ export class DesignationService {
     private readonly designationRepo: Repository<Designation>,
 
     @InjectRepository(Department)
-    private readonly departmentRepo: Repository<Department>,
+    private readonly departmentRepo: Repository<Department>
   ) {}
 
   async create(tenant_id: string, dto: CreateDesignationDto) {
@@ -39,9 +39,7 @@ export class DesignationService {
     });
 
     if (existing) {
-      throw new ConflictException(
-        'Designation with this title already exists in this department',
-      );
+      throw new ConflictException('Designation with this title already exists in this department');
     }
 
     try {
@@ -77,9 +75,7 @@ export class DesignationService {
       });
 
       if (exists && exists.id !== id) {
-        throw new ConflictException(
-          `Title '${dto.title}' already exists in this department.`,
-        );
+        throw new ConflictException(`Title '${dto.title}' already exists in this department.`);
       }
     }
 
@@ -95,7 +91,10 @@ export class DesignationService {
     }
   }
 
-  async findAllByDepartment(department_id: string, page: number = 1): Promise<PaginationResponse<Designation>> {
+  async findAllByDepartment(
+    department_id: string,
+    page: number = 1
+  ): Promise<PaginationResponse<Designation>> {
     const limit = 25;
     const skip = (page - 1) * limit;
     const [items, total] = await this.designationRepo.findAndCount({

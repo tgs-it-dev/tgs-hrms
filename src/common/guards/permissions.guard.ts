@@ -1,4 +1,10 @@
-import { CanActivate, ExecutionContext, Injectable, ForbiddenException, Logger } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  ForbiddenException,
+  Logger,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PERMISSIONS_KEY } from '../decorators/permissions.decorator';
 
@@ -13,9 +19,9 @@ export class PermissionsGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
-    
+
     this.logger.log(`PermissionsGuard: Required permissions: ${JSON.stringify(required)}`);
-    
+
     if (!required || required.length === 0) {
       this.logger.log(`PermissionsGuard: No permissions required, allowing access`);
       return true;
@@ -23,16 +29,18 @@ export class PermissionsGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest();
     const user = request.user as { permissions?: string[] };
-    
+
     this.logger.log(`PermissionsGuard: User object: ${JSON.stringify(user)}`);
     this.logger.log(`PermissionsGuard: User permissions: ${JSON.stringify(user?.permissions)}`);
-    
+
     const userPermissions = (user?.permissions || []).map((p) => p.toLowerCase());
-    this.logger.log(`PermissionsGuard: Normalized user permissions: ${JSON.stringify(userPermissions)}`);
+    this.logger.log(
+      `PermissionsGuard: Normalized user permissions: ${JSON.stringify(userPermissions)}`
+    );
 
     // Check if user is system-admin (has all permissions)
     const isSystemAdmin = (request.user as any)?.role === 'system-admin';
-    
+
     let allowed = false;
     if (isSystemAdmin) {
       // System admin has access to everything
@@ -41,19 +49,19 @@ export class PermissionsGuard implements CanActivate {
     } else {
       // Regular users need to have all required permissions
       allowed = required.every((perm) => userPermissions.includes(perm.toLowerCase()));
-      this.logger.log(`PermissionsGuard: Regular user permission check result - allowed: ${allowed}`);
+      this.logger.log(
+        `PermissionsGuard: Regular user permission check result - allowed: ${allowed}`
+      );
     }
-    
+
     if (!allowed) {
-      this.logger.warn(`PermissionsGuard: Access denied. Required: ${JSON.stringify(required)}, User has: ${JSON.stringify(userPermissions)}, Role: ${(request.user as any)?.role}`);
+      this.logger.warn(
+        `PermissionsGuard: Access denied. Required: ${JSON.stringify(required)}, User has: ${JSON.stringify(userPermissions)}, Role: ${(request.user as any)?.role}`
+      );
       throw new ForbiddenException('You do not have the required permissions');
     }
-    
+
     this.logger.log(`PermissionsGuard: Access granted`);
     return true;
   }
 }
-
-
-
-

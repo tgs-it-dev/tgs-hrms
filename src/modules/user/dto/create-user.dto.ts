@@ -1,5 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength, IsUUID ,IsEnum} from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MinLength,
+  IsUUID,
+  IsEnum,
+} from 'class-validator';
 
 export class CreateUserDto {
   @ApiProperty()
@@ -31,6 +39,6 @@ export class CreateUserDto {
   gender?: 'male' | 'female'; // Adding gender to the DTO
 
   @ApiProperty()
-  @IsUUID()  
-  role_id: string; 
+  @IsUUID()
+  role_id: string;
 }

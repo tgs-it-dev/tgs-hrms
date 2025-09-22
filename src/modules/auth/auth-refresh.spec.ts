@@ -32,7 +32,7 @@ const mockUser: User = {
   email: 'admin@company.com',
   password: bcrypt.hashSync('123456', 10),
   role_id: '11111111-1111-1111-1111-111111111111',
-  tenant_id: '11111111-1111-1111-1111-111111111111', 
+  tenant_id: '11111111-1111-1111-1111-111111111111',
   reset_token: 'valid-token',
   reset_token_expiry: new Date(Date.now() + 60000),
   refresh_token: 'refresh-token',
@@ -114,18 +114,18 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
       });
       expect(userRepo.update).toHaveBeenCalledWith(
         expect.any(String),
-        expect.objectContaining({ 
+        expect.objectContaining({
           reset_token: expect.any(String),
-          reset_token_expiry: expect.any(Date)
+          reset_token_expiry: expect.any(Date),
         })
       );
     });
 
     it('should throw BadRequestException for unknown email', async () => {
       jest.spyOn(userRepo, 'findOne').mockResolvedValue(null);
-      await expect(
-        service.forgotPassword({ email: 'invalid@example.com' })
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.forgotPassword({ email: 'invalid@example.com' })).rejects.toThrow(
+        BadRequestException
+      );
     });
   });
 
@@ -164,7 +164,11 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
       jest.spyOn(userRepo, 'findOne').mockResolvedValue(null);
 
       await expect(
-        service.resetPassword({ token: 'wrong', password: 'newpass123', confirmPassword: 'newpass123' })
+        service.resetPassword({
+          token: 'wrong',
+          password: 'newpass123',
+          confirmPassword: 'newpass123',
+        })
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -178,7 +182,11 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
       jest.spyOn(userRepo, 'findOne').mockResolvedValue(expiredUser);
 
       await expect(
-        service.resetPassword({ token: 'valid-token', password: 'newpass123', confirmPassword: 'newpass123' })
+        service.resetPassword({
+          token: 'valid-token',
+          password: 'newpass123',
+          confirmPassword: 'newpass123',
+        })
       ).rejects.toThrow(BadRequestException);
     });
   });

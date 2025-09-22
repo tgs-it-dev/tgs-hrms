@@ -35,10 +35,10 @@ export class CreateEmployeeDto {
   @IsNotEmpty()
   designation_id: string;
 
-  @ApiProperty({ 
-    example: 'uuid-of-team', 
+  @ApiProperty({
+    example: 'uuid-of-team',
     required: false,
-    description: 'Optional. Team ID to assign the employee to during creation'
+    description: 'Optional. Team ID to assign the employee to during creation',
   })
   @IsOptional()
   @IsUUID()

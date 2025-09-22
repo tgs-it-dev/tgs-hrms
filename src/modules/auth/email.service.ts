@@ -8,7 +8,7 @@ export class EmailService {
 
   constructor(
     private readonly mailerService: MailerService,
-    private readonly configService: ConfigService,
+    private readonly configService: ConfigService
   ) {}
 
   async sendPasswordResetEmail(email: string, resetToken: string, userName: string): Promise<void> {
@@ -49,7 +49,6 @@ export class EmailService {
       this.logger.log(`Password reset success email sent to ${email}`);
     } catch (error) {
       this.logger.error(`Failed to send password reset success email to ${email}:`, error);
-      
     }
   }
 }

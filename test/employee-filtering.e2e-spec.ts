@@ -37,7 +37,7 @@ describe('Employee Filtering (e2e)', () => {
 
     it('should filter employees by department_id', () => {
       const departmentId = '3a275957-c811-4ebb-b9f1-481bd96e47d1';
-      
+
       return request(app.getHttpServer())
         .get(`/employees?department_id=${departmentId}`)
         .set('Authorization', adminToken)
@@ -53,7 +53,7 @@ describe('Employee Filtering (e2e)', () => {
 
     it('should filter employees by designation_id', () => {
       const designationId = '6b99992a-d8ef-4c0c-91dc-2a23e391ac9c';
-      
+
       return request(app.getHttpServer())
         .get(`/employees?designation_id=${designationId}`)
         .set('Authorization', adminToken)
@@ -70,7 +70,7 @@ describe('Employee Filtering (e2e)', () => {
     it('should filter employees by both department_id and designation_id', () => {
       const departmentId = '3a275957-c811-4ebb-b9f1-481bd96e47d1';
       const designationId = '6b99992a-d8ef-4c0c-91dc-2a23e391ac9c';
-      
+
       return request(app.getHttpServer())
         .get(`/employees?department_id=${departmentId}&designation_id=${designationId}`)
         .set('Authorization', adminToken)
@@ -107,7 +107,7 @@ describe('Employee Filtering (e2e)', () => {
 
     it('should return 400 for non-existent department_id', () => {
       const nonExistentDeptId = '00000000-0000-0000-0000-000000000000';
-      
+
       return request(app.getHttpServer())
         .get(`/employees?department_id=${nonExistentDeptId}`)
         .set('Authorization', adminToken)
@@ -119,7 +119,7 @@ describe('Employee Filtering (e2e)', () => {
 
     it('should return 400 for non-existent designation_id', () => {
       const nonExistentDesigId = '00000000-0000-0000-0000-000000000000';
-      
+
       return request(app.getHttpServer())
         .get(`/employees?designation_id=${nonExistentDesigId}`)
         .set('Authorization', adminToken)
@@ -129,4 +129,4 @@ describe('Employee Filtering (e2e)', () => {
         });
     });
   });
-}); 
+});

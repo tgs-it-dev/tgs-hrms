@@ -10,7 +10,7 @@ import { PaginationResponse } from '../../common/interfaces/pagination.interface
 export class TenantService {
   constructor(
     @InjectRepository(Tenant)
-    private readonly tenantRepo: Repository<Tenant>,
+    private readonly tenantRepo: Repository<Tenant>
   ) {}
 
   async findAll(): Promise<Tenant[]> {

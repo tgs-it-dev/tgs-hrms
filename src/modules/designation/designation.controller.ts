@@ -1,20 +1,5 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Post,
-  Put,
-  UseGuards,
-  Query,
-} from '@nestjs/common';
-import {
-  ApiTags,
-  ApiBearerAuth,
-  ApiOperation,
-  ApiResponse,
-} from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards, Query } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { DesignationService } from './designation.service';
 import { CreateDesignationDto } from './dto/create-designation.dto';
 import { UpdateDesignationDto } from './dto/update-designation.dto';
@@ -70,32 +55,27 @@ export class DesignationController {
     },
   })
   @ApiResponse({ status: 404, description: 'Designation not found.' })
-  async update(
-    @Param('id') id: string,
-    @Body() dto: UpdateDesignationDto,
-  ) {
+  async update(@Param('id') id: string, @Body() dto: UpdateDesignationDto) {
     return this.service.update(id, dto);
   }
 
-
-
   // DesignationController.ts
-@Get('department/:departmentId')
-@Roles('admin', 'system-admin')
-@Permissions('manage_designations')
-@ApiOperation({ summary: 'List designations under a department' })
-@ApiResponse({ status: 200, description: 'List of designations.' })
-async findAllByDepartment(
-  @Param('departmentId') departmentId: string,
-  @Query('page') page?: string
-) {
-  const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-  return this.service.findAllByDepartment(departmentId, pageNumber);
-}
+  @Get('department/:departmentId')
+  @Roles('admin', 'system-admin')
+  @Permissions('manage_designations')
+  @ApiOperation({ summary: 'List designations under a department' })
+  @ApiResponse({ status: 200, description: 'List of designations.' })
+  async findAllByDepartment(
+    @Param('departmentId') departmentId: string,
+    @Query('page') page?: string
+  ) {
+    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+    return this.service.findAllByDepartment(departmentId, pageNumber);
+  }
 
   @Get(':id')
   @Roles('admin', 'system-admin')
-@Permissions('manage_designations')
+  @Permissions('manage_designations')
   @ApiOperation({ summary: 'Get a single designation' })
   @ApiResponse({ status: 200, description: 'Designation found.' })
   @ApiResponse({ status: 404, description: 'Designation not found.' })
