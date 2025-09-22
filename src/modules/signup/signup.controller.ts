@@ -5,6 +5,7 @@ import { PersonalDetailsDto } from './dto/personal-details.dto';
 import { CompanyDetailsDto } from './dto/company-details.dto';
 import { PaymentDto } from './dto/payment.dto';
 import { CompleteSignupDto } from './dto/complete-signup.dto';
+import { GoogleSignupInitDto } from './dto/google-signup-init.dto';
 
 @ApiTags('Signup')
 @Controller('signup')
@@ -47,5 +48,10 @@ export class SignupController {
   @Post('complete')
   complete(@Body() dto: CompleteSignupDto) {
     return this.signupService.completeSignup(dto);
+  }
+
+  @Post('google-init')
+  googleInit(@Body() dto: GoogleSignupInitDto) {
+    return this.signupService.googleSignupInit(dto);
   }
 }
