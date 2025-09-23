@@ -134,18 +134,19 @@ export class SignupService {
       };
     }
 
-    // Generate a random password placeholder for session; final auth can use Google SSO
+    // Generate a random password placeholder for session; final auth can use Google --
     const randomSecret = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const passwordHash = await bcrypt.hash(randomSecret, 10);
+    // const passwordHash = await bcrypt.hash(randomSecret, 10);
 
     const session = this.signupSessionRepo.create({
       email,
-      password_hash: passwordHash,
+      password_hash:'',
       first_name: firstName,
       last_name: lastName,
       phone: '',
       status: 'personal_completed',
     });
+   
     const saved = await this.signupSessionRepo.save(session);
 
     // Suggest company name and domain from email
@@ -166,6 +167,7 @@ export class SignupService {
         companyName,
         domain,
       },
+      companyDetailsCompleted: false, // <-- yeh add karein
     };
   }
 
