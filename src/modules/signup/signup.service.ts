@@ -17,6 +17,8 @@ import { SubscriptionPlan } from '../../entities/subscription-plan.entity';
 import axios from 'axios';
 import { GoogleSignupInitDto, GoogleSignupInitResponse } from './dto/google-signup-init.dto';
 import { JwtService } from '@nestjs/jwt';
+import { Department } from '../../entities/department.entity';
+import { Designation } from '../../entities/designation.entity';
 
 @Injectable()
 export class SignupService {
@@ -36,6 +38,10 @@ export class SignupService {
     private readonly roleRepo: Repository<Role>,
     @InjectRepository(SubscriptionPlan)
     private readonly planRepo: Repository<SubscriptionPlan>,
+    @InjectRepository(Department)
+    private readonly departmentRepo: Repository<Department>,
+    @InjectRepository(Designation)
+    private readonly designationRepo: Repository<Designation>,
     private readonly configService: ConfigService,
     private readonly jwtService: JwtService,
   ) {
@@ -397,6 +403,55 @@ export class SignupService {
 
     company.tenant_id = tenant.id as unknown as any;
     await this.companyDetailsRepo.save(company);
+
+    // --- Seed default departments and designations for this tenant ---
+    const defaultDepartments = [
+      {
+        name: 'HR',
+        description: `The Human Resources department is responsible for managing the organization's workforce. 
+    It focuses on employee recruitment, training, and development to build a productive team. 
+    HR ensures compliance with labor laws and company policies. 
+    The department also handles payroll, benefits, and performance management. 
+    It plays a vital role in maintaining a positive workplace culture and employee satisfaction.`,
+        designations: ['HR Manager', 'HR Executive', 'Recruitment Specialist', 'Training Coordinator', 'Payroll Officer'],
+      },
+      {
+        name: 'Engineering',
+        description: `The Engineering department drives the design, development, and maintenance of technical systems. 
+    It focuses on building scalable software solutions and ensuring product quality. 
+    The team collaborates on innovation, architecture, and performance optimization. 
+    Engineers work on diverse areas such as web, mobile, and backend development. 
+    This department plays a crucial role in delivering reliable, modern, and user-friendly technology solutions.`,
+        designations: ['Software Engineer', 'Tech Lead', 'Web Developer', 'Android Developer', 'Backend Developer', 'QA Engineer'],
+      },
+      {
+        name: 'Sales',
+        description: `The Sales department is responsible for driving revenue and business growth. 
+    It works on building strong customer relationships and expanding market reach. 
+    Sales teams analyze customer needs to provide suitable products or services. 
+    They develop strategies to meet sales targets and achieve business goals. 
+    The department also collaborates with marketing to identify new opportunities and enhance customer satisfaction.`,
+        designations: ['Sales Manager', 'Sales Executive', 'Business Development Officer', 'Account Manager', 'Sales Analyst'],
+      },
+    ];
+    for (const dept of defaultDepartments) {
+      const department = await this.departmentRepo.save(
+        this.departmentRepo.create({
+          name: dept.name,
+          description: dept.description,
+          tenant_id: tenant.id,
+        })
+      );
+      for (const desigTitle of dept.designations) {
+        await this.designationRepo.save(
+          this.designationRepo.create({
+            title: desigTitle,
+            department_id: department.id,
+          })
+        );
+      }
+    }
+    // --- End seeding ---
 
     const roles = await this.ensureDefaultRoles(tenant.id);
     // Find the 'Admin' role (case-sensitive)
