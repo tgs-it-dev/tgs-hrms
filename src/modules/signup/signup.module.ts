@@ -9,10 +9,12 @@ import { User } from '../../entities/user.entity';
 import { Role } from '../../entities/role.entity';
 import { SubscriptionPlan } from '../../entities/subscription-plan.entity';
 import { JwtModule } from '@nestjs/jwt';
+import { Department } from 'src/entities/department.entity';
+import { Designation } from 'src/entities/designation.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([SignupSession, CompanyDetails, Tenant, User, Role, SubscriptionPlan]),
+    TypeOrmModule.forFeature([SignupSession, CompanyDetails, Tenant, User, Role, SubscriptionPlan, Department,Designation]),
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'default_secret',
       signOptions: { expiresIn: process.env.JWT_EXPIRES_IN || '24h' },
