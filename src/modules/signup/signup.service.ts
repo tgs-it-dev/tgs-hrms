@@ -14,6 +14,9 @@ import { Tenant } from '../../entities/tenant.entity';
 import { User } from '../../entities/user.entity';
 import { Role } from '../../entities/role.entity';
 import { SubscriptionPlan } from '../../entities/subscription-plan.entity';
+import axios from 'axios';
+import { GoogleSignupInitDto, GoogleSignupInitResponse } from './dto/google-signup-init.dto';
+import { JwtService } from '@nestjs/jwt';
 
 @Injectable()
 export class SignupService {
@@ -34,6 +37,7 @@ export class SignupService {
     @InjectRepository(SubscriptionPlan)
     private readonly planRepo: Repository<SubscriptionPlan>,
     private readonly configService: ConfigService,
+    private readonly jwtService: JwtService,
   ) {
     const stripeKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (stripeKey) {
@@ -61,6 +65,104 @@ export class SignupService {
     });
     const saved = await this.signupSessionRepo.save(session);
     return { signupSessionId: saved.id };
+  }
+
+  async googleSignupInit(dto: GoogleSignupInitDto): Promise<GoogleSignupInitResponse | any> {
+    // Verify Google ID token via tokeninfo endpoint (simple server-side verification)
+    let payload: any;
+    try {
+      const resp = await axios.get('https://oauth2.googleapis.com/tokeninfo', {
+        params: { id_token: dto.idToken },
+      });
+      payload = resp.data;
+    } catch (e) {
+      throw new BadRequestException('Invalid Google ID token');
+    }
+
+    const email: string = String(payload.email || '').toLowerCase();
+    const givenName: string = String(payload.given_name || '').trim();
+    const familyName: string = String(payload.family_name || '').trim();
+    const name: string = String(payload.name || '').trim();
+
+    const firstName = givenName || (name ? name.split(' ')[0] : '');
+    const lastName = familyName || (name ? name.split(' ').slice(1).join(' ') : '');
+
+    const existingUser = await this.userRepo.findOne({ where: { email }, relations: ['role'] });
+    if (existingUser) {
+      if (!existingUser.role?.name) {
+        throw new BadRequestException('User role not found for existing user');
+      }
+
+      const permissions = await this.userRepo.query(`
+        SELECT p.name 
+        FROM permissions p 
+        JOIN role_permissions rp ON p.id = rp.permission_id 
+        WHERE rp.role_id = $1
+      `, [existingUser.role.id]);
+      const perms = permissions.map((row: any) => row.name.toLowerCase());
+
+      const payload = {
+        email: existingUser.email,
+        sub: existingUser.id,
+        role: existingUser.role.name.toLowerCase(),
+        tenant_id: existingUser.tenant_id,
+        permissions: perms,
+      };
+
+      const accessToken = this.jwtService.sign(payload, {
+        secret: this.configService.get<string>('JWT_SECRET'),
+        expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '24h',
+      });
+      const refreshToken = this.jwtService.sign(payload, {
+        secret: this.configService.get<string>('JWT_SECRET'),
+        expiresIn: '7d',
+      });
+
+      existingUser.refresh_token = refreshToken;
+      await this.userRepo.save(existingUser);
+
+      return {
+        alreadyRegistered: true,
+        accessToken,
+        refreshToken,
+        user: existingUser,
+        permissions: perms,
+      };
+    }
+
+    // Generate a random password placeholder for session; final auth can use Google SSO
+    const randomSecret = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const passwordHash = await bcrypt.hash(randomSecret, 10);
+
+    const session = this.signupSessionRepo.create({
+      email,
+      password_hash: passwordHash,
+      first_name: firstName,
+      last_name: lastName,
+      phone: '',
+      status: 'personal_completed',
+    });
+    const saved = await this.signupSessionRepo.save(session);
+
+    // Suggest company name and domain from email
+    const domain = email.includes('@') ? email.split('@')[1] : '';
+    const companyName = (() => {
+      if (!domain) return '';
+      const parts = domain.split('.');
+      const base = parts.length >= 2 ? parts[parts.length - 2] : parts[0];
+      return base.charAt(0).toUpperCase() + base.slice(1);
+    })();
+
+    return {
+      signupSessionId: saved.id,
+      email,
+      first_name: firstName,
+      last_name: lastName,
+      suggested: {
+        companyName,
+        domain,
+      },
+    };
   }
 
   async saveCompanyDetails(dto: CompanyDetailsDto) {
