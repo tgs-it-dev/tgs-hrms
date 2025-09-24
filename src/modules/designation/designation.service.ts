@@ -11,7 +11,7 @@ import { Department } from '../../entities/department.entity';
 import { CreateDesignationDto } from './dto/create-designation.dto';
 import { UpdateDesignationDto } from './dto/update-designation.dto';
 import { PaginationResponse } from '../../common/interfaces/pagination.interface';
-
+const GLOBAL = '00000000-0000-0000-0000-000000000000';
 @Injectable()
 export class DesignationService {
   constructor(
@@ -22,42 +22,92 @@ export class DesignationService {
     private readonly departmentRepo: Repository<Department>
   ) {}
 
+  // async create(tenant_id: string, dto: CreateDesignationDto) {
+  //   const department = await this.departmentRepo.findOne({
+  //     where: { id: dto.department_id, tenant_id },
+  //   });
+
+  //   if (!department) {
+  //     throw new BadRequestException('Invalid department for this tenant');
+  //   }
+
+  //   const existing = await this.designationRepo.findOne({
+  //     where: {
+  //       title: dto.title,
+  //       department_id: dto.department_id,
+  //     },
+  //   });
+
+  //   if (existing) {
+  //     throw new ConflictException('Designation with this title already exists in this department');
+  //   }
+
+  //   try {
+  //     const designation = this.designationRepo.create(dto);
+  //     return await this.designationRepo.save(designation);
+  //   } catch (err) {
+  //     if (err instanceof QueryFailedError) {
+  //       const code = (err as any).code;
+  //       if (code === '23505') {
+  //         throw new ConflictException('Title must be unique within the department');
+  //       }
+  //       if (code === '23502') {
+  //         throw new BadRequestException('Missing required fields');
+  //       }
+  //     }
+  //     throw err;
+  //   }
+  // }
+
   async create(tenant_id: string, dto: CreateDesignationDto) {
-    const department = await this.departmentRepo.findOne({
-      where: { id: dto.department_id, tenant_id },
-    });
+  const department = await this.departmentRepo.findOne({
+    where: { id: dto.department_id },
+  });
 
-    if (!department) {
-      throw new BadRequestException('Invalid department for this tenant');
-    }
-
-    const existing = await this.designationRepo.findOne({
-      where: {
-        title: dto.title,
-        department_id: dto.department_id,
-      },
-    });
-
-    if (existing) {
-      throw new ConflictException('Designation with this title already exists in this department');
-    }
-
-    try {
-      const designation = this.designationRepo.create(dto);
-      return await this.designationRepo.save(designation);
-    } catch (err) {
-      if (err instanceof QueryFailedError) {
-        const code = (err as any).code;
-        if (code === '23505') {
-          throw new ConflictException('Title must be unique within the department');
-        }
-        if (code === '23502') {
-          throw new BadRequestException('Missing required fields');
-        }
-      }
-      throw err;
-    }
+  if (!department) {
+    throw new BadRequestException('Invalid department');
   }
+
+  // 🚫 Restriction: prevent creating designations inside GLOBAL departments
+  if (department.tenant_id === GLOBAL) {
+    throw new BadRequestException(
+      'You cannot add designations to a GLOBAL department. Please create your own department instead.'
+    );
+  }
+
+  // ✅ Normal tenant scope check
+  if (department.tenant_id !== tenant_id) {
+    throw new BadRequestException('Department does not belong to this tenant');
+  }
+
+  const existing = await this.designationRepo.findOne({
+    where: {
+      title: dto.title,
+      department_id: dto.department_id,
+    },
+  });
+
+  if (existing) {
+    throw new ConflictException('Designation with this title already exists in this department');
+  }
+
+  try {
+    const designation = this.designationRepo.create(dto);
+    return await this.designationRepo.save(designation);
+  } catch (err) {
+    if (err instanceof QueryFailedError) {
+      const code = (err as any).code;
+      if (code === '23505') {
+        throw new ConflictException('Title must be unique within the department');
+      }
+      if (code === '23502') {
+        throw new BadRequestException('Missing required fields');
+      }
+    }
+    throw err;
+  }
+}
+
 
   async update(id: string, dto: UpdateDesignationDto) {
     const designation = await this.designationRepo.findOneBy({ id });

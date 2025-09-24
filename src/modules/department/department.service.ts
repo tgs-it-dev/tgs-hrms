@@ -10,7 +10,7 @@ import { Department } from '../../entities/department.entity';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
 import { PaginationResponse } from '../../common/interfaces/pagination.interface';
-
+const GLOBAL = '00000000-0000-0000-0000-000000000000';
 @Injectable()
 export class DepartmentService {
   constructor(
@@ -87,12 +87,21 @@ export class DepartmentService {
     }
   }
 
+  // async findAll(tenant_id: string) {
+  //   return this.repo.find({
+  //     where: { tenant_id },
+  //     order: { created_at: 'DESC' },
+  //   });
+  // }
+
+  // return GLOBAL + tenant-specific departments
   async findAll(tenant_id: string) {
-    return this.repo.find({
-      where: { tenant_id },
-      order: { created_at: 'DESC' },
-    });
+    return this.repo.createQueryBuilder('dept')
+      .where('dept.tenant_id IN (:...tenants)', { tenants: [GLOBAL, tenant_id] })
+      .orderBy('dept.name', 'ASC')
+      .getMany();
   }
+
 
   async findOne(tenant_id: string, id: string) {
     const dept = await this.repo.findOne({ where: { id, tenant_id } });
