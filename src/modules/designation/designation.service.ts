@@ -143,42 +143,42 @@ export class DesignationService {
 
 
 async update(id: string, dto: UpdateDesignationDto) {
-    const designation = await this.designationRepo.findOneBy({ id });
+  const designation = await this.designationRepo.findOne({ where: { id }, relations: ['department'] });
 
-    if (!designation) {
-      throw new NotFoundException('Designation not found.');
-    }
+  if (!designation) {
+    throw new NotFoundException('Designation not found.');
+  }
 
-    // Check if the designation's department is GLOBAL
+  // Check if the designation's department is GLOBAL
   if (designation.department.tenant_id === GLOBAL) {
     throw new BadRequestException('Cannot update a designation under a global department.');
   }
 
-    if (dto.title && dto.title !== designation.title) {
-      const exists = await this.designationRepo.findOne({
-        where: {
-          title: dto.title,
-          department_id: designation.department_id,
-        },
-      });
+  // Proceed with the update if the department is not GLOBAL
+  if (dto.title && dto.title !== designation.title) {
+    const exists = await this.designationRepo.findOne({
+      where: {
+        title: dto.title,
+        department_id: designation.department_id,
+      },
+    });
 
-      if (exists && exists.id !== id) {
-        throw new ConflictException(`Title '${dto.title}' already exists in this department.`);
-      }
-    }
-
-    Object.assign(designation, dto);
-
-    try {
-      return await this.designationRepo.save(designation);
-    } catch (err) {
-      if (err instanceof QueryFailedError && (err as any).code === '23505') {
-        throw new ConflictException('Title must be unique within the department');
-      }
-      throw err;
+    if (exists && exists.id !== id) {
+      throw new ConflictException(`Title '${dto.title}' already exists in this department.`);
     }
   }
 
+  Object.assign(designation, dto);
+
+  try {
+    return await this.designationRepo.save(designation);
+  } catch (err) {
+    if (err instanceof QueryFailedError && (err as any).code === '23505') {
+      throw new ConflictException('Title must be unique within the department');
+    }
+    throw err;
+  }
+}
   async findAllByDepartment(
     department_id: string,
     page: number = 1
@@ -230,6 +230,5 @@ async remove(id: string): Promise<{ deleted: true; id: string }> {
   await this.designationRepo.delete(id);
   return { deleted: true, id };
 }
-
 
 }
