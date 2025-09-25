@@ -30,9 +30,9 @@ export class DepartmentService {
     try {
       const department = this.repo.create({
         name: dto.name,
-        description: dto.description || null, // Explicitly handle empty description
+        description: dto.description || null, 
         tenant_id,
-        tenant: { id: tenant_id } as any, // attach tenant relation
+        tenant: { id: tenant_id } as any, 
       });
 
       return await this.repo.save(department);
@@ -66,13 +66,12 @@ export class DepartmentService {
       }
     }
 
-    // Handle description explicitly - if empty string, set to null
     if (dto.description !== undefined) {
       department.description =
         dto.description === '' || dto.description === null ? null : dto.description;
     }
 
-    // Handle name update
+    
     if (dto.name !== undefined) {
       department.name = dto.name;
     }
@@ -87,14 +86,7 @@ export class DepartmentService {
     }
   }
 
-  // async findAll(tenant_id: string) {
-  //   return this.repo.find({
-  //     where: { tenant_id },
-  //     order: { created_at: 'DESC' },
-  //   });
-  // }
-
-  // return GLOBAL + tenant-specific departments
+  
   async findAll(tenant_id: string) {
     return this.repo.createQueryBuilder('dept')
       .where('dept.tenant_id IN (:...tenants)', { tenants: [GLOBAL, tenant_id] })

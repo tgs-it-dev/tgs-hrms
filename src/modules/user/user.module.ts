@@ -7,9 +7,13 @@ import { UserController } from './user.controller';
 import { ProfileController } from './profile.controller';
 import { ProfileService } from './profile.service';
 import { FileUploadService } from './file-upload.service';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Role])],
+  imports: [
+    TypeOrmModule.forFeature([User, Role]),
+    AuthModule
+  ],
   controllers: [UserController, ProfileController],
   providers: [UserService, ProfileService, FileUploadService],
 })
