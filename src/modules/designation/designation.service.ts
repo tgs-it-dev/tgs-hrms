@@ -65,19 +65,19 @@ export class DesignationService {
   });
 
   if (!department) {
-    throw new BadRequestException('Invalid department');
+    throw new BadRequestException('Department not found. Please select a valid department.');
   }
 
   // 🚫 Restriction: prevent creating designations inside GLOBAL departments
   if (department.tenant_id === GLOBAL) {
     throw new BadRequestException(
-      'You cannot add designations to a GLOBAL department. Please create your own department instead.'
+      'Global departments are read-only reference templates. To add custom designations, please create your own department with the same name.'
     );
   }
 
   // ✅ Normal tenant scope check
   if (department.tenant_id !== tenant_id) {
-    throw new BadRequestException('Department does not belong to this tenant');
+    throw new BadRequestException('Department does not belong to your organization');
   }
 
   const existing = await this.designationRepo.findOne({
@@ -151,7 +151,7 @@ async update(id: string, dto: UpdateDesignationDto) {
 
   // Check if the designation's department is GLOBAL
   if (designation.department.tenant_id === GLOBAL) {
-    throw new BadRequestException('Cannot update a designation under a global department.');
+    throw new BadRequestException('Global designations are read-only reference templates and cannot be modified.');
   }
 
   // Proceed with the update if the department is not GLOBAL
@@ -202,7 +202,10 @@ async update(id: string, dto: UpdateDesignationDto) {
   }
 
   async findOne(id: string) {
-    const designation = await this.designationRepo.findOneBy({ id });
+    const designation = await this.designationRepo.findOne({ 
+      where: { id }, 
+      relations: ['department'] 
+    });
     if (!designation) {
       throw new NotFoundException('Designation not found.');
     }
@@ -216,7 +219,10 @@ async update(id: string, dto: UpdateDesignationDto) {
   // }
 
 async remove(id: string): Promise<{ deleted: true; id: string }> {
-  const designation = await this.designationRepo.findOne({ where: { id }, relations: ['department'] });
+  const designation = await this.designationRepo.findOne({ 
+    where: { id }, 
+    relations: ['department', 'employees'] 
+  });
 
   if (!designation) {
     throw new NotFoundException('Designation not found.');
@@ -224,11 +230,30 @@ async remove(id: string): Promise<{ deleted: true; id: string }> {
 
   // Check if the designation's department is GLOBAL
   if (designation.department.tenant_id === GLOBAL) {
-    throw new BadRequestException('Cannot delete a designation under a global department.');
+    throw new BadRequestException('Global designations are read-only reference templates and cannot be deleted.');
   }
 
-  await this.designationRepo.delete(id);
-  return { deleted: true, id };
+  // Check if designation has employees
+  if (designation.employees && designation.employees.length > 0) {
+    throw new BadRequestException(
+      `Cannot delete designation "${designation.title}" because it has ${designation.employees.length} employee(s) assigned. Please reassign employees to other designations first.`
+    );
+  }
+
+  try {
+    await this.designationRepo.delete(id);
+    return { deleted: true, id };
+  } catch (err) {
+    if (err instanceof QueryFailedError) {
+      const code = (err as any).code;
+      if (code === '23503') { // Foreign key constraint violation
+        throw new BadRequestException(
+          'Cannot delete designation because it is still being referenced by employees. Please reassign employees to other designations first.'
+        );
+      }
+    }
+    throw err;
+  }
 }
 
 }

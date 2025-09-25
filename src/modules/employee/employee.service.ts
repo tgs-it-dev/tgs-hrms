@@ -18,6 +18,8 @@ import { MailerService } from '@nestjs-modules/mailer';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
+
+const GLOBAL = '00000000-0000-0000-0000-000000000000';
 import { PaginationResponse } from '../../common/interfaces/pagination.interface';
 
 @Injectable()
@@ -50,8 +52,16 @@ export class EmployeeService {
       throw new BadRequestException('Invalid designation ID');
     }
 
+    // Prevent assignment to GLOBAL designations (they are reference templates only)
+    if (designation.department.tenant_id === GLOBAL) {
+      throw new BadRequestException(
+        'Global designations are reference templates only. Please create your own department and add designations there to assign employees.'
+      );
+    }
+
+    // Check if designation belongs to the tenant
     if (designation.department.tenant_id !== tenant_id) {
-      throw new BadRequestException('Designation does not belong to this tenant');
+      throw new BadRequestException('Designation does not belong to your organization');
     }
 
     return designation;
