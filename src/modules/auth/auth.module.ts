@@ -43,5 +43,6 @@ import { EmailService } from './email.service';
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, EmailService],
+  exports: [AuthService], // Export AuthService so other modules can use it
 })
 export class AuthModule {}
