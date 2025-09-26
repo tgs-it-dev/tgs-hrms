@@ -90,6 +90,55 @@ export class AuthService {
     return { message: 'User registered successfully' };
   }
 
+  async validateToken(userId: string) {
+    this.logger.log(`Validating token for user: ${userId}`);
+  
+    try {
+      const user = await this.userRepository.findOne({
+        where: { id: userId },
+        relations: ['role'],
+      });
+  
+      if (!user) {
+        this.logger.warn(`Token validation failed: user not found for id: ${userId}`);
+        throw new UnauthorizedException('User not found or has been deleted');
+      }
+  
+      if (!user.role?.name) {
+        this.logger.warn(`Token validation failed: user role missing for id: ${userId}`);
+        throw new UnauthorizedException('User role not found');
+      }
+  
+      // Get user permissions
+      const permissions = await this.getUserPermissions(user.id);
+  
+      this.logger.log(`Token validation successful for user: ${user.email}`);
+  
+      return {
+        valid: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          role: user.role.name.toLowerCase(),
+          tenant_id: user.tenant_id,
+          permissions,
+        }
+      };
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      this.logger.error(`Token validation error for user ${userId}: ${error.message}`);
+      throw new UnauthorizedException('Token validation failed');
+    }
+  }
+
+
+
+
+
   async validateUser(email: string, password: string) {
     const normalizedEmail = email.toLowerCase();
     this.logger.log(`Login attempt for email: ${normalizedEmail}`);
@@ -250,43 +299,107 @@ export class AuthService {
     return { message: 'Password reset successfully' };
   }
 
+  // async refreshToken(refreshToken: string) {
+  //   if (!refreshToken) {
+  //     throw new BadRequestException('Refresh token is required');
+  //   }
+
+  //   try {
+  //     const payload = this.jwtService.verify(refreshToken, {
+  //       secret: this.configService.get<string>('JWT_SECRET'),
+  //     });
+
+  //     const user = await this.userRepository.findOne({
+  //       where: { id: payload.sub },
+  //       relations: ['role'],
+  //     });
+
+  //     if (!user) {
+  //       this.logger.warn(`Refresh token failed: user not found for id: ${payload.sub}`);
+  //       throw new UnauthorizedException('Invalid refresh token');
+  //     }
+
+  //     if (!user.role?.name) {
+  //       this.logger.warn(`Refresh token failed: user role missing for id: ${payload.sub}`);
+  //       throw new UnauthorizedException('Invalid refresh token');
+  //     }
+
+  //     // Verify that the stored refresh token matches the provided one
+  //     if (user.refresh_token !== refreshToken) {
+  //       this.logger.warn(`Refresh token failed: token mismatch for user: ${user.email}`);
+  //       throw new UnauthorizedException('Invalid refresh token');
+  //     }
+
+  //     // Get user permissions
+  //     const permissions = await this.getUserPermissions(user.id);
+
+  //     this.logger.log(`Refresh: User ${user.email} has role: ${user.role.name}`);
+  //     this.logger.log(`Refresh: User ${user.email} permissions: ${JSON.stringify(permissions)}`);
+
+  //     const newPayload = {
+  //       email: user.email,
+  //       sub: user.id,
+  //       role: user.role.name.toLowerCase(),
+  //       tenant_id: user.tenant_id,
+  //       permissions,
+  //     };
+
+  //     this.logger.log(`Refresh: JWT payload for user ${user.email}: ${JSON.stringify(newPayload)}`);
+
+  //     const newAccessToken = this.jwtService.sign(newPayload, {
+  //       secret: this.configService.get<string>('JWT_SECRET'),
+  //       expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '24h',
+  //     });
+
+  //     this.logger.log(`Access token refreshed successfully for user: ${user.email}`);
+  //     return { accessToken: newAccessToken };
+  //   } catch (error) {
+  //     if (error instanceof UnauthorizedException || error instanceof BadRequestException) {
+  //       throw error;
+  //     }
+  //     this.logger.warn(`Refresh token failed: ${error.message}`);
+  //     throw new UnauthorizedException('Invalid refresh token');
+  //   }
+  // }
+
+
   async refreshToken(refreshToken: string) {
     if (!refreshToken) {
       throw new BadRequestException('Refresh token is required');
     }
-
+  
     try {
       const payload = this.jwtService.verify(refreshToken, {
         secret: this.configService.get<string>('JWT_SECRET'),
       });
-
+  
       const user = await this.userRepository.findOne({
         where: { id: payload.sub },
         relations: ['role'],
       });
-
+  
       if (!user) {
         this.logger.warn(`Refresh token failed: user not found for id: ${payload.sub}`);
-        throw new UnauthorizedException('Invalid refresh token');
+        throw new UnauthorizedException('User not found or has been deleted');
       }
-
+  
       if (!user.role?.name) {
         this.logger.warn(`Refresh token failed: user role missing for id: ${payload.sub}`);
-        throw new UnauthorizedException('Invalid refresh token');
+        throw new UnauthorizedException('User role not found');
       }
-
+  
       // Verify that the stored refresh token matches the provided one
       if (user.refresh_token !== refreshToken) {
         this.logger.warn(`Refresh token failed: token mismatch for user: ${user.email}`);
         throw new UnauthorizedException('Invalid refresh token');
       }
-
+  
       // Get user permissions
       const permissions = await this.getUserPermissions(user.id);
-
+  
       this.logger.log(`Refresh: User ${user.email} has role: ${user.role.name}`);
       this.logger.log(`Refresh: User ${user.email} permissions: ${JSON.stringify(permissions)}`);
-
+  
       const newPayload = {
         email: user.email,
         sub: user.id,
@@ -294,14 +407,14 @@ export class AuthService {
         tenant_id: user.tenant_id,
         permissions,
       };
-
+  
       this.logger.log(`Refresh: JWT payload for user ${user.email}: ${JSON.stringify(newPayload)}`);
-
+  
       const newAccessToken = this.jwtService.sign(newPayload, {
         secret: this.configService.get<string>('JWT_SECRET'),
         expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '24h',
       });
-
+  
       this.logger.log(`Access token refreshed successfully for user: ${user.email}`);
       return { accessToken: newAccessToken };
     } catch (error) {
@@ -342,4 +455,31 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token');
     }
   }
+  
+  async deleteUser(userId: string) {
+    this.logger.log(`Deleting user: ${userId}`);
+  
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+    });
+  
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+  
+    // Clear refresh token to invalidate all sessions
+    await this.userRepository.update(userId, {
+      refresh_token: null,
+    });
+  
+    // Delete the user
+    await this.userRepository.delete(userId);
+  
+    this.logger.log(`User deleted successfully: ${user.email}`);
+    return { message: 'User deleted successfully' };
+  }
+
+
+
+
 }

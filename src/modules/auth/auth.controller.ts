@@ -282,4 +282,42 @@ export class AuthController {
   async logout(@Body() dto: LogoutDto) {
     return this.authService.logout(dto.refreshToken);
   }
+
+  @ApiBearerAuth()
+  @Get('validate-token')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: 'Validate current token',
+    description: 'Validates if the current JWT token is still valid and user exists',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Token is valid',
+    schema: {
+      example: {
+        valid: true,
+        user: {
+          id: 'user-id',
+          email: 'user@example.com',
+          role: 'admin',
+          tenant_id: 'tenant-id'
+        }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Token is invalid or user not found',
+    schema: {
+      example: {
+        message: 'User not found or has been deleted'
+      }
+    }
+  })
+  async validateToken(@Req() req: any) {
+    return this.authService.validateToken(req.user.id);
+  }
+
+
+
 }
