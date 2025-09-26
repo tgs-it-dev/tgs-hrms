@@ -52,15 +52,11 @@ export class EmployeeService {
       throw new BadRequestException('Invalid designation ID');
     }
 
-    // Prevent assignment to GLOBAL designations (they are reference templates only)
-    if (designation.department.tenant_id === GLOBAL) {
-      throw new BadRequestException(
-        'Global designations are reference templates only. Please create your own department and add designations there to assign employees.'
-      );
-    }
-
-    // Check if designation belongs to the tenant
-    if (designation.department.tenant_id !== tenant_id) {
+    // Check if designation belongs to the tenant or is GLOBAL
+    if (
+      designation.department.tenant_id !== tenant_id &&
+      designation.department.tenant_id !== GLOBAL
+    ) {
       throw new BadRequestException('Designation does not belong to your organization');
     }
 

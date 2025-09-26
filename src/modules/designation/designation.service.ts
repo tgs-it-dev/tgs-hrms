@@ -68,15 +68,8 @@ export class DesignationService {
     throw new BadRequestException('Department not found. Please select a valid department.');
   }
 
-  // 🚫 Restriction: prevent creating designations inside GLOBAL departments
-  if (department.tenant_id === GLOBAL) {
-    throw new BadRequestException(
-      'Global departments are read-only reference templates. To add custom designations, please create your own department with the same name.'
-    );
-  }
-
-  // ✅ Normal tenant scope check
-  if (department.tenant_id !== tenant_id) {
+  // Allow creation if department belongs to the tenant OR is GLOBAL
+  if (department.tenant_id !== tenant_id && department.tenant_id !== GLOBAL) {
     throw new BadRequestException('Department does not belong to your organization');
   }
 
