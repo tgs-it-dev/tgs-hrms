@@ -176,31 +176,59 @@ import { SubscriptionModule } from './modules/subscription/subscription.module';
       },
     }),
 
-    // ✅ Mailer config
+    // ✅ SendGrid Mailer config
     MailerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (config: ConfigService) => ({
-        transport: {
-          host: config.get<string>('SMTP_HOST'),
-          port: config.get<number>('SMTP_PORT'),
-          secure: false,
-          auth: {
-            user: config.get<string>('SMTP_USER'),
-            pass: config.get<string>('SMTP_PASS'),
+      useFactory: async (config: ConfigService) => {
+        const sendgridApiKey = config.get<string>('SENDGRID_API_KEY');
+        const sendgridFrom = config.get<string>('SENDGRID_FROM');
+
+        // Validate required SendGrid configuration
+        if (!sendgridApiKey || !sendgridFrom) {
+          console.warn('⚠️  SendGrid configuration incomplete. Using fallback configuration.');
+          console.warn('Required: SENDGRID_API_KEY, SENDGRID_FROM');
+          
+          // Return a fallback configuration that won't work but won't crash
+          return {
+            transport: {
+              service: 'sendgrid',
+              auth: {
+                api_key: 'dummy-key',
+              },
+            },
+            defaults: {
+              from: 'noreply@example.com',
+            },
+            template: {
+              dir: join(process.cwd(), 'src', 'templates'),
+              adapter: new HandlebarsAdapter(),
+              options: {
+                strict: true,
+              },
+            },
+          };
+        }
+
+        return {
+          transport: {
+            service: 'sendgrid',
+            auth: {
+              api_key: sendgridApiKey,
+            },
           },
-        },
-        defaults: {
-          from: config.get<string>('SMTP_FROM'),
-        },
-        template: {
-          dir: join(process.cwd(), 'src', 'templates'),
-          adapter: new HandlebarsAdapter(),
-          options: {
-            strict: true,
+          defaults: {
+            from: sendgridFrom,
           },
-        },
-      }),
+          template: {
+            dir: join(process.cwd(), 'src', 'templates'),
+            adapter: new HandlebarsAdapter(),
+            options: {
+              strict: true,
+            },
+          },
+        };
+      },
     }),
 
     // Feature modules

@@ -14,8 +14,8 @@ import { Team } from '../../entities/team.entity';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { EmployeeQueryDto } from './dto/employee-query.dto';
-import { MailerService } from '@nestjs-modules/mailer';
 import { ConfigService } from '@nestjs/config';
+import { SendGridService } from '../auth/sendgrid.service';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 
@@ -35,8 +35,8 @@ export class EmployeeService {
     private readonly roleRepo: Repository<Role>,
     @InjectRepository(Team)
     private readonly teamRepo: Repository<Team>,
-    private readonly mailerService: MailerService,
-    private readonly configService: ConfigService
+    private readonly configService: ConfigService,
+    private readonly sendGridService: SendGridService
   ) {}
 
   private async validateDesignation(
@@ -384,13 +384,13 @@ export class EmployeeService {
   }
 
   private async sendPasswordResetEmail(email: string, resetToken: string) {
-    const resetUrl = `${this.configService.get('FRONTEND_URL')}/confirm-password?token=${resetToken}`;
-    await this.mailerService.sendMail({
-      to: email,
-      subject: 'Welcome to HRMS - Set Your Password',
-      template: 'employee-welcome',
-      context: { resetUrl, email },
-    });
+    try {
+      await this.sendGridService.sendWelcomeEmail(email, resetToken);
+    } catch (error) {
+      console.error(`Failed to send welcome email to ${email}:`, error);
+      // Don't throw error to prevent transaction rollback
+      console.warn('Email sending failed, but continuing with employee creation');
+    }
   }
 
   async getGenderPercentage(tenant_id: string): Promise<{

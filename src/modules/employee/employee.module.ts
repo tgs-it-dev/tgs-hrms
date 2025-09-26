@@ -13,6 +13,7 @@ import { Attendance } from 'src/entities/attendance.entity';
 import { Leave } from 'src/entities/leave.entity';
 import { AttendanceModule } from '../attendance/attendace.module';
 import { LeaveModule } from '../leave/leave.module';
+import { SendGridService } from '../auth/sendgrid.service';
 
 @Module({
   imports: [
@@ -21,6 +22,6 @@ import { LeaveModule } from '../leave/leave.module';
     LeaveModule,
   ],
   controllers: [EmployeeController, EmployeeProfileController],
-  providers: [EmployeeService, EmployeeProfileService],
+  providers: [EmployeeService, EmployeeProfileService, SendGridService],
 })
 export class EmployeeModule {}
