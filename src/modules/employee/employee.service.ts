@@ -154,18 +154,27 @@ export class EmployeeService {
       reset_token_expiry: resetTokenExpiry,
     });
 
-    const savedUser = await this.userRepo.save(user);
-
-    const employee = this.employeeRepo.create({
-      user_id: savedUser.id,
-      designation_id: dto.designation_id,
-      team_id: dto.team_id || null,
-    });
-
+    // Ensure atomicity: create user + employee and send email in one transaction
     try {
-      const savedEmployee = await this.employeeRepo.save(employee);
-      await this.sendPasswordResetEmail(dto.email, resetToken);
-      return savedEmployee;
+      return await this.userRepo.manager.transaction(async (manager) => {
+        const userRepo = manager.getRepository(User);
+        const employeeRepo = manager.getRepository(Employee);
+
+        const savedUser = await userRepo.save(user);
+
+        const employee = employeeRepo.create({
+          user_id: savedUser.id,
+          designation_id: dto.designation_id,
+          team_id: dto.team_id || null,
+        });
+
+        const savedEmployee = await employeeRepo.save(employee);
+
+        // Attempt to send email before committing. If this fails, transaction rolls back
+        await this.sendPasswordResetEmail(dto.email, resetToken);
+
+        return savedEmployee;
+      });
     } catch (err) {
       if (err instanceof QueryFailedError && (err as any).code === '23505') {
         throw new ConflictException('Manager already exists.');
@@ -208,18 +217,27 @@ export class EmployeeService {
       reset_token_expiry: resetTokenExpiry,
     });
 
-    const savedUser = await this.userRepo.save(user);
-
-    const employee = this.employeeRepo.create({
-      user_id: savedUser.id,
-      designation_id: dto.designation_id,
-      team_id: dto.team_id || null,
-    });
-
+    // Ensure atomicity: create user + employee and send email in one transaction
     try {
-      const savedEmployee = await this.employeeRepo.save(employee);
-      await this.sendPasswordResetEmail(dto.email, resetToken);
-      return savedEmployee;
+      return await this.userRepo.manager.transaction(async (manager) => {
+        const userRepo = manager.getRepository(User);
+        const employeeRepo = manager.getRepository(Employee);
+
+        const savedUser = await userRepo.save(user);
+
+        const employee = employeeRepo.create({
+          user_id: savedUser.id,
+          designation_id: dto.designation_id,
+          team_id: dto.team_id || null,
+        });
+
+        const savedEmployee = await employeeRepo.save(employee);
+
+        // Attempt to send email before committing. If this fails, transaction rolls back
+        await this.sendPasswordResetEmail(dto.email, resetToken);
+
+        return savedEmployee;
+      });
     } catch (err) {
       if (err instanceof QueryFailedError && (err as any).code === '23505') {
         throw new ConflictException('Employee already exists.');
