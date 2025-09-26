@@ -195,7 +195,7 @@ export class EmployeeController {
   @ApiOperation({ summary: 'Get employee joining report month-wise' })
   @ApiResponse({
     status: 200,
-    description: 'Employee joining report retrieved successfully.',
+    description: 'Employee joining report retrieved successfully. Returns empty array if no employees found.',
     schema: {
       example: [
         {
@@ -212,14 +212,10 @@ export class EmployeeController {
     },
   })
   @ApiResponse({
-    status: 400,
-    description: 'Error fetching employee joining report.',
+    status: 200,
+    description: 'Empty array returned when no employees are found.',
     schema: {
-      example: {
-        message: 'Error fetching employee joining report.',
-        error: 'Bad Request',
-        statusCode: 400,
-      },
+      example: [],
     },
   })
   async getEmployeeJoiningReport(@TenantId() tenant_id: string) {

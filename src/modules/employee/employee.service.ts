@@ -441,8 +441,9 @@ export class EmployeeService {
       .addOrderBy('month', 'ASC')
       .getRawMany();
 
+    // Return empty array if no employees found instead of throwing error
     if (!results || results.length === 0) {
-      throw new BadRequestException('Error fetching employee joining report.');
+      return [];
     }
 
     return results.map((entry) => ({
