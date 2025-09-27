@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsNotEmpty, IsOptional, IsString, IsUUID, IsEnum } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class CreateEmployeeDto {
   @ApiProperty({ example: 'john.doe@example.com' })
@@ -38,9 +39,19 @@ export class CreateEmployeeDto {
   @ApiProperty({
     example: 'uuid-of-team',
     required: false,
+    nullable: true,
     description: 'Optional. Team ID to assign the employee to during creation',
   })
   @IsOptional()
+  @Transform(({ value }) => {
+    if (value === undefined || value === null) return undefined;
+    if (typeof value === 'string') {
+      const v = value.trim();
+      if (v === '' || v.toLowerCase() === 'null' || v.toLowerCase() === 'undefined') return undefined;
+      return v;
+    }
+    return value;
+  })
   @IsUUID()
   team_id?: string;
 
