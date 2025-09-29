@@ -371,8 +371,24 @@ export class EmployeeService {
   }
 
   async remove(tenant_id: string, id: string): Promise<{ deleted: true; id: string }> {
-    await this.findOne(tenant_id, id);
-    await this.employeeRepo.delete(id);
+    const employee = await this.employeeRepo.findOne({
+      where: { id },
+      relations: ['user'],
+    });
+
+    if (!employee || employee.user.tenant_id !== tenant_id) {
+      throw new NotFoundException('Employee not found');
+    }
+
+    await this.employeeRepo.manager.transaction(async (manager) => {
+      const employeeRepo = manager.getRepository(Employee);
+      const userRepo = manager.getRepository(User);
+
+      // Delete employee first to satisfy potential FK constraints referencing user via employee
+      await employeeRepo.delete(employee.id);
+      await userRepo.delete(employee.user.id);
+    });
+
     return { deleted: true, id };
   }
 
