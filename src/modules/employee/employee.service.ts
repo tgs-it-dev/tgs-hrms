@@ -149,7 +149,7 @@ export class EmployeeService implements OnModuleInit {
     resetTokenExpiry.setHours(resetTokenExpiry.getHours() + 24);
 
     const user = this.userRepo.create({
-      email: dto.email,
+      email: dto.email.toLowerCase(),
       phone: dto.phone,
       password: hashedPassword,
       first_name: dto.first_name,
@@ -213,7 +213,7 @@ export class EmployeeService implements OnModuleInit {
     resetTokenExpiry.setHours(resetTokenExpiry.getHours() + 24);
 
     const user = this.userRepo.create({
-      email: dto.email,
+      email: dto.email.toLowerCase(),
       phone: dto.phone,
       password: hashedPassword,
       first_name: dto.first_name,
