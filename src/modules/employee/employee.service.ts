@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, QueryFailedError } from 'typeorm';
@@ -23,7 +24,7 @@ const GLOBAL = '00000000-0000-0000-0000-000000000000';
 import { PaginationResponse } from '../../common/interfaces/pagination.interface';
 
 @Injectable()
-export class EmployeeService {
+export class EmployeeService implements OnModuleInit {
   constructor(
     @InjectRepository(Employee)
     private readonly employeeRepo: Repository<Employee>,
@@ -38,6 +39,30 @@ export class EmployeeService {
     private readonly configService: ConfigService,
     private readonly sendGridService: SendGridService
   ) {}
+
+  onModuleInit() {
+    // Run once shortly after startup
+    setTimeout(() => this.expireInvites().catch(() => {}), 5000);
+    // Then every 15 minutes
+    setInterval(() => this.expireInvites().catch(() => {}), 15 * 60 * 1000);
+  }
+
+  private async expireInvites(): Promise<void> {
+    // Expire any employee invites whose linked user's reset_token_expiry has passed
+    try {
+      await this.employeeRepo.query(
+        `UPDATE employees e
+         SET invite_status = 'Invite Expired'
+         FROM users u
+         WHERE e.user_id = u.id
+           AND e.invite_status = 'Invite Sent'
+           AND u.reset_token_expiry IS NOT NULL
+           AND NOW() > u.reset_token_expiry`
+      );
+    } catch {
+      // ignore errors to avoid crashing scheduler
+    }
+  }
 
   private async validateDesignation(
     designation_id: string,
@@ -166,6 +191,7 @@ export class EmployeeService {
           user_id: savedUser.id,
           designation_id: dto.designation_id,
           team_id: dto.team_id || null,
+          invite_status: 'Invite Sent',
         });
 
         const savedEmployee = await employeeRepo.save(employee);
@@ -229,6 +255,7 @@ export class EmployeeService {
           user_id: savedUser.id,
           designation_id: dto.designation_id,
           team_id: dto.team_id || null,
+          invite_status: 'Invite Sent',
         });
 
         const savedEmployee = await employeeRepo.save(employee);
@@ -275,6 +302,17 @@ export class EmployeeService {
       .take(limit)
       .getManyAndCount();
 
+    // Apply lazy expiry for any 'Invite Sent' with expired token
+    const now = new Date();
+    for (const item of items) {
+      if (item.invite_status === 'Invite Sent' && item.user?.reset_token_expiry && now > item.user.reset_token_expiry) {
+        item.invite_status = 'Invite Expired';
+        try {
+          await this.employeeRepo.update(item.id, { invite_status: 'Invite Expired' });
+        } catch {}
+      }
+    }
+
     const totalPages = Math.ceil(total / limit);
 
     return {
@@ -294,6 +332,19 @@ export class EmployeeService {
 
     if (!employee || employee.user.tenant_id !== tenant_id) {
       throw new NotFoundException('Employee not found');
+    }
+
+    // Lazily expire invite if past 24h (based on user.reset_token_expiry)
+    const isJoined = employee.invite_status === 'Joined';
+    const isInviteSent = employee.invite_status === 'Invite Sent';
+    const tokenExpired = employee.user.reset_token_expiry && new Date() > employee.user.reset_token_expiry;
+    if (!isJoined && isInviteSent && tokenExpired) {
+      employee.invite_status = 'Invite Expired';
+      try {
+        await this.employeeRepo.update(employee.id, { invite_status: 'Invite Expired' });
+      } catch (e) {
+        // ignore persistence failure here
+      }
     }
 
     return employee;
