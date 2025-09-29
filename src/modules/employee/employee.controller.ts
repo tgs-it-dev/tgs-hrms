@@ -292,6 +292,16 @@ export class EmployeeController {
     return this.service.remove(tenant_id, id);
   }
 
+  @Post(':id/refresh-invite-status')
+  @Roles('admin', 'system-admin')
+  @ApiOperation({ summary: 'Resend invite if status is Invite Expired' })
+  @ApiResponse({ status: 200, description: 'Invite resent successfully' })
+  @ApiResponse({ status: 400, description: 'Invite can only be resent if status is Invite Expired' })
+  @ApiResponse({ status: 404, description: 'Employee not found for this tenant' })
+  async refreshInviteStatus(@TenantId() tenant_id: string, @Param('id') id: string) {
+    return this.service.refreshInviteStatus(tenant_id, id);
+  }
+
   @Get(':id/details')
   @Roles('admin', 'system-admin')
   @Permissions('manage_employees', 'view_team_reports')

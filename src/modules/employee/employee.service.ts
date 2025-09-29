@@ -512,4 +512,30 @@ export class EmployeeService implements OnModuleInit {
       total: parseInt(entry.total),
     }));
   }
+
+  async refreshInviteStatus(tenant_id: string, employee_id: string) {
+    // Find employee with user relation
+    const employee = await this.employeeRepo.findOne({
+      where: { id: employee_id },
+      relations: ['user'],
+    });
+    if (!employee || employee.user.tenant_id !== tenant_id) {
+      throw new NotFoundException('Employee not found for this tenant');
+    }
+    if (employee.invite_status !== 'Invite Expired') {
+      throw new BadRequestException('Invite can only be resent if status is Invite Expired');
+    }
+    // Generate new reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenExpiry = new Date();
+    resetTokenExpiry.setHours(resetTokenExpiry.getHours() + 24);
+    employee.user.reset_token = resetToken;
+    employee.user.reset_token_expiry = resetTokenExpiry;
+    employee.invite_status = 'Invite Sent';
+    await this.userRepo.save(employee.user);
+    await this.employeeRepo.save(employee);
+    // Resend invite email
+    await this.sendPasswordResetEmail(employee.user.email, resetToken);
+    return { message: 'Invite resent successfully' };
+  }
 }
