@@ -24,6 +24,9 @@ export class Employee {
   @Column({ type: 'varchar', length: 20, default: 'active' })
   status: 'active' | 'inactive';
 
+  @Column({ type: 'varchar', length: 20, default: 'Invite Sent' })
+  invite_status: 'Invite Sent' | 'Invite Expired' | 'Joined';
+
   @Column({ type: 'uuid', nullable: true })
   team_id: string | null;
 

@@ -291,6 +291,16 @@ export class AuthService {
       reset_token_expiry: null,
     });
 
+    // Update employee invite_status to 'Joined' for this user
+    try {
+      await this.userRepository.query(
+        `UPDATE employees SET invite_status = 'Joined' WHERE user_id = $1 AND invite_status <> 'Joined'`,
+        [user.id]
+      );
+    } catch (e) {
+      this.logger.warn(`Failed to update employee invite_status to Joined for user ${user.id}: ${e?.message}`);
+    }
+
     const userName = `${user.first_name} ${user.last_name}`;
     await this.emailService.sendPasswordResetSuccessEmail(user.email, userName);
 
