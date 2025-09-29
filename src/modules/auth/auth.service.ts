@@ -149,6 +149,7 @@ export class AuthService {
       where: { email: normalizedEmail },
       relations: ['role'],
     });
+   this.logger.log(`Login attempt for user: ${user}`);
 
     if (!user) {
       this.logger.warn(`Login failed: user not found for email: ${normalizedEmail}`);
