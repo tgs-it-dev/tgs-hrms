@@ -10,6 +10,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ConfigService } from '@nestjs/config';
 import { NotFoundException } from '@nestjs/common';
 import { EmailService } from './email.service';
+import { InviteStatusService } from '../invite-status/invite-status.service';
 
 @Injectable()
 export class AuthService {
@@ -20,7 +21,8 @@ export class AuthService {
     private userRepository: Repository<User>,
     private jwtService: JwtService,
     private configService: ConfigService,
-    private emailService: EmailService
+    private emailService: EmailService,
+    private inviteStatusService: InviteStatusService
   ) {}
 
   private async getUserPermissions(userId: string): Promise<string[]> {
@@ -197,6 +199,16 @@ export class AuthService {
     });
 
     user.refresh_token = refreshToken;
+    
+    // Set first_login_time if it's null (first time login)
+    if (!user.first_login_time) {
+      user.first_login_time = new Date();
+      this.logger.log(`First login recorded for user: ${normalizedEmail}`);
+      
+      // Update invite status to 'Joined' since user has logged in
+      await this.inviteStatusService.updateInviteStatusOnLogin(user.id);
+    }
+    
     await this.userRepository.save(user);
 
     this.logger.log(`Login successful for email: ${normalizedEmail}`);
@@ -290,16 +302,6 @@ export class AuthService {
       reset_token: null,
       reset_token_expiry: null,
     });
-
-    // Update employee invite_status to 'Joined' for this user
-    try {
-      await this.userRepository.query(
-        `UPDATE employees SET invite_status = 'Joined' WHERE user_id = $1 AND invite_status <> 'Joined'`,
-        [user.id]
-      );
-    } catch (e) {
-      this.logger.warn(`Failed to update employee invite_status to Joined for user ${user.id}: ${e?.message}`);
-    }
 
     const userName = `${user.first_name} ${user.last_name}`;
     await this.emailService.sendPasswordResetSuccessEmail(user.email, userName);

@@ -17,6 +17,7 @@ import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { EmployeeQueryDto } from './dto/employee-query.dto';
 import { ConfigService } from '@nestjs/config';
 import { SendGridService } from '../auth/sendgrid.service';
+import { InviteStatusService } from '../invite-status/invite-status.service';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 
@@ -37,31 +38,12 @@ export class EmployeeService implements OnModuleInit {
     @InjectRepository(Team)
     private readonly teamRepo: Repository<Team>,
     private readonly configService: ConfigService,
-    private readonly sendGridService: SendGridService
+    private readonly sendGridService: SendGridService,
+    private readonly inviteStatusService: InviteStatusService
   ) {}
 
   onModuleInit() {
-    // Run once shortly after startup
-    setTimeout(() => this.expireInvites().catch(() => {}), 5000);
-    // Then every 15 minutes
-    setInterval(() => this.expireInvites().catch(() => {}), 15 * 60 * 1000);
-  }
-
-  private async expireInvites(): Promise<void> {
-    // Expire any employee invites whose linked user's reset_token_expiry has passed
-    try {
-      await this.employeeRepo.query(
-        `UPDATE employees e
-         SET invite_status = 'Invite Expired'
-         FROM users u
-         WHERE e.user_id = u.id
-           AND e.invite_status = 'Invite Sent'
-           AND u.reset_token_expiry IS NOT NULL
-           AND NOW() > u.reset_token_expiry`
-      );
-    } catch {
-      // ignore errors to avoid crashing scheduler
-    }
+    // Cron job logic moved to InviteStatusCronService
   }
 
   private async validateDesignation(
@@ -334,17 +316,10 @@ export class EmployeeService implements OnModuleInit {
       throw new NotFoundException('Employee not found');
     }
 
-    // Lazily expire invite if past 24h (based on user.reset_token_expiry)
-    const isJoined = employee.invite_status === 'Joined';
-    const isInviteSent = employee.invite_status === 'Invite Sent';
-    const tokenExpired = employee.user.reset_token_expiry && new Date() > employee.user.reset_token_expiry;
-    if (!isJoined && isInviteSent && tokenExpired) {
-      employee.invite_status = 'Invite Expired';
-      try {
-        await this.employeeRepo.update(employee.id, { invite_status: 'Invite Expired' });
-      } catch (e) {
-        // ignore persistence failure here
-      }
+    // Check and update invite status using the service
+    const currentStatus = await this.inviteStatusService.getInviteStatus(employee.id);
+    if (currentStatus && currentStatus !== employee.invite_status) {
+      employee.invite_status = currentStatus as 'Invite Sent' | 'Invite Expired' | 'Joined';
     }
 
     return employee;

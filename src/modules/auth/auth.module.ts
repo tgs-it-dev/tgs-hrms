@@ -8,6 +8,7 @@ import { PassportModule } from '@nestjs/passport';
 import { JwtStrategy } from './jwt.strategy';
 import { EmailService } from './email.service';
 import { SendGridService } from './sendgrid.service';
+import { InviteStatusModule } from '../invite-status/invite-status.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { SendGridService } from './sendgrid.service';
       secret: process.env.JWT_SECRET || 'default_secret',
       signOptions: { expiresIn: process.env.JWT_EXPIRES_IN || '24h' },
     }),
+    InviteStatusModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, EmailService, SendGridService],

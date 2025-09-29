@@ -14,12 +14,14 @@ import { Leave } from 'src/entities/leave.entity';
 import { AttendanceModule } from '../attendance/attendace.module';
 import { LeaveModule } from '../leave/leave.module';
 import { SendGridService } from '../auth/sendgrid.service';
+import { InviteStatusModule } from '../invite-status/invite-status.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Employee, User, Designation, Role, Team, Attendance, Leave]),
     AttendanceModule,
     LeaveModule,
+    InviteStatusModule,
   ],
   controllers: [EmployeeController, EmployeeProfileController],
   providers: [EmployeeService, EmployeeProfileService, SendGridService],

@@ -84,4 +84,7 @@ export class User {
 
   @Column({ type: 'timestamptz', nullable: true })
   reset_token_expiry: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  first_login_time: Date | null;
 }
