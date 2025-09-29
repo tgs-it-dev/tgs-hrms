@@ -246,6 +246,73 @@ export class TeamService {
   //   };
   // }
 
+
+
+  async getAllTeamMembers(
+    tenantId: string,
+    page: number = 1
+  ): Promise<{
+    items: any[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const limit = 25;
+    const skip = (page - 1) * limit;
+  
+    const qb = this.employeeRepo
+      .createQueryBuilder('e')
+      .leftJoinAndSelect('e.user', 'u')
+      .leftJoinAndSelect('e.designation', 'd')
+      .leftJoinAndSelect('d.department', 'dep')
+      .leftJoinAndSelect('e.team', 't')
+      .where('u.tenant_id = :tenantId', { tenantId })
+      .andWhere('e.team_id IS NOT NULL')
+      .orderBy('e.created_at', 'DESC')
+      .skip(skip)
+      .take(limit);
+  
+    const [items, total] = await qb.getManyAndCount();
+    const totalPages = Math.ceil(total / limit);
+  
+    // Transform the data to include team information
+    const transformedItems = items.map((employee) => ({
+      id: employee.id,
+      user: {
+        id: employee.user.id,
+        first_name: employee.user.first_name,
+        last_name: employee.user.last_name,
+        email: employee.user.email,
+        profile_pic: employee.user.profile_pic,
+      },
+      designation: {
+        id: employee.designation.id,
+        title: employee.designation.title,
+      },
+      department: {
+        id: employee.designation.department.id,
+        name: employee.designation.department.name,
+      },
+      team: {
+        id: employee.team.id,
+        name: employee.team.name,
+      },
+    }));
+  
+    return {
+      items: transformedItems,
+      total,
+      page,
+      limit,
+      totalPages,
+    };
+  }
+
+
+
+
+
   async getTeamMembers(
     tenantId: string,
     teamId: string,

@@ -63,6 +63,27 @@ export class TeamController {
     return this.teamService.findAll(tenantId, pageNumber);
   }
 
+
+  @Get('all-members')
+  @Roles('admin', 'system-admin')
+  @ApiOperation({ summary: 'Get all team members across all teams (Admin only)' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Page number for pagination',
+    example: '1',
+  })
+  @ApiResponse({ status: 200, description: 'Returns paginated list of all team members' })
+  async getAllTeamMembers(
+    @TenantId() tenantId: string,
+    @Query('page') page?: string
+  ) {
+    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+    return this.teamService.getAllTeamMembers(tenantId, pageNumber);
+  }
+
+
+
   @Get('my-teams')
   @ApiOperation({ summary: 'Get teams managed by the current user (managers only)' })
   @ApiResponse({ status: 200, description: 'Returns teams managed by the current user' })
