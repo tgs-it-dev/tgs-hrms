@@ -219,6 +219,8 @@ export class LeaveController {
       for (const l of items) {
         rows.push({
           id: (l as any).id,
+          user_id: req.user.id,
+          user_name: `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim(),
           type: (l as any).type,
           from_date: (l as any).from_date,
           to_date: (l as any).to_date,
@@ -246,6 +248,7 @@ export class LeaveController {
     const rows = (items || []).map((l: any) => ({
       id: l.id,
       user_id: l.user_id,
+      user_name: `${l.user?.first_name || ''} ${l.user?.last_name || ''}`.trim(),
       type: l.type,
       from_date: l.from_date,
       to_date: l.to_date,
@@ -270,6 +273,7 @@ export class LeaveController {
         rows.push({
           id: (l as any).id,
           user_id: (l as any).user_id,
+          user_name: `${(l as any).user?.first_name || ''} ${(l as any).user?.last_name || ''}`.trim(),
           type: (l as any).type,
           from_date: (l as any).from_date,
           to_date: (l as any).to_date,
