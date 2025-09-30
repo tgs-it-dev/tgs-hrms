@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Query, UseGuards, Req } from '@nestjs/common';
+import { Controller, Post, Get, Body, Query, UseGuards, Req, Res } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AttendanceService } from './attendance.service';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
@@ -8,6 +8,8 @@ import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Permissions } from 'src/common/decorators/permissions.decorator';
 import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+import { Response } from 'express';
+import { sendCsvResponse } from 'src/common/utils/csv.util';
 
 @ApiTags('Attendance')
 @ApiBearerAuth()
@@ -107,5 +109,95 @@ export class AttendanceController {
   async getTeamAttendance(@Req() req: any, @Query('page') page?: string) {
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
     return this.attendanceService.getTeamAttendance(req.user.id, req.user.tenant_id, pageNumber);
+  }
+
+  // CSV EXPORTS
+  @Get('export/self')
+  @ApiOperation({ summary: 'Download your attendance events as CSV' })
+  async exportSelf(
+    @Req() req: Request,
+    @Res() res: Response,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    const userId = (req.user as any).id;
+    const pageSize = 100;
+    let page = 1;
+    const rows: any[] = [];
+    while (true) {
+      const { items, total } = await this.attendanceService.findEvents(userId, page, startDate, endDate);
+      for (const ev of items) {
+        rows.push({
+          id: (ev as any).id,
+          user_id: userId,
+          type: (ev as any).type,
+          timestamp: (ev as any).timestamp,
+        });
+      }
+      if (items.length < pageSize || rows.length >= total) break;
+      page += 1;
+    }
+    return sendCsvResponse(res, 'attendance-self.csv', rows);
+  }
+
+  @Get('export/team')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('manager')
+  @Permissions('manage_attendance')
+  @ApiOperation({ summary: 'Download team attendance as CSV (Manager only)' })
+  async exportTeam(
+    @Req() req: any,
+    @Res() res: Response,
+    @Query('page') page?: string
+  ) {
+    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+    const { items } = await this.attendanceService.getTeamAttendance(req.user.id, req.user.tenant_id, pageNumber);
+    const rows = (items || []).flatMap((member: any) => {
+      const attendance = member.attendance || [];
+      return attendance.map((a: any) => ({
+        user_id: member.user_id,
+        first_name: member.first_name,
+        last_name: member.last_name,
+        date: a.date,
+        check_in: a.checkIn,
+        check_out: a.checkOut,
+        worked_hours: a.workedHours,
+      }));
+    });
+    return sendCsvResponse(res, 'attendance-team.csv', rows);
+  }
+
+  @Get('export/all')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'system-admin')
+  @ApiOperation({ summary: 'Download all attendance for tenant as CSV (Admin only)' })
+  async exportAll(
+    @Req() req: any,
+    @Res() res: Response,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    let page = 1;
+    const rows: any[] = [];
+    while (true) {
+      const { items, total, limit } = await this.attendanceService.getAllAttendance(
+        req.user.tenant_id,
+        page,
+        startDate,
+        endDate
+      );
+      for (const ev of items) {
+        rows.push({
+          id: (ev as any).id,
+          user_id: (ev as any).user_id,
+          timestamp: (ev as any).timestamp,
+          type: (ev as any).type,
+        });
+      }
+      if (!items.length || rows.length >= total) break;
+      page += 1;
+      if (limit && items.length < limit) break;
+    }
+    return sendCsvResponse(res, 'attendance-all.csv', rows);
   }
 }

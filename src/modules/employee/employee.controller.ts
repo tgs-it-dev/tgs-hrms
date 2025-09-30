@@ -9,6 +9,7 @@ import {
   UseGuards,
   Query,
   Patch,
+  Res,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -32,6 +33,8 @@ import { AttendanceService } from '../attendance/attendance.service';
 import { LeaveService } from '../leave/leave.service';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { Response } from 'express';
+import { sendCsvResponse } from '../../common/utils/csv.util';
 
 @ApiTags('Employees')
 @ApiBearerAuth()
@@ -187,6 +190,32 @@ export class EmployeeController {
   async findAll(@TenantId() tenant_id: string, @Query() query: EmployeeQueryDto) {
     const pageNumber = Math.max(1, parseInt(query.page, 10) || 1);
     return this.service.findAll(tenant_id, query, pageNumber);
+  }
+
+  // CSV EXPORTS
+  @Get('export')
+  @Roles('admin', 'system-admin')
+  @ApiOperation({ summary: 'Download employees list as CSV (Admin only)' })
+  async exportAll(
+    @TenantId() tenant_id: string,
+    @Query() query: EmployeeQueryDto,
+    @Res() res: Response
+  ) {
+    const pageNumber = 1;
+    const { items } = await this.service.findAll(tenant_id, query, pageNumber);
+    const rows = (items || []).map((e: any) => ({
+      id: e.id,
+      user_id: e.user_id,
+      first_name: e.user?.first_name,
+      last_name: e.user?.last_name,
+      email: e.user?.email,
+      designation: e.designation?.title,
+      department: e.designation?.department?.name,
+      team: e.team?.name,
+      status: e.status,
+      created_at: e.created_at,
+    }));
+    return sendCsvResponse(res, 'employees.csv', rows);
   }
 
   @Get('joining-report')
