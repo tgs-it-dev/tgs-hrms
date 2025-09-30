@@ -9,6 +9,8 @@ import {
   UseGuards,
   Query,
   Req,
+  Res,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -28,7 +30,8 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { TenantGuard } from '../../common/guards/tenant.guard';
 import { TenantId } from '../../common/decorators/company.deorator';
-import { Request } from 'express';
+import { Request, Response } from 'express';
+import { sendCsvResponse } from '../../common/utils/csv.util';
 
 @ApiTags('Teams')
 @ApiBearerAuth()
@@ -36,6 +39,27 @@ import { Request } from 'express';
 @Controller('teams')
 export class TeamController {
   constructor(private readonly teamService: TeamService) {}
+
+  // CSV EXPORTS (declare before :id routes to avoid conflicts)
+  @Get('export')
+  @Roles('admin', 'system-admin')
+  @ApiOperation({ summary: 'Download teams list as CSV (Admin only)' })
+  async exportAll(
+    @TenantId() tenantId: string,
+    @Res() res: Response,
+    @Query('page') page?: string
+  ) {
+    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+    const { items } = await this.teamService.findAll(tenantId, pageNumber);
+    const rows = (items || []).map((t: any) => ({
+      id: t.id,
+      name: t.name,
+      manager_id: t.manager?.id,
+      manager_name: t.manager ? `${t.manager.first_name} ${t.manager.last_name}` : '',
+      created_at: t.created_at,
+    }));
+    return sendCsvResponse(res, 'teams.csv', rows);
+  }
 
   @Post()
   @Roles('admin', 'system-admin')
@@ -134,7 +158,10 @@ export class TeamController {
   @ApiParam({ name: 'id', description: 'Team ID' })
   @ApiResponse({ status: 200, description: 'Returns team details with members' })
   @ApiResponse({ status: 404, description: 'Team not found' })
-  async findOne(@TenantId() tenantId: string, @Param('id') id: string) {
+  async findOne(
+    @TenantId() tenantId: string,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string
+  ) {
     return this.teamService.findOne(tenantId, id);
   }
 
@@ -150,7 +177,7 @@ export class TeamController {
   @ApiResponse({ status: 200, description: 'Returns paginated list of team members' })
   async getTeamMembers(
     @TenantId() tenantId: string,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Query('page') page?: string
   ) {
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
@@ -165,7 +192,7 @@ export class TeamController {
   @ApiResponse({ status: 404, description: 'Team not found' })
   async update(
     @TenantId() tenantId: string,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() updateTeamDto: UpdateTeamDto
   ) {
     return this.teamService.update(tenantId, id, updateTeamDto);
@@ -180,7 +207,7 @@ export class TeamController {
   @ApiResponse({ status: 400, description: 'Employee already in a team' })
   async addMember(
     @TenantId() tenantId: string,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Param('employeeId') employeeId: string
   ) {
     await this.teamService.addMemberToTeam(tenantId, id, employeeId);
@@ -194,7 +221,7 @@ export class TeamController {
   @ApiResponse({ status: 400, description: 'Employee already in a team' })
   async addMemberWithBody(
     @TenantId() tenantId: string,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() dto: AddMemberDto
   ) {
     await this.teamService.addMemberToTeam(tenantId, id, dto.employee_id);
@@ -207,7 +234,7 @@ export class TeamController {
   @ApiResponse({ status: 200, description: 'Employee removed from team successfully' })
   async removeMemberWithBody(
     @TenantId() tenantId: string,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() dto: RemoveMemberDto
   ) {
     await this.teamService.removeMemberFromTeam(tenantId, id, dto.employee_id);
@@ -222,7 +249,7 @@ export class TeamController {
   @ApiResponse({ status: 200, description: 'Employee removed from team successfully' })
   async removeMember(
     @TenantId() tenantId: string,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Param('employeeId') employeeId: string
   ) {
     await this.teamService.removeMemberFromTeam(tenantId, id, employeeId);
@@ -234,7 +261,10 @@ export class TeamController {
   @ApiOperation({ summary: 'Delete a team' })
   @ApiParam({ name: 'id', description: 'Team ID' })
   @ApiResponse({ status: 200, description: 'Team deleted successfully' })
-  async remove(@TenantId() tenantId: string, @Param('id') id: string) {
+  async remove(
+    @TenantId() tenantId: string,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string
+  ) {
     await this.teamService.remove(tenantId, id);
     return { message: 'Team deleted successfully' };
   }

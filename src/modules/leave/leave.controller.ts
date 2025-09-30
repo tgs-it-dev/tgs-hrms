@@ -8,6 +8,7 @@ import {
   Query,
   UseGuards,
   Request,
+  Res,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiBody } from '@nestjs/swagger';
 import { ForbiddenException } from '@nestjs/common';
@@ -19,6 +20,8 @@ import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Permissions } from 'src/common/decorators/permissions.decorator';
 import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+import { Response } from 'express';
+import { sendCsvResponse } from 'src/common/utils/csv.util';
 
 @ApiTags('Leaves')
 @Controller('leaves')
@@ -202,5 +205,82 @@ export class LeaveController {
   })
   async withdrawLeave(@Param('id') id: string, @Request() req: any) {
     return this.leaveService.withdrawLeave(id, req.user.id);
+  }
+
+  // CSV EXPORTS
+  @Get('export/self')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Download your leave requests as CSV' })
+  async exportSelf(@Request() req: any, @Res() res: Response) {
+    let page = 1;
+    const rows: any[] = [];
+    while (true) {
+      const { items, total, limit } = await this.leaveService.getLeaves(req.user.id, page);
+      for (const l of items) {
+        rows.push({
+          id: (l as any).id,
+          type: (l as any).type,
+          from_date: (l as any).from_date,
+          to_date: (l as any).to_date,
+          status: (l as any).status,
+          reason: (l as any).reason,
+          created_at: (l as any).created_at,
+        });
+      }
+      if (!items.length || rows.length >= total) break;
+      page += 1;
+      if (limit && items.length < limit) break;
+    }
+    return sendCsvResponse(res, 'leaves-self.csv', rows);
+  }
+
+  @Get('export/team')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('manager')
+  @Permissions('manage_team_leaves')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Download team leave requests as CSV (Manager only)' })
+  async exportTeam(@Request() req: any, @Res() res: Response, @Query('page') page?: string) {
+    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+    const { items } = await this.leaveService.getTeamLeaves(req.user.id, req.user.tenant_id, pageNumber);
+    const rows = (items || []).map((l: any) => ({
+      id: l.id,
+      user_id: l.user_id,
+      type: l.type,
+      from_date: l.from_date,
+      to_date: l.to_date,
+      status: l.status,
+      reason: l.reason,
+      created_at: l.created_at,
+    }));
+    return sendCsvResponse(res, 'leaves-team.csv', rows);
+  }
+
+  @Get('export/all')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'system-admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Download all leave requests for tenant as CSV (Admin only)' })
+  async exportAll(@Request() req: any, @Res() res: Response) {
+    let page = 1;
+    const rows: any[] = [];
+    while (true) {
+      const { items, total, limit } = await this.leaveService.getAllLeaves(req.user.tenant_id, page);
+      for (const l of items) {
+        rows.push({
+          id: (l as any).id,
+          user_id: (l as any).user_id,
+          type: (l as any).type,
+          from_date: (l as any).from_date,
+          to_date: (l as any).to_date,
+          status: (l as any).status,
+          created_at: (l as any).created_at,
+        });
+      }
+      if (!items.length || rows.length >= total) break;
+      page += 1;
+      if (limit && items.length < limit) break;
+    }
+    return sendCsvResponse(res, 'leaves-all.csv', rows);
   }
 }
