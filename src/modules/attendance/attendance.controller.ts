@@ -121,6 +121,7 @@ export class AttendanceController {
     @Query('endDate') endDate?: string
   ) {
     const userId = (req.user as any).id;
+    const userName = `${(req.user as any).first_name || ''} ${(req.user as any).last_name || ''}`.trim();
     const pageSize = 100;
     let page = 1;
     const rows: any[] = [];
@@ -130,6 +131,7 @@ export class AttendanceController {
         rows.push({
           id: (ev as any).id,
           user_id: userId,
+          user_name: userName,
           type: (ev as any).type,
           timestamp: (ev as any).timestamp,
         });
@@ -156,6 +158,7 @@ export class AttendanceController {
       const attendance = member.attendance || [];
       return attendance.map((a: any) => ({
         user_id: member.user_id,
+        user_name: `${member.first_name || ''} ${member.last_name || ''}`.trim(),
         first_name: member.first_name,
         last_name: member.last_name,
         date: a.date,
@@ -190,6 +193,7 @@ export class AttendanceController {
         rows.push({
           id: (ev as any).id,
           user_id: (ev as any).user_id,
+          user_name: `${(ev as any).user?.first_name || ''} ${(ev as any).user?.last_name || ''}`.trim(),
           timestamp: (ev as any).timestamp,
           type: (ev as any).type,
         });
