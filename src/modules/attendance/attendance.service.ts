@@ -17,6 +17,20 @@ export class AttendanceService {
     private readonly timesheetService: TimesheetService // Inject TimesheetService
   ) {}
 
+  private parseLocalDayStart(dateInput: string): Date {
+    // If time part exists, respect it; otherwise assume local start of day
+    return dateInput.includes('T')
+      ? new Date(dateInput)
+      : new Date(`${dateInput}T00:00:00.000`);
+  }
+
+  private parseLocalDayEnd(dateInput: string): Date {
+    // If time part exists, respect it; otherwise assume local end of day
+    return dateInput.includes('T')
+      ? new Date(dateInput)
+      : new Date(`${dateInput}T23:59:59.999`);
+  }
+
   async create(userId: string, dto: CreateAttendanceDto) {
     const now = new Date();
     
@@ -308,9 +322,10 @@ export class AttendanceService {
       .createQueryBuilder('attendance')
       .leftJoinAndSelect('attendance.user', 'user')
       .where('user.tenant_id = :tenantId', { tenantId });
-    if (startDate) qb.andWhere('attendance.timestamp >= :start', { start: new Date(startDate) });
+    if (startDate)
+      qb.andWhere('attendance.timestamp >= :start', { start: this.parseLocalDayStart(startDate) });
     if (endDate)
-      qb.andWhere('attendance.timestamp <= :end', { end: new Date(endDate + 'T23:59:59.999Z') });
+      qb.andWhere('attendance.timestamp <= :end', { end: this.parseLocalDayEnd(endDate) });
     qb.orderBy('attendance.timestamp', 'DESC').skip(skip).take(limit);
     const [items, total] = await qb.getManyAndCount();
     const totalPages = Math.ceil(total / limit);
@@ -324,9 +339,10 @@ export class AttendanceService {
       .leftJoinAndSelect('attendance.user', 'user')
       .orderBy('attendance.timestamp', 'DESC');
     if (userId) qb.where('attendance.user_id = :userId', { userId });
-    if (startDate) qb.andWhere('attendance.timestamp >= :start', { start: new Date(startDate) });
+    if (startDate)
+      qb.andWhere('attendance.timestamp >= :start', { start: this.parseLocalDayStart(startDate) });
     if (endDate)
-      qb.andWhere('attendance.timestamp <= :end', { end: new Date(endDate + 'T23:59:59.999Z') });
+      qb.andWhere('attendance.timestamp <= :end', { end: this.parseLocalDayEnd(endDate) });
     const [items, total] = await qb.skip(skip).take(limit).getManyAndCount();
     const totalPages = Math.ceil(total / limit);
     return { items, total, page, limit, totalPages };
