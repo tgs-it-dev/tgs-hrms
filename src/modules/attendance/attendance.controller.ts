@@ -131,7 +131,6 @@ export class AttendanceController {
         rows.push({
           id: (ev as any).id,
           user_id: userId,
-          user_name: userName,
           type: (ev as any).type,
           timestamp: (ev as any).timestamp,
         });
