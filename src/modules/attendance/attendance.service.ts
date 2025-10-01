@@ -19,12 +19,29 @@ export class AttendanceService {
 
   async create(userId: string, dto: CreateAttendanceDto) {
     const now = new Date();
+    
+    // Validate attendance logic
+    if (dto.type === 'check-in') {
+      // Check if user already has an active session (check-in without checkout)
+      const activeSession = await this.getActiveSession(userId);
+      if (activeSession) {
+        throw new BadRequestException('You already have an active session. Please check out first.');
+      }
+    } else if (dto.type === 'check-out') {
+      // Check if user has an active session to check out from
+      const activeSession = await this.getActiveSession(userId);
+      if (!activeSession) {
+        throw new BadRequestException('No active session found. Please check in first.');
+      }
+    }
+    
     const attendance = this.attendanceRepo.create({
       type: dto.type,
       user_id: userId,
       timestamp: now,
     });
     const saved = await this.attendanceRepo.save(attendance);
+    
     // If the type is 'check-out', end the active work session by calling TimesheetService's autoEndIfActive
     if (dto.type === 'check-out') {
       await this.timesheetService.autoEndIfActive(userId);
@@ -33,7 +50,33 @@ export class AttendanceService {
     return saved;
   }
 
-  // Daily summary: one row per day (latest check-in/out of that day)
+  // Helper method to get active session (check-in without matching checkout)
+  private async getActiveSession(userId: string): Promise<Attendance | null> {
+    const latestCheckIn = await this.attendanceRepo
+      .createQueryBuilder('a')
+      .where('a.user_id = :userId', { userId })
+      .andWhere('a.type = :type', { type: 'check-in' })
+      .orderBy('a.timestamp', 'DESC')
+      .getOne();
+
+    if (!latestCheckIn) {
+      return null;
+    }
+
+    // Check if there's a checkout after this check-in
+    const matchingCheckOut = await this.attendanceRepo
+      .createQueryBuilder('a')
+      .where('a.user_id = :userId', { userId })
+      .andWhere('a.type = :type', { type: 'check-out' })
+      .andWhere('a.timestamp > :after', { after: latestCheckIn.timestamp })
+      .orderBy('a.timestamp', 'ASC')
+      .getOne();
+
+    // If no matching checkout found, the session is active
+    return matchingCheckOut ? null : latestCheckIn;
+  }
+
+  // Daily summary: one row per day with proper cross-day session handling
   async findAll(userId?: string, page: number = 1) {
     const limit = 20;
     const skip = (page - 1) * limit;
@@ -48,17 +91,54 @@ export class AttendanceService {
       .take(limit)
       .getManyAndCount();
 
-    const groupedByDate: Record<string, { checkIn?: Attendance; checkOut?: Attendance }> = {};
+    // Group records by user sessions (checkin-checkout pairs)
+    const sessions: Array<{ checkIn: Attendance; checkOut?: Attendance; startDate: string }> = [];
+    const checkIns: Attendance[] = [];
+    const checkOuts: Attendance[] = [];
+
+    // Separate check-ins and check-outs
     for (const record of records) {
-      const date = record.timestamp.toISOString().split('T')[0];
-      if (!groupedByDate[date]) {
-        groupedByDate[date] = {};
-      }
-      // Latest per type wins
       if (record.type === 'check-in') {
-        groupedByDate[date].checkIn = record;
+        checkIns.push(record);
       } else if (record.type === 'check-out') {
-        groupedByDate[date].checkOut = record;
+        checkOuts.push(record);
+      }
+    }
+
+    // Match check-ins with their corresponding check-outs
+    for (const checkIn of checkIns) {
+      const startDate = checkIn.timestamp.toISOString().split('T')[0];
+      
+      // Find the first checkout after this checkin
+      const matchingCheckOut = checkOuts.find(
+        checkout => checkout.timestamp > checkIn.timestamp
+      );
+
+      sessions.push({
+        checkIn,
+        checkOut: matchingCheckOut,
+        startDate
+      });
+
+      // Remove the used checkout to avoid double-matching
+      if (matchingCheckOut) {
+        const index = checkOuts.indexOf(matchingCheckOut);
+        checkOuts.splice(index, 1);
+      }
+    }
+
+    // Group sessions by their start date
+    const groupedByDate: Record<string, { checkIn?: Attendance; checkOut?: Attendance }> = {};
+    for (const session of sessions) {
+      if (!groupedByDate[session.startDate]) {
+        groupedByDate[session.startDate] = {};
+      }
+      
+      // Keep the latest check-in for this date
+      if (!groupedByDate[session.startDate].checkIn || 
+          session.checkIn.timestamp > (groupedByDate[session.startDate].checkIn?.timestamp || new Date(0))) {
+        groupedByDate[session.startDate].checkIn = session.checkIn;
+        groupedByDate[session.startDate].checkOut = session.checkOut;
       }
     }
 
@@ -120,6 +200,7 @@ export class AttendanceService {
   // }
 
   // Return check-in and its matching checkout (checkout must be after latest check-in)
+  // This method now handles cross-day sessions properly
   async getTodaySummary(userId: string) {
     const now = new Date();
     const startOfDayUtc = new Date(
@@ -128,6 +209,8 @@ export class AttendanceService {
     const startOfNextDayUtc = new Date(
       Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0)
     );
+    
+    // Get the latest check-in for today
     const latestCheckIn = await this.attendanceRepo
       .createQueryBuilder('a')
       .where('a.user_id = :userId', { userId })
@@ -138,17 +221,20 @@ export class AttendanceService {
       })
       .orderBy('a.timestamp', 'DESC')
       .getOne();
+    
     let matchingCheckOut: Attendance | null = null;
     if (latestCheckIn) {
+      // Look for checkout after the latest check-in, regardless of date
+      // This handles cross-day sessions (checkin on Day 1, checkout on Day 2)
       matchingCheckOut = await this.attendanceRepo
         .createQueryBuilder('a')
         .where('a.user_id = :userId', { userId })
         .andWhere('a.type = :type', { type: 'check-out' })
         .andWhere('a.timestamp > :after', { after: latestCheckIn.timestamp })
-        .andWhere('a.timestamp < :startOfNextDayUtc', { startOfNextDayUtc })
-        .orderBy('a.timestamp', 'DESC')
+        .orderBy('a.timestamp', 'ASC') // Get the first checkout after checkin
         .getOne();
     }
+    
     return {
       checkIn: latestCheckIn?.timestamp || null,
       checkOut: matchingCheckOut?.timestamp || null,
@@ -314,23 +400,58 @@ export class AttendanceService {
 
     console.log('Team Attendance :', attendanceRecords);
 
-    // Group attendance by user and date
+    // Group attendance by user and create proper sessions (handles cross-day)
     const groupedAttendance: Record<
       string,
       Record<string, { checkIn?: Attendance; checkOut?: Attendance }>
     > = {};
-    for (const record of attendanceRecords) {
-      const date = record.timestamp.toISOString().split('T')[0];
-      if (!groupedAttendance[record.user_id]) {
-        groupedAttendance[record.user_id] = {};
+    
+    // Process each user's attendance separately
+    for (const userId of userIds) {
+      const userRecords = attendanceRecords.filter(r => r.user_id === userId);
+      const checkIns = userRecords.filter(r => r.type === 'check-in');
+      const checkOuts = userRecords.filter(r => r.type === 'check-out');
+      
+      // Match check-ins with their corresponding check-outs
+      const sessions: Array<{ checkIn: Attendance; checkOut?: Attendance; startDate: string }> = [];
+      
+      for (const checkIn of checkIns) {
+        const startDate = checkIn.timestamp.toISOString().split('T')[0];
+        
+        // Find the first checkout after this checkin
+        const matchingCheckOut = checkOuts.find(
+          checkout => checkout.timestamp > checkIn.timestamp
+        );
+        
+        sessions.push({
+          checkIn,
+          checkOut: matchingCheckOut,
+          startDate
+        });
+        
+        // Remove the used checkout to avoid double-matching
+        if (matchingCheckOut) {
+          const index = checkOuts.indexOf(matchingCheckOut);
+          checkOuts.splice(index, 1);
+        }
       }
-      if (!groupedAttendance[record.user_id][date]) {
-        groupedAttendance[record.user_id][date] = {};
+      
+      // Group sessions by start date
+      if (!groupedAttendance[userId]) {
+        groupedAttendance[userId] = {};
       }
-      if (record.type === 'check-in') {
-        groupedAttendance[record.user_id][date].checkIn = record;
-      } else if (record.type === 'check-out') {
-        groupedAttendance[record.user_id][date].checkOut = record;
+      
+      for (const session of sessions) {
+        if (!groupedAttendance[userId][session.startDate]) {
+          groupedAttendance[userId][session.startDate] = {};
+        }
+        
+        // Keep the latest check-in for this date
+        if (!groupedAttendance[userId][session.startDate].checkIn || 
+            session.checkIn.timestamp > (groupedAttendance[userId][session.startDate].checkIn?.timestamp || new Date(0))) {
+          groupedAttendance[userId][session.startDate].checkIn = session.checkIn;
+          groupedAttendance[userId][session.startDate].checkOut = session.checkOut;
+        }
       }
     }
 
