@@ -213,7 +213,6 @@ export class EmployeeController {
       department: e.designation?.department?.name,
       team: e.team?.name,
       status: e.status,
-      created_at: e.created_at,
     }));
     return sendCsvResponse(res, 'employees.csv', rows);
   }

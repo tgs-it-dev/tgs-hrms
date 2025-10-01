@@ -56,7 +56,6 @@ export class TeamController {
       name: t.name,
       manager_id: t.manager?.id,
       manager_name: t.manager ? `${t.manager.first_name} ${t.manager.last_name}` : '',
-      created_at: t.created_at,
     }));
     return sendCsvResponse(res, 'teams.csv', rows);
   }

@@ -226,7 +226,6 @@ export class LeaveController {
           to_date: (l as any).to_date,
           status: (l as any).status,
           reason: (l as any).reason,
-          created_at: (l as any).created_at,
         });
       }
       if (!items.length || rows.length >= total) break;
@@ -254,7 +253,6 @@ export class LeaveController {
       to_date: l.to_date,
       status: l.status,
       reason: l.reason,
-      created_at: l.created_at,
     }));
     return sendCsvResponse(res, 'leaves-team.csv', rows);
   }
@@ -278,7 +276,6 @@ export class LeaveController {
           from_date: (l as any).from_date,
           to_date: (l as any).to_date,
           status: (l as any).status,
-          created_at: (l as any).created_at,
         });
       }
       if (!items.length || rows.length >= total) break;
