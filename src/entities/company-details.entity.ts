@@ -37,6 +37,9 @@ export class CompanyDetails {
   @Column({ type: 'varchar', nullable: true })
   stripe_payment_intent_id: string | null;
 
+  @Column({ type: 'varchar', nullable: true })
+  logo_url: string | null;
+
   @Column({ type: 'uuid' })
   signup_session_id: string;
 
@@ -44,16 +47,17 @@ export class CompanyDetails {
   @JoinColumn({ name: 'signup_session_id' })
   signupSession: SignupSession;
 
-  @Column({ type: 'uuid' })
-  tenant_id: string;
+  @Column({ type: 'uuid', nullable: true })
+  tenant_id: string | null;
 
-  @ManyToOne(() => Tenant, (tenant) => tenant.departments, { nullable: false })
+  @ManyToOne(() => Tenant, (tenant) => tenant.departments, { nullable: true })
   @JoinColumn({ name: 'tenant_id' })
-  tenant: Tenant;
+  tenant: Tenant | null;
 
   @CreateDateColumn()
   created_at: Date;
 
   @UpdateDateColumn()
   updated_at: Date;
+
 }

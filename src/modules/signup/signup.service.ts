@@ -242,6 +242,21 @@ export class SignupService {
     return { signupSessionId: session.id, status: 'company_completed', nextStep: details.is_paid ? 'complete' : 'payment', companyDetailsCompleted: true, paymentCompleted: !!details.is_paid, message };
   }
 
+  async saveCompanyLogo(signupSessionId: string, file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+    const session = await this.signupSessionRepo.findOne({ where: { id: signupSessionId } });
+    if (!session) throw new NotFoundException('Signup session not found');
+    let details = await this.companyDetailsRepo.findOne({ where: { signup_session_id: session.id } });
+    if (!details) throw new NotFoundException('Company details not found');
+    // Save the logo URL (relative path)
+    const logoUrl = `/company-logos/${file.filename}`;
+    details.logo_url = logoUrl;
+    await this.companyDetailsRepo.save(details);
+    return { logoUrl, signupSessionId };
+  }
+
   async startPayment(dto: PaymentDto) {
     const session = await this.signupSessionRepo.findOne({
       where: { id: dto.signupSessionId },
