@@ -17,20 +17,6 @@ export class AttendanceService {
     private readonly timesheetService: TimesheetService // Inject TimesheetService
   ) {}
 
-  private parseLocalDayStart(dateInput: string): Date {
-    // If time part exists, respect it; otherwise assume local start of day
-    return dateInput.includes('T')
-      ? new Date(dateInput)
-      : new Date(`${dateInput}T00:00:00.000`);
-  }
-
-  private parseLocalDayEnd(dateInput: string): Date {
-    // If time part exists, respect it; otherwise assume local end of day
-    return dateInput.includes('T')
-      ? new Date(dateInput)
-      : new Date(`${dateInput}T23:59:59.999`);
-  }
-
   async create(userId: string, dto: CreateAttendanceDto) {
     const now = new Date();
     
@@ -187,54 +173,67 @@ export class AttendanceService {
 
   // Raw events list for building multiple sessions per day in UI
   // async findEvents(userId?: string, page: number = 1) {
-  // 	const limit = 20;
-  // 	const skip = (page - 1) * limit;
+  //  const limit = 20;
+  //  const skip = (page - 1) * limit;
 
-  // 	const qb = this.attendanceRepo.createQueryBuilder('attendance')
-  // 		.leftJoinAndSelect('attendance.user', 'user')
-  // 		.orderBy('attendance.timestamp', 'DESC');
+  //  const qb = this.attendanceRepo.createQueryBuilder('attendance')
+  //    .leftJoinAndSelect('attendance.user', 'user')
+  //    .orderBy('attendance.timestamp', 'DESC');
 
-  // 		if (userId) {
-  // 			qb.where('attendance.user_id = :userId', { userId });
-  // 		  }
+  //    if (userId) {
+  //      qb.where('attendance.user_id = :userId', { userId });
+  //      }
 
-  // 	const [items, total] = await qb
-  // 		.skip(skip)
-  // 		.take(limit)
-  // 		.getManyAndCount();
+  //  const [items, total] = await qb
+  //    .skip(skip)
+  //    .take(limit)
+  //    .getManyAndCount();
 
-  // 	const totalPages = Math.ceil(total / limit);
-  // 	return {
-  // 		items,
-  // 		total,
-  // 		page,
-  // 		limit,
-  // 		totalPages,
-  // 	};
+  //  const totalPages = Math.ceil(total / limit);
+  //  return {
+  //    items,
+  //    total,
+  //    page,
+  //    limit,
+  //    totalPages,
+  //  };
   // }
 
-  // Return check-in and its matching checkout (checkout must be after latest check-in)
-  // This method now handles cross-day sessions properly
+  // Return check-in and its matching checkout for today, or latest session if no today's session
+  // This method handles cross-day sessions and provides fallback to latest session
   async getTodaySummary(userId: string) {
     const now = new Date();
-    const startOfDayUtc = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0)
-    );
-    const startOfNextDayUtc = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0)
-    );
     
-    // Get the latest check-in for today
-    const latestCheckIn = await this.attendanceRepo
+    // Use local timezone boundaries to determine "today"
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const startOfNextDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+    
+    // First, try to get today's check-in
+    const todayCheckIn = await this.attendanceRepo
       .createQueryBuilder('a')
       .where('a.user_id = :userId', { userId })
       .andWhere('a.type = :type', { type: 'check-in' })
-      .andWhere('a.timestamp >= :startOfDayUtc AND a.timestamp < :startOfNextDayUtc', {
-        startOfDayUtc,
-        startOfNextDayUtc,
+      .andWhere('a.timestamp >= :startOfDay AND a.timestamp < :startOfNextDay', {
+        startOfDay,
+        startOfNextDay,
       })
       .orderBy('a.timestamp', 'DESC')
       .getOne();
+    
+    let latestCheckIn: Attendance | null = null;
+    
+    if (todayCheckIn) {
+      // Found today's check-in, use it
+      latestCheckIn = todayCheckIn;
+    } else {
+      // No today's check-in, fallback to latest check-in regardless of date
+      latestCheckIn = await this.attendanceRepo
+        .createQueryBuilder('a')
+        .where('a.user_id = :userId', { userId })
+        .andWhere('a.type = :type', { type: 'check-in' })
+        .orderBy('a.timestamp', 'DESC')
+        .getOne();
+    }
     
     let matchingCheckOut: Attendance | null = null;
     if (latestCheckIn) {
@@ -269,25 +268,25 @@ export class AttendanceService {
   }
 
   // async getAllAttendance(tenantId: string, page: number = 1) {
-  // 	const limit = 20;
-  // 	const skip = (page - 1) * limit;
+  //  const limit = 20;
+  //  const skip = (page - 1) * limit;
 
-  // 	const [items, total] = await this.attendanceRepo.findAndCount({
-  // 		where: { user: { tenant_id: tenantId } },
-  // 		relations: ['user'],
-  // 		order: { timestamp: 'DESC' },
-  // 		skip,
-  // 		take: limit,
-  // 	});
+  //  const [items, total] = await this.attendanceRepo.findAndCount({
+  //    where: { user: { tenant_id: tenantId } },
+  //    relations: ['user'],
+  //    order: { timestamp: 'DESC' },
+  //    skip,
+  //    take: limit,
+  //  });
 
-  // 	const totalPages = Math.ceil(total / limit);
-  // 	return {
-  // 		items,
-  // 		total,
-  // 		page,
-  // 		limit,
-  // 		totalPages,
-  // 	};
+  //  const totalPages = Math.ceil(total / limit);
+  //  return {
+  //    items,
+  //    total,
+  //    page,
+  //    limit,
+  //    totalPages,
+  //  };
   // }
 
   // Get total attendance for the current month (one per day per employee)
@@ -322,10 +321,9 @@ export class AttendanceService {
       .createQueryBuilder('attendance')
       .leftJoinAndSelect('attendance.user', 'user')
       .where('user.tenant_id = :tenantId', { tenantId });
-    if (startDate)
-      qb.andWhere('attendance.timestamp >= :start', { start: this.parseLocalDayStart(startDate) });
+    if (startDate) qb.andWhere('attendance.timestamp >= :start', { start: new Date(startDate) });
     if (endDate)
-      qb.andWhere('attendance.timestamp <= :end', { end: this.parseLocalDayEnd(endDate) });
+      qb.andWhere('attendance.timestamp <= :end', { end: new Date(endDate + 'T23:59:59.999Z') });
     qb.orderBy('attendance.timestamp', 'DESC').skip(skip).take(limit);
     const [items, total] = await qb.getManyAndCount();
     const totalPages = Math.ceil(total / limit);
@@ -339,10 +337,9 @@ export class AttendanceService {
       .leftJoinAndSelect('attendance.user', 'user')
       .orderBy('attendance.timestamp', 'DESC');
     if (userId) qb.where('attendance.user_id = :userId', { userId });
-    if (startDate)
-      qb.andWhere('attendance.timestamp >= :start', { start: this.parseLocalDayStart(startDate) });
+    if (startDate) qb.andWhere('attendance.timestamp >= :start', { start: new Date(startDate) });
     if (endDate)
-      qb.andWhere('attendance.timestamp <= :end', { end: this.parseLocalDayEnd(endDate) });
+      qb.andWhere('attendance.timestamp <= :end', { end: new Date(endDate + 'T23:59:59.999Z') });
     const [items, total] = await qb.skip(skip).take(limit).getManyAndCount();
     const totalPages = Math.ceil(total / limit);
     return { items, total, page, limit, totalPages };
