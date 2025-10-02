@@ -46,6 +46,7 @@ export class SeedRolesAndPermissionsUpdated1756000000000 implements MigrationInt
       { name: "view_self_reports", description: "view self reports" },
       { name: "request_leave", description: "request leave" },
       { name: "view_self_schedule", description: "view self schedule" },
+      { name: "manage_company", description: "manage company details" },
     ];
 
     for (const perm of permissions) {
@@ -64,7 +65,7 @@ export class SeedRolesAndPermissionsUpdated1756000000000 implements MigrationInt
           "manage_users", "manage_roles", "manage_permissions", "manage_departments",
           "manage_designations", "manage_policies", "view_reports", "manage_tenants",
           "manage_attendance", "manage_leaves", "manage_timesheets", "manage_employees",
-          "approve_leaves", "view_team_reports", "manage_team_schedules"
+          "approve_leaves", "view_team_reports", "manage_team_schedules", "manage_company"
         ],
       },
       {

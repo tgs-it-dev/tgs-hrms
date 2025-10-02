@@ -1,11 +1,15 @@
-import { Body, Controller, Headers, Post, Query, BadRequestException } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Headers, Post, Query, BadRequestException, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { ApiTags, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { SignupService } from './signup.service';
 import { PersonalDetailsDto } from './dto/personal-details.dto';
 import { CompanyDetailsDto } from './dto/company-details.dto';
 import { PaymentDto } from './dto/payment.dto';
 import { CompleteSignupDto } from './dto/complete-signup.dto';
 import { GoogleSignupInitDto } from './dto/google-signup-init.dto';
+import { CompanyLogoDto } from './dto/company-logo.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import * as path from 'path';
 
 @ApiTags('Signup')
 @Controller('signup')
@@ -43,6 +47,47 @@ export class SignupController {
     }
 
     return this.signupService.markPaymentSuccess(signupSessionId, checkoutSessionId);
+  }
+
+  @Post('upload-logo')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+        signupSessionId: {
+          type: 'string',
+        },
+      },
+      required: ['file', 'signupSessionId'],
+    },
+  })
+  @UseInterceptors(FileInterceptor('file', {
+    storage: diskStorage({
+      destination: './public/company-logos',
+      filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname);
+        const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+        cb(null, `${unique}${ext}`);
+      },
+    }),
+    fileFilter: (req, file, cb) => {
+      if (!file.mimetype.startsWith('image/')) {
+        return cb(new Error('Only image files are allowed!'), false);
+      }
+      cb(null, true);
+    },
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  }))
+  async uploadLogo(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() dto: CompanyLogoDto
+  ) {
+    return this.signupService.saveCompanyLogo(dto.signupSessionId, file);
   }
 
   @Post('complete')

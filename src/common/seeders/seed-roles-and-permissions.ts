@@ -33,6 +33,7 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
       'view_self_attendance',
       'view_self_leaves',
       'create_self_timesheet',
+      'manage_company',
     ];
 
     for (const permission of permissions) {
@@ -70,6 +71,7 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
         'approve_leaves',
         'view_team_reports',
         'manage_team_schedules',
+        'manage_company',
       ],
       admin: [
         'manage_users',
@@ -84,6 +86,7 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
         'approve_leaves',
         'view_team_reports',
         'manage_team_schedules',
+        'manage_company',
       ],
       manager: [
         'view_reports',

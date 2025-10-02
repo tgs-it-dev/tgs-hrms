@@ -142,6 +142,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { TeamModule } from './modules/team/team.module';
 import { SignupModule } from './modules/signup/signup.module';
 import { SubscriptionModule } from './modules/subscription/subscription.module';
+import { CompanyModule } from './modules/company/company.module';
 
 @Module({
   imports: [
@@ -248,6 +249,7 @@ import { SubscriptionModule } from './modules/subscription/subscription.module';
     TeamModule,
     SignupModule,
     SubscriptionModule,
+    CompanyModule,
   ],
 })
 export class AppModule {}
