@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from '../../entities/user.entity';
+import { CompanyDetails } from '../../entities/company-details.entity';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { RegisterDto } from './dto/register.dto';
@@ -19,6 +20,8 @@ export class AuthService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(CompanyDetails)
+    private companyDetailsRepository: Repository<CompanyDetails>,
     private jwtService: JwtService,
     private configService: ConfigService,
     private emailService: EmailService,
@@ -61,6 +64,32 @@ export class AuthService {
       this.logger.error(`Failed to load permissions for user ${userId}: ${error.message}`);
       this.logger.error(`Error stack: ${error.stack}`);
       return [];
+    }
+  }
+
+  private async getCompanyDetails(tenantId: string): Promise<any> {
+    try {
+      this.logger.log(`Loading company details for tenant: ${tenantId}`);
+
+      const company = await this.companyDetailsRepository.findOne({
+        where: { tenant_id: tenantId },
+      });
+
+      if (!company) {
+        this.logger.warn(`Company details not found for tenant: ${tenantId}`);
+        return null;
+      }
+
+      return {
+        id: company.id,
+        company_name: company.company_name,
+        domain: company.domain,
+        logo_url: company.logo_url,
+        tenant_id: company.tenant_id,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to load company details for tenant ${tenantId}: ${error.message}`);
+      return null;
     }
   }
 
@@ -176,6 +205,9 @@ export class AuthService {
     // Get user permissions
     const permissions = await this.getUserPermissions(user.id);
 
+    // Get company details
+    const companyDetails = await this.getCompanyDetails(user.tenant_id);
+
     this.logger.log(`User ${user.email} has role: ${user.role.name}`);
     this.logger.log(`User ${user.email} permissions: ${JSON.stringify(permissions)}`);
 
@@ -218,6 +250,7 @@ export class AuthService {
       refreshToken,
       user,
       permissions,
+      company: companyDetails,
     };
   }
 

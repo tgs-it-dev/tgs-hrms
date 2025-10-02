@@ -3,6 +3,7 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../../entities/user.entity';
+import { CompanyDetails } from '../../entities/company-details.entity';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { JwtStrategy } from './jwt.strategy';
@@ -12,7 +13,7 @@ import { InviteStatusModule } from '../invite-status/invite-status.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, CompanyDetails]),
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'default_secret',
