@@ -19,6 +19,9 @@ export enum UserRole {
   USER = 'user',
   MANAGER = 'manager',
   HR = 'hr',
+  SYSTEM_ADMIN = 'system-admin',
+  NETWORK_ADMIN = 'network-admin',
+  HR_ADMIN = 'hr-admin',
 }
 
 @Entity('users')
