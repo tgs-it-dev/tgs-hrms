@@ -33,6 +33,7 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
       'view_self_attendance',
       'view_self_leaves',
       'create_self_timesheet',
+      'create_self_attendance',
       'manage_company',
     ];
 
@@ -56,6 +57,7 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
     // Define role-permission mappings
     const roleToPermissions: Record<string, string[]> = {
       'system-admin': [
+        // System admin gets ALL permissions
         'manage_users',
         'manage_roles',
         'manage_permissions',
@@ -71,10 +73,22 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
         'approve_leaves',
         'view_team_reports',
         'manage_team_schedules',
+        'view_team_attendance',
+        'view_team_timesheets',
+        'manage_team_leaves',
+        'view_self_attendance',
+        'view_self_leaves',
+        'create_self_timesheet',
+        'view_self_reports',
+        'request_leave',
+        'view_self_schedule',
         'manage_company',
       ],
       admin: [
+        // Admin gets all permissions except manage_tenants
         'manage_users',
+        'manage_roles',
+        'manage_permissions',
         'manage_departments',
         'manage_designations',
         'manage_policies',
@@ -86,7 +100,55 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
         'approve_leaves',
         'view_team_reports',
         'manage_team_schedules',
+        'view_team_attendance',
+        'view_team_timesheets',
+        'manage_team_leaves',
+        'view_self_attendance',
+        'view_self_leaves',
+        'create_self_timesheet',
+        'view_self_reports',
+        'request_leave',
+        'view_self_schedule',
         'manage_company',
+      ],
+      'network-admin': [
+        // Network Admin gets same permissions as Admin (all except manage_tenants)
+        'manage_users',
+        'manage_roles',
+        'manage_permissions',
+        'manage_departments',
+        'manage_designations',
+        'manage_policies',
+        'view_reports',
+        'manage_attendance',
+        'manage_leaves',
+        'manage_timesheets',
+        'manage_employees',
+        'approve_leaves',
+        'view_team_reports',
+        'manage_team_schedules',
+        'view_team_attendance',
+        'view_team_timesheets',
+        'manage_team_leaves',
+        'view_self_attendance',
+        'view_self_leaves',
+        'create_self_timesheet',
+        'view_self_reports',
+        'request_leave',
+        'view_self_schedule',
+        'manage_company',
+      ],
+      'hr-admin': [
+        // HR Admin gets employee permissions + attendance & leave management
+        'view_self_attendance',
+        'view_self_leaves',
+        'create_self_timesheet',
+        'view_self_reports',
+        'request_leave',
+        'view_self_schedule',
+        'manage_attendance', // Can view all attendance
+        'create_self_attendance', // Can create own attendance
+        'manage_leaves', // Can view all leaves
       ],
       manager: [
         'view_reports',

@@ -34,6 +34,9 @@ export class AttendanceController {
   }
 
   @Get('all')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('hr-admin', 'admin', 'system-admin', 'network-admin')
+  @Permissions('manage_attendance')
   async findAllForAdmin(
     @Req() req: any,
     @Query('page') page?: string,
@@ -170,8 +173,9 @@ export class AttendanceController {
   }
 
   @Get('export/all')
-  @UseGuards(RolesGuard)
-  @Roles('admin', 'system-admin')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('hr-admin', 'admin', 'system-admin', 'network-admin')
+  @Permissions('manage_attendance')
   @ApiOperation({ summary: 'Download all attendance for tenant as CSV (Admin only)' })
   async exportAll(
     @Req() req: any,

@@ -38,14 +38,15 @@ export class PermissionsGuard implements CanActivate {
       `PermissionsGuard: Normalized user permissions: ${JSON.stringify(userPermissions)}`
     );
 
-    // Check if user is system-admin (has all permissions)
-    const isSystemAdmin = (request.user as any)?.role === 'system-admin';
+    // Check if user is admin-equivalent (admin or system-admin) -> has all permissions
+    const role = ((request.user as any)?.role || '').toLowerCase();
+    const isAdminEquivalent = role === 'system-admin' || role === 'admin' || role === 'network-admin';
 
     let allowed = false;
-    if (isSystemAdmin) {
-      // System admin has access to everything
+    if (isAdminEquivalent) {
+      // Admin-equivalent has access to everything
       allowed = true;
-      this.logger.log(`PermissionsGuard: System admin access granted`);
+      this.logger.log(`PermissionsGuard: Admin-equivalent access granted`);
     } else {
       // Regular users need to have all required permissions
       allowed = required.every((perm) => userPermissions.includes(perm.toLowerCase()));
