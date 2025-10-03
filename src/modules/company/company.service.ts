@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CompanyDetails } from '../../entities/company-details.entity';
@@ -7,6 +12,7 @@ import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CompanyResponseDto } from './dto/company-response.dto';
 import * as fs from 'fs';
 import * as path from 'path';
+import { createReadStream, statSync, existsSync } from 'fs';
 
 @Injectable()
 export class CompanyService {
@@ -21,17 +27,20 @@ export class CompanyService {
 
   async getCompanyDetails(tenantId: string): Promise<CompanyResponseDto> {
     this.logger.log(`Getting company details for tenant: ${tenantId}`);
-    
+
     const company = await this.companyDetailsRepo.findOne({
       where: { tenant_id: tenantId },
     });
+    this.logger.log(`Fetched logo_url from DB for tenant ${tenantId}: ${company?.logo_url}`);
 
     if (!company) {
       throw new NotFoundException('Company details not found');
     }
 
     if (!company.tenant_id) {
-      throw new NotFoundException('Company is not associated with any tenant');
+      throw new NotFoundException(
+        'Company is not associated with any tenant',
+      );
     }
 
     return {
@@ -52,11 +61,14 @@ export class CompanyService {
     userRole: string,
     updateDto: UpdateCompanyDto,
   ): Promise<CompanyResponseDto> {
-    this.logger.log(`Updating company details for tenant: ${tenantId}, role: ${userRole}`);
-    
-    // Check if user is admin or system-admin
+    this.logger.log(
+      `Updating company details for tenant: ${tenantId}, role: ${userRole}`,
+    );
+
     if (userRole !== 'admin' && userRole !== 'system-admin') {
-      throw new ForbiddenException('Only admin users can update company details');
+      throw new ForbiddenException(
+        'Only admin users can update company details',
+      );
     }
 
     const company = await this.companyDetailsRepo.findOne({
@@ -67,29 +79,27 @@ export class CompanyService {
       throw new NotFoundException('Company details not found');
     }
 
-    // Update company details
     company.company_name = updateDto.company_name;
     company.domain = updateDto.domain;
-    
+
     if (updateDto.logo_url !== undefined) {
       company.logo_url = updateDto.logo_url;
     }
 
     const updatedCompany = await this.companyDetailsRepo.save(company);
-    
-    // Also update tenant name to match company name
+
     if (company.tenant_id && updateDto.company_name) {
       await this.tenantRepo.update(
         { id: company.tenant_id },
-        { name: updateDto.company_name }
+        { name: updateDto.company_name },
       );
       this.logger.log(`Tenant name updated to: ${updateDto.company_name}`);
     }
-    
-    this.logger.log(`Company details updated successfully for tenant: ${tenantId}`);
 
     if (!updatedCompany.tenant_id) {
-      throw new NotFoundException('Company is not associated with any tenant');
+      throw new NotFoundException(
+        'Company is not associated with any tenant',
+      );
     }
 
     return {
@@ -110,11 +120,14 @@ export class CompanyService {
     userRole: string,
     file: Express.Multer.File,
   ): Promise<CompanyResponseDto> {
-    this.logger.log(`Updating company logo for tenant: ${tenantId}, role: ${userRole}`);
-    
-    // Check if user is admin or system-admin
+    this.logger.log(
+      `Updating company logo for tenant: ${tenantId}, role: ${userRole}`,
+    );
+
     if (userRole !== 'admin' && userRole !== 'system-admin') {
-      throw new ForbiddenException('Only admin users can update company logo');
+      throw new ForbiddenException(
+        'Only admin users can update company logo',
+      );
     }
 
     const company = await this.companyDetailsRepo.findOne({
@@ -125,45 +138,51 @@ export class CompanyService {
       throw new NotFoundException('Company details not found');
     }
 
-    // Ensure the uploads directory exists
     const uploadsDir = path.join(process.cwd(), 'public', 'company-logos');
     if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
+      await fs.promises.mkdir(uploadsDir, { recursive: true });
     }
 
-    // Generate unique filename
+    // unique filename
     const timestamp = Date.now();
     const randomNum = Math.floor(Math.random() * 1000000000);
     const fileExtension = path.extname(file.originalname);
     const fileName = `${timestamp}-${randomNum}${fileExtension}`;
     const filePath = path.join(uploadsDir, fileName);
 
-    // Save file
-    fs.writeFileSync(filePath, file.buffer);
+    await fs.promises.writeFile(filePath, file.buffer);
 
-    // Delete old logo if exists
+    // delete old logo safely
     if (company.logo_url) {
-      const oldFileName = company.logo_url.split('/').pop();
+      const oldFileName = company.logo_url.split('/').pop()?.split('?')[0];
       if (oldFileName) {
         const oldFilePath = path.join(uploadsDir, oldFileName);
-        if (fs.existsSync(oldFilePath)) {
-          fs.unlinkSync(oldFilePath);
-          this.logger.log(`Deleted old logo: ${oldFileName}`);
+        try {
+          if (fs.existsSync(oldFilePath)) {
+            await fs.promises.unlink(oldFilePath);
+            this.logger.log(`Deleted old logo: ${oldFileName}`);
+          }
+        } catch (err) {
+          this.logger.error(`Failed to delete old logo: ${err.message}`);
         }
       }
     }
 
-    // Update company logo URL
-    const logoUrl = `/public/company-logos/${fileName}`;
+    // add cache-busting param
+    const logoUrl = `/company-logos/${fileName}?v=${Date.now()}`;
     company.logo_url = logoUrl;
 
     const updatedCompany = await this.companyDetailsRepo.save(company);
-    
-    this.logger.log(`Company logo updated successfully for tenant: ${tenantId}`);
 
     if (!updatedCompany.tenant_id) {
-      throw new NotFoundException('Company is not associated with any tenant');
+      throw new NotFoundException(
+        'Company is not associated with any tenant',
+      );
     }
+
+    this.logger.log(
+      `Company logo updated successfully for tenant: ${tenantId}`,
+    );
 
     return {
       id: updatedCompany.id,
@@ -176,5 +195,57 @@ export class CompanyService {
       created_at: updatedCompany.created_at,
       updated_at: updatedCompany.updated_at,
     };
+  }
+
+  async getCompanyLogoStream(
+    tenantId: string,
+  ): Promise<{
+    fileStream: fs.ReadStream | null;
+    contentType: string;
+    fileSize: number;
+  }> {
+    this.logger.log(`Fetching company logo stream for tenant: ${tenantId}`);
+
+    const company = await this.companyDetailsRepo.findOne({
+      where: { tenant_id: tenantId },
+    });
+
+    if (!company || !company.logo_url) {
+      return { fileStream: null, contentType: 'image/jpeg', fileSize: 0 };
+    }
+
+    const uploadsDir = path.join(process.cwd(), 'public', 'company-logos');
+    const fileName = company.logo_url.split('/').pop()?.split('?')[0]; // ignore ?v=
+    if (!fileName) {
+      return { fileStream: null, contentType: 'image/jpeg', fileSize: 0 };
+    }
+
+    const filePath = path.join(uploadsDir, fileName);
+    if (!existsSync(filePath)) {
+      return { fileStream: null, contentType: 'image/jpeg', fileSize: 0 };
+    }
+
+    const stats = statSync(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+    let contentType = 'image/jpeg';
+
+    switch (ext) {
+      case '.png':
+        contentType = 'image/png';
+        break;
+      case '.gif':
+        contentType = 'image/gif';
+        break;
+      case '.jpg':
+      case '.jpeg':
+        contentType = 'image/jpeg';
+        break;
+      case '.webp':
+        contentType = 'image/webp';
+        break;
+    }
+
+    const fileStream = createReadStream(filePath);
+    return { fileStream, contentType, fileSize: stats.size };
   }
 }
