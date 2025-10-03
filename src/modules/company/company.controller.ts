@@ -1,3 +1,4 @@
+
 import {
   Controller,
   Get,
@@ -15,6 +16,8 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { Response } from 'express';
+import { Res, Param } from '@nestjs/common';
 import { CompanyService } from './company.service';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CompanyResponseDto } from './dto/company-response.dto';
@@ -44,6 +47,31 @@ export class CompanyController {
   async getCompanyDetails(@Request() req: any): Promise<CompanyResponseDto> {
     this.logger.log(`Getting company details for tenant: ${req.user.tenant_id}`);
     return this.companyService.getCompanyDetails(req.user.tenant_id);
+  }
+
+  @Get('logo/:tenantId')
+  @ApiOperation({ summary: 'Get company logo by tenant (public)' })
+  @ApiResponse({ status: 200, description: 'Company logo streamed' })
+  @ApiResponse({ status: 404, description: 'Logo not found' })
+  async getCompanyLogo(
+    @Param('tenantId') tenantId: string,
+    @Res() res: Response,
+  ) {
+    try {
+      const { fileStream, contentType, fileSize } = await this.companyService.getCompanyLogoStream(tenantId);
+      if (!fileStream) {
+        return res.status(404).json({ message: 'Logo not found' });
+      }
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Length', fileSize);
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      fileStream.pipe(res);
+    } catch (e) {
+      return res.status(500).json({ message: 'Error serving company logo' });
+    }
   }
 
   @Put()
@@ -116,3 +144,4 @@ export class CompanyController {
     );
   }
 }
+
