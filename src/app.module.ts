@@ -143,6 +143,8 @@ import { TeamModule } from './modules/team/team.module';
 import { SignupModule } from './modules/signup/signup.module';
 import { SubscriptionModule } from './modules/subscription/subscription.module';
 import { CompanyModule } from './modules/company/company.module';
+import { AssetModule } from './modules/asset/asset.module';
+import { AssetRequestModule } from './modules/asset-request/asset-request.module';
 
 @Module({
   imports: [
@@ -250,6 +252,8 @@ import { CompanyModule } from './modules/company/company.module';
     SignupModule,
     SubscriptionModule,
     CompanyModule,
+    AssetModule,
+    AssetRequestModule,
   ],
 })
 export class AppModule {}
