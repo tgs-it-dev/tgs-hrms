@@ -91,9 +91,15 @@ export class ReportsService {
     if (!Number.isFinite(days) || days <= 0 || days > 366) {
       throw new BadRequestException('Invalid days');
     }
-    const endDate = new Date();
-    const startDate = new Date(endDate);
-    startDate.setDate(endDate.getDate() - days);
+    
+    // Calculate date range: 30 days of previous month + current month
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    // Start from 30 days before current month
+    const startDate = new Date(currentYear, currentMonth - 1, 1); // First day of previous month
+    const endDate = new Date(); // Current date
 
     const limit = 25;
     const skip = (page - 1) * limit;
@@ -151,7 +157,11 @@ export class ReportsService {
     const approvedLeaves = await this.leaveRepo.find({
       where: { user_id: In(userIds), status: 'approved', from_date: Between(startDate as any, endDate as any) },
     });
-    const leaveDaysByUser: Record<string, number> = {};
+    
+    // Separate informed leaves from other leaves
+    const informedLeaveDaysByUser: Record<string, number> = {};
+    const otherLeaveDaysByUser: Record<string, number> = {};
+    
     for (const lv of approvedLeaves) {
       const from = new Date(lv.from_date);
       const to = new Date(lv.to_date || lv.from_date);
@@ -165,7 +175,10 @@ export class ReportsService {
         const dow = d.getUTCDay();
         if (dow !== 0 && dow !== 6) count++;
       }
-      leaveDaysByUser[lv.user_id] = (leaveDaysByUser[lv.user_id] || 0) + count;
+      
+      // Check if it's an informed leave (you can modify this logic based on your business rules)
+      // For now, assuming all approved leaves are "informed leaves"
+      informedLeaveDaysByUser[lv.user_id] = (informedLeaveDaysByUser[lv.user_id] || 0) + count;
     }
 
     // Compute total business days in range
@@ -185,13 +198,19 @@ export class ReportsService {
     const items = employees.map((emp) => {
       const uid = emp.user_id;
       const workingDays = (workedDaysByUser[uid]?.size || 0);
-      const leaves = leaveDaysByUser[uid] || 0;
-      const absentDays = Math.max(businessDaysInRange - workingDays - leaves, 0);
+      const informedLeaves = informedLeaveDaysByUser[uid] || 0;
+      const otherLeaves = otherLeaveDaysByUser[uid] || 0;
+      const totalLeaves = informedLeaves + otherLeaves;
+      
+      // Absents are days with no check-in (excluding weekends)
+      const absentDays = Math.max(businessDaysInRange - workingDays - totalLeaves, 0);
+      
       return {
         employeeName: `${emp.user?.first_name || ''} ${emp.user?.last_name || ''}`.trim(),
-        workingDays,
-        leaves,
-        absentDays,
+        workingDays: businessDaysInRange, // Total working days in the period
+        presents: workingDays, // Days with check-in
+        absents: absentDays, // Days with no check-in (excluding weekends)
+        informedLeaves: informedLeaves, // Informed leave days
         department: emp.designation?.department?.name || null,
         designation: emp.designation?.title || null,
       };
@@ -206,6 +225,214 @@ export class ReportsService {
       limit,
       totalPages,
     };
+  }
+
+  // Returns attendance summary split by previous month and current month
+  async getAttendanceSummarySplitByMonth(tenantId: string, page: number = 1) {
+    if (!tenantId) {
+      return { previousMonthSummary: [], currentMonthSummary: [] };
+    }
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    // Previous month range
+    const prevMonthStart = new Date(currentYear, currentMonth - 1, 1);
+    const prevMonthEnd = new Date(currentYear, currentMonth, 0, 23, 59, 59, 999); // last day of previous month
+    // Current month range
+    const currMonthStart = new Date(currentYear, currentMonth, 1);
+    const currMonthEnd = now;
+
+    const limit = 25;
+    const skip = (page - 1) * limit;
+
+    // Get employees
+    const employees = await this.employeeRepo
+      .createQueryBuilder('employee')
+      .leftJoinAndSelect('employee.user', 'user')
+      .leftJoinAndSelect('employee.designation', 'designation')
+      .leftJoinAndSelect('designation.department', 'department')
+      .where('user.tenant_id = :tenantId', { tenantId })
+      .andWhere('employee.status = :status', { status: 'active' })
+      .orderBy('user.first_name', 'ASC')
+      .addOrderBy('user.last_name', 'ASC')
+      .skip(skip)
+      .take(limit)
+      .getMany();
+    if (!employees.length) {
+      return { previousMonthSummary: [], currentMonthSummary: [] };
+    }
+    const userIds = employees.map((e) => e.user_id);
+
+    // Helper to get summary for a given range
+    const getSummary = async (startDate: Date, endDate: Date) => {
+      // Attendance
+      const rawAttendance = await this.attendanceRepo
+        .createQueryBuilder('attendance')
+        .select('attendance.user_id', 'user_id')
+        .addSelect("TO_CHAR((attendance.timestamp AT TIME ZONE 'UTC' + INTERVAL '5 hours')::date, 'YYYY-MM-DD')", 'day')
+        .where('attendance.user_id IN (:...userIds)', { userIds })
+        .andWhere('attendance.type = :type', { type: 'check-in' })
+        .andWhere('attendance.timestamp BETWEEN :start AND :end', { start: startDate, end: endDate })
+        .groupBy('attendance.user_id')
+        .addGroupBy("(attendance.timestamp AT TIME ZONE 'UTC' + INTERVAL '5 hours')::date")
+        .getRawMany();
+      const workedDaysByUser: Record<string, Set<string>> = {};
+      for (const row of rawAttendance as any[]) {
+        const uid = row.user_id;
+        const day = row.day;
+        if (!workedDaysByUser[uid]) workedDaysByUser[uid] = new Set<string>();
+        workedDaysByUser[uid].add(day);
+      }
+      // Leaves
+      const approvedLeaves = await this.leaveRepo.find({
+        where: { user_id: In(userIds), status: 'approved', from_date: Between(startDate as any, endDate as any) },
+      });
+      const informedLeaveDaysByUser: Record<string, number> = {};
+      for (const lv of approvedLeaves) {
+        const from = new Date(lv.from_date);
+        const to = new Date(lv.to_date || lv.from_date);
+        const s = from < startDate ? startDate : from;
+        const e = to > endDate ? endDate : to;
+        let count = 0;
+        const dayMs = 24 * 60 * 60 * 1000;
+        for (let d = new Date(Date.UTC(s.getUTCFullYear(), s.getUTCMonth(), s.getUTCDate())); d <= new Date(Date.UTC(e.getUTCFullYear(), e.getUTCMonth(), e.getUTCDate())); d = new Date(d.getTime() + dayMs)) {
+          const dow = d.getUTCDay();
+          if (dow !== 0 && dow !== 6) count++;
+        }
+        informedLeaveDaysByUser[lv.user_id] = (informedLeaveDaysByUser[lv.user_id] || 0) + count;
+      }
+      // Business days in range
+      const businessDaysInRange = (() => {
+        let count = 0;
+        const dayMs = 24 * 60 * 60 * 1000;
+        const s = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()));
+        const e = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()));
+        for (let d = s; d <= e; d = new Date(d.getTime() + dayMs)) {
+          const dow = d.getUTCDay();
+          if (dow !== 0 && dow !== 6) count++;
+        }
+        return count;
+      })();
+      // Build response
+      return employees.map((emp) => {
+        const uid = emp.user_id;
+        const presents = (workedDaysByUser[uid]?.size || 0);
+        const informedLeaves = informedLeaveDaysByUser[uid] || 0;
+        const absents = Math.max(businessDaysInRange - presents - informedLeaves, 0);
+        return {
+          employeeName: `${emp.user?.first_name || ''} ${emp.user?.last_name || ''}`.trim(),
+          workingDays: businessDaysInRange,
+          presents,
+          absents,
+          informedLeaves,
+          department: emp.designation?.department?.name || null,
+          designation: emp.designation?.title || null,
+        };
+      });
+    };
+    const previousMonthSummary = await getSummary(prevMonthStart, prevMonthEnd);
+    const currentMonthSummary = await getSummary(currMonthStart, currMonthEnd);
+    return { previousMonthSummary, currentMonthSummary };
+  }
+
+  // Returns attendance summary for last X days or current month (default)
+  async getAttendanceSummaryWithDays(tenantId: string, days?: number, page: number = 1) {
+    if (!tenantId) {
+      return [];
+    }
+    const now = new Date();
+    let startDate: Date;
+    let endDate: Date = now;
+    if (days && Number.isFinite(days) && days > 0) {
+      startDate = new Date(now);
+      startDate.setDate(now.getDate() - days + 1); // inclusive of today
+    } else {
+      // current month
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    }
+    const limit = 25;
+    const skip = (page - 1) * limit;
+    const employees = await this.employeeRepo
+      .createQueryBuilder('employee')
+      .leftJoinAndSelect('employee.user', 'user')
+      .leftJoinAndSelect('employee.designation', 'designation')
+      .leftJoinAndSelect('designation.department', 'department')
+      .where('user.tenant_id = :tenantId', { tenantId })
+      .andWhere('employee.status = :status', { status: 'active' })
+      .orderBy('user.first_name', 'ASC')
+      .addOrderBy('user.last_name', 'ASC')
+      .skip(skip)
+      .take(limit)
+      .getMany();
+    if (!employees.length) {
+      return [];
+    }
+    const userIds = employees.map((e) => e.user_id);
+    // Attendance
+    const rawAttendance = await this.attendanceRepo
+      .createQueryBuilder('attendance')
+      .select('attendance.user_id', 'user_id')
+      .addSelect("TO_CHAR((attendance.timestamp AT TIME ZONE 'UTC' + INTERVAL '5 hours')::date, 'YYYY-MM-DD')", 'day')
+      .where('attendance.user_id IN (:...userIds)', { userIds })
+      .andWhere('attendance.type = :type', { type: 'check-in' })
+      .andWhere('attendance.timestamp BETWEEN :start AND :end', { start: startDate, end: endDate })
+      .groupBy('attendance.user_id')
+      .addGroupBy("(attendance.timestamp AT TIME ZONE 'UTC' + INTERVAL '5 hours')::date")
+      .getRawMany();
+    const workedDaysByUser: Record<string, Set<string>> = {};
+    for (const row of rawAttendance as any[]) {
+      const uid = row.user_id;
+      const day = row.day;
+      if (!workedDaysByUser[uid]) workedDaysByUser[uid] = new Set<string>();
+      workedDaysByUser[uid].add(day);
+    }
+    // Leaves
+    const approvedLeaves = await this.leaveRepo.find({
+      where: { user_id: In(userIds), status: 'approved', from_date: Between(startDate as any, endDate as any) },
+    });
+    const informedLeaveDaysByUser: Record<string, number> = {};
+    for (const lv of approvedLeaves) {
+      const from = new Date(lv.from_date);
+      const to = new Date(lv.to_date || lv.from_date);
+      const s = from < startDate ? startDate : from;
+      const e = to > endDate ? endDate : to;
+      let count = 0;
+      const dayMs = 24 * 60 * 60 * 1000;
+      for (let d = new Date(Date.UTC(s.getUTCFullYear(), s.getUTCMonth(), s.getUTCDate())); d <= new Date(Date.UTC(e.getUTCFullYear(), e.getUTCMonth(), e.getUTCDate())); d = new Date(d.getTime() + dayMs)) {
+        const dow = d.getUTCDay();
+        if (dow !== 0 && dow !== 6) count++;
+      }
+      informedLeaveDaysByUser[lv.user_id] = (informedLeaveDaysByUser[lv.user_id] || 0) + count;
+    }
+    // Business days in range
+    const businessDaysInRange = (() => {
+      let count = 0;
+      const dayMs = 24 * 60 * 60 * 1000;
+      const s = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()));
+      const e = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()));
+      for (let d = s; d <= e; d = new Date(d.getTime() + dayMs)) {
+        const dow = d.getUTCDay();
+        if (dow !== 0 && dow !== 6) count++;
+      }
+      return count;
+    })();
+    // Build response
+    return employees.map((emp) => {
+      const uid = emp.user_id;
+      const presents = (workedDaysByUser[uid]?.size || 0);
+      const informedLeaves = informedLeaveDaysByUser[uid] || 0;
+      const absents = Math.max(businessDaysInRange - presents - informedLeaves, 0);
+      return {
+        employeeName: `${emp.user?.first_name || ''} ${emp.user?.last_name || ''}`.trim(),
+        workingDays: businessDaysInRange,
+        presents,
+        absents,
+        informedLeaves,
+        department: emp.designation?.department?.name || null,
+        designation: emp.designation?.title || null,
+      };
+    });
   }
 
   // 2. Leave Summary
