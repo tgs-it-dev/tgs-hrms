@@ -12,28 +12,26 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
-  // New 30-day attendance summary for all active employees in a tenant
+  // Attendance summary for all active employees in a tenant (current month by default, or last X days if days is provided)
   @Get('attendance-summary')
   @UseGuards(RolesGuard)
   @Roles('hr-admin', 'system-admin', 'network-admin')
-  @ApiOperation({ summary: 'Get N-day attendance summary for active employees in tenant' })
-  @ApiQuery({ name: 'days', required: false, example: 30, description: 'Number of days to include (default 30)' })
-  @ApiQuery({ name: 'tenantId', required: false, description: 'Target tenant (admin/network-admin only)' })
+  @ApiOperation({ summary: 'Get attendance summary for all active employees for current month (default) or last X days' })
+  @ApiQuery({ name: 'days', required: false, type: Number, description: 'If provided, returns summary for last X days (from today, inclusive). If not provided, returns current month (1st to today).' })
   @ApiQuery({ name: 'page', required: false, example: 1, description: 'Page number (default 1)' })
-  @ApiResponse({ status: 200, description: 'Paginated list of attendance summaries per employee' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Attendance summary for the selected range. Each item: employeeName, workingDays, presents, absents, informedLeaves, department, designation.'
+  })
   async attendanceSummary(
     @Req() req: any,
     @Query('days') days?: string,
-    @Query('tenantId') tenantId?: string,
     @Query('page') page?: string
   ) {
-    const numDays = Math.max(1, parseInt(days || '30', 10) || 30);
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-    const requesterRole = (req.user?.role || '').toLowerCase();
-    const effectiveTenantId = tenantId && (requesterRole === 'system-admin' || requesterRole === 'network-admin')
-      ? tenantId
-      : req.user?.tenant_id;
-    return (this.reportsService as any).getAttendanceSummaryLastDays(effectiveTenantId, numDays, pageNumber);
+    const effectiveTenantId = req.user?.tenant_id;
+    const daysNum = days ? parseInt(days, 10) : undefined;
+    return this.reportsService.getAttendanceSummaryWithDays(effectiveTenantId, daysNum, pageNumber);
   }
 
   @Get('leave-summary')
