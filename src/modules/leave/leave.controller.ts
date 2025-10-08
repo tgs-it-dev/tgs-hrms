@@ -152,7 +152,7 @@ export class LeaveController {
 
   @Get('all')
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('manage_leaves')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all leave requests (Admin/Manager only)' })
