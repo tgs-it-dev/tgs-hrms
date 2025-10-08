@@ -9,6 +9,7 @@ import { User } from 'src/entities/user.entity';
 import { Role } from 'src/entities/role.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateUserRoleDto } from './dto/update-user-role.dto';
 import { PaginationResponse } from '../../common/interfaces/pagination.interface';
 import { FileUploadService } from './file-upload.service';
 @Injectable()
@@ -83,6 +84,23 @@ export class UserService {
   async update(userId: string, dto: UpdateUserDto, tenantId: string, currentUserId: string) {
     const user = await this.findOne(userId, tenantId, currentUserId);
     Object.assign(user, dto);
+    return this.userRepo.save(user);
+  }
+
+  async updateUserRole(userId: string, dto: UpdateUserRoleDto, tenantId: string, currentUserId: string) {
+    // Validate the role exists
+    const role = await this.roleRepo.findOne({ where: { id: dto.role_id } });
+    if (!role) {
+      throw new NotFoundException('Role not found');
+    }
+
+    // Find the user
+    const user = await this.findOne(userId, tenantId, currentUserId);
+    
+    // Update the role
+    user.role_id = dto.role_id;
+    user.role = role;
+    
     return this.userRepo.save(user);
   }
   async remove(userId: string, tenantId: string, currentUserId: string) {

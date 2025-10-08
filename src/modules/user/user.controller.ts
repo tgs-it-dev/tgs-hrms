@@ -6,6 +6,7 @@ import {
   Post,
   Body,
   Patch,
+  Put,
   Param,
   Delete,
   UseGuards,
@@ -21,11 +22,13 @@ import { Response } from 'express';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateUserRoleDto } from './dto/update-user-role.dto';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { TenantId } from 'src/common/decorators/company.deorator';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { TenantGuard } from 'src/common/guards/tenant.guard';
+import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ParseFilePipe, MaxFileSizeValidator, FileTypeValidator } from '@nestjs/common';
 import { Permissions } from 'src/common/decorators/permissions.decorator';
@@ -209,6 +212,33 @@ export class UserController {
       throw new HttpException(
         'Error removing profile picture: ' + error.message,
         HttpStatus.BAD_REQUEST
+      );
+    }
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard, PermissionsGuard)
+  @Put(':id/role')
+  @Roles('system-admin', 'admin')
+  @Permissions('manage_users')
+  @ApiOperation({ summary: 'Update user role' })
+  @ApiParam({ name: 'id', description: 'User ID' })
+  @ApiResponse({ status: 200, description: 'User role updated successfully' })
+  @ApiResponse({ status: 404, description: 'User or role not found' })
+  @ApiResponse({ status: 400, description: 'Invalid role ID' })
+  async updateUserRole(
+    @Param('id') id: string,
+    @Body() dto: UpdateUserRoleDto,
+    @TenantId() tenantId: string,
+    @Req() req
+  ) {
+    try {
+      const updatedUser = await this.userService.updateUserRole(id, dto, tenantId, req.user.userId);
+      return { message: 'User role updated successfully', user: updatedUser };
+    } catch (error) {
+      throw new HttpException(
+        'Error updating user role: ' + error.message,
+        HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
   }

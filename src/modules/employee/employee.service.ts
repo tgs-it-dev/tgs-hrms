@@ -205,8 +205,17 @@ export class EmployeeService implements OnModuleInit {
     if (existingUser)
       throw new ConflictException('User with this email already exists in the tenant.');
 
-    const employeeRole = await this.roleRepo.findOne({ where: { name: 'Employee' } });
-    if (!employeeRole) throw new NotFoundException('Employee role not found.');
+    // Determine role assignment
+    let assignedRole;
+    if (dto.role_id) {
+      // Validate the provided role exists
+      assignedRole = await this.roleRepo.findOne({ where: { id: dto.role_id } });
+      if (!assignedRole) throw new NotFoundException('Specified role not found.');
+    } else {
+      // Default to Employee role if no role specified
+      assignedRole = await this.roleRepo.findOne({ where: { name: 'Employee' } });
+      if (!assignedRole) throw new NotFoundException('Employee role not found.');
+    }
 
     const password = dto.password || this.generateTemporaryPassword();
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -222,7 +231,7 @@ export class EmployeeService implements OnModuleInit {
       first_name: dto.first_name,
       last_name: dto.last_name,
       gender: dto.gender,
-      role_id: employeeRole.id,
+      role_id: assignedRole.id,
       tenant_id,
       reset_token: resetToken,
       reset_token_expiry: resetTokenExpiry,

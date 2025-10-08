@@ -14,12 +14,13 @@ import { Permissions } from 'src/common/decorators/permissions.decorator';
 import { PermissionsGuard } from 'src/common/guards/permissions.guard';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
+import { RoleService } from './role.service';
 
 @ApiTags('Roles')
 @ApiBearerAuth()
 @Controller('roles')
 export class RoleController {
-  constructor() {}
+  constructor(private readonly roleService: RoleService) {}
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
@@ -47,8 +48,9 @@ export class RoleController {
     status: 403,
     description: 'Forbidden - Insufficient permissions',
   })
-  getRoles() {
-    return { message: 'Get all roles - Implementation pending' };
+  async getRoles() {
+    const roles = await this.roleService.findAll();
+    return { message: 'Roles retrieved successfully', roles };
   }
 
   @Get(':id')
@@ -76,8 +78,12 @@ export class RoleController {
     status: 404,
     description: 'Role not found',
   })
-  getRoleById(@Param('id') id: string) {
-    return { message: `Get role by ID: ${id} - Implementation pending` };
+  async getRoleById(@Param('id') id: string) {
+    const role = await this.roleService.findOne(id);
+    if (!role) {
+      return { message: 'Role not found', role: null };
+    }
+    return { message: 'Role retrieved successfully', role };
   }
 
   @Post()

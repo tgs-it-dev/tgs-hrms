@@ -59,4 +59,14 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsEnum(['male', 'female'])
   gender?: 'male' | 'female';
+
+  @ApiProperty({
+    example: 'uuid-of-role',
+    required: false,
+    nullable: true,
+    description: 'Optional. Role ID to assign to the employee. If not provided, defaults to Employee role.',
+  })
+  @IsOptional()
+  @IsUUID()
+  role_id?: string;
 }
