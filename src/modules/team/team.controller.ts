@@ -73,7 +73,8 @@ export class TeamController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all teams in the tenant' })
+  @Roles('admin', 'system-admin', 'hr-admin', 'manager')
+  @ApiOperation({ summary: 'Get all teams in the tenant (Authorized roles only)' })
   @ApiQuery({
     name: 'page',
     required: false,
@@ -174,7 +175,8 @@ export class TeamController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get a specific team by ID' })
+  @Roles('admin', 'system-admin', 'hr-admin', 'manager')
+  @ApiOperation({ summary: 'Get a specific team by ID (Authorized roles only)' })
   @ApiParam({ name: 'id', description: 'Team ID' })
   @ApiResponse({ status: 200, description: 'Returns team details with members' })
   @ApiResponse({ status: 404, description: 'Team not found' })
@@ -186,7 +188,8 @@ export class TeamController {
   }
 
   @Get(':id/members')
-  @ApiOperation({ summary: 'Get team members with pagination' })
+  @Roles('admin', 'system-admin', 'hr-admin', 'manager')
+  @ApiOperation({ summary: 'Get team members with pagination (Authorized roles only)' })
   @ApiParam({ name: 'id', description: 'Team ID' })
   @ApiQuery({
     name: 'page',
