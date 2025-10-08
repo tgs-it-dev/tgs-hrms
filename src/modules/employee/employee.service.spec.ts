@@ -60,6 +60,12 @@ const mockDesignationRepo = { findOne: jest.fn(), findOneBy: jest.fn() };
 const mockRoleRepo = { findOne: jest.fn(), create: jest.fn(), save: jest.fn() };
 const mockTeamRepo = { findOne: jest.fn() };
 
+const customRoleId = 'custom-role-uuid';
+const createDtoWithRole: CreateEmployeeDto = {
+  ...createDto,
+  role_id: customRoleId,
+};
+
 describe('EmployeeService', () => {
   let service: EmployeeService;
 
@@ -131,6 +137,48 @@ describe('EmployeeService', () => {
         user_id: 'user-uuid',
         designation_id: 'desig-uuid',
       });
+    });
+
+    it('should use provided role_id if given', async () => {
+      mockDesignationRepo.findOne.mockResolvedValue({
+        id: 'desig-uuid',
+        department: { tenant_id: tenantId },
+      });
+      mockUserRepo.findOne.mockResolvedValue(null);
+      mockRoleRepo.findOne.mockImplementation(({ where }) => {
+        if (where && where.id === customRoleId) {
+          return { id: customRoleId, name: 'HR Admin' };
+        }
+        return null;
+      });
+      mockUserRepo.create.mockReturnValue({ ...createDtoWithRole, id: 'user-uuid', role_id: customRoleId });
+      mockUserRepo.save.mockResolvedValue({ ...createDtoWithRole, id: 'user-uuid', role_id: customRoleId });
+      mockEmployeeRepo.create.mockReturnValue({
+        id: 'emp-uuid',
+        user_id: 'user-uuid',
+        designation_id: 'desig-uuid',
+      });
+      mockEmployeeRepo.save.mockResolvedValue({
+        id: 'emp-uuid',
+        user_id: 'user-uuid',
+        designation_id: 'desig-uuid',
+      });
+      const result = await service.create(tenantId, createDtoWithRole);
+      expect(result).toEqual({
+        id: 'emp-uuid',
+        user_id: 'user-uuid',
+        designation_id: 'desig-uuid',
+      });
+    });
+
+    it('should throw NotFoundException if provided role_id does not exist', async () => {
+      mockDesignationRepo.findOne.mockResolvedValue({
+        id: 'desig-uuid',
+        department: { tenant_id: tenantId },
+      });
+      mockUserRepo.findOne.mockResolvedValue(null);
+      mockRoleRepo.findOne.mockResolvedValue(null); // Simulate role not found
+      await expect(service.create(tenantId, { ...createDto, role_id: 'non-existent-role' })).rejects.toThrow('Specified role not found.');
     });
   });
 
