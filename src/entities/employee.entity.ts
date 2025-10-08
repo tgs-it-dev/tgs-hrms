@@ -9,6 +9,7 @@ import {
 import { User } from './user.entity';
 import { Designation } from './designation.entity';
 import { Team } from './team.entity';
+import { EmployeeStatus, InviteStatus } from '../common/constants/enums';
 
 @Entity('employees')
 export class Employee {
@@ -21,11 +22,11 @@ export class Employee {
   @Column({ type: 'uuid' })
   designation_id: string;
 
-  @Column({ type: 'varchar', length: 20, default: 'active' })
-  status: 'active' | 'inactive';
+  @Column({ type: 'varchar', length: 20, default: EmployeeStatus.ACTIVE })
+  status: EmployeeStatus;
 
-  @Column({ type: 'varchar', length: 20, default: 'Invite Sent' })
-  invite_status: 'Invite Sent' | 'Invite Expired' | 'Joined';
+  @Column({ type: 'varchar', length: 20, default: InviteStatus.INVITE_SENT })
+  invite_status: InviteStatus;
 
   @Column({ type: 'uuid', nullable: true })
   team_id: string | null;

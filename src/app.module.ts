@@ -115,7 +115,7 @@
 
 
 
-import { Module } from '@nestjs/common';
+import { Module, Logger } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { typeOrmConfig } from './config/typeorm.config';
@@ -184,13 +184,14 @@ import { AssetRequestModule } from './modules/asset-request/asset-request.module
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: async (config: ConfigService) => {
+        const logger = new Logger('MailerModule');
         const sendgridApiKey = config.get<string>('SENDGRID_API_KEY');
         const sendgridFrom = config.get<string>('SENDGRID_FROM');
 
         // Validate required SendGrid configuration
         if (!sendgridApiKey || !sendgridFrom) {
-          console.warn('⚠️  SendGrid configuration incomplete. Using fallback configuration.');
-          console.warn('Required: SENDGRID_API_KEY, SENDGRID_FROM');
+          logger.warn('SendGrid configuration incomplete. Using fallback configuration.');
+          logger.warn('Required: SENDGRID_API_KEY, SENDGRID_FROM');
           
           // Return a fallback configuration that won't work but won't crash
           return {

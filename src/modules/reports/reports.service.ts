@@ -2,6 +2,7 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, In } from 'typeorm';
 import { Attendance } from '../../entities/attendance.entity';
+import { AttendanceType, EmployeeStatus, RoleName } from '../../common/constants/enums';
 import { Leave } from '../../entities/leave.entity';
 import { User } from '../../entities/user.entity';
 import { Department } from '../../entities/department.entity';
@@ -58,7 +59,7 @@ export class ReportsService {
         where: {
           user_id: uid,
           timestamp: Between(startOfMonth, endOfMonth),
-          type: 'check-in',
+          type: AttendanceType.CHECK_IN,
         },
         order: { timestamp: 'ASC' },
       });
@@ -109,7 +110,7 @@ export class ReportsService {
       .createQueryBuilder('employee')
       .leftJoin('employee.user', 'user')
       .where('user.tenant_id = :tenantId', { tenantId })
-      .andWhere('employee.status = :status', { status: 'active' });
+      .andWhere('employee.status = :status', { status: EmployeeStatus.ACTIVE });
 
     const total = await totalQuery.getCount();
 
@@ -120,7 +121,7 @@ export class ReportsService {
       .leftJoinAndSelect('employee.designation', 'designation')
       .leftJoinAndSelect('designation.department', 'department')
       .where('user.tenant_id = :tenantId', { tenantId })
-      .andWhere('employee.status = :status', { status: 'active' })
+      .andWhere('employee.status = :status', { status: EmployeeStatus.ACTIVE })
       .orderBy('user.first_name', 'ASC')
       .addOrderBy('user.last_name', 'ASC')
       .skip(skip)
@@ -139,7 +140,7 @@ export class ReportsService {
       .select('attendance.user_id', 'user_id')
       .addSelect("TO_CHAR((attendance.timestamp AT TIME ZONE 'UTC' + INTERVAL '5 hours')::date, 'YYYY-MM-DD')", 'day')
       .where('attendance.user_id IN (:...userIds)', { userIds })
-      .andWhere('attendance.type = :type', { type: 'check-in' })
+      .andWhere('attendance.type = :type', { type: AttendanceType.CHECK_IN })
       .andWhere('attendance.timestamp BETWEEN :start AND :end', { start: startDate, end: endDate })
       .groupBy('attendance.user_id')
       .addGroupBy("(attendance.timestamp AT TIME ZONE 'UTC' + INTERVAL '5 hours')::date")
@@ -253,7 +254,7 @@ export class ReportsService {
       .leftJoinAndSelect('employee.designation', 'designation')
       .leftJoinAndSelect('designation.department', 'department')
       .where('user.tenant_id = :tenantId', { tenantId })
-      .andWhere('employee.status = :status', { status: 'active' })
+      .andWhere('employee.status = :status', { status: EmployeeStatus.ACTIVE })
       .orderBy('user.first_name', 'ASC')
       .addOrderBy('user.last_name', 'ASC')
       .skip(skip)
@@ -359,7 +360,7 @@ export class ReportsService {
       .leftJoinAndSelect('employee.designation', 'designation')
       .leftJoinAndSelect('designation.department', 'department')
       .where('user.tenant_id = :tenantId', { tenantId })
-      .andWhere('employee.status = :status', { status: 'active' })
+      .andWhere('employee.status = :status', { status: EmployeeStatus.ACTIVE })
       .orderBy('user.first_name', 'ASC')
       .addOrderBy('user.last_name', 'ASC')
       .skip(skip)
@@ -375,7 +376,7 @@ export class ReportsService {
       .select('attendance.user_id', 'user_id')
       .addSelect("TO_CHAR((attendance.timestamp AT TIME ZONE 'UTC' + INTERVAL '5 hours')::date, 'YYYY-MM-DD')", 'day')
       .where('attendance.user_id IN (:...userIds)', { userIds })
-      .andWhere('attendance.type = :type', { type: 'check-in' })
+      .andWhere('attendance.type = :type', { type: AttendanceType.CHECK_IN })
       .andWhere('attendance.timestamp BETWEEN :start AND :end', { start: startDate, end: endDate })
       .groupBy('attendance.user_id')
       .addGroupBy("(attendance.timestamp AT TIME ZONE 'UTC' + INTERVAL '5 hours')::date")
@@ -481,7 +482,7 @@ export class ReportsService {
       // Fetch user with role
       const user = await this.userRepo.findOne({ where: { id: uid }, relations: ['role'] });
       const isManager =
-        user && user.role && user.role.name && user.role.name.toLowerCase() === 'manager';
+        user && user.role && user.role.name && user.role.name.toLowerCase() === RoleName.MANAGER;
       const monthlyCap = isManager ? MONTHLY_CAP_MANAGER : MONTHLY_CAP_EMPLOYEE;
       // Get all approved leaves for the year
       const startOfYear = new Date(Date.UTC(year, 0, 1, 0, 0, 0));

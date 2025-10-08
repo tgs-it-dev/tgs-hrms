@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Employee } from '../../entities/employee.entity';
+import { InviteStatus } from '../../common/constants/enums';
 import { User } from '../../entities/user.entity';
 
 @Injectable()
@@ -32,8 +33,8 @@ export class InviteStatusService {
       }
 
       // Only update if current status is 'Invite Sent'
-      if (employee.invite_status === 'Invite Sent') {
-        employee.invite_status = 'Joined';
+      if (employee.invite_status === InviteStatus.INVITE_SENT) {
+        employee.invite_status = InviteStatus.JOINED;
         await this.employeeRepo.save(employee);
         this.logger.log(`Updated invite status to 'Joined' for employee: ${employee.id}`);
       }
@@ -51,7 +52,7 @@ export class InviteStatusService {
       const queryBuilder = this.employeeRepo
         .createQueryBuilder('employee')
         .leftJoinAndSelect('employee.user', 'user')
-        .where('employee.invite_status = :status', { status: 'Invite Sent' })
+        .where('employee.invite_status = :status', { status: InviteStatus.INVITE_SENT })
         .andWhere('user.first_login_time IS NULL')
         .andWhere('employee.created_at < :expiryTime', { 
           expiryTime: new Date(Date.now() - 24 * 60 * 60 * 1000) // 24 hours ago
@@ -71,7 +72,7 @@ export class InviteStatusService {
       const updateResult = await this.employeeRepo
         .createQueryBuilder()
         .update(Employee)
-        .set({ invite_status: 'Invite Expired' })
+        .set({ invite_status: InviteStatus.INVITE_EXPIRED })
         .where('id IN (:...ids)', { ids: expiredEmployees.map(emp => emp.id) })
         .execute();
 
@@ -99,14 +100,14 @@ export class InviteStatusService {
       }
 
       // Check if invite should be expired
-      if (employee.invite_status === 'Invite Sent' && 
+      if (employee.invite_status === InviteStatus.INVITE_SENT && 
           !employee.user.first_login_time &&
           employee.created_at < new Date(Date.now() - 24 * 60 * 60 * 1000)) {
         
         // Update to expired
-        employee.invite_status = 'Invite Expired';
+        employee.invite_status = InviteStatus.INVITE_EXPIRED;
         await this.employeeRepo.save(employee);
-        return 'Invite Expired';
+        return InviteStatus.INVITE_EXPIRED;
       }
 
       return employee.invite_status;
@@ -121,7 +122,7 @@ export class InviteStatusService {
    * @param employeeId - The employee ID
    * @param status - The new status
    */
-  async setInviteStatus(employeeId: string, status: 'Invite Sent' | 'Invite Expired' | 'Joined'): Promise<boolean> {
+  async setInviteStatus(employeeId: string, status: InviteStatus): Promise<boolean> {
     try {
       const updateResult = await this.employeeRepo.update(employeeId, { invite_status: status });
       this.logger.log(`Manually set invite status to '${status}' for employee: ${employeeId}`);
