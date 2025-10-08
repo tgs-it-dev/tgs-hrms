@@ -49,10 +49,10 @@ export class EmployeeController {
 
   @Post('manager')
   @Roles('admin', 'system-admin')
-  @ApiOperation({ summary: 'Create a new manager employee' })
+  @ApiOperation({ summary: 'Create a new manager employee. Optionally assign a role by role_id.' })
   @ApiResponse({
     status: 201,
-    description: 'Manager created successfully with manager role assigned',
+    description: 'Manager created successfully with manager role assigned (or custom role if provided)',
   })
   async createManager(@TenantId() tenant_id: string, @Body() createEmployeeDto: CreateEmployeeDto) {
     return this.service.createManager(tenant_id, createEmployeeDto);
@@ -85,7 +85,7 @@ export class EmployeeController {
   @Post()
   @Roles('admin', 'system-admin')
   @Permissions('manage_employees')
-  @ApiOperation({ summary: 'Create employee by assigning user to designation' })
+  @ApiOperation({ summary: 'Create employee by assigning user to designation. Optionally assign a role by role_id.' })
   @ApiResponse({ status: 201, description: 'Employee created.' })
   @ApiResponse({
     status: 400,

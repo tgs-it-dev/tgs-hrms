@@ -55,6 +55,25 @@ export class CreateEmployeeDto {
   @IsUUID()
   team_id?: string;
 
+  @ApiProperty({
+    example: 'uuid-of-role',
+    required: false,
+    nullable: true,
+    description: 'Optional. Role ID to assign to the employee during invite. If not provided, defaults to Employee or Manager as before.',
+  })
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return undefined;
+    if (typeof value === 'string') {
+      const v = value.trim();
+      if (v === '' || v.toLowerCase() === 'null' || v.toLowerCase() === 'undefined') return undefined;
+      return v;
+    }
+    return value;
+  })
+  @IsOptional()
+  @IsUUID()
+  role_id?: string;
+
   @ApiProperty({ enum: ['male', 'female'], required: false })
   @IsOptional()
   @IsEnum(['male', 'female'])

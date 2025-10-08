@@ -140,9 +140,15 @@ export class EmployeeService implements OnModuleInit {
     if (existingUser)
       throw new ConflictException('User with this email already exists in the tenant.');
 
-    const managerRole = await this.roleRepo.findOne({ where: { name: 'Manager' } });
-    if (!managerRole)
-      throw new NotFoundException('Manager role not found. Please create a manager role first.');
+    let managerRole;
+    if (dto.role_id) {
+      managerRole = await this.roleRepo.findOne({ where: { id: dto.role_id } });
+      if (!managerRole) throw new NotFoundException('Specified role not found.');
+    } else {
+      managerRole = await this.roleRepo.findOne({ where: { name: 'Manager' } });
+      if (!managerRole)
+        throw new NotFoundException('Manager role not found. Please create a manager role first.');
+    }
 
     const password = dto.password || this.generateTemporaryPassword();
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -205,8 +211,14 @@ export class EmployeeService implements OnModuleInit {
     if (existingUser)
       throw new ConflictException('User with this email already exists in the tenant.');
 
-    const employeeRole = await this.roleRepo.findOne({ where: { name: 'Employee' } });
-    if (!employeeRole) throw new NotFoundException('Employee role not found.');
+    let employeeRole;
+    if (dto.role_id) {
+      employeeRole = await this.roleRepo.findOne({ where: { id: dto.role_id } });
+      if (!employeeRole) throw new NotFoundException('Specified role not found.');
+    } else {
+      employeeRole = await this.roleRepo.findOne({ where: { name: 'Employee' } });
+      if (!employeeRole) throw new NotFoundException('Employee role not found.');
+    }
 
     const password = dto.password || this.generateTemporaryPassword();
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -359,6 +371,14 @@ export class EmployeeService implements OnModuleInit {
       const existing = await this.userRepo.findOne({ where: { email: dto.email, tenant_id } });
       if (existing && existing.id !== user.id) {
         throw new ConflictException('User with this email already exists in the tenant.');
+      }
+    }
+
+    if (dto.role_id !== undefined) {
+      if (dto.role_id) {
+        const newRole = await this.roleRepo.findOne({ where: { id: dto.role_id } });
+        if (!newRole) throw new NotFoundException('Specified role not found.');
+        user.role_id = dto.role_id;
       }
     }
 
