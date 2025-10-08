@@ -37,7 +37,6 @@ export class LeaveController {
     description: 'Leave request created successfully',
   })
   async create(@Body() dto: CreateLeaveDto, @Request() req: any) {
-    console.log('>> req.user =', req.user);
     return this.leaveService.createLeave(req.user.id, dto);
   }
 

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
@@ -13,6 +13,7 @@ import { PaginationResponse } from '../../common/interfaces/pagination.interface
 import { FileUploadService } from './file-upload.service';
 @Injectable()
 export class UserService {
+  private readonly logger = new Logger(UserService.name);
   constructor(
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
@@ -112,51 +113,39 @@ export class UserService {
   // :white_tick: FIXED: Public method to get profile picture (no authentication required)
   async getProfilePicture(userId: string) {
     try {
-      console.log(':magnifying_glass: Getting profile picture for user:', userId);
+      this.logger.debug(`Getting profile picture for user: ${userId}`);
       // Get user to find their profile picture URL
       const user = await this.userRepo.findOne({
         where: { id: userId },
         select: ['id', 'profile_pic'],
       });
       if (!user) {
-        console.log(':x: User not found:', userId);
+        this.logger.warn(`User not found: ${userId}`);
         return null;
       }
       if (!user.profile_pic) {
-        console.log(':x: No profile picture for user:', userId);
+        this.logger.debug(`No profile picture for user: ${userId}`);
         return null;
       }
-      console.log(':white_tick: User found with profile picture:', {
-        userId: user.id,
-        profilePicUrl: user.profile_pic,
-      });
+      this.logger.debug(`User found with profile picture: ${user.id}`);
       // Construct the file path
       const uploadDir = path.join(process.cwd(), 'public', 'profile-pictures');
       const fileName = user.profile_pic.split('/').pop(); // Extract filename from URL
       if (!fileName) {
-        console.log(':x: Invalid profile picture URL:', user.profile_pic);
+        this.logger.warn(`Invalid profile picture URL: ${user.profile_pic}`);
         return null;
       }
       const filePath = path.join(uploadDir, fileName);
-      console.log(':file_folder: File path details:', {
-        uploadDir,
-        fileName,
-        filePath,
-        fileExists: fs.existsSync(filePath),
-      });
+      this.logger.debug(`Profile picture file path: ${filePath}`);
       // Check if file exists
       if (!fs.existsSync(filePath)) {
-        console.log(':x: File does not exist:', filePath);
+        this.logger.warn(`Profile picture file not found: ${filePath}`);
         return null;
       }
       // Get file stats
       const stats = fs.statSync(filePath);
       const fileExtension = path.extname(filePath).toLowerCase();
-      console.log(':page_facing_up: File stats:', {
-        size: stats.size,
-        extension: fileExtension,
-        lastModified: stats.mtime,
-      });
+      this.logger.debug(`Profile picture stats: size=${stats.size}, ext=${fileExtension}`);
       // Set appropriate content type
       let contentType = 'image/jpeg'; // default
       switch (fileExtension) {
@@ -179,11 +168,7 @@ export class UserService {
       }
       // Create file stream
       const fileStream = fs.createReadStream(filePath);
-      console.log(':white_tick: Profile picture data prepared:', {
-        fileName,
-        contentType,
-        fileSize: stats.size,
-      });
+      this.logger.debug('Profile picture data prepared');
       return {
         fileStream,
         contentType,
@@ -191,7 +176,7 @@ export class UserService {
         fileName,
       };
     } catch (error) {
-      console.error(':x: Error getting profile picture:', error);
+      this.logger.error(`Error getting profile picture: ${String((error as any)?.message || error)}`);
       return null;
     }
   }

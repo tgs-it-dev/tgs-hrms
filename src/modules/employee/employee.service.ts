@@ -23,9 +23,12 @@ import * as bcrypt from 'bcrypt';
 
 const GLOBAL = '00000000-0000-0000-0000-000000000000';
 import { PaginationResponse } from '../../common/interfaces/pagination.interface';
+import { Logger } from '@nestjs/common';
+import { InviteStatus } from '../../common/constants/enums';
 
 @Injectable()
 export class EmployeeService implements OnModuleInit {
+  private readonly logger = new Logger(EmployeeService.name);
   constructor(
     @InjectRepository(Employee)
     private readonly employeeRepo: Repository<Employee>,
@@ -173,7 +176,7 @@ export class EmployeeService implements OnModuleInit {
           user_id: savedUser.id,
           designation_id: dto.designation_id,
           team_id: dto.team_id || null,
-          invite_status: 'Invite Sent',
+          invite_status: InviteStatus.INVITE_SENT,
         });
 
         const savedEmployee = await employeeRepo.save(employee);
@@ -237,7 +240,7 @@ export class EmployeeService implements OnModuleInit {
           user_id: savedUser.id,
           designation_id: dto.designation_id,
           team_id: dto.team_id || null,
-          invite_status: 'Invite Sent',
+          invite_status: InviteStatus.INVITE_SENT,
         });
 
         const savedEmployee = await employeeRepo.save(employee);
@@ -287,10 +290,10 @@ export class EmployeeService implements OnModuleInit {
     // Apply lazy expiry for any 'Invite Sent' with expired token
     const now = new Date();
     for (const item of items) {
-      if (item.invite_status === 'Invite Sent' && item.user?.reset_token_expiry && now > item.user.reset_token_expiry) {
-        item.invite_status = 'Invite Expired';
+      if (item.invite_status === InviteStatus.INVITE_SENT && item.user?.reset_token_expiry && now > item.user.reset_token_expiry) {
+        item.invite_status = InviteStatus.INVITE_EXPIRED;
         try {
-          await this.employeeRepo.update(item.id, { invite_status: 'Invite Expired' });
+          await this.employeeRepo.update(item.id, { invite_status: InviteStatus.INVITE_EXPIRED });
         } catch {}
       }
     }
@@ -319,7 +322,7 @@ export class EmployeeService implements OnModuleInit {
     // Check and update invite status using the service
     const currentStatus = await this.inviteStatusService.getInviteStatus(employee.id);
     if (currentStatus && currentStatus !== employee.invite_status) {
-      employee.invite_status = currentStatus as 'Invite Sent' | 'Invite Expired' | 'Joined';
+      employee.invite_status = currentStatus as InviteStatus;
     }
 
     return employee;
@@ -429,9 +432,9 @@ export class EmployeeService implements OnModuleInit {
     try {
       await this.sendGridService.sendWelcomeEmail(email, resetToken);
     } catch (error) {
-      console.error(`Failed to send welcome email to ${email}:`, error);
+      this.logger.error(`Failed to send welcome email to ${email}: ${String((error as any)?.message || error)}`);
       // Don't throw error to prevent transaction rollback
-      console.warn('Email sending failed, but continuing with employee creation');
+      this.logger.warn('Email sending failed, but continuing with employee creation');
     }
   }
 
@@ -522,7 +525,7 @@ export class EmployeeService implements OnModuleInit {
     if (!employee || employee.user.tenant_id !== tenant_id) {
       throw new NotFoundException('Employee not found for this tenant');
     }
-    if (employee.invite_status !== 'Invite Expired') {
+    if (employee.invite_status !== InviteStatus.INVITE_EXPIRED) {
       throw new BadRequestException('Invite can only be resent if status is Invite Expired');
     }
     // Generate new reset token
@@ -531,7 +534,7 @@ export class EmployeeService implements OnModuleInit {
     resetTokenExpiry.setHours(resetTokenExpiry.getHours() + 24);
     employee.user.reset_token = resetToken;
     employee.user.reset_token_expiry = resetTokenExpiry;
-    employee.invite_status = 'Invite Sent';
+    employee.invite_status = InviteStatus.INVITE_SENT;
     await this.userRepo.save(employee.user);
     await this.employeeRepo.save(employee);
     // Resend invite email

@@ -298,11 +298,9 @@ export class SignupService {
       if (!successUrl.includes('signupSessionId=')) {
         successUrl = `${successUrl}&signupSessionId=${session.id}`;
       }
-
-      console.log('=== STRIPE SUCCESS URL DEBUG ===');
-      console.log('Base URL:', this.configService.get<string>('STRIPE_SUCCESS_URL'));
-      console.log('Final success URL:', successUrl);
-      console.log('Session ID:', session.id);
+      this.logger.debug(`Stripe success URL base: ${this.configService.get<string>('STRIPE_SUCCESS_URL') || 'unset'}`);
+      this.logger.debug(`Stripe final success URL: ${successUrl}`);
+      this.logger.debug(`Stripe checkout session signupSessionId: ${session.id}`);
 
       const checkout = await this.stripe.checkout.sessions.create({
         mode: 'subscription',

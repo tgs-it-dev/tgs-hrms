@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { AttendanceType } from '../../common/constants/enums';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Attendance } from '../../entities/attendance.entity';
@@ -9,6 +10,7 @@ import { Employee } from '../../entities/employee.entity'; // Import Employee en
 
 @Injectable()
 export class AttendanceService {
+  private readonly logger = new Logger(AttendanceService.name);
   constructor(
     @InjectRepository(Attendance)
     private readonly attendanceRepo: Repository<Attendance>,
@@ -21,13 +23,13 @@ export class AttendanceService {
     const now = new Date();
     
     // Validate attendance logic
-    if (dto.type === 'check-in') {
+    if (dto.type === AttendanceType.CHECK_IN) {
       // Check if user already has an active session (check-in without checkout)
       const activeSession = await this.getActiveSession(userId);
       if (activeSession) {
         throw new BadRequestException('You already have an active session. Please check out first.');
       }
-    } else if (dto.type === 'check-out') {
+    } else if (dto.type === AttendanceType.CHECK_OUT) {
       // Check if user has an active session to check out from
       const activeSession = await this.getActiveSession(userId);
       if (!activeSession) {
@@ -43,7 +45,7 @@ export class AttendanceService {
     const saved = await this.attendanceRepo.save(attendance);
     
     // If the type is 'check-out', end the active work session by calling TimesheetService's autoEndIfActive
-    if (dto.type === 'check-out') {
+    if (dto.type === AttendanceType.CHECK_OUT) {
       await this.timesheetService.autoEndIfActive(userId);
     }
 
@@ -55,7 +57,7 @@ export class AttendanceService {
     const latestCheckIn = await this.attendanceRepo
       .createQueryBuilder('a')
       .where('a.user_id = :userId', { userId })
-      .andWhere('a.type = :type', { type: 'check-in' })
+      .andWhere('a.type = :type', { type: AttendanceType.CHECK_IN })
       .orderBy('a.timestamp', 'DESC')
       .getOne();
 
@@ -67,7 +69,7 @@ export class AttendanceService {
     const matchingCheckOut = await this.attendanceRepo
       .createQueryBuilder('a')
       .where('a.user_id = :userId', { userId })
-      .andWhere('a.type = :type', { type: 'check-out' })
+      .andWhere('a.type = :type', { type: AttendanceType.CHECK_OUT })
       .andWhere('a.timestamp > :after', { after: latestCheckIn.timestamp })
       .orderBy('a.timestamp', 'ASC')
       .getOne();
@@ -98,9 +100,9 @@ export class AttendanceService {
 
     // Separate check-ins and check-outs
     for (const record of records) {
-      if (record.type === 'check-in') {
+      if (record.type === AttendanceType.CHECK_IN) {
         checkIns.push(record);
-      } else if (record.type === 'check-out') {
+      } else if (record.type === AttendanceType.CHECK_OUT) {
         checkOuts.push(record);
       }
     }
@@ -212,7 +214,7 @@ export class AttendanceService {
     const todayCheckIn = await this.attendanceRepo
       .createQueryBuilder('a')
       .where('a.user_id = :userId', { userId })
-      .andWhere('a.type = :type', { type: 'check-in' })
+      .andWhere('a.type = :type', { type: AttendanceType.CHECK_IN })
       .andWhere('a.timestamp >= :startOfDay AND a.timestamp < :startOfNextDay', {
         startOfDay,
         startOfNextDay,
@@ -242,7 +244,7 @@ export class AttendanceService {
       matchingCheckOut = await this.attendanceRepo
         .createQueryBuilder('a')
         .where('a.user_id = :userId', { userId })
-        .andWhere('a.type = :type', { type: 'check-out' })
+      .andWhere('a.type = :type', { type: AttendanceType.CHECK_OUT })
         .andWhere('a.timestamp > :after', { after: latestCheckIn.timestamp })
         .orderBy('a.timestamp', 'ASC') // Get the first checkout after checkin
         .getOne();
@@ -390,10 +392,10 @@ export class AttendanceService {
       .take(limit)
       .getMany();
 
-    console.log('team Members :', teamMembers);
+    this.logger.debug(`Fetched ${teamMembers.length} team members for manager ${managerId}`);
     const userIds = teamMembers.map((member) => member.user_id);
 
-    console.log('User Id', userIds);
+    this.logger.debug(`Team member userIds: ${JSON.stringify(userIds)}`);
     if (userIds.length === 0) {
       return {
         items: [],
@@ -411,7 +413,7 @@ export class AttendanceService {
       .orderBy('attendance.timestamp', 'ASC')
       .getMany();
 
-    console.log('Team Attendance :', attendanceRecords);
+    this.logger.debug(`Fetched ${attendanceRecords.length} attendance records for team`);
 
     // Group attendance by user and create proper sessions (handles cross-day)
     const groupedAttendance: Record<
