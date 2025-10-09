@@ -60,6 +60,7 @@ export class TeamController {
     return sendCsvResponse(res, 'teams.csv', rows);
   }
 
+
   @Post()
   @Roles('admin', 'system-admin')
   @ApiOperation({ summary: 'Create a new team' })
@@ -172,6 +173,31 @@ export class TeamController {
   @ApiResponse({ status: 200, description: 'Returns list of available managers' })
   async getAvailableManagers(@TenantId() tenantId: string) {
     return this.teamService.getAvailableManagers(tenantId);
+  }
+
+  @Get('employee-pool')
+  @Roles('admin', 'system-admin', 'hr-admin')
+  @ApiOperation({ summary: 'Get employees not assigned to any team (Admin and HR only)' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Page number for pagination',
+    example: '1',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Search employees by first name or last name',
+    example: 'john',
+  })
+  @ApiResponse({ status: 200, description: 'Returns paginated list of employees not assigned to any team' })
+  async getEmployeePool(
+    @TenantId() tenantId: string,
+    @Query('page') page?: string,
+    @Query('search') search?: string
+  ) {
+    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+    return this.teamService.getEmployeePool(tenantId, pageNumber, search);
   }
 
   @Get(':id')
