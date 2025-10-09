@@ -10,19 +10,19 @@ export class InviteStatusCronService implements OnModuleInit {
   onModuleInit() {
     this.logger.log('Starting invite status cron service...');
     
-    // Run once shortly after startup (5 seconds delay)
+  
     setTimeout(() => {
       this.checkExpiredInvites().catch((error) => {
         this.logger.error('Initial invite status check failed:', error);
       });
     }, 5000);
 
-    // Then run every 15 minutes
+    
     setInterval(() => {
       this.checkExpiredInvites().catch((error) => {
         this.logger.error('Scheduled invite status check failed:', error);
       });
-    }, 15 * 60 * 1000); // 15 minutes
+    }, 15 * 60 * 1000); 
 
     this.logger.log('Invite status cron service started successfully');
   }

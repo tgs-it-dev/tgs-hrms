@@ -12,7 +12,7 @@ export function toCsv(rows: Array<Record<string, any>>): string {
   const escape = (value: any): string => {
     if (value === null || value === undefined) return '';
     const str = String(value);
-    // Escape double quotes by doubling them
+    
     const needsQuotes = /[",\n\r]/.test(str) || str.includes(',');
     const escaped = str.replace(/"/g, '""');
     return needsQuotes ? `"${escaped}"` : escaped;

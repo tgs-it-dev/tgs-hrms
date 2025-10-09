@@ -26,8 +26,8 @@ export class SignupController {
     return this.signupService.saveCompanyDetails(dto);
   }
 
-  // In your SignupController
-  @Post('payment') // This should be the endpoint
+  
+  @Post('payment') 
   async startPayment(@Body() paymentDto: PaymentDto) {
     return this.signupService.startPayment(paymentDto);
   }
@@ -81,7 +81,7 @@ export class SignupController {
       }
       cb(null, true);
     },
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+    limits: { fileSize: 5 * 1024 * 1024 }, 
   }))
   async uploadLogo(
     @UploadedFile() file: Express.Multer.File,

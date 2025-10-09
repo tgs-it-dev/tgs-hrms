@@ -83,7 +83,7 @@ export class LeaveController {
   async getTeamLeaves(@Request() req: any, @Query('page') page?: string) {
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
 
-    // Verify the user is a manager
+  
     if (req.user.role !== 'manager') {
       throw new ForbiddenException('Access denied. Manager role required.');
     }
@@ -132,7 +132,7 @@ export class LeaveController {
     },
   })
   async getTeamMembersWithLeaveApplications(@Request() req: any) {
-    // Verify the user is a manager
+  
     if (req.user.role !== 'manager') {
       throw new ForbiddenException('Access denied. Manager role required.');
     }
@@ -176,7 +176,7 @@ export class LeaveController {
     description: 'Status update payload',
     schema: {
       example: {
-        status: 'approved', // or 'rejected'
+        status: 'approved', 
       },
     },
   })
@@ -206,7 +206,7 @@ export class LeaveController {
     return this.leaveService.withdrawLeave(id, req.user.id);
   }
 
-  // CSV EXPORTS
+  
   @Get('export/self')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Download your leave requests as CSV' })

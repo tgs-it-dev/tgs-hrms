@@ -16,10 +16,7 @@ export class InviteStatusService {
     private readonly userRepo: Repository<User>,
   ) {}
 
-  /**
-   * Updates invite status based on user's first login time
-   * @param userId - The user ID to check
-   */
+
   async updateInviteStatusOnLogin(userId: string): Promise<void> {
     try {
       const employee = await this.employeeRepo.findOne({
@@ -32,7 +29,7 @@ export class InviteStatusService {
         return;
       }
 
-      // Only update if current status is 'Invite Sent'
+      
       if (employee.invite_status === InviteStatus.INVITE_SENT) {
         employee.invite_status = InviteStatus.JOINED;
         await this.employeeRepo.save(employee);
@@ -43,10 +40,7 @@ export class InviteStatusService {
     }
   }
 
-  /**
-   * Checks and updates expired invites based on 24-hour rule
-   * @param tenantId - Optional tenant ID to limit the scope
-   */
+ 
   async checkAndUpdateExpiredInvites(tenantId?: string): Promise<number> {
     try {
       const queryBuilder = this.employeeRepo
@@ -55,7 +49,7 @@ export class InviteStatusService {
         .where('employee.invite_status = :status', { status: InviteStatus.INVITE_SENT })
         .andWhere('user.first_login_time IS NULL')
         .andWhere('employee.created_at < :expiryTime', { 
-          expiryTime: new Date(Date.now() - 24 * 60 * 60 * 1000) // 24 hours ago
+          expiryTime: new Date(Date.now() - 24 * 60 * 60 * 1000) 
         });
 
       if (tenantId) {
@@ -68,7 +62,7 @@ export class InviteStatusService {
         return 0;
       }
 
-      // Update all expired invites
+    
       const updateResult = await this.employeeRepo
         .createQueryBuilder()
         .update(Employee)
@@ -84,10 +78,7 @@ export class InviteStatusService {
     }
   }
 
-  /**
-   * Gets invite status for a specific employee
-   * @param employeeId - The employee ID
-   */
+  
   async getInviteStatus(employeeId: string): Promise<string | null> {
     try {
       const employee = await this.employeeRepo.findOne({
@@ -99,12 +90,12 @@ export class InviteStatusService {
         return null;
       }
 
-      // Check if invite should be expired
+    
       if (employee.invite_status === InviteStatus.INVITE_SENT && 
           !employee.user.first_login_time &&
           employee.created_at < new Date(Date.now() - 24 * 60 * 60 * 1000)) {
         
-        // Update to expired
+      
         employee.invite_status = InviteStatus.INVITE_EXPIRED;
         await this.employeeRepo.save(employee);
         return InviteStatus.INVITE_EXPIRED;
@@ -117,11 +108,6 @@ export class InviteStatusService {
     }
   }
 
-  /**
-   * Manually sets invite status for an employee
-   * @param employeeId - The employee ID
-   * @param status - The new status
-   */
   async setInviteStatus(employeeId: string, status: InviteStatus): Promise<boolean> {
     try {
       const updateResult = await this.employeeRepo.update(employeeId, { invite_status: status });

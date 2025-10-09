@@ -9,7 +9,7 @@ import { Query } from '@nestjs/common';
 export class SubscriptionController {
   constructor(private readonly subscriptionService: SubscriptionService) {}
 
-  // Add this to your SubscriptionController
+  
   @Get('prices')
   async getStripePrices(@Query('ids') ids: string) {
     if (!ids) {

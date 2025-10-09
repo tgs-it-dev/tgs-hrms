@@ -46,7 +46,7 @@ export class EmployeeService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    // Cron job logic moved to InviteStatusCronService
+  
   }
 
   private async validateDesignation(
@@ -62,7 +62,7 @@ export class EmployeeService implements OnModuleInit {
       throw new BadRequestException('Invalid designation ID');
     }
 
-    // Check if designation belongs to the tenant or is GLOBAL
+  
     if (
       designation.department.tenant_id !== tenant_id &&
       designation.department.tenant_id !== GLOBAL
@@ -170,7 +170,7 @@ export class EmployeeService implements OnModuleInit {
       reset_token_expiry: resetTokenExpiry,
     });
 
-    // Ensure atomicity: create user + employee and send email in one transaction
+
     try {
       return await this.userRepo.manager.transaction(async (manager) => {
         const userRepo = manager.getRepository(User);
@@ -187,7 +187,7 @@ export class EmployeeService implements OnModuleInit {
 
         const savedEmployee = await employeeRepo.save(employee);
 
-        // Attempt to send email before committing. If this fails, transaction rolls back
+        
         await this.sendPasswordResetEmail(dto.email, resetToken);
 
         return savedEmployee;
@@ -213,15 +213,15 @@ export class EmployeeService implements OnModuleInit {
 
     let employeeRole;
     if (dto.role_name) {
-      // Priority 1: Use role_name to find role
+      
       employeeRole = await this.roleRepo.findOne({ where: { name: dto.role_name } });
       if (!employeeRole) throw new NotFoundException(`Role with name '${dto.role_name}' not found.`);
     } else if (dto.role_id) {
-      // Priority 2: Use role_id if role_name not provided
+  
       employeeRole = await this.roleRepo.findOne({ where: { id: dto.role_id } });
       if (!employeeRole) throw new NotFoundException('Specified role not found.');
     } else {
-      // Priority 3: Default to Employee role
+  
       employeeRole = await this.roleRepo.findOne({ where: { name: 'Employee' } });
       if (!employeeRole) throw new NotFoundException('Employee role not found.');
     }
@@ -246,7 +246,7 @@ export class EmployeeService implements OnModuleInit {
       reset_token_expiry: resetTokenExpiry,
     });
 
-    // Ensure atomicity: create user + employee and send email in one transaction
+    
     try {
       return await this.userRepo.manager.transaction(async (manager) => {
         const userRepo = manager.getRepository(User);
@@ -263,7 +263,7 @@ export class EmployeeService implements OnModuleInit {
 
         const savedEmployee = await employeeRepo.save(employee);
 
-        // Attempt to send email before committing. If this fails, transaction rolls back
+      
         await this.sendPasswordResetEmail(dto.email, resetToken);
 
         return savedEmployee;
@@ -305,7 +305,7 @@ export class EmployeeService implements OnModuleInit {
       .take(limit)
       .getManyAndCount();
 
-    // Apply lazy expiry for any 'Invite Sent' with expired token
+  
     const now = new Date();
     for (const item of items) {
       if (item.invite_status === InviteStatus.INVITE_SENT && item.user?.reset_token_expiry && now > item.user.reset_token_expiry) {
@@ -337,7 +337,7 @@ export class EmployeeService implements OnModuleInit {
       throw new NotFoundException('Employee not found');
     }
 
-    // Check and update invite status using the service
+    
     const currentStatus = await this.inviteStatusService.getInviteStatus(employee.id);
     if (currentStatus && currentStatus !== employee.invite_status) {
       employee.invite_status = currentStatus as InviteStatus;
@@ -439,7 +439,7 @@ export class EmployeeService implements OnModuleInit {
       const employeeRepo = manager.getRepository(Employee);
       const userRepo = manager.getRepository(User);
 
-      // Delete employee first to satisfy potential FK constraints referencing user via employee
+      
       await employeeRepo.delete(employee.id);
       await userRepo.delete(employee.user.id);
     });
@@ -459,7 +459,7 @@ export class EmployeeService implements OnModuleInit {
       await this.sendGridService.sendWelcomeEmail(email, resetToken);
     } catch (error) {
       this.logger.error(`Failed to send welcome email to ${email}: ${String((error as any)?.message || error)}`);
-      // Don't throw error to prevent transaction rollback
+  
       this.logger.warn('Email sending failed, but continuing with employee creation');
     }
   }
@@ -530,7 +530,7 @@ export class EmployeeService implements OnModuleInit {
       .addOrderBy('month', 'ASC')
       .getRawMany();
 
-    // Return empty array if no employees found instead of throwing error
+  
     if (!results || results.length === 0) {
       return [];
     }
@@ -543,7 +543,7 @@ export class EmployeeService implements OnModuleInit {
   }
 
   async refreshInviteStatus(tenant_id: string, employee_id: string) {
-    // Find employee with user relation
+
     const employee = await this.employeeRepo.findOne({
       where: { id: employee_id },
       relations: ['user'],
@@ -554,7 +554,7 @@ export class EmployeeService implements OnModuleInit {
     if (employee.invite_status !== InviteStatus.INVITE_EXPIRED) {
       throw new BadRequestException('Invite can only be resent if status is Invite Expired');
     }
-    // Generate new reset token
+    
     const resetToken = crypto.randomBytes(32).toString('hex');
     const resetTokenExpiry = new Date();
     resetTokenExpiry.setHours(resetTokenExpiry.getHours() + 24);
@@ -563,7 +563,7 @@ export class EmployeeService implements OnModuleInit {
     employee.invite_status = InviteStatus.INVITE_SENT;
     await this.userRepo.save(employee.user);
     await this.employeeRepo.save(employee);
-    // Resend invite email
+    
     await this.sendPasswordResetEmail(employee.user.email, resetToken);
     return { message: 'Invite resent successfully' };
   }

@@ -192,7 +192,7 @@ export class EmployeeController {
     return this.service.findAll(tenant_id, query, pageNumber);
   }
 
-  // CSV EXPORTS
+
   @Get('export')
   @Roles('admin', 'system-admin')
   @ApiOperation({ summary: 'Download employees list as CSV (Admin only)' })
@@ -259,8 +259,8 @@ export class EmployeeController {
     description: 'Gender percentage retrieved successfully.',
     schema: {
       example: {
-        male: 60, // Percentage of male employees
-        female: 40, // Percentage of female employees
+        male: 60, 
+        female: 40, 
       },
     },
   })

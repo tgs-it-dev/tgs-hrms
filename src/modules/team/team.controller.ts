@@ -40,7 +40,7 @@ import { sendCsvResponse } from '../../common/utils/csv.util';
 export class TeamController {
   constructor(private readonly teamService: TeamService) {}
 
-  // CSV EXPORTS (declare before :id routes to avoid conflicts)
+
   @Get('export')
   @Roles('admin', 'system-admin')
   @ApiOperation({ summary: 'Download teams list as CSV (Admin only)' })

@@ -18,7 +18,7 @@ export class ProfileController {
 
   @Get('me')
   async getMyProfile(@Req() req: Request) {
-    // user is attached to req by JwtAuthGuard
+    
     const userId = (req.user as any).id;
     return this.profileService.getUserProfile(userId);
   }

@@ -93,7 +93,7 @@ describe('EmployeeService', () => {
     jest.clearAllMocks();
   });
 
-  // ---------------- Create Tests ----------------
+  
   describe('create', () => {
     it('should throw conflict if email exists in same tenant', async () => {
       mockDesignationRepo.findOne.mockResolvedValue({
@@ -177,12 +177,12 @@ describe('EmployeeService', () => {
         department: { tenant_id: tenantId },
       });
       mockUserRepo.findOne.mockResolvedValue(null);
-      mockRoleRepo.findOne.mockResolvedValue(null); // Simulate role not found
+      mockRoleRepo.findOne.mockResolvedValue(null); 
       await expect(service.create(tenantId, { ...createDto, role_id: 'non-existent-role' })).rejects.toThrow('Specified role not found.');
     });
   });
 
-  // ---------------- Update Tests ----------------
+  
   describe('update', () => {
     const existingEmployee = {
       id: 'emp-uuid',
@@ -193,7 +193,7 @@ describe('EmployeeService', () => {
 
     beforeEach(() => {
       jest.clearAllMocks();
-      // Always return the existing employee for findOne and findOneBy
+    
       mockEmployeeRepo.findOneBy.mockResolvedValue(existingEmployee);
       mockEmployeeRepo.findOne.mockImplementation(async ({ where }) => {
         if (where && where.id === existingEmployee.id) {
@@ -201,21 +201,21 @@ describe('EmployeeService', () => {
         }
         return null;
       });
-      // Default: no user with the new email (no conflict)
+    
       mockUserRepo.findOne.mockResolvedValue(null);
-      // Mock designation fetch
+    
       mockDesignationRepo.findOneBy.mockImplementation(async ({ id }) => {
         if (id === 'desig-uuid-2') {
           return { id: 'desig-uuid-2', department: { tenant_id: tenantId } };
         }
         return null;
       });
-      // Save mock
+
       mockEmployeeRepo.save.mockImplementation(async (employee) => employee);
     });
 
     it('should throw conflict if new email exists in same tenant', async () => {
-      // Simulate conflict: user with the new email exists in the same tenant
+    
       mockUserRepo.findOne.mockResolvedValue({
         id: 'other-user',
         email: updateDto.email,
@@ -228,7 +228,7 @@ describe('EmployeeService', () => {
     });
 
     it('should update employee successfully if no conflict', async () => {
-      // No user with the new email (no conflict)
+  
       mockUserRepo.findOne.mockResolvedValue(null);
       const updatedData = {
         ...existingEmployee,
@@ -242,7 +242,7 @@ describe('EmployeeService', () => {
           phone: updateDto.phone,
         },
       };
-      // After save, the service fetches the employee again, so mock that
+      
       mockEmployeeRepo.findOne.mockResolvedValue(updatedData);
       const result = await service.update(tenantId, existingEmployee.id, updateDto);
       expect(result).toEqual(updatedData);

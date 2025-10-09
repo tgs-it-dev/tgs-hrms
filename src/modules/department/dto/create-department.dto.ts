@@ -1,5 +1,4 @@
-// modules/department/dto/create-department.dto.ts
-// import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+
 import { IsNotEmpty, IsOptional, IsString, MaxLength, MinLength, Matches } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';

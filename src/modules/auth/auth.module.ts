@@ -23,6 +23,6 @@ import { InviteStatusModule } from '../invite-status/invite-status.module';
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, EmailService, SendGridService],
-  exports: [AuthService], // Export AuthService so other modules can use it
+  exports: [AuthService], 
 })
 export class AuthModule {}

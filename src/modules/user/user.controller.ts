@@ -1,4 +1,3 @@
-// src/modules/user/user.controller.ts
 
 import {
   Controller,
@@ -36,7 +35,7 @@ import { PermissionsGuard } from 'src/common/guards/permissions.guard';
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  // Public: no auth required
+
   @Get(':id/profile-picture')
   async getProfilePicture(@Param('id') id: string, @Res() res: Response) {
     try {

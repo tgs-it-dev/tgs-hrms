@@ -91,13 +91,13 @@ export class UserService {
   }
   async updateProfilePicture(userId: string, file: Express.Multer.File, tenantId: string) {
     const user = await this.findOne(userId, tenantId, userId);
-    // Delete old profile picture if exists
+  
     if (user.profile_pic) {
       await this.fileUploadService.deleteProfilePicture(user.profile_pic);
     }
-    // Upload new profile picture
+  
     const profilePicUrl = await this.fileUploadService.uploadProfilePicture(file, userId);
-    // Update user record
+    
     user.profile_pic = profilePicUrl;
     return this.userRepo.save(user);
   }
@@ -110,11 +110,11 @@ export class UserService {
     }
     return user;
   }
-  // :white_tick: FIXED: Public method to get profile picture (no authentication required)
+  
   async getProfilePicture(userId: string) {
     try {
       this.logger.debug(`Getting profile picture for user: ${userId}`);
-      // Get user to find their profile picture URL
+    
       const user = await this.userRepo.findOne({
         where: { id: userId },
         select: ['id', 'profile_pic'],
@@ -128,26 +128,26 @@ export class UserService {
         return null;
       }
       this.logger.debug(`User found with profile picture: ${user.id}`);
-      // Construct the file path
+    
       const uploadDir = path.join(process.cwd(), 'public', 'profile-pictures');
-      const fileName = user.profile_pic.split('/').pop(); // Extract filename from URL
+      const fileName = user.profile_pic.split('/').pop(); 
       if (!fileName) {
         this.logger.warn(`Invalid profile picture URL: ${user.profile_pic}`);
         return null;
       }
       const filePath = path.join(uploadDir, fileName);
       this.logger.debug(`Profile picture file path: ${filePath}`);
-      // Check if file exists
+
       if (!fs.existsSync(filePath)) {
         this.logger.warn(`Profile picture file not found: ${filePath}`);
         return null;
       }
-      // Get file stats
+      
       const stats = fs.statSync(filePath);
       const fileExtension = path.extname(filePath).toLowerCase();
       this.logger.debug(`Profile picture stats: size=${stats.size}, ext=${fileExtension}`);
-      // Set appropriate content type
-      let contentType = 'image/jpeg'; // default
+    
+      let contentType = 'image/jpeg'; 
       switch (fileExtension) {
         case '.jpg':
         case '.jpeg':
@@ -166,7 +166,7 @@ export class UserService {
           contentType = 'image/jpeg';
           break;
       }
-      // Create file stream
+    
       const fileStream = fs.createReadStream(filePath);
       this.logger.debug('Profile picture data prepared');
       return {

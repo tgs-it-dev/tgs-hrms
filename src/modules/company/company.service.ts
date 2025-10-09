@@ -143,7 +143,7 @@ export class CompanyService {
       await fs.promises.mkdir(uploadsDir, { recursive: true });
     }
 
-    // unique filename
+  
     const timestamp = Date.now();
     const randomNum = Math.floor(Math.random() * 1000000000);
     const fileExtension = path.extname(file.originalname);
@@ -152,7 +152,7 @@ export class CompanyService {
 
     await fs.promises.writeFile(filePath, file.buffer);
 
-    // delete old logo safely
+  
     if (company.logo_url) {
       const oldFileName = company.logo_url.split('/').pop()?.split('?')[0];
       if (oldFileName) {
@@ -168,7 +168,7 @@ export class CompanyService {
       }
     }
 
-    // add cache-busting param
+  
     const logoUrl = `/company-logos/${fileName}?v=${Date.now()}`;
     company.logo_url = logoUrl;
 
@@ -215,7 +215,7 @@ export class CompanyService {
     }
 
     const uploadsDir = path.join(process.cwd(), 'public', 'company-logos');
-    const fileName = company.logo_url.split('/').pop()?.split('?')[0]; // ignore ?v=
+    const fileName = company.logo_url.split('/').pop()?.split('?')[0]; 
     if (!fileName) {
       return { fileStream: null, contentType: 'image/jpeg', fileSize: 0 };
     }

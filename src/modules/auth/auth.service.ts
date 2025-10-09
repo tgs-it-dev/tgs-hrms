@@ -32,7 +32,7 @@ export class AuthService {
     try {
       this.logger.log(`Loading permissions for user ${userId}`);
 
-      // First get the user with role to ensure we have the role_id
+    
       const user = await this.userRepository.findOne({
         where: { id: userId },
         relations: ['role'],
@@ -43,7 +43,7 @@ export class AuthService {
         return [];
       }
 
-      // Use a raw query to get permissions for the user's role
+    
       const result = await this.userRepository.query(
         `
         SELECT p.name 
@@ -140,7 +140,7 @@ export class AuthService {
         throw new UnauthorizedException('User role not found');
       }
   
-      // Get user permissions
+    
       const permissions = await this.getUserPermissions(user.id);
   
       this.logger.log(`Token validation successful for user: ${user.email}`);
@@ -202,10 +202,10 @@ export class AuthService {
       throw new UnauthorizedException('User role not found');
     }
 
-    // Get user permissions
+  
     const permissions = await this.getUserPermissions(user.id);
 
-    // Get company details
+    
     const companyDetails = await this.getCompanyDetails(user.tenant_id);
 
     this.logger.log(`User ${user.email} has role: ${user.role.name}`);
@@ -233,12 +233,12 @@ export class AuthService {
 
     user.refresh_token = refreshToken;
     
-    // Set first_login_time if it's null (first time login)
+    
     if (!user.first_login_time) {
       user.first_login_time = new Date();
       this.logger.log(`First login recorded for user: ${normalizedEmail}`);
       
-      // Update invite status to 'Joined' since user has logged in
+    
       await this.inviteStatusService.updateInviteStatusOnLogin(user.id);
     }
     
@@ -345,68 +345,6 @@ export class AuthService {
     return { message: 'Password reset successfully' };
   }
 
-  // async refreshToken(refreshToken: string) {
-  //   if (!refreshToken) {
-  //     throw new BadRequestException('Refresh token is required');
-  //   }
-
-  //   try {
-  //     const payload = this.jwtService.verify(refreshToken, {
-  //       secret: this.configService.get<string>('JWT_SECRET'),
-  //     });
-
-  //     const user = await this.userRepository.findOne({
-  //       where: { id: payload.sub },
-  //       relations: ['role'],
-  //     });
-
-  //     if (!user) {
-  //       this.logger.warn(`Refresh token failed: user not found for id: ${payload.sub}`);
-  //       throw new UnauthorizedException('Invalid refresh token');
-  //     }
-
-  //     if (!user.role?.name) {
-  //       this.logger.warn(`Refresh token failed: user role missing for id: ${payload.sub}`);
-  //       throw new UnauthorizedException('Invalid refresh token');
-  //     }
-
-  //     // Verify that the stored refresh token matches the provided one
-  //     if (user.refresh_token !== refreshToken) {
-  //       this.logger.warn(`Refresh token failed: token mismatch for user: ${user.email}`);
-  //       throw new UnauthorizedException('Invalid refresh token');
-  //     }
-
-  //     // Get user permissions
-  //     const permissions = await this.getUserPermissions(user.id);
-
-  //     this.logger.log(`Refresh: User ${user.email} has role: ${user.role.name}`);
-  //     this.logger.log(`Refresh: User ${user.email} permissions: ${JSON.stringify(permissions)}`);
-
-  //     const newPayload = {
-  //       email: user.email,
-  //       sub: user.id,
-  //       role: user.role.name.toLowerCase(),
-  //       tenant_id: user.tenant_id,
-  //       permissions,
-  //     };
-
-  //     this.logger.log(`Refresh: JWT payload for user ${user.email}: ${JSON.stringify(newPayload)}`);
-
-  //     const newAccessToken = this.jwtService.sign(newPayload, {
-  //       secret: this.configService.get<string>('JWT_SECRET'),
-  //       expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '24h',
-  //     });
-
-  //     this.logger.log(`Access token refreshed successfully for user: ${user.email}`);
-  //     return { accessToken: newAccessToken };
-  //   } catch (error) {
-  //     if (error instanceof UnauthorizedException || error instanceof BadRequestException) {
-  //       throw error;
-  //     }
-  //     this.logger.warn(`Refresh token failed: ${error.message}`);
-  //     throw new UnauthorizedException('Invalid refresh token');
-  //   }
-  // }
 
 
   async refreshToken(refreshToken: string) {
@@ -434,13 +372,13 @@ export class AuthService {
         throw new UnauthorizedException('User role not found');
       }
   
-      // Verify that the stored refresh token matches the provided one
+  
       if (user.refresh_token !== refreshToken) {
         this.logger.warn(`Refresh token failed: token mismatch for user: ${user.email}`);
         throw new UnauthorizedException('Invalid refresh token');
       }
   
-      // Get user permissions
+    
       const permissions = await this.getUserPermissions(user.id);
   
       this.logger.log(`Refresh: User ${user.email} has role: ${user.role.name}`);
@@ -513,12 +451,12 @@ export class AuthService {
       throw new NotFoundException('User not found');
     }
   
-    // Clear refresh token to invalidate all sessions
+  
     await this.userRepository.update(userId, {
       refresh_token: null,
     });
   
-    // Delete the user
+
     await this.userRepository.delete(userId);
   
     this.logger.log(`User deleted successfully: ${user.email}`);

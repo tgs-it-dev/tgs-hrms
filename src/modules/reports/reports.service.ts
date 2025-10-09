@@ -26,7 +26,7 @@ export class ReportsService {
     private readonly employeeRepo: Repository<Employee>
   ) {}
 
-  // 1. Attendance Summary
+  
   async getAttendanceSummary(userId?: string, month?: string) {
     // Parse month (format: YYYY-MM)
     const now = new Date();

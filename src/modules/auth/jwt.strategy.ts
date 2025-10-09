@@ -17,7 +17,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
-     // Check if user still exists
+     
      const user = await this.authService.validateToken(payload.sub);
      if (!user.valid) {
        throw new UnauthorizedException('User not found or has been deleted');

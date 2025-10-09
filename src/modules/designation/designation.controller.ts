@@ -59,7 +59,7 @@ export class DesignationController {
     return this.service.update(id, dto);
   }
 
-  // DesignationController.ts
+  
   @Get('department/:departmentId')
   @Roles('admin', 'system-admin')
   @Permissions('manage_designations')

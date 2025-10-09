@@ -12,7 +12,7 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
-  // Attendance summary for all active employees in a tenant (current month by default, or last X days if days is provided)
+ 
   @Get('attendance-summary')
   @UseGuards(RolesGuard)
   @Roles('hr-admin', 'system-admin', 'network-admin')

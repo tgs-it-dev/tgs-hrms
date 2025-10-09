@@ -25,7 +25,7 @@ export class AttendanceController {
     return this.attendanceService.create(userId, createAttendanceDto);
   }
 
-  // Daily summaries (latest per type)
+
   @Get()
   @ApiOperation({ summary: 'Get daily summaries (latest check-in/out) for a user' })
   findAll(@Query('userId') userId?: string, @Query('page') page?: string) {
@@ -114,7 +114,7 @@ export class AttendanceController {
     return this.attendanceService.getTeamAttendance(req.user.id, req.user.tenant_id, pageNumber);
   }
 
-  // CSV EXPORTS
+  
   @Get('export/self')
   @ApiOperation({ summary: 'Download your attendance events as CSV' })
   async exportSelf(
