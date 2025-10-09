@@ -13,13 +13,14 @@ import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { Permissions } from 'src/common/decorators/permissions.decorator';
 import { PermissionsGuard } from 'src/common/guards/permissions.guard';
 import { CreateRoleDto } from './dto/create-role.dto';
+import { RoleService } from './role.service';
 import { UpdateRoleDto } from './dto/update-role.dto';
 
 @ApiTags('Roles')
 @ApiBearerAuth()
 @Controller('roles')
 export class RoleController {
-  constructor() {}
+  constructor(private readonly roleService: RoleService) {}
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
@@ -32,9 +33,9 @@ export class RoleController {
     schema: {
       example: [
         {
-          id: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+          
           name: 'admin',
-          description: 'Administrator with full access',
+         
         },
       ],
     },
@@ -47,8 +48,8 @@ export class RoleController {
     status: 403,
     description: 'Forbidden - Insufficient permissions',
   })
-  getRoles() {
-    return { message: 'Get all roles - Implementation pending' };
+  async getRoles() {
+    return this.roleService.findAll();
   }
 
   @Get(':id')
@@ -66,9 +67,7 @@ export class RoleController {
     description: 'Role retrieved successfully.',
     schema: {
       example: {
-        id: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
         name: 'admin',
-        description: 'Administrator with full access',
       },
     },
   })
@@ -76,8 +75,8 @@ export class RoleController {
     status: 404,
     description: 'Role not found',
   })
-  getRoleById(@Param('id') id: string) {
-    return { message: `Get role by ID: ${id} - Implementation pending` };
+  async getRoleById(@Param('id') id: string) {
+    return this.roleService.findOne(id);
   }
 
   @Post()
