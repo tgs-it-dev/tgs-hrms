@@ -85,7 +85,7 @@ export class EmployeeController {
   @Post()
   @Roles('admin', 'system-admin')
   @Permissions('manage_employees')
-  @ApiOperation({ summary: 'Create employee by assigning user to designation. Optionally assign a role by role_id.' })
+  @ApiOperation({ summary: 'Create employee by assigning user to designation. Optionally assign a role by role_name or role_id.' })
   @ApiResponse({ status: 201, description: 'Employee created.' })
   @ApiResponse({
     status: 400,

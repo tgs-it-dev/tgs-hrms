@@ -212,10 +212,16 @@ export class EmployeeService implements OnModuleInit {
       throw new ConflictException('User with this email already exists in the tenant.');
 
     let employeeRole;
-    if (dto.role_id) {
+    if (dto.role_name) {
+      // Priority 1: Use role_name to find role
+      employeeRole = await this.roleRepo.findOne({ where: { name: dto.role_name } });
+      if (!employeeRole) throw new NotFoundException(`Role with name '${dto.role_name}' not found.`);
+    } else if (dto.role_id) {
+      // Priority 2: Use role_id if role_name not provided
       employeeRole = await this.roleRepo.findOne({ where: { id: dto.role_id } });
       if (!employeeRole) throw new NotFoundException('Specified role not found.');
     } else {
+      // Priority 3: Default to Employee role
       employeeRole = await this.roleRepo.findOne({ where: { name: 'Employee' } });
       if (!employeeRole) throw new NotFoundException('Employee role not found.');
     }
