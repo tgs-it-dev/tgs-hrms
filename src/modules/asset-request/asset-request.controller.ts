@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Put,
@@ -56,6 +57,14 @@ export class AssetRequestController {
   @ApiOperation({ summary: 'Reject request' })
   reject(@Request() req: any, @Param('id') id: string, @Body('remarks') remarks: string) {
     return this.service.reject(id, req.user.id, req.user.tenant_id, remarks);
+  }
+
+  @Delete(':id')
+  @Roles('user', 'employee')
+  @ApiOperation({ summary: 'Delete own pending request' })
+  @ApiResponse({ status: 200, description: 'Request deleted successfully' })
+  remove(@Request() req: any, @Param('id') id: string) {
+    return this.service.remove(id, req.user.id, req.user.tenant_id);
   }
 }
 

@@ -24,16 +24,34 @@ export class AssetService {
   }
 
   async findAll(tenantId: string, filters: { status?: string; category?: string }) {
-    const qb = this.assetRepo.createQueryBuilder('a').where('a.tenant_id = :tenantId', { tenantId });
+    const qb = this.assetRepo
+      .createQueryBuilder('a')
+      .leftJoinAndSelect('a.assignedToUser', 'assignedUser')
+      .where('a.tenant_id = :tenantId', { tenantId });
     if (filters.status) qb.andWhere('a.status = :status', { status: filters.status });
     if (filters.category) qb.andWhere('a.category = :category', { category: filters.category });
-    return qb.orderBy('a.created_at', 'DESC').getMany();
+    const assets = await qb.orderBy('a.created_at', 'DESC').getMany();
+    return assets.map((a) => ({
+      ...a,
+      assignedToName: a.assignedToUser
+        ? `${a.assignedToUser.first_name ?? ''} ${a.assignedToUser.last_name ?? ''}`.trim()
+        : null,
+    }));
   }
 
   async findOne(tenantId: string, id: string) {
-    const asset = await this.assetRepo.findOne({ where: { id, tenant_id: tenantId } });
+    const asset = await this.assetRepo
+      .createQueryBuilder('a')
+      .leftJoinAndSelect('a.assignedToUser', 'assignedUser')
+      .where('a.id = :id AND a.tenant_id = :tenantId', { id, tenantId })
+      .getOne();
     if (!asset) throw new NotFoundException('Asset not found');
-    return asset;
+    return {
+      ...asset,
+      assignedToName: asset.assignedToUser
+        ? `${asset.assignedToUser.first_name ?? ''} ${asset.assignedToUser.last_name ?? ''}`.trim()
+        : null,
+    };
   }
 
   async update(tenantId: string, id: string, dto: UpdateAssetDto) {
@@ -53,5 +71,3 @@ export class AssetService {
     return this.assetRepo.save(asset);
   }
 }
-
-
