@@ -19,22 +19,20 @@ import {
   ApiQuery,
   ApiParam,
 } from '@nestjs/swagger';
-import { EmployeeService } from './employee.service';
-import { CreateEmployeeDto } from './dto/create-employee.dto';
-import { UpdateEmployeeDto } from './dto/update-employee.dto';
-import { EmployeeQueryDto } from './dto/employee-query.dto';
+import { EmployeeService } from '../services/employee.service';
+import { CreateEmployeeDto, UpdateEmployeeDto, EmployeeQueryDto } from '../dto/employee.dto';
 
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
-import { TenantGuard } from '../../common/guards/tenant.guard';
-import { TenantId } from '../../common/decorators/company.deorator';
-import { AttendanceService } from '../attendance/attendance.service';
-import { LeaveService } from '../leave/leave.service';
-import { Permissions } from '../../common/decorators/permissions.decorator';
-import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../../common/guards/roles.guard';
+import { Roles } from '../../../common/decorators/roles.decorator';
+import { TenantGuard } from '../../../common/guards/tenant.guard';
+import { TenantId } from '../../../common/decorators/company.deorator';
+import { AttendanceService } from '../../attendance/attendance.service';
+import { LeaveService } from '../../leave/leave.service';
+import { Permissions } from '../../../common/decorators/permissions.decorator';
+import { PermissionsGuard } from '../../../common/guards/permissions.guard';
 import { Response } from 'express';
-import { sendCsvResponse } from '../../common/utils/csv.util';
+import { sendCsvResponse } from '../../../common/utils/csv.util';
 
 @ApiTags('Employees')
 @ApiBearerAuth()
@@ -188,7 +186,7 @@ export class EmployeeController {
     },
   })
   async findAll(@TenantId() tenant_id: string, @Query() query: EmployeeQueryDto) {
-    const pageNumber = Math.max(1, parseInt(query.page, 10) || 1);
+    const pageNumber = Math.max(1, parseInt(query.page?.toString() || '1', 10) || 1);
     return this.service.findAll(tenant_id, query, pageNumber);
   }
 

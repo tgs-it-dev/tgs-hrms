@@ -71,7 +71,7 @@ export class LeaveService {
         user: {
           tenant_id: tenantId,
         },
-        status: In(['pending', 'approved', 'rejected']), 
+        status: In(['pending', 'Approved', 'Rejected']), 
       },
       relations: ['user'],
       order: { created_at: 'DESC' },
@@ -199,7 +199,7 @@ export class LeaveService {
     const [items, total] = await this.leaveRepo.findAndCount({
       where: {
         user_id: In(userIds),
-        status: In(['pending', 'approved', 'rejected']), 
+        status: In(['pending', 'Approved', 'Rejected']), 
       },
       relations: ['user'],
       order: { created_at: 'DESC' },
@@ -265,7 +265,7 @@ export class LeaveService {
     const leaveApplications = await this.leaveRepo
       .createQueryBuilder('leave')
       .where('leave.user_id IN (:...userIds)', { userIds: teamMemberUserIds })
-      .andWhere('leave.status IN (:...statuses)', { statuses: ['pending', 'approved', 'rejected'] })
+      .andWhere('leave.status IN (:...statuses)', { statuses: ['pending', 'Approved', 'Rejected'] })
       .select(['leave.user_id', 'COUNT(leave.id) as totalApplications'])
       .groupBy('leave.user_id')
       .getRawMany();

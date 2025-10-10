@@ -4,7 +4,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { User } from '../../entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { EmailService } from './email.service';
+import { EmailService } from '../../common/utils/email';
 import { UnauthorizedException, BadRequestException } from '@nestjs/common';
 
 describe('AuthService - Refresh Token', () => {

@@ -10,7 +10,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ConfigService } from '@nestjs/config';
 import { NotFoundException } from '@nestjs/common';
-import { EmailService } from './email.service';
+import { EmailService } from '../../common/utils/email';
 import { InviteStatusService } from '../invite-status/invite-status.service';
 
 @Injectable()

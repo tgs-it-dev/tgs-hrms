@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { EmployeeService } from './employee.service';
+import { EmployeeService } from './services/employee.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Employee } from '../../entities/employee.entity';
 import { User } from '../../entities/user.entity';
@@ -7,8 +7,7 @@ import { Department } from '../../entities/department.entity';
 import { Designation } from '../../entities/designation.entity';
 import { Role } from '../../entities/role.entity';
 import { Team } from '../../entities/team.entity';
-import { CreateEmployeeDto } from './dto/create-employee.dto';
-import { UpdateEmployeeDto } from './dto/update-employee.dto';
+import { CreateEmployeeDto, UpdateEmployeeDto } from './dto/employee.dto';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { MailerService } from '@nestjs-modules/mailer';
 import { ConfigService } from '@nestjs/config';

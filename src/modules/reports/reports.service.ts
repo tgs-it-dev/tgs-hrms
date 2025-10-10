@@ -2,7 +2,7 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, In } from 'typeorm';
 import { Attendance } from '../../entities/attendance.entity';
-import { AttendanceType, EmployeeStatus, RoleName } from '../../common/constants/enums';
+import { AttendanceType, EmployeeStatus, UserRole } from '../../common/constants/enums';
 import { Leave } from '../../entities/leave.entity';
 import { User } from '../../entities/user.entity';
 import { Department } from '../../entities/department.entity';
@@ -482,7 +482,7 @@ export class ReportsService {
       // Fetch user with role
       const user = await this.userRepo.findOne({ where: { id: uid }, relations: ['role'] });
       const isManager =
-        user && user.role && user.role.name && user.role.name.toLowerCase() === RoleName.MANAGER;
+        user && user.role && user.role.name && user.role.name.toLowerCase() === UserRole.MANAGER;
       const monthlyCap = isManager ? MONTHLY_CAP_MANAGER : MONTHLY_CAP_EMPLOYEE;
       // Get all approved leaves for the year
       const startOfYear = new Date(Date.UTC(year, 0, 1, 0, 0, 0));

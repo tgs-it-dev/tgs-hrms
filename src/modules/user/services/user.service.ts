@@ -7,9 +7,9 @@ import * as path from 'path';
 import { ReadStream } from 'fs';
 import { User } from 'src/entities/user.entity';
 import { Role } from 'src/entities/role.entity';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
-import { PaginationResponse } from '../../common/interfaces/pagination.interface';
+import { CreateUserDto, UpdateUserDto } from '../dto/user.dto';
+import { UserGender } from '../../../common/constants/enums';
+import { PaginationResponse } from '../../../common/interfaces/pagination.interface';
 import { FileUploadService } from './file-upload.service';
 @Injectable()
 export class UserService {
@@ -36,11 +36,15 @@ export class UserService {
     if (!role) throw new NotFoundException('Role not found');
     const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
     const user = this.userRepo.create({
-      ...createUserDto,
       password: hashedPassword,
       tenant_id: tenantId,
       role_id: createUserDto.role_id,
-      role,
+      email: createUserDto.email,
+      phone: createUserDto.phone,
+      first_name: createUserDto.first_name,
+      last_name: createUserDto.last_name,
+      gender: createUserDto.gender === UserGender.MALE ? 'male' : 
+               createUserDto.gender === UserGender.FEMALE ? 'female' : null,
     });
     return this.userRepo.save(user);
   }

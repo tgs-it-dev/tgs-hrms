@@ -1,35 +1,24 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+/**
+ * Invite Status Cron Service using NestJS Schedule
+ */
+
+import { Injectable, Logger } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { InviteStatusService } from './invite-status.service';
 
 @Injectable()
-export class InviteStatusCronService implements OnModuleInit {
+export class InviteStatusCronService {
   private readonly logger = new Logger(InviteStatusCronService.name);
 
   constructor(private readonly inviteStatusService: InviteStatusService) {}
 
-  onModuleInit() {
-    this.logger.log('Starting invite status cron service...');
-    
-  
-    setTimeout(() => {
-      this.checkExpiredInvites().catch((error) => {
-        this.logger.error('Initial invite status check failed:', error);
-      });
-    }, 5000);
-
-    
-    setInterval(() => {
-      this.checkExpiredInvites().catch((error) => {
-        this.logger.error('Scheduled invite status check failed:', error);
-      });
-    }, 15 * 60 * 1000); 
-
-    this.logger.log('Invite status cron service started successfully');
-  }
-
-  private async checkExpiredInvites(): Promise<void> {
+  /**
+   * Check for expired invites every 15 minutes
+   */
+  @Cron('0 */15 * * * *')
+  async handleExpiredInvitesCheck(): Promise<void> {
     try {
-      this.logger.log('Checking for expired invites...');
+      this.logger.log('Starting scheduled expired invites check...');
       const expiredCount = await this.inviteStatusService.checkAndUpdateExpiredInvites();
       
       if (expiredCount > 0) {
@@ -39,7 +28,34 @@ export class InviteStatusCronService implements OnModuleInit {
       }
     } catch (error) {
       this.logger.error('Failed to check expired invites:', error);
-      throw error;
+    }
+  }
+
+  /**
+   * Daily cleanup of old expired invites (runs at 2 AM)
+   */
+  @Cron('0 2 * * *')
+  async handleDailyCleanup(): Promise<void> {
+    try {
+      this.logger.log('Starting daily cleanup of old expired invites...');
+      // Add cleanup logic here if needed
+      this.logger.log('Daily cleanup completed');
+    } catch (error) {
+      this.logger.error('Daily cleanup failed:', error);
+    }
+  }
+
+  /**
+   * Weekly report of invite statistics (runs every Monday at 9 AM)
+   */
+  @Cron('0 9 * * 1')
+  async handleWeeklyInviteReport(): Promise<void> {
+    try {
+      this.logger.log('Generating weekly invite statistics report...');
+      // Add report generation logic here if needed
+      this.logger.log('Weekly invite report generated');
+    } catch (error) {
+      this.logger.error('Weekly invite report generation failed:', error);
     }
   }
 

@@ -1,5 +1,5 @@
 
-import { Module, Logger } from '@nestjs/common';
+import { Module, Logger, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { typeOrmConfig } from './config/typeorm.config';
@@ -7,7 +7,10 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { JwtModule } from '@nestjs/jwt';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
+import { ScheduleModule } from '@nestjs/schedule';
 import { join } from 'path';
+import { MiddlewareConfigModule } from './common/middleware/middleware.config';
+import { EmailModule } from './common/utils/email/email.module';
 import { UserModule } from './modules/user/user.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { DepartmentModule } from './modules/department/department.module';
@@ -31,8 +34,12 @@ import { AssetRequestModule } from './modules/asset-request/asset-request.module
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    MiddlewareConfigModule,
+    EmailModule,
 
-  
+    // Schedule module for cron jobs
+    ScheduleModule.forRoot(),
+
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: typeOrmConfig,

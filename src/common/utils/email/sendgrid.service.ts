@@ -1,3 +1,8 @@
+/**
+ * SendGrid Email Service
+ * Handles all SendGrid email operations
+ */
+
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as sgMail from '@sendgrid/mail';
@@ -135,6 +140,54 @@ export class SendGridService {
     } catch (error) {
       this.logger.error(`Failed to send welcome email to ${email}:`, error);
       throw new Error('Failed to send welcome email');
+    }
+  }
+
+  async sendEmail(to: string, subject: string, html: string, from?: string): Promise<void> {
+    const fromEmail = from || this.configService.get<string>('SENDGRID_FROM');
+
+    if (!fromEmail) {
+      this.logger.warn('SENDGRID_FROM not configured. Skipping email send.');
+      return;
+    }
+
+    const msg = {
+      to,
+      from: fromEmail,
+      subject,
+      html,
+    };
+
+    try {
+      await sgMail.send(msg);
+      this.logger.log(`Email sent to ${to}`);
+    } catch (error) {
+      this.logger.error(`Failed to send email to ${to}:`, error);
+      throw new Error('Failed to send email');
+    }
+  }
+
+  async sendBulkEmail(emails: string[], subject: string, html: string, from?: string): Promise<void> {
+    const fromEmail = from || this.configService.get<string>('SENDGRID_FROM');
+
+    if (!fromEmail) {
+      this.logger.warn('SENDGRID_FROM not configured. Skipping bulk email send.');
+      return;
+    }
+
+    const msg = {
+      to: emails,
+      from: fromEmail,
+      subject,
+      html,
+    };
+
+    try {
+      await sgMail.send(msg);
+      this.logger.log(`Bulk email sent to ${emails.length} recipients`);
+    } catch (error) {
+      this.logger.error(`Failed to send bulk email to ${emails.length} recipients:`, error);
+      throw new Error('Failed to send bulk email');
     }
   }
 }

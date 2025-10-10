@@ -9,7 +9,7 @@ import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Role } from '../../entities/role.entity';
 import { Tenant } from '../../entities/tenant.entity';
-import { EmailService } from './email.service';
+import { EmailService } from '../../common/utils/email';
 
 const mockPassword = bcrypt.hashSync('123456', 10);
 
@@ -43,6 +43,7 @@ const mockUser: User = {
   phone: '1234567890',
   gender: null,
   profile_pic: null,
+  first_login_time: null,
   created_at: new Date(),
   updated_at: new Date(),
   role: mockRole,
