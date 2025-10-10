@@ -27,10 +27,10 @@ export class Policy {
   title: string;
 
   @Column({ type: 'varchar', length: 50 })
-  category: string; // e.g., 'attendance', 'leave', 'general'
+  category: string; 
 
   @Column({ type: 'text' })
-  body: string; // policy content/details
+  body: string; 
 
   @Column({ type: 'date', nullable: true })
   effective_from: string | null;

@@ -1,4 +1,4 @@
-// modules/department/dto/update-department.dto.ts
+
 import { PartialType } from '@nestjs/swagger';
 import { IsOptional, IsString, MaxLength, MinLength, Matches } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';

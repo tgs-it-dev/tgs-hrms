@@ -1,0 +1,251 @@
+{
+  "roles": {
+    "system-admin": {
+      "name": "System Administrator",
+      "description": "Full system access with all permissions",
+      "permissions": ["*"],
+      "isAdmin": true,
+      "priority": 1
+    },
+    "admin": {
+      "name": "Administrator",
+      "description": "Company administrator with full company access",
+      "permissions": ["*"],
+      "isAdmin": true,
+      "priority": 2
+    },
+    "network-admin": {
+      "name": "Network Administrator",
+      "description": "Network-level administrator for multiple companies",
+      "permissions": ["*"],
+      "isAdmin": true,
+      "priority": 3
+    },
+    "hr-admin": {
+      "name": "HR Administrator",
+      "description": "HR department administrator",
+      "permissions": [
+        "user.create",
+        "user.read",
+        "user.update",
+        "user.delete",
+        "employee.create",
+        "employee.read",
+        "employee.update",
+        "employee.delete",
+        "department.create",
+        "department.read",
+        "department.update",
+        "department.delete",
+        "designation.create",
+        "designation.read",
+        "designation.update",
+        "designation.delete",
+        "attendance.read",
+        "attendance.update",
+        "leave.create",
+        "leave.read",
+        "leave.update",
+        "leave.delete",
+        "leave.approve",
+        "leave.reject",
+        "policy.create",
+        "policy.read",
+        "policy.update",
+        "policy.delete",
+        "team.create",
+        "team.read",
+        "team.update",
+        "team.delete",
+        "reports.read",
+        "reports.export"
+      ],
+      "isAdmin": false,
+      "priority": 4
+    },
+    "manager": {
+      "name": "Manager",
+      "description": "Team manager with limited administrative access",
+      "permissions": [
+        "employee.read",
+        "employee.update",
+        "attendance.read",
+        "attendance.update",
+        "leave.read",
+        "leave.approve",
+        "leave.reject",
+        "team.read",
+        "team.update",
+        "timesheet.read",
+        "timesheet.approve",
+        "timesheet.reject",
+        "reports.read"
+      ],
+      "isAdmin": false,
+      "priority": 5
+    },
+    "employee": {
+      "name": "Employee",
+      "description": "Regular employee with basic access",
+      "permissions": [
+        "employee.read",
+        "attendance.create",
+        "attendance.read",
+        "leave.create",
+        "leave.read",
+        "timesheet.create",
+        "timesheet.read",
+        "timesheet.update",
+        "policy.read",
+        "team.read"
+      ],
+      "isAdmin": false,
+      "priority": 6
+    },
+    "user": {
+      "name": "User",
+      "description": "Basic user with minimal access",
+      "permissions": [
+        "employee.read",
+        "policy.read",
+        "team.read"
+      ],
+      "isAdmin": false,
+      "priority": 7
+    }
+  },
+  "permissions": {
+    "user": {
+      "create": "Create new users",
+      "read": "View user information",
+      "update": "Update user information",
+      "delete": "Delete users"
+    },
+    "employee": {
+      "create": "Create new employees",
+      "read": "View employee information",
+      "update": "Update employee information",
+      "delete": "Delete employees"
+    },
+    "department": {
+      "create": "Create new departments",
+      "read": "View department information",
+      "update": "Update department information",
+      "delete": "Delete departments"
+    },
+    "designation": {
+      "create": "Create new designations",
+      "read": "View designation information",
+      "update": "Update designation information",
+      "delete": "Delete designations"
+    },
+    "attendance": {
+      "create": "Create attendance records",
+      "read": "View attendance information",
+      "update": "Update attendance records",
+      "delete": "Delete attendance records"
+    },
+    "leave": {
+      "create": "Create leave requests",
+      "read": "View leave information",
+      "update": "Update leave requests",
+      "delete": "Delete leave requests",
+      "approve": "Approve leave requests",
+      "reject": "Reject leave requests"
+    },
+    "timesheet": {
+      "create": "Create timesheet entries",
+      "read": "View timesheet information",
+      "update": "Update timesheet entries",
+      "delete": "Delete timesheet entries",
+      "approve": "Approve timesheet entries",
+      "reject": "Reject timesheet entries"
+    },
+    "policy": {
+      "create": "Create new policies",
+      "read": "View policy information",
+      "update": "Update policy information",
+      "delete": "Delete policies"
+    },
+    "team": {
+      "create": "Create new teams",
+      "read": "View team information",
+      "update": "Update team information",
+      "delete": "Delete teams"
+    },
+    "asset": {
+      "create": "Create new assets",
+      "read": "View asset information",
+      "update": "Update asset information",
+      "delete": "Delete assets",
+      "assign": "Assign assets to employees",
+      "unassign": "Unassign assets from employees"
+    },
+    "asset-request": {
+      "create": "Create asset requests",
+      "read": "View asset request information",
+      "update": "Update asset requests",
+      "delete": "Delete asset requests",
+      "approve": "Approve asset requests",
+      "reject": "Reject asset requests"
+    },
+    "reports": {
+      "read": "View reports",
+      "export": "Export reports",
+      "create": "Create custom reports"
+    },
+    "company": {
+      "read": "View company information",
+      "update": "Update company information",
+      "settings": "Manage company settings"
+    },
+    "subscription": {
+      "read": "View subscription information",
+      "update": "Update subscription",
+      "manage": "Manage subscription plans"
+    },
+    "tenant": {
+      "create": "Create new tenants",
+      "read": "View tenant information",
+      "update": "Update tenant information",
+      "delete": "Delete tenants"
+    },
+    "role": {
+      "create": "Create new roles",
+      "read": "View role information",
+      "update": "Update role information",
+      "delete": "Delete roles"
+    },
+    "permission": {
+      "create": "Create new permissions",
+      "read": "View permission information",
+      "update": "Update permission information",
+      "delete": "Delete permissions"
+    }
+  },
+  "defaultRoles": [
+    "system-admin",
+    "admin",
+    "hr-admin",
+    "manager",
+    "employee",
+    "user"
+  ],
+  "adminRoles": [
+    "system-admin",
+    "admin",
+    "network-admin"
+  ],
+  "hrRoles": [
+    "hr-admin"
+  ],
+  "managerRoles": [
+    "manager"
+  ],
+  "employeeRoles": [
+    "employee",
+    "user"
+  ]
+}
+
+

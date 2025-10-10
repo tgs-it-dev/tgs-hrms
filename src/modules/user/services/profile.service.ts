@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { User } from '../../entities/user.entity';
+import { User } from '../../../entities/user.entity';
 import { Repository } from 'typeorm';
-import { UpdateProfileDto } from './dto/update-profile.dto';
+import { UpdateProfileDto } from '../dto/user.dto';
 
 @Injectable()
 export class ProfileService {
@@ -17,7 +17,7 @@ export class ProfileService {
       relations: ['role', 'tenant'],
     });
     if (!user) throw new NotFoundException('User not found');
-    // Only return general info, not employee-specific
+  
     return {
       id: user.id,
       first_name: user.first_name,
@@ -35,7 +35,7 @@ export class ProfileService {
   async updateUserProfile(userId: string, dto: UpdateProfileDto) {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
-    // Only allow updating allowed fields
+    
     if (dto.first_name !== undefined) user.first_name = dto.first_name;
     if (dto.last_name !== undefined) user.last_name = dto.last_name;
     if (dto.profile_pic !== undefined) user.profile_pic = dto.profile_pic;

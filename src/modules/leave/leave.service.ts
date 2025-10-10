@@ -15,7 +15,7 @@ export class LeaveService {
     @InjectRepository(User)
     private userRepo: Repository<User>,
     @InjectRepository(Employee)
-    private readonly employeeRepo: Repository<Employee> // NEW
+    private readonly employeeRepo: Repository<Employee> 
   ) {}
 
   async createLeave(user_id: string, dto: CreateLeaveDto): Promise<Leave> {
@@ -71,7 +71,7 @@ export class LeaveService {
         user: {
           tenant_id: tenantId,
         },
-        status: In(['pending', 'Approved', 'Rejected']), // Exclude withdrawn leaves
+        status: In(['pending', 'Approved', 'Rejected']), 
       },
       relations: ['user'],
       order: { created_at: 'DESC' },
@@ -106,12 +106,12 @@ export class LeaveService {
 
     if (!leave) throw new NotFoundException('Leave not found');
 
-    // Check if the user owns this leave request
+    
     if (leave.user_id !== userId) {
       throw new ForbiddenException('You can only withdraw your own leave requests');
     }
 
-    // Check if the leave is still pending (can't withdraw approved/rejected/withdrawn leaves)
+  
     if (leave.status !== 'pending') {
       throw new ForbiddenException('You can only withdraw pending leave requests');
     }
@@ -119,11 +119,11 @@ export class LeaveService {
     leave.status = 'withdrawn';
     return await this.leaveRepo.save(leave);
   }
-  // Get total leaves for the current month for a tenant
+  
   async getTotalLeavesForCurrentMonth(tenantId: string): Promise<{ totalLeaves: number }> {
     const now = new Date();
     const year = now.getFullYear();
-    const month = now.getMonth(); // 0-based
+    const month = now.getMonth(); 
     const startOfMonth = new Date(year, month, 1);
     const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59, 999);
 
@@ -140,7 +140,7 @@ export class LeaveService {
     return { totalLeaves: leavesCount };
   }
 
-  // NEW: helper to get all team member user_ids for a manager in a tenant
+  
   private async getManagerTeamMemberUserIds(
     managerId: string,
     tenantId: string
@@ -151,15 +151,13 @@ export class LeaveService {
       .leftJoin('e.team', 't')
       .where('u.tenant_id = :tenantId', { tenantId })
       .andWhere('t.manager_id = :managerId', { managerId })
-      .andWhere('e.user_id != :managerId', { managerId }) // exclude manager themself
+      .andWhere('e.user_id != :managerId', { managerId }) 
       .select(['e.user_id'])
       .getMany();
 
     return employees.map((e) => e.user_id);
   }
 
-  // NEW: get team leaves (manager scoped)
-  // Get team leaves for managers (corrected version)
   async getTeamLeaves(
     managerId: string,
     tenantId: string,
@@ -174,14 +172,14 @@ export class LeaveService {
     const limit = 10;
     const skip = (page - 1) * limit;
 
-    // Get team member user IDs using a single query
+
     const teamMemberUserIds = await this.employeeRepo
       .createQueryBuilder('employee')
       .leftJoin('employee.user', 'user')
       .leftJoin('employee.team', 'team')
       .where('user.tenant_id = :tenantId', { tenantId })
       .andWhere('team.manager_id = :managerId', { managerId })
-      .andWhere('employee.user_id != :managerId', { managerId }) // Exclude manager
+      .andWhere('employee.user_id != :managerId', { managerId }) 
       .select(['employee.user_id'])
       .getRawMany();
 
@@ -197,7 +195,7 @@ export class LeaveService {
       };
     }
 
-    // Get leave requests for team members (exclude withdrawn leaves)
+    
     const [items, total] = await this.leaveRepo.findAndCount({
       where: {
         user_id: In(userIds),
@@ -220,7 +218,7 @@ export class LeaveService {
     };
   }
 
-  // NEW: Get simple list of team members who have applied for leave (without detailed leave info)
+  
   async getTeamMembersWithLeaveApplications(
     managerId: string,
     tenantId: string
@@ -239,7 +237,7 @@ export class LeaveService {
     totalMembers: number;
     membersWithLeave: number;
   }> {
-    // Get all team members for the manager
+    
     const teamMembers = await this.employeeRepo
       .createQueryBuilder('employee')
       .leftJoinAndSelect('employee.user', 'user')
@@ -248,7 +246,7 @@ export class LeaveService {
       .leftJoin('employee.team', 'team')
       .where('user.tenant_id = :tenantId', { tenantId })
       .andWhere('team.manager_id = :managerId', { managerId })
-      .andWhere('employee.user_id != :managerId', { managerId }) // Exclude manager
+      .andWhere('employee.user_id != :managerId', { managerId }) 
       .select([
         'employee.user_id',
         'user.first_name',
@@ -260,10 +258,10 @@ export class LeaveService {
       ])
       .getMany();
 
-    // Get user IDs of team members
+  
     const teamMemberUserIds = teamMembers.map((member) => member.user_id);
 
-    // Get leave applications count for each team member (exclude withdrawn leaves)
+  
     const leaveApplications = await this.leaveRepo
       .createQueryBuilder('leave')
       .where('leave.user_id IN (:...userIds)', { userIds: teamMemberUserIds })
@@ -272,13 +270,13 @@ export class LeaveService {
       .groupBy('leave.user_id')
       .getRawMany();
 
-    // Create a map of user_id to leave count
+    
     const leaveCountMap = new Map();
     leaveApplications.forEach((item) => {
       leaveCountMap.set(item.leave_user_id, parseInt(item.totalapplications));
     });
 
-    // Transform the data
+  
     const transformedMembers = teamMembers.map((member) => {
       const leaveCount = leaveCountMap.get(member.user_id) || 0;
       return {

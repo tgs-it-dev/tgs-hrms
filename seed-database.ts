@@ -1,9 +1,12 @@
 import { DataSource } from 'typeorm';
 import { config } from 'dotenv';
 import { seedRolesAndPermissions } from './src/common/seeders/seed-roles-and-permissions';
+import { Logger } from '@nestjs/common';
 
 // Load environment variables
 config();
+
+const logger = new Logger('DatabaseSeeder');
 
 async function runSeeder() {
   const dataSource = new DataSource({
@@ -21,16 +24,16 @@ async function runSeeder() {
 
   try {
     await dataSource.initialize();
-    console.log('Database connection established');
+    logger.log('Database connection established');
     
     await seedRolesAndPermissions(dataSource);
-    console.log('Seeding completed successfully');
+    logger.log('Seeding completed successfully');
   } catch (error) {
-    console.error('Seeding failed:', error);
+    logger.error('Seeding failed:', error);
     process.exit(1);
   } finally {
     await dataSource.destroy();
-    console.log('Database connection closed');
+    logger.log('Database connection closed');
   }
 }
 

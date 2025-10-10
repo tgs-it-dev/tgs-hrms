@@ -31,20 +31,20 @@ export class SubscriptionService {
     return this.subscriptionPlanRepo.findOne({ where: { id } });
   }
 
-  // New: fetch prices by planIds
+  
   async getStripePricesByPriceIds(priceIds: string[]): Promise<any[]> {
     if (!this.stripe) {
-      // Fallback when Stripe is not configured
+      
       return priceIds.map((priceId, index) => ({
         priceId,
         currency: 'usd',
-        unit_amount: [900, 1900, 3000][index] || 1000, // cents
+        unit_amount: [900, 1900, 3000][index] || 1000, 
         interval: 'month',
       }));
     }
 
     try {
-      // Fetch prices from Stripe
+    
       const prices = await Promise.all(
         priceIds.map(async (priceId) => {
           const price = await this.stripe!.prices.retrieve(priceId);

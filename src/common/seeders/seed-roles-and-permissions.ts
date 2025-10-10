@@ -7,7 +7,7 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
   try {
     logger.log('Starting to seed roles and permissions...');
 
-    // Insert permissions (without duplicating existing ones)
+    
     const permissions = [
       'manage_users',
       'manage_roles',
@@ -47,17 +47,17 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
       logger.log(`Inserted/Updated permission: ${permission}`);
     }
 
-    // Get role and permission IDs from existing data
+  
     const roleRows = await dataSource.query(`SELECT id, name FROM roles`);
     const permissionRows = await dataSource.query(`SELECT id, name FROM permissions`);
 
     const roleNameToId = new Map(roleRows.map((r: any) => [r.name, r.id]));
     const permNameToId = new Map(permissionRows.map((r: any) => [r.name, r.id]));
 
-    // Define role-permission mappings
+    
     const roleToPermissions: Record<string, string[]> = {
       'system-admin': [
-        // System admin gets ALL permissions
+    
         'manage_users',
         'manage_roles',
         'manage_permissions',
@@ -85,7 +85,7 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
         'manage_company',
       ],
       admin: [
-        // Admin gets all permissions except manage_tenants
+      
         'manage_users',
         'manage_roles',
         'manage_permissions',
@@ -112,7 +112,7 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
         'manage_company',
       ],
       'network-admin': [
-        // Network Admin gets same permissions as Admin (all except manage_tenants)
+        
         'manage_users',
         'manage_roles',
         'manage_permissions',
@@ -139,16 +139,16 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
         'manage_company',
       ],
       'hr-admin': [
-        // HR Admin gets employee permissions + attendance & leave management
+    
         'view_self_attendance',
         'view_self_leaves',
         'create_self_timesheet',
         'view_self_reports',
         'request_leave',
         'view_self_schedule',
-        'manage_attendance', // Can view all attendance
-        'create_self_attendance', // Can create own attendance
-        'manage_leaves', // Can view all leaves
+        'manage_attendance', 
+        'create_self_attendance', 
+        'manage_leaves', 
       ],
       manager: [
         'view_reports',
@@ -173,11 +173,11 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
       user: ['view_self_attendance', 'view_self_leaves', 'view_self_reports'],
     };
 
-    // Clear existing role_permissions
+    
     await dataSource.query(`DELETE FROM role_permissions`);
     logger.log('Cleared existing role_permissions');
 
-    // Insert role_permissions
+    
     for (const [roleName, perms] of Object.entries(roleToPermissions)) {
       const roleId = roleNameToId.get(roleName);
       if (!roleId) {

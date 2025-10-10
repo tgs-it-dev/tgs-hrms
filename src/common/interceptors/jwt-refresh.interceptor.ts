@@ -20,7 +20,7 @@ export class JwtRefreshInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     return next.handle().pipe(
       catchError((error) => {
-        // Check if the error is due to JWT expiration
+      
         if (error instanceof UnauthorizedException && error.message === 'Unauthorized') {
           const request = context.switchToHttp().getRequest();
           const authHeader = request.headers.authorization;
@@ -29,12 +29,12 @@ export class JwtRefreshInterceptor implements NestInterceptor {
             const token = authHeader.substring(7);
 
             try {
-              // Try to decode the token to check if it's expired
+              
               const decoded = this.jwtService.decode(token);
               if (decoded && typeof decoded === 'object' && decoded.exp) {
                 const currentTime = Math.floor(Date.now() / 1000);
                 if (decoded.exp < currentTime) {
-                  // Token is expired, return a specific error message
+                
                   return throwError(
                     () =>
                       new UnauthorizedException({
@@ -46,7 +46,7 @@ export class JwtRefreshInterceptor implements NestInterceptor {
                 }
               }
             } catch (decodeError) {
-              // Token is malformed
+        
               return throwError(
                 () =>
                   new UnauthorizedException({

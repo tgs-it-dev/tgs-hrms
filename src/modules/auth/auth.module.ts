@@ -6,9 +6,8 @@ import { User } from '../../entities/user.entity';
 import { CompanyDetails } from '../../entities/company-details.entity';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-import { JwtStrategy } from './jwt.strategy';
-import { EmailService } from './email.service';
-import { SendGridService } from './sendgrid.service';
+import { JwtMiddleware, JwtAuthGuard, JwtTokenValidator } from '../../common/middleware/jwt.middleware';
+import { EmailService, SendGridService } from '../../common/utils/email';
 import { InviteStatusModule } from '../invite-status/invite-status.module';
 
 @Module({
@@ -22,7 +21,7 @@ import { InviteStatusModule } from '../invite-status/invite-status.module';
     InviteStatusModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, EmailService, SendGridService],
-  exports: [AuthService], // Export AuthService so other modules can use it
+  providers: [AuthService, JwtMiddleware, JwtAuthGuard, JwtTokenValidator, EmailService, SendGridService],
+  exports: [AuthService], 
 })
 export class AuthModule {}

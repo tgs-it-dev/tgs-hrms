@@ -16,10 +16,10 @@ export class TimesheetService {
     private readonly userRepo: Repository<User>
   ) {}
 
-  // Start the work timer only if the user has checked in
+
   async startWork(userId: string) {
     const now = new Date();
-    // Define start and end of the day (UTC)
+
     const startOfDayUtc = new Date(
       Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0)
     );
@@ -27,7 +27,7 @@ export class TimesheetService {
       Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0)
     );
 
-    // Find the most recent attendance record for the user today
+    
     const latestAttendance = await this.attendanceRepo
       .createQueryBuilder('attendance')
       .where('attendance.user_id = :userId', { userId })
@@ -41,12 +41,12 @@ export class TimesheetService {
       .orderBy('attendance.timestamp', 'DESC')
       .getOne();
 
-    // No attendance record means the user hasn't checked in
+  
     if (!latestAttendance || latestAttendance.type !== 'check-in') {
       throw new BadRequestException('You must check in before starting work');
     }
 
-    // Prevent starting a new session if one is already in progress
+    
     const activeSession = await this.timesheetRepo.findOne({
       where: { user_id: userId, end_time: IsNull() },
     });
@@ -54,7 +54,7 @@ export class TimesheetService {
       throw new BadRequestException('Active work session already exists');
     }
 
-    // Create a new timesheet entry tied to this check-in
+    
     const user = await this.userRepo.findOne({ where: { id: userId } });
     const fullName = user ? `${user.first_name} ${user.last_name}` : null;
     const record = this.timesheetRepo.create({
@@ -67,7 +67,7 @@ export class TimesheetService {
     return this.timesheetRepo.save(record);
   }
 
-  // End the work session automatically when the user checks out
+  
   async endWork(userId: string) {
     const activeSession = await this.timesheetRepo.findOne({
       where: { user_id: userId, end_time: IsNull() },
@@ -90,7 +90,7 @@ export class TimesheetService {
     return this.timesheetRepo.save(activeSession);
   }
 
-  // Automatically stop the active timer if there is one
+  
   async autoEndIfActive(userId: string) {
     const activeSession = await this.timesheetRepo.findOne({
       where: { user_id: userId, end_time: IsNull() },
@@ -113,9 +113,9 @@ export class TimesheetService {
     return this.timesheetRepo.save(activeSession);
   }
 
-  // List all the timesheets for a user with pagination
+  
   async list(userId: string, page: number = 1) {
-    const limit = 10; // Consistent with other modules
+    const limit = 10; 
     const skip = (page - 1) * limit;
 
     const [sessions, total] = await this.timesheetRepo.findAndCount({
@@ -159,7 +159,7 @@ export class TimesheetService {
     };
   }
 
-  // Tenant-wise summary (admin-only) with pagination
+  
   async summaryByTenant(tenantId: string, from?: string, to?: string, page: number = 1) {
     const limit = 25;
     const skip = (page - 1) * limit;
@@ -180,11 +180,11 @@ export class TimesheetService {
       qb.andWhere('t.start_time <= :toDate', { toDate });
     }
 
-    // Get total count for pagination
+  
     const totalQuery = qb.clone();
     const total = await totalQuery.getCount();
 
-    // Apply pagination and get results
+  
     const items = await qb
       .select('u.id', 'user_id')
       .addSelect("CONCAT(u.first_name, ' ', u.last_name)", 'employee_name')

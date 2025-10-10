@@ -27,7 +27,7 @@ export class Team {
   @CreateDateColumn()
   created_at: Date;
 
-  // Relationships
+  
   @ManyToOne(() => User, (user) => user.managedTeams, { nullable: false })
   @JoinColumn({ name: 'manager_id' })
   manager: User;

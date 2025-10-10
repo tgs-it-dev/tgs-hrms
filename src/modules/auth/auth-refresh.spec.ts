@@ -9,7 +9,7 @@ import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Role } from '../../entities/role.entity';
 import { Tenant } from '../../entities/tenant.entity';
-import { EmailService } from './email.service';
+import { EmailService } from '../../common/utils/email';
 
 const mockRole: Role = {
   id: '11111111-1111-1111-1111-111111111111',
@@ -41,6 +41,7 @@ const mockUser: User = {
   phone: '1234567890',
   gender: null,
   profile_pic: null,
+  first_login_time: null,
   created_at: new Date(),
   updated_at: new Date(),
   role: mockRole,

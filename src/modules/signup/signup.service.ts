@@ -250,7 +250,7 @@ export class SignupService {
     if (!session) throw new NotFoundException('Signup session not found');
     let details = await this.companyDetailsRepo.findOne({ where: { signup_session_id: session.id } });
     if (!details) throw new NotFoundException('Company details not found');
-    // Save the logo URL (relative path)
+    
     const logoUrl = `/company-logos/${file.filename}`;
     details.logo_url = logoUrl;
     await this.companyDetailsRepo.save(details);

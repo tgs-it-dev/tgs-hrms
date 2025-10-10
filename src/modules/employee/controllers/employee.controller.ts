@@ -19,22 +19,20 @@ import {
   ApiQuery,
   ApiParam,
 } from '@nestjs/swagger';
-import { EmployeeService } from './employee.service';
-import { CreateEmployeeDto } from './dto/create-employee.dto';
-import { UpdateEmployeeDto } from './dto/update-employee.dto';
-import { EmployeeQueryDto } from './dto/employee-query.dto';
+import { EmployeeService } from '../services/employee.service';
+import { CreateEmployeeDto, UpdateEmployeeDto, EmployeeQueryDto } from '../dto/employee.dto';
 
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
-import { TenantGuard } from '../../common/guards/tenant.guard';
-import { TenantId } from '../../common/decorators/company.deorator';
-import { AttendanceService } from '../attendance/attendance.service';
-import { LeaveService } from '../leave/leave.service';
-import { Permissions } from '../../common/decorators/permissions.decorator';
-import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../../common/guards/roles.guard';
+import { Roles } from '../../../common/decorators/roles.decorator';
+import { TenantGuard } from '../../../common/guards/tenant.guard';
+import { TenantId } from '../../../common/decorators/company.deorator';
+import { AttendanceService } from '../../attendance/attendance.service';
+import { LeaveService } from '../../leave/leave.service';
+import { Permissions } from '../../../common/decorators/permissions.decorator';
+import { PermissionsGuard } from '../../../common/guards/permissions.guard';
 import { Response } from 'express';
-import { sendCsvResponse } from '../../common/utils/csv.util';
+import { sendCsvResponse } from '../../../common/utils/csv.util';
 
 @ApiTags('Employees')
 @ApiBearerAuth()
@@ -116,7 +114,7 @@ export class EmployeeController {
   @Put(':id')
   @Roles('admin', 'system-admin')
   @Permissions('manage_employees')
-  @ApiOperation({ summary: 'Update employee designation' })
+  @ApiOperation({ summary: 'Update employee details including designation, role by role_name or role_id' })
   @ApiResponse({ status: 200, description: 'Employee updated.' })
   @ApiResponse({
     status: 400,
@@ -188,11 +186,11 @@ export class EmployeeController {
     },
   })
   async findAll(@TenantId() tenant_id: string, @Query() query: EmployeeQueryDto) {
-    const pageNumber = Math.max(1, parseInt(query.page, 10) || 1);
+    const pageNumber = Math.max(1, parseInt(query.page?.toString() || '1', 10) || 1);
     return this.service.findAll(tenant_id, query, pageNumber);
   }
 
-  // CSV EXPORTS
+
   @Get('export')
   @Roles('admin', 'system-admin')
   @ApiOperation({ summary: 'Download employees list as CSV (Admin only)' })
@@ -259,8 +257,8 @@ export class EmployeeController {
     description: 'Gender percentage retrieved successfully.',
     schema: {
       example: {
-        male: 60, // Percentage of male employees
-        female: 40, // Percentage of female employees
+        male: 60, 
+        female: 40, 
       },
     },
   })
