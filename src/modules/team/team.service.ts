@@ -69,7 +69,7 @@ export class TeamService {
     tenantId: string,
     page: number = 1
   ): Promise<{
-    items: Team[];
+    items: any[];
     total: number;
     page: number;
     limit: number;
@@ -78,13 +78,53 @@ export class TeamService {
     const limit = 25;
     const skip = (page - 1) * limit;
 
-    const [items, total] = await this.teamRepo.findAndCount({
+    const [teams, total] = await this.teamRepo.findAndCount({
       where: { manager: { tenant_id: tenantId } },
-      relations: ['manager', 'manager.role'],
+      relations: ['manager', 'manager.role', 'teamMembers', 'teamMembers.user', 'teamMembers.designation', 'teamMembers.designation.department'],
       order: { created_at: 'DESC' },
       skip,
       take: limit,
     });
+
+    const items = (teams || []).map((t: any) => ({
+      id: t.id,
+      name: t.name,
+      description: t.description,
+      manager: t.manager
+        ? {
+            id: t.manager.id,
+            name: `${t.manager.first_name} ${t.manager.last_name}`,
+            email: t.manager.email,
+            profile_pic: t.manager.profile_pic,
+            role: t.manager.role ? t.manager.role.name : undefined,
+          }
+        : undefined,
+      created_at: t.created_at,
+      members: (t.teamMembers || []).map((m: any) => ({
+        id: m.id,
+        status: m.status,
+        user: m.user
+          ? {
+              id: m.user.id,
+              name: `${m.user.first_name} ${m.user.last_name}`,
+              email: m.user.email,
+              profile_pic: m.user.profile_pic,
+            }
+          : undefined,
+        designation: m.designation
+          ? {
+              id: m.designation.id,
+              title: m.designation.title,
+            }
+          : undefined,
+        department: m.designation && m.designation.department
+          ? {
+              id: m.designation.department.id,
+              name: m.designation.department.name,
+            }
+          : undefined,
+      })),
+    }));
 
     const totalPages = Math.ceil(total / limit);
 
