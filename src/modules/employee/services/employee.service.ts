@@ -400,16 +400,22 @@ export class EmployeeService implements OnModuleInit {
       }
     }
 
-    if (dto.role_id !== undefined) {
+    let shouldSaveUser = false;
+    if (dto.role_name) {
+      // Handle role_name - find role by name and assign
+      const newRole = await this.roleRepo.findOne({ where: { name: dto.role_name } });
+      if (!newRole) throw new NotFoundException(`Role with name '${dto.role_name}' not found.`);
+      user.role_id = newRole.id;
+      shouldSaveUser = true;
+    } else if (dto.role_id !== undefined) {
       if (dto.role_id && dto.role_id !== null) {
         this.validateUUID(dto.role_id, 'role_id');
         const newRole = await this.roleRepo.findOne({ where: { id: dto.role_id } });
         if (!newRole) throw new NotFoundException('Specified role not found.');
         user.role_id = dto.role_id;
+        shouldSaveUser = true;
       }
     }
-
-    let shouldSaveUser = false;
     if (dto.first_name !== undefined) {
       user.first_name = dto.first_name;
       shouldSaveUser = true;

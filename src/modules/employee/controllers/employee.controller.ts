@@ -114,7 +114,7 @@ export class EmployeeController {
   @Put(':id')
   @Roles('admin', 'system-admin')
   @Permissions('manage_employees')
-  @ApiOperation({ summary: 'Update employee designation' })
+  @ApiOperation({ summary: 'Update employee details including designation, role by role_name or role_id' })
   @ApiResponse({ status: 200, description: 'Employee updated.' })
   @ApiResponse({
     status: 400,

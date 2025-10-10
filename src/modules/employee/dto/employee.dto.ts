@@ -97,6 +97,11 @@ export class UpdateEmployeeDto {
   @IsOptional()
   @IsString()
   password?: string;
+
+  @ApiPropertyOptional({ description: 'Employee role name', example: 'employee' })
+  @IsOptional()
+  @IsString()
+  role_name?: string;
 }
 
 // Employee Query DTO
