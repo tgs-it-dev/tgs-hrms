@@ -27,15 +27,42 @@ export class AssetRequestService {
   }
 
   async findAll(tenantId: string, requestedBy?: string) {
-    const where: any = { tenant_id: tenantId };
-    if (requestedBy) where.requested_by = requestedBy;
-    return this.reqRepo.find({ where, order: { created_at: 'DESC' } });
+    const qb = this.reqRepo
+      .createQueryBuilder('r')
+      .leftJoinAndSelect('r.requestedByUser', 'requestedByUser')
+      .leftJoinAndSelect('r.approvedByUser', 'approvedByUser')
+      .where('r.tenant_id = :tenantId', { tenantId })
+      .orderBy('r.created_at', 'DESC');
+    if (requestedBy) qb.andWhere('r.requested_by = :requestedBy', { requestedBy });
+    const rows = await qb.getMany();
+    return rows.map((r) => ({
+      ...r,
+      requestedByName: r.requestedByUser
+        ? `${r.requestedByUser.first_name ?? ''} ${r.requestedByUser.last_name ?? ''}`.trim()
+        : null,
+      approvedByName: r.approvedByUser
+        ? `${r.approvedByUser.first_name ?? ''} ${r.approvedByUser.last_name ?? ''}`.trim()
+        : null,
+    }));
   }
 
   async findOne(tenantId: string, id: string) {
-    const req = await this.reqRepo.findOne({ where: { id, tenant_id: tenantId } });
+    const req = await this.reqRepo
+      .createQueryBuilder('r')
+      .leftJoinAndSelect('r.requestedByUser', 'requestedByUser')
+      .leftJoinAndSelect('r.approvedByUser', 'approvedByUser')
+      .where('r.id = :id AND r.tenant_id = :tenantId', { id, tenantId })
+      .getOne();
     if (!req) throw new NotFoundException('Request not found');
-    return req;
+    return {
+      ...req,
+      requestedByName: req.requestedByUser
+        ? `${req.requestedByUser.first_name ?? ''} ${req.requestedByUser.last_name ?? ''}`.trim()
+        : null,
+      approvedByName: req.approvedByUser
+        ? `${req.approvedByUser.first_name ?? ''} ${req.approvedByUser.last_name ?? ''}`.trim()
+        : null,
+    };
   }
 
   async approve(id: string, adminId: string, tenantId: string) {
@@ -59,7 +86,10 @@ export class AssetRequestService {
     req.status = 'approved';
     req.approved_by = adminId;
     req.approved_date = new Date().toISOString().slice(0, 10);
-    return this.reqRepo.save(req);
+    await this.reqRepo.save(req);
+
+    // return enriched response with names
+    return this.findOne(tenantId, id);
   }
 
   async reject(id: string, adminId: string, tenantId: string, remarks?: string) {
@@ -69,8 +99,18 @@ export class AssetRequestService {
     req.approved_by = adminId;
     req.approved_date = new Date().toISOString().slice(0, 10);
     req.remarks = remarks ?? req.remarks;
-    return this.reqRepo.save(req);
+    await this.reqRepo.save(req);
+    return this.findOne(tenantId, id);
+  }
+
+  async remove(id: string, userId: string, tenantId: string) {
+    const req = await this.reqRepo.findOne({ 
+      where: { id, tenant_id: tenantId, requested_by: userId } 
+    });
+    if (!req) throw new NotFoundException('Request not found or not owned by you');
+    if (req.status !== 'pending') throw new BadRequestException('Can only delete pending requests');
+    
+    await this.reqRepo.remove(req);
+    return { message: 'Request deleted successfully' };
   }
 }
-
-

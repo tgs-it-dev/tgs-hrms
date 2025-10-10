@@ -199,7 +199,7 @@ export class LeaveService {
     const [items, total] = await this.leaveRepo.findAndCount({
       where: {
         user_id: In(userIds),
-        status: In(['pending', 'Approved', 'Rejected']), 
+        status: In(['pending', 'Approved', 'Rejected']), // Exclude withdrawn leaves
       },
       relations: ['user'],
       order: { created_at: 'DESC' },
