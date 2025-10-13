@@ -27,7 +27,8 @@ export class AssetRequestService {
     return this.reqRepo.save(entity);
   }
 
-  async findAll(tenantId: string, requestedBy?: string) {
+  async findAll(tenantId: string, requestedBy?: string, page = 1) {
+    const limit = 25;
     const qb = this.reqRepo
       .createQueryBuilder('r')
       .leftJoinAndSelect('r.requestedByUser', 'requestedByUser')
@@ -35,16 +36,22 @@ export class AssetRequestService {
       .where('r.tenant_id = :tenantId', { tenantId })
       .orderBy('r.created_at', 'DESC');
     if (requestedBy) qb.andWhere('r.requested_by = :requestedBy', { requestedBy });
-    const rows = await qb.getMany();
-    return rows.map((r) => ({
-      ...r,
-      requestedByName: r.requestedByUser
-        ? `${r.requestedByUser.first_name ?? ''} ${r.requestedByUser.last_name ?? ''}`.trim()
-        : null,
-      approvedByName: r.approvedByUser
-        ? `${r.approvedByUser.first_name ?? ''} ${r.approvedByUser.last_name ?? ''}`.trim()
-        : null,
-    }));
+    qb.skip((page - 1) * limit).take(limit);
+    const [rows, total] = await qb.getManyAndCount();
+    return {
+      data: rows.map((r) => ({
+        ...r,
+        requestedByName: r.requestedByUser
+          ? `${r.requestedByUser.first_name ?? ''} ${r.requestedByUser.last_name ?? ''}`.trim()
+          : null,
+        approvedByName: r.approvedByUser
+          ? `${r.approvedByUser.first_name ?? ''} ${r.approvedByUser.last_name ?? ''}`.trim()
+          : null,
+      })),
+      page,
+      limit,
+      total,
+    };
   }
 
   async findOne(tenantId: string, id: string) {

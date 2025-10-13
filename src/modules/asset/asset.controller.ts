@@ -35,13 +35,20 @@ export class AssetController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all assets (filter by status, category)' })
+  @ApiOperation({ summary: 'Get all assets (filter by status, category, paginated)' })
   findAll(
     @Request() req: any,
     @Query('status') status?: string,
     @Query('category') category?: string,
+    @Query('page') page?: string,
   ) {
-    return this.assetService.findAll(req.user.tenant_id, { status, category });
+    // Always 25 records per page
+    const parsedPage = page ? parseInt(page, 10) : 1;
+    return this.assetService.findAll(req.user.tenant_id, {
+      status,
+      category,
+      page: parsedPage
+    });
   }
 
   @Get(':id')

@@ -24,20 +24,35 @@ export class AssetService {
     return await this.assetRepo.save(entity);
   }
 
-  async findAll(tenantId: string, filters: { status?: string; category?: string }) {
+  async findAll(
+    tenantId: string,
+    filters: { status?: string; category?: string; page?: number }
+  ) {
+    const { status, category, page = 1 } = filters;
+    const limit = 25;
     const qb = this.assetRepo
       .createQueryBuilder('a')
       .leftJoinAndSelect('a.assignedToUser', 'assignedUser')
       .where('a.tenant_id = :tenantId', { tenantId });
-    if (filters.status) qb.andWhere('a.status = :status', { status: filters.status });
-    if (filters.category) qb.andWhere('a.category = :category', { category: filters.category });
-    const assets = await qb.orderBy('a.created_at', 'DESC').getMany();
-    return assets.map((a) => ({
-      ...a,
-      assignedToName: a.assignedToUser
-        ? `${a.assignedToUser.first_name ?? ''} ${a.assignedToUser.last_name ?? ''}`.trim()
-        : null,
-    }));
+    if (status) qb.andWhere('a.status = :status', { status });
+    if (category) qb.andWhere('a.category = :category', { category });
+    qb.orderBy('a.created_at', 'DESC');
+
+    qb.skip((page - 1) * limit).take(limit);
+
+    const [assets, total] = await qb.getManyAndCount();
+
+    return {
+      data: assets.map((a) => ({
+        ...a,
+        assignedToName: a.assignedToUser
+          ? `${a.assignedToUser.first_name ?? ''} ${a.assignedToUser.last_name ?? ''}`.trim()
+          : null,
+      })),
+      page,
+      limit,
+      total,
+    };
   }
 
   async findOne(tenantId: string, id: string) {
