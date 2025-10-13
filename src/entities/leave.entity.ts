@@ -8,6 +8,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { User } from './user.entity';
+import { LeaveStatus } from '../common/constants/enums';
 
 @Entity('leaves')
 export class Leave {
@@ -33,8 +34,8 @@ export class Leave {
   @Column({ type: 'varchar' })
   type: string;
 
-  @Column({ type: 'varchar', default: 'pending' }) 
-  status: string;
+  @Column({ type: 'varchar', default: LeaveStatus.PENDING }) 
+  status: LeaveStatus;
 
   @CreateDateColumn()
   created_at: Date;

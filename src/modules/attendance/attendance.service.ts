@@ -203,7 +203,7 @@ export class AttendanceService {
       latestCheckIn = await this.attendanceRepo
         .createQueryBuilder('a')
         .where('a.user_id = :userId', { userId })
-        .andWhere('a.type = :type', { type: 'check-in' })
+        .andWhere('a.type = :type', { type: AttendanceType.CHECK_IN })
         .orderBy('a.timestamp', 'DESC')
         .getOne();
     }
@@ -370,8 +370,8 @@ export class AttendanceService {
   
     for (const userId of userIds) {
       const userRecords = attendanceRecords.filter(r => r.user_id === userId);
-      const checkIns = userRecords.filter(r => r.type === 'check-in');
-      const checkOuts = userRecords.filter(r => r.type === 'check-out');
+      const checkIns = userRecords.filter(r => r.type === AttendanceType.CHECK_IN);
+      const checkOuts = userRecords.filter(r => r.type === AttendanceType.CHECK_OUT);
       
     
       const sessions: Array<{ checkIn: Attendance; checkOut?: Attendance; startDate: string }> = [];

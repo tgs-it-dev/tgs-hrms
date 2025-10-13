@@ -22,7 +22,7 @@ import * as bcrypt from 'bcrypt';
 const GLOBAL = '00000000-0000-0000-0000-000000000000';
 import { PaginationResponse } from '../../../common/interfaces/pagination.interface';
 import { Logger } from '@nestjs/common';
-import { InviteStatus, UserGender } from '../../../common/constants/enums';
+import { InviteStatus, UserGender, EmployeeStatus } from '../../../common/constants/enums';
 
 @Injectable()
 export class EmployeeService implements OnModuleInit {
@@ -174,8 +174,7 @@ export class EmployeeService implements OnModuleInit {
       password: hashedPassword,
       first_name: dto.first_name,
       last_name: dto.last_name,
-      gender: dto.gender === UserGender.MALE ? 'male' : 
-               dto.gender === UserGender.FEMALE ? 'female' : null,
+      gender: dto.gender ?? null,
       role_id: managerRole.id,
       tenant_id,
       reset_token: resetToken,
@@ -257,8 +256,7 @@ export class EmployeeService implements OnModuleInit {
       password: hashedPassword,
       first_name: dto.first_name,
       last_name: dto.last_name,
-      gender: dto.gender === UserGender.MALE ? 'male' : 
-               dto.gender === UserGender.FEMALE ? 'female' : null,
+      gender: dto.gender ?? null,
       role_id: employeeRole.id,
       tenant_id,
       reset_token: resetToken,
@@ -508,30 +506,30 @@ export class EmployeeService implements OnModuleInit {
       .createQueryBuilder('employee')
       .leftJoin('employee.user', 'user')
       .where('user.tenant_id = :tenant_id', { tenant_id })
-      .andWhere('employee.status = :status', { status: 'active' })
+      .andWhere('employee.status = :status', { status: EmployeeStatus.ACTIVE })
       .getCount();
 
     const inactiveEmployees = await this.employeeRepo
       .createQueryBuilder('employee')
       .leftJoin('employee.user', 'user')
       .where('user.tenant_id = :tenant_id', { tenant_id })
-      .andWhere('employee.status = :status', { status: 'inactive' })
+      .andWhere('employee.status = :status', { status: EmployeeStatus.INACTIVE })
       .getCount();
 
     const male = await this.employeeRepo
       .createQueryBuilder('employee')
       .leftJoin('employee.user', 'user')
       .where('user.tenant_id = :tenant_id', { tenant_id })
-      .andWhere('user.gender = :gender', { gender: 'male' })
-      .andWhere('employee.status = :status', { status: 'active' })
+      .andWhere('user.gender = :gender', { gender: UserGender.MALE })
+      .andWhere('employee.status = :status', { status: EmployeeStatus.ACTIVE })
       .getCount();
 
     const female = await this.employeeRepo
       .createQueryBuilder('employee')
       .leftJoin('employee.user', 'user')
       .where('user.tenant_id = :tenant_id', { tenant_id })
-      .andWhere('user.gender = :gender', { gender: 'female' })
-      .andWhere('employee.status = :status', { status: 'active' })
+      .andWhere('user.gender = :gender', { gender: UserGender.FEMALE })
+      .andWhere('employee.status = :status', { status: EmployeeStatus.ACTIVE })
       .getCount();
 
     return {

@@ -1,6 +1,7 @@
-import { IsIn } from 'class-validator';
+import { IsEnum } from 'class-validator';
+import { LeaveStatus } from '../../../common/constants/enums';
 
 export class UpdateLeaveDto {
-  @IsIn(['approved', 'rejected'])
-  status: string;
+  @IsEnum(LeaveStatus)
+  status: LeaveStatus;
 }

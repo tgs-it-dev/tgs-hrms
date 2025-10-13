@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Employee } from 'src/entities/employee.entity';
 import { Attendance } from 'src/entities/attendance.entity';
+import { AttendanceType } from '../../../common/constants/enums';
 import { Leave } from 'src/entities/leave.entity';
 
 @Injectable()
@@ -75,9 +76,9 @@ export class EmployeeProfileService {
         grouped[date] = { workedHours: 0 };
       }
 
-      if (record.type === 'check-in') {
+      if (record.type === AttendanceType.CHECK_IN) {
         grouped[date].checkIn = record.timestamp;
-      } else if (record.type === 'check-out') {
+      } else if (record.type === AttendanceType.CHECK_OUT) {
         grouped[date].checkOut = record.timestamp;
       }
 

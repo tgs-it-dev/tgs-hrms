@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Asset } from '../../entities/asset.entity';
 import { AssetRequest } from '../../entities/asset-request.entity';
 import { CreateAssetRequestDto } from './dto/create-asset-request.dto';
+import { AssetRequestStatus, AssetStatus } from '../../common/constants/enums';
 
 @Injectable()
 export class AssetRequestService {
@@ -18,7 +19,7 @@ export class AssetRequestService {
     const entity = this.reqRepo.create({
       asset_category: dto.assetCategory,
       requested_by: userId,
-      status: 'pending',
+      status: AssetRequestStatus.PENDING,
       requested_date: new Date().toISOString().slice(0, 10),
       tenant_id: tenantId,
       remarks: dto.remarks ?? null,
@@ -67,23 +68,23 @@ export class AssetRequestService {
 
   async approve(id: string, adminId: string, tenantId: string) {
     const req = await this.findOne(tenantId, id);
-    if (req.status !== 'pending') throw new BadRequestException('Request already processed');
+    if (req.status !== AssetRequestStatus.PENDING) throw new BadRequestException('Request already processed');
 
     const asset = await this.assetRepo
       .createQueryBuilder('a')
       .where('a.tenant_id = :tenantId', { tenantId })
       .andWhere('a.category = :cat', { cat: req.asset_category })
-      .andWhere('a.status = :st', { st: 'available' })
+      .andWhere('a.status = :st', { st: AssetStatus.AVAILABLE })
       .getOne();
     if (!asset) throw new BadRequestException('No available asset in category');
 
     // assign asset
-    asset.status = 'assigned';
+    asset.status = AssetStatus.ASSIGNED;
     asset.assigned_to = req.requested_by;
     await this.assetRepo.save(asset);
 
     // update request
-    req.status = 'approved';
+    req.status = AssetRequestStatus.APPROVED;
     req.approved_by = adminId;
     req.approved_date = new Date().toISOString().slice(0, 10);
     await this.reqRepo.save(req);
@@ -94,8 +95,8 @@ export class AssetRequestService {
 
   async reject(id: string, adminId: string, tenantId: string, remarks?: string) {
     const req = await this.findOne(tenantId, id);
-    if (req.status !== 'pending') throw new BadRequestException('Request already processed');
-    req.status = 'rejected';
+    if (req.status !== AssetRequestStatus.PENDING) throw new BadRequestException('Request already processed');
+    req.status = AssetRequestStatus.REJECTED;
     req.approved_by = adminId;
     req.approved_date = new Date().toISOString().slice(0, 10);
     req.remarks = remarks ?? req.remarks;
@@ -108,7 +109,7 @@ export class AssetRequestService {
       where: { id, tenant_id: tenantId, requested_by: userId } 
     });
     if (!req) throw new NotFoundException('Request not found or not owned by you');
-    if (req.status !== 'pending') throw new BadRequestException('Can only delete pending requests');
+    if (req.status !== AssetRequestStatus.PENDING) throw new BadRequestException('Can only delete pending requests');
     
     await this.reqRepo.remove(req);
     return { message: 'Request deleted successfully' };

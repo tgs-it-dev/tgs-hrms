@@ -8,6 +8,7 @@ import {
   IsUUID,
   IsEnum,
 } from 'class-validator';
+import { UserGender } from '../../../common/constants/enums';
 
 export class CreateUserDto {
   @ApiProperty()
@@ -33,10 +34,10 @@ export class CreateUserDto {
   @IsString()
   phone?: string;
 
-  @ApiProperty({ enum: ['male', 'female'], required: false })
+  @ApiProperty({ enum: UserGender, required: false })
   @IsOptional()
-  @IsEnum(['male', 'female'])
-  gender?: 'male' | 'female'; 
+  @IsEnum(UserGender)
+  gender?: UserGender; 
 
   @ApiProperty()
   @IsUUID()

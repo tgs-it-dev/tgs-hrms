@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
+import { LeaveStatus } from '../../common/constants/enums';
 import { Leave } from 'src/entities/leave.entity';
 import { CreateLeaveDto } from './dto/create-leave.dto';
 import { User } from '../../entities/user.entity';
@@ -71,7 +72,7 @@ export class LeaveService {
         user: {
           tenant_id: tenantId,
         },
-        status: In(['pending', 'Approved', 'Rejected']), 
+        status: In([LeaveStatus.PENDING, LeaveStatus.APPROVED, LeaveStatus.REJECTED]), 
       },
       relations: ['user'],
       order: { created_at: 'DESC' },
@@ -88,7 +89,7 @@ export class LeaveService {
     };
   }
 
-  async updateStatus(id: string, status: string, adminTenantId: string): Promise<Leave> {
+  async updateStatus(id: string, status: LeaveStatus, adminTenantId: string): Promise<Leave> {
     const leave = await this.leaveRepo.findOne({ where: { id }, relations: ['user'] });
 
     if (!leave) throw new NotFoundException('Leave not found');
@@ -97,7 +98,7 @@ export class LeaveService {
       throw new ForbiddenException('Access denied');
     }
 
-    leave.status = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+    leave.status = status;
     return await this.leaveRepo.save(leave);
   }
 
@@ -112,11 +113,11 @@ export class LeaveService {
     }
 
   
-    if (leave.status !== 'pending') {
+    if (leave.status !== LeaveStatus.PENDING) {
       throw new ForbiddenException('You can only withdraw pending leave requests');
     }
 
-    leave.status = 'withdrawn';
+    leave.status = LeaveStatus.CANCELLED;
     return await this.leaveRepo.save(leave);
   }
   
@@ -199,7 +200,7 @@ export class LeaveService {
     const [items, total] = await this.leaveRepo.findAndCount({
       where: {
         user_id: In(userIds),
-        status: In(['pending', 'Approved', 'Rejected']), // Exclude withdrawn leaves
+        status: In([LeaveStatus.PENDING, LeaveStatus.APPROVED, LeaveStatus.REJECTED]),
       },
       relations: ['user'],
       order: { created_at: 'DESC' },
@@ -265,7 +266,7 @@ export class LeaveService {
     const leaveApplications = await this.leaveRepo
       .createQueryBuilder('leave')
       .where('leave.user_id IN (:...userIds)', { userIds: teamMemberUserIds })
-      .andWhere('leave.status IN (:...statuses)', { statuses: ['pending', 'Approved', 'Rejected'] })
+      .andWhere('leave.status IN (:...statuses)', { statuses: [LeaveStatus.PENDING, LeaveStatus.APPROVED, LeaveStatus.REJECTED] })
       .select(['leave.user_id', 'COUNT(leave.id) as totalApplications'])
       .groupBy('leave.user_id')
       .getRawMany();

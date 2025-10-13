@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Asset } from '../../entities/asset.entity';
 import { CreateAssetDto } from './dto/create-asset.dto';
 import { UpdateAssetDto } from './dto/update-asset.dto';
+import { AssetStatus } from '../../common/constants/enums';
 
 @Injectable()
 export class AssetService {
@@ -16,7 +17,7 @@ export class AssetService {
     const entity = this.assetRepo.create({
       name: dto.name,
       category: dto.category,
-      status: 'available',
+      status: AssetStatus.AVAILABLE,
       purchase_date: dto.purchaseDate ?? null,
       tenant_id: tenantId,
     });
@@ -59,7 +60,7 @@ export class AssetService {
     Object.assign(asset, {
       name: dto.name ?? asset.name,
       category: dto.category ?? asset.category,
-      status: (dto.status as any) ?? asset.status,
+      status: (dto.status as AssetStatus) ?? asset.status,
       assigned_to: dto.assignedTo ?? asset.assigned_to,
     });
     return this.assetRepo.save(asset);
@@ -67,7 +68,7 @@ export class AssetService {
 
   async softDelete(tenantId: string, id: string) {
     const asset = await this.findOne(tenantId, id);
-    asset.status = 'retired';
+    asset.status = AssetStatus.RETIRED;
     return this.assetRepo.save(asset);
   }
 }

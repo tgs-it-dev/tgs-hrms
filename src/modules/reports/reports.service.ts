@@ -2,7 +2,7 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, In } from 'typeorm';
 import { Attendance } from '../../entities/attendance.entity';
-import { AttendanceType, EmployeeStatus, UserRole } from '../../common/constants/enums';
+import { AttendanceType, EmployeeStatus, UserRole, LeaveStatus } from '../../common/constants/enums';
 import { Leave } from '../../entities/leave.entity';
 import { User } from '../../entities/user.entity';
 import { Department } from '../../entities/department.entity';
@@ -156,7 +156,7 @@ export class ReportsService {
 
     // Leaves: sum approved leave days in range (inclusive) by user
     const approvedLeaves = await this.leaveRepo.find({
-      where: { user_id: In(userIds), status: 'approved', from_date: Between(startDate as any, endDate as any) },
+      where: { user_id: In(userIds), status: LeaveStatus.APPROVED, from_date: Between(startDate as any, endDate as any) },
     });
     
     // Separate informed leaves from other leaves
@@ -273,7 +273,7 @@ export class ReportsService {
         .select('attendance.user_id', 'user_id')
         .addSelect("TO_CHAR((attendance.timestamp AT TIME ZONE 'UTC' + INTERVAL '5 hours')::date, 'YYYY-MM-DD')", 'day')
         .where('attendance.user_id IN (:...userIds)', { userIds })
-        .andWhere('attendance.type = :type', { type: 'check-in' })
+        .andWhere('attendance.type = :type', { type: AttendanceType.CHECK_IN })
         .andWhere('attendance.timestamp BETWEEN :start AND :end', { start: startDate, end: endDate })
         .groupBy('attendance.user_id')
         .addGroupBy("(attendance.timestamp AT TIME ZONE 'UTC' + INTERVAL '5 hours')::date")
@@ -287,7 +287,7 @@ export class ReportsService {
       }
       // Leaves
       const approvedLeaves = await this.leaveRepo.find({
-        where: { user_id: In(userIds), status: 'approved', from_date: Between(startDate as any, endDate as any) },
+        where: { user_id: In(userIds), status: LeaveStatus.APPROVED, from_date: Between(startDate as any, endDate as any) },
       });
       const informedLeaveDaysByUser: Record<string, number> = {};
       for (const lv of approvedLeaves) {
@@ -390,7 +390,7 @@ export class ReportsService {
     }
     // Leaves
     const approvedLeaves = await this.leaveRepo.find({
-      where: { user_id: In(userIds), status: 'approved', from_date: Between(startDate as any, endDate as any) },
+      where: { user_id: In(userIds), status: LeaveStatus.APPROVED, from_date: Between(startDate as any, endDate as any) },
     });
     const informedLeaveDaysByUser: Record<string, number> = {};
     for (const lv of approvedLeaves) {
@@ -490,7 +490,7 @@ export class ReportsService {
       const leaves = await this.leaveRepo.find({
         where: {
           user_id: uid,
-          status: 'approved',
+          status: LeaveStatus.APPROVED,
           from_date: Between(startOfYear, endOfYear),
         },
       });
