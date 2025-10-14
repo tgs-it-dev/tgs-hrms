@@ -26,7 +26,7 @@ export class AssetRequestController {
   constructor(private readonly service: AssetRequestService) {}
 
   @Post()
-  @Roles('user', 'employee')
+  @Roles('user', 'employee', 'manager')
   @ApiOperation({ summary: 'Employee requests an asset' })
   @ApiResponse({ status: 201, description: 'Request created' })
   create(@Request() req: any, @Body() dto: CreateAssetRequestDto) {
