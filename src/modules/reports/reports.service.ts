@@ -419,11 +419,53 @@ export class ReportsService {
       return count;
     })();
     // Build response
+    const leaveDaysByUser: Record<string, Set<string>> = {};
+    for (const lv of approvedLeaves) {
+      const from = new Date(lv.from_date);
+      const to = new Date(lv.to_date || lv.from_date);
+      const s = from < startDate ? startDate : from;
+      const e = to > endDate ? endDate : to;
+      const dayMs = 24 * 60 * 60 * 1000;
+      for (
+        let d = new Date(Date.UTC(s.getUTCFullYear(), s.getUTCMonth(), s.getUTCDate()));
+        d <= new Date(Date.UTC(e.getUTCFullYear(), e.getUTCMonth(), e.getUTCDate()));
+        d = new Date(d.getTime() + dayMs)
+      ) {
+        const dow = d.getUTCDay();
+        if (dow !== 0 && dow !== 6) {
+          const dateStr = d.toISOString().split('T')[0];
+          if (!leaveDaysByUser[lv.user_id]) leaveDaysByUser[lv.user_id] = new Set<string>();
+          leaveDaysByUser[lv.user_id].add(dateStr);
+        }
+      }
+    }
     return employees.map((emp) => {
       const uid = emp.user_id;
       const presents = (workedDaysByUser[uid]?.size || 0);
       const informedLeaves = informedLeaveDaysByUser[uid] || 0;
       const absents = Math.max(businessDaysInRange - presents - informedLeaves, 0);
+
+      // Calculate all business days dates in range
+      const businessDays: string[] = [];
+      const dayMs = 24 * 60 * 60 * 1000;
+      const s = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()));
+      const e = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()));
+      for (let d = s; d <= e; d = new Date(d.getTime() + dayMs)) {
+        const dow = d.getUTCDay();
+        if (dow !== 0 && dow !== 6) {
+          businessDays.push(d.toISOString().split('T')[0]);
+        }
+      }
+
+      // Get present days
+      const presentDays = workedDaysByUser[uid] || new Set<string>();
+      // Get leave days
+      const leaveDays = leaveDaysByUser[uid] || new Set<string>();
+      // Absent = in businessDays but not in presentDays and not in leaveDays
+      const absentDates = businessDays.filter(
+        date => !presentDays.has(date) && !leaveDays.has(date)
+      );
+
       return {
         employeeName: `${emp.user?.first_name || ''} ${emp.user?.last_name || ''}`.trim(),
         workingDays: businessDaysInRange,
@@ -432,6 +474,7 @@ export class ReportsService {
         informedLeaves,
         department: emp.designation?.department?.name || null,
         designation: emp.designation?.title || null,
+        absentDates, // add absent dates in YYYY-MM-DD format for this employee
       };
     });
   }
