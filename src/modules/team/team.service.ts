@@ -5,7 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, DataSource } from 'typeorm';
+import { Repository, Not, DataSource, IsNull } from 'typeorm';
 import { Team } from '../../entities/team.entity';
 import { Employee } from '../../entities/employee.entity';
 import { User } from '../../entities/user.entity';
@@ -75,6 +75,10 @@ export class TeamService {
     page: number;
     limit: number;
     totalPages: number;
+    employeePool: {
+      items: any[];
+      total: number;
+    };
   }> {
     const limit = 25;
     const skip = (page - 1) * limit;
@@ -95,6 +99,8 @@ export class TeamService {
         ? {
             id: t.manager.id,
             name: `${t.manager.first_name} ${t.manager.last_name}`,
+            first_name: t.manager.first_name,
+            last_name: t.manager.last_name,
             email: t.manager.email,
             profile_pic: t.manager.profile_pic,
             role: t.manager.role ? t.manager.role.name : undefined,
@@ -129,12 +135,48 @@ export class TeamService {
 
     const totalPages = Math.ceil(total / limit);
 
+    // Get unassigned employees for employee pool
+    const unassignedEmployees = await this.employeeRepo.find({
+      where: {
+        team_id: IsNull(),
+        user: { tenant_id: tenantId },
+        status: EmployeeStatus.ACTIVE,
+      },
+      relations: ['user', 'designation', 'designation.department'],
+      order: { created_at: 'DESC' },
+    });
+
+    const employeePool = unassignedEmployees.map(m => ({
+      id: m.id,
+      status: m.status,
+      user: m.user ? {
+        id: m.user.id,
+        name: `${m.user.first_name} ${m.user.last_name}`,
+        first_name: m.user.first_name,
+        last_name: m.user.last_name,
+        email: m.user.email,
+        profile_pic: m.user.profile_pic,
+      } : undefined,
+      designation: m.designation ? {
+        id: m.designation.id,
+        title: m.designation.title,
+      } : undefined,
+      department: m.designation && m.designation.department ? {
+        id: m.designation.department.id,
+        name: m.designation.department.name,
+      } : undefined,
+    }));
+
     return {
       items,
       total,
       page,
       limit,
       totalPages,
+      employeePool: {
+        items: employeePool,
+        total: employeePool.length,
+      },
     };
   }
 
@@ -540,6 +582,74 @@ export class TeamService {
       email: user.email,
       role: 'Manager',
     }));
+  }
+
+  async getUnassignedEmployees(
+    tenantId: string,
+    page: number = 1,
+    search?: string
+  ): Promise<{
+    items: any[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const limit = 25;
+    const skip = (page - 1) * limit;
+
+    const qb = this.employeeRepo
+      .createQueryBuilder('e')
+      .leftJoinAndSelect('e.user', 'u')
+      .leftJoinAndSelect('e.designation', 'd')
+      .leftJoinAndSelect('d.department', 'dep')
+      .where('u.tenant_id = :tenantId', { tenantId })
+      .andWhere('e.team_id IS NULL')
+      .andWhere('e.status = :status', { status: EmployeeStatus.ACTIVE })
+      .orderBy('u.first_name', 'ASC');
+
+    if (search) {
+      qb.andWhere('(u.first_name ILIKE :search OR u.last_name ILIKE :search)', {
+        search: `%${search}%`,
+      });
+    }
+
+    const [items, total] = await qb
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+
+    const totalPages = Math.ceil(total / limit);
+
+    const transformedItems = items.map((employee) => ({
+      id: employee.id,
+      user: {
+        id: employee.user.id,
+        first_name: employee.user.first_name,
+        last_name: employee.user.last_name,
+        email: employee.user.email,
+        profile_pic: employee.user.profile_pic,
+      },
+      designation: {
+        id: employee.designation.id,
+        title: employee.designation.title,
+      },
+      department: {
+        id: employee.designation.department.id,
+        name: employee.designation.department.name,
+      },
+      status: employee.status,
+      invite_status: employee.invite_status,
+      created_at: employee.created_at,
+    }));
+
+    return {
+      items: transformedItems,
+      total,
+      page,
+      limit,
+      totalPages,
+    };
   }
 
   async getEmployeePool(

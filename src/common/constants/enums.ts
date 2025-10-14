@@ -95,8 +95,8 @@ export enum AssetStatus {
 
 export enum AssetRequestStatus {
   PENDING = 'pending',
-  APPROVED = 'approved',
-  REJECTED = 'rejected',
+  APPROVED = 'Approved',
+  REJECTED = 'Rejected',
   CANCELLED = 'cancelled',
 }
 
