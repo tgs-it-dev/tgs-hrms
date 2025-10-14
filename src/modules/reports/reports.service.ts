@@ -156,7 +156,7 @@ export class ReportsService {
 
     // Leaves: sum approved leave days in range (inclusive) by user
     const approvedLeaves = await this.leaveRepo.find({
-      where: { user_id: In(userIds), status: LeaveStatus.APPROVED, from_date: Between(startDate as any, endDate as any) },
+      where: { employeeId: In(userIds), status: LeaveStatus.APPROVED, startDate: Between(startDate as any, endDate as any) },
     });
     
     // Separate informed leaves from other leaves
@@ -164,8 +164,8 @@ export class ReportsService {
     const otherLeaveDaysByUser: Record<string, number> = {};
     
     for (const lv of approvedLeaves) {
-      const from = new Date(lv.from_date);
-      const to = new Date(lv.to_date || lv.from_date);
+      const from = new Date(lv.startDate);
+      const to = new Date(lv.endDate || lv.startDate);
       // clamp to range
       const s = from < startDate ? startDate : from;
       const e = to > endDate ? endDate : to;
@@ -179,7 +179,7 @@ export class ReportsService {
       
       // Check if it's an informed leave (you can modify this logic based on your business rules)
       // For now, assuming all approved leaves are "informed leaves"
-      informedLeaveDaysByUser[lv.user_id] = (informedLeaveDaysByUser[lv.user_id] || 0) + count;
+      informedLeaveDaysByUser[lv.employeeId] = (informedLeaveDaysByUser[lv.employeeId] || 0) + count;
     }
 
     // Compute total business days in range
@@ -287,12 +287,12 @@ export class ReportsService {
       }
       // Leaves
       const approvedLeaves = await this.leaveRepo.find({
-        where: { user_id: In(userIds), status: LeaveStatus.APPROVED, from_date: Between(startDate as any, endDate as any) },
+        where: { employeeId: In(userIds), status: LeaveStatus.APPROVED, startDate: Between(startDate as any, endDate as any) },
       });
       const informedLeaveDaysByUser: Record<string, number> = {};
       for (const lv of approvedLeaves) {
-        const from = new Date(lv.from_date);
-        const to = new Date(lv.to_date || lv.from_date);
+        const from = new Date(lv.startDate);
+        const to = new Date(lv.endDate || lv.startDate);
         const s = from < startDate ? startDate : from;
         const e = to > endDate ? endDate : to;
         let count = 0;
@@ -301,7 +301,7 @@ export class ReportsService {
           const dow = d.getUTCDay();
           if (dow !== 0 && dow !== 6) count++;
         }
-        informedLeaveDaysByUser[lv.user_id] = (informedLeaveDaysByUser[lv.user_id] || 0) + count;
+        informedLeaveDaysByUser[lv.employeeId] = (informedLeaveDaysByUser[lv.employeeId] || 0) + count;
       }
       // Business days in range
       const businessDaysInRange = (() => {
@@ -390,12 +390,12 @@ export class ReportsService {
     }
     // Leaves
     const approvedLeaves = await this.leaveRepo.find({
-      where: { user_id: In(userIds), status: LeaveStatus.APPROVED, from_date: Between(startDate as any, endDate as any) },
+      where: { employeeId: In(userIds), status: LeaveStatus.APPROVED, startDate: Between(startDate as any, endDate as any) },
     });
     const informedLeaveDaysByUser: Record<string, number> = {};
     for (const lv of approvedLeaves) {
-      const from = new Date(lv.from_date);
-      const to = new Date(lv.to_date || lv.from_date);
+      const from = new Date(lv.startDate);
+      const to = new Date(lv.endDate || lv.startDate);
       const s = from < startDate ? startDate : from;
       const e = to > endDate ? endDate : to;
       let count = 0;
@@ -404,7 +404,7 @@ export class ReportsService {
         const dow = d.getUTCDay();
         if (dow !== 0 && dow !== 6) count++;
       }
-      informedLeaveDaysByUser[lv.user_id] = (informedLeaveDaysByUser[lv.user_id] || 0) + count;
+      informedLeaveDaysByUser[lv.employeeId] = (informedLeaveDaysByUser[lv.employeeId] || 0) + count;
     }
     // Business days in range
     const businessDaysInRange = (() => {
@@ -421,8 +421,8 @@ export class ReportsService {
     // Build response
     const leaveDaysByUser: Record<string, Set<string>> = {};
     for (const lv of approvedLeaves) {
-      const from = new Date(lv.from_date);
-      const to = new Date(lv.to_date || lv.from_date);
+      const from = new Date(lv.startDate);
+      const to = new Date(lv.endDate || lv.startDate);
       const s = from < startDate ? startDate : from;
       const e = to > endDate ? endDate : to;
       const dayMs = 24 * 60 * 60 * 1000;
@@ -434,8 +434,8 @@ export class ReportsService {
         const dow = d.getUTCDay();
         if (dow !== 0 && dow !== 6) {
           const dateStr = d.toISOString().split('T')[0];
-          if (!leaveDaysByUser[lv.user_id]) leaveDaysByUser[lv.user_id] = new Set<string>();
-          leaveDaysByUser[lv.user_id].add(dateStr);
+          if (!leaveDaysByUser[lv.employeeId]) leaveDaysByUser[lv.employeeId] = new Set<string>();
+          leaveDaysByUser[lv.employeeId].add(dateStr);
         }
       }
     }
@@ -532,31 +532,34 @@ export class ReportsService {
       const endOfYear = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
       const leaves = await this.leaveRepo.find({
         where: {
-          user_id: uid,
+          employeeId: uid,
           status: LeaveStatus.APPROVED,
-          from_date: Between(startOfYear, endOfYear),
+          startDate: Between(startOfYear, endOfYear),
         },
+        relations: ['leaveType'],
       });
       // Used annual
       const used: Record<string, number> = {};
       let totalUsed = 0;
       for (const cat of CATEGORIES) used[cat] = 0;
       for (const leave of leaves) {
-        if (CATEGORIES.includes(leave.type)) {
-          used[leave.type]++;
+        const leaveTypeName = leave.leaveType?.name?.toLowerCase() || 'other';
+        if (CATEGORIES.includes(leaveTypeName)) {
+          used[leaveTypeName]++;
           totalUsed++;
         }
       }
       // Used this month
       const leavesThisMonth = leaves.filter(
-        (l) => l.from_date >= startOfMonth && l.from_date <= endOfMonth
+        (l) => l.startDate >= startOfMonth && l.startDate <= endOfMonth
       );
       const usedThisMonth: Record<string, number> = {};
       let totalUsedThisMonth = 0;
       for (const cat of CATEGORIES) usedThisMonth[cat] = 0;
       for (const leave of leavesThisMonth) {
-        if (CATEGORIES.includes(leave.type)) {
-          usedThisMonth[leave.type]++;
+        const leaveTypeName = leave.leaveType?.name?.toLowerCase() || 'other';
+        if (CATEGORIES.includes(leaveTypeName)) {
+          usedThisMonth[leaveTypeName]++;
           totalUsedThisMonth++;
         }
       }

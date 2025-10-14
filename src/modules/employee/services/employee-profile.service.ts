@@ -42,8 +42,9 @@ export class EmployeeProfileService {
 
     // Leave history
     const leaveHistory = await this.leaveRepo.find({
-      where: { user_id: effectiveUserId },
-      order: { from_date: 'DESC' },
+      where: { employeeId: effectiveUserId },
+      order: { startDate: 'DESC' },
+      relations: ['leaveType'],
     });
 
     return {
@@ -58,10 +59,10 @@ export class EmployeeProfileService {
       profile_pic: employee.user.profile_pic,
       leaveHistory: leaveHistory.map((leave) => ({
         id: leave.id,
-        fromDate: leave.from_date,
-        toDate: leave.to_date,
+        fromDate: leave.startDate,
+        toDate: leave.endDate,
         reason: leave.reason,
-        type: leave.type,
+        type: leave.leaveType?.name || 'Unknown',
         status: leave.status,
       })),
     };

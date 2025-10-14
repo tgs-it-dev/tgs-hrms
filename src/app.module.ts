@@ -22,6 +22,8 @@ import { PermissionModule } from './modules/permission/permission.module';
 import { AttendanceModule } from './modules/attendance/attendace.module';
 import { TimesheetModule } from './modules/timesheet/timesheet.module';
 import { LeaveModule } from './modules/leave/leave.module';
+import { LeaveTypeModule } from './modules/leave-type/leave-type.module';
+import { LeaveReportsModule } from './modules/reports/leave-reports.module';
 import { PolicyModule } from './modules/policy/policy.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { TeamModule } from './modules/team/team.module';
@@ -135,6 +137,8 @@ import { AssetRequestModule } from './modules/asset-request/asset-request.module
     TimesheetModule,
     PolicyModule,
     LeaveModule,
+    LeaveTypeModule,
+    LeaveReportsModule,
     ReportsModule,
     TeamModule,
     SignupModule,
