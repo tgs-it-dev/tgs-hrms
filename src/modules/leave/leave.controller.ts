@@ -150,6 +150,18 @@ export class LeaveController {
     return this.leaveService.getLeaves(req.user.id, pageNumber);
   }
 
+  @Get('all')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('admin', 'system-admin', 'hr-admin', 'network-admin')
+  @Permissions('manage_leaves', 'view_leaves')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get all leave requests (Admin/HR Admin/Network Admin only)' })
+  @ApiResponse({ status: 200, description: 'Returns all leave requests' })
+  async findAllForAdmin(@Request() req: any, @Query('page') page?: string, @Query('status') status?: string) {
+    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+    return this.leaveService.getAllLeaves(req.user.tenant_id, pageNumber, status);
+  }
+
   @Get(':id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get specific leave details' })
@@ -158,24 +170,12 @@ export class LeaveController {
     return this.leaveService.getLeaveById(id, req.user.id, req.user.tenant_id);
   }
 
-  @Get('all')
-  @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin', 'hr-admin')
-  @Permissions('manage_leaves')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get all leave requests (Admin/Manager only)' })
-  @ApiResponse({ status: 200, description: 'Returns all leave requests' })
-  async findAllForAdmin(@Request() req: any, @Query('page') page?: string, @Query('status') status?: string) {
-    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-    return this.leaveService.getAllLeaves(req.user.tenant_id, pageNumber, status);
-  }
-
   @Patch(':id/approve')
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin', 'hr-admin', 'manager')
+  @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('approve_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Approve a leave request' })
+  @ApiOperation({ summary: 'Approve a leave request (Admin/HR Admin only)' })
   @ApiResponse({
     status: 200,
     description: 'Leave request approved successfully',
@@ -186,15 +186,43 @@ export class LeaveController {
 
   @Patch(':id/reject')
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin', 'hr-admin', 'manager')
+  @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('approve_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Reject a leave request with remarks' })
+  @ApiOperation({ summary: 'Reject a leave request with remarks (Admin/HR Admin only)' })
   @ApiResponse({
     status: 200,
     description: 'Leave request rejected successfully',
   })
   async rejectLeave(@Param('id') id: string, @Body() dto: RejectLeaveDto, @Request() req: any) {
+    return this.leaveService.rejectLeave(id, req.user.id, req.user.tenant_id, dto.remarks);
+  }
+
+  @Patch(':id/approve-manager')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('manager')
+  @Permissions('approve_leaves')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Approve a leave request (Manager - Optional)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Leave request approved successfully by manager',
+  })
+  async approveLeaveByManager(@Param('id') id: string, @Body() dto: ApproveLeaveDto, @Request() req: any) {
+    return this.leaveService.approveLeave(id, req.user.id, req.user.tenant_id, dto.remarks);
+  }
+
+  @Patch(':id/reject-manager')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('manager')
+  @Permissions('approve_leaves')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Reject a leave request with remarks (Manager - Optional)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Leave request rejected successfully by manager',
+  })
+  async rejectLeaveByManager(@Param('id') id: string, @Body() dto: RejectLeaveDto, @Request() req: any) {
     return this.leaveService.rejectLeave(id, req.user.id, req.user.tenant_id, dto.remarks);
   }
 
@@ -231,14 +259,19 @@ export class LeaveController {
       const { items, total, limit } = await this.leaveService.getLeaves(req.user.id, page);
       for (const l of items) {
         rows.push({
-          id: (l as any).id,
+          id: l.id,
           user_id: req.user.id,
           user_name: `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim(),
-          type: (l as any).type,
-          from_date: (l as any).from_date,
-          to_date: (l as any).to_date,
-          status: (l as any).status,
-          reason: (l as any).reason,
+          leave_type: l.leaveType?.name || 'N/A',
+          start_date: l.startDate,
+          end_date: l.endDate,
+          total_days: l.totalDays,
+          status: l.status,
+          reason: l.reason,
+          applied_date: l.createdAt,
+          approved_by: l.approver?.first_name ? `${l.approver.first_name} ${l.approver.last_name}`.trim() : 'N/A',
+          approved_at: l.approvedAt || 'N/A',
+          remarks: l.remarks || 'N/A',
         });
       }
       if (!items.length || rows.length >= total) break;
@@ -259,22 +292,27 @@ export class LeaveController {
     const { items } = await this.leaveService.getTeamLeaves(req.user.id, req.user.tenant_id, pageNumber);
     const rows = (items || []).map((l: any) => ({
       id: l.id,
-      user_id: l.user_id,
-      user_name: `${l.user?.first_name || ''} ${l.user?.last_name || ''}`.trim(),
-      type: l.type,
-      from_date: l.from_date,
-      to_date: l.to_date,
+      user_id: l.employeeId,
+      user_name: `${l.employee?.first_name || ''} ${l.employee?.last_name || ''}`.trim(),
+      leave_type: l.leaveType?.name || 'N/A',
+      start_date: l.startDate,
+      end_date: l.endDate,
+      total_days: l.totalDays,
       status: l.status,
       reason: l.reason,
+      applied_date: l.createdAt,
+      approved_by: l.approver?.first_name ? `${l.approver.first_name} ${l.approver.last_name}`.trim() : 'N/A',
+      approved_at: l.approvedAt || 'N/A',
+      remarks: l.remarks || 'N/A',
     }));
     return sendCsvResponse(res, 'leaves-team.csv', rows);
   }
 
   @Get('export/all')
   @UseGuards(RolesGuard)
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin', 'hr-admin', 'network-admin')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Download all leave requests for tenant as CSV (Admin only)' })
+  @ApiOperation({ summary: 'Download all leave requests for tenant as CSV (Admin/HR Admin/Network Admin only)' })
   async exportAll(@Request() req: any, @Res() res: Response) {
     let page = 1;
     const rows: any[] = [];
@@ -282,13 +320,19 @@ export class LeaveController {
       const { items, total, limit } = await this.leaveService.getAllLeaves(req.user.tenant_id, page);
       for (const l of items) {
         rows.push({
-          id: (l as any).id,
-          user_id: (l as any).user_id,
-          user_name: `${(l as any).user?.first_name || ''} ${(l as any).user?.last_name || ''}`.trim(),
-          type: (l as any).type,
-          from_date: (l as any).from_date,
-          to_date: (l as any).to_date,
-          status: (l as any).status,
+          id: l.id,
+          user_id: l.employeeId,
+          user_name: `${l.employee?.first_name || ''} ${l.employee?.last_name || ''}`.trim(),
+          leave_type: l.leaveType?.name || 'N/A',
+          start_date: l.startDate,
+          end_date: l.endDate,
+          total_days: l.totalDays,
+          status: l.status,
+          reason: l.reason,
+          applied_date: l.createdAt,
+          approved_by: l.approver?.first_name ? `${l.approver.first_name} ${l.approver.last_name}`.trim() : 'N/A',
+          approved_at: l.approvedAt || 'N/A',
+          remarks: l.remarks || 'N/A',
         });
       }
       if (!items.length || rows.length >= total) break;
