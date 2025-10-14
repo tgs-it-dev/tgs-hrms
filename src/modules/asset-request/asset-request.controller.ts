@@ -10,7 +10,7 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiBody } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -34,9 +34,14 @@ export class AssetRequestController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Fetch requests (filter by requester or tenant)' })
-  findAll(@Request() req: any, @Query('requestedBy') requestedBy?: string) {
-    return this.service.findAll(req.user.tenant_id, requestedBy ?? undefined);
+  @ApiOperation({ summary: 'Fetch requests (filter by requester or tenant, paginated)' })
+  findAll(
+    @Request() req: any,
+    @Query('requestedBy') requestedBy?: string,
+    @Query('page') page?: string,
+  ) {
+    const parsedPage = page ? parseInt(page, 10) : 1;
+    return this.service.findAll(req.user.tenant_id, requestedBy, parsedPage);
   }
 
   @Get(':id')
@@ -55,6 +60,19 @@ export class AssetRequestController {
   @Put(':id/reject')
   @Roles('network-admin')
   @ApiOperation({ summary: 'Reject request' })
+  @ApiResponse({ status: 200, description: 'Request rejected successfully' })
+  @ApiResponse({ status: 400, description: 'Request already processed' })
+  @ApiResponse({ status: 404, description: 'Request not found' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        remarks: { type: 'string', example: 'Insufficient justification for request', description: 'Reason for rejection' },
+      },
+      required: ['remarks'],
+    },
+    description: 'Rejection reason for the asset request',
+  })
   reject(@Request() req: any, @Param('id') id: string, @Body('remarks') remarks: string) {
     return this.service.reject(id, req.user.id, req.user.tenant_id, remarks);
   }

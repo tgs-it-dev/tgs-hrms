@@ -11,6 +11,7 @@ import { Employee } from '../../entities/employee.entity';
 import { User } from '../../entities/user.entity';
 import { CreateTeamDto } from './dto/create-team.dto';
 import { UpdateTeamDto } from './dto/update-team.dto';
+import { EmployeeStatus } from '../../common/constants/enums';
 
 @Injectable()
 export class TeamService {
@@ -562,7 +563,7 @@ export class TeamService {
       .leftJoinAndSelect('d.department', 'dep')
       .where('u.tenant_id = :tenantId', { tenantId })
       .andWhere('e.team_id IS NULL')
-      .andWhere('e.status = :status', { status: 'active' })
+      .andWhere('e.status = :status', { status: EmployeeStatus.ACTIVE })
       .orderBy('u.first_name', 'ASC');
 
     if (search) {

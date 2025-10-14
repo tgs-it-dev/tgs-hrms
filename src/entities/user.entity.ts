@@ -13,6 +13,7 @@ import { Role } from './role.entity';
 import { Employee } from './employee.entity';
 import { Attendance } from './attendance.entity';
 import { Team } from './team.entity';
+import { UserGender } from '../common/constants/enums';
 
 export enum UserRole {
   ADMIN = 'admin',
@@ -48,7 +49,7 @@ export class User {
   role_id: string;
 
   @Column({ type: 'varchar', length: 10, nullable: true })
-  gender: 'male' | 'female' | null;
+  gender: UserGender | null;
 
   @Column({ type: 'varchar', length: 500, nullable: true })
   profile_pic: string | null;

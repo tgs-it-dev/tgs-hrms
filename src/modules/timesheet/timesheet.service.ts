@@ -4,6 +4,7 @@ import { Repository, IsNull, Between } from 'typeorm';
 import { Timesheet } from '../../entities/timesheet.entity';
 import { Attendance } from '../../entities/attendance.entity';
 import { User } from '../../entities/user.entity';
+import { AttendanceType } from '../../common/constants/enums';
 
 @Injectable()
 export class TimesheetService {
@@ -42,7 +43,7 @@ export class TimesheetService {
       .getOne();
 
   
-    if (!latestAttendance || latestAttendance.type !== 'check-in') {
+    if (!latestAttendance || latestAttendance.type !== AttendanceType.CHECK_IN) {
       throw new BadRequestException('You must check in before starting work');
     }
 

@@ -8,8 +8,7 @@ import {
 } from 'typeorm';
 import { User } from './user.entity';
 import { Tenant } from './tenant.entity';
-
-export type AssetRequestStatus = 'pending' | 'approved' | 'rejected';
+import { AssetRequestStatus } from '../common/constants/enums';
 
 @Entity('asset_requests')
 export class AssetRequest {
@@ -22,7 +21,7 @@ export class AssetRequest {
   @Column({ type: 'uuid' })
   requested_by: string;
 
-  @Column({ type: 'varchar', length: 20, default: 'pending' })
+  @Column({ type: 'varchar', length: 20, default: AssetRequestStatus.PENDING })
   status: AssetRequestStatus;
 
   @Column({ type: 'uuid', nullable: true })

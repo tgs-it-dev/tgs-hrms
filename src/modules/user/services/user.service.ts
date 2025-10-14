@@ -43,8 +43,7 @@ export class UserService {
       phone: createUserDto.phone,
       first_name: createUserDto.first_name,
       last_name: createUserDto.last_name,
-      gender: createUserDto.gender === UserGender.MALE ? 'male' : 
-               createUserDto.gender === UserGender.FEMALE ? 'female' : null,
+      gender: createUserDto.gender ?? null,
     });
     return this.userRepo.save(user);
   }

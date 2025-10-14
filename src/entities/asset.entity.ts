@@ -8,8 +8,7 @@ import {
 } from 'typeorm';
 import { User } from './user.entity';
 import { Tenant } from './tenant.entity';
-
-export type AssetStatus = 'available' | 'assigned' | 'under_maintenance' | 'retired';
+import { AssetStatus } from '../common/constants/enums';
 
 @Entity('assets')
 export class Asset {
@@ -22,7 +21,7 @@ export class Asset {
   @Column({ type: 'varchar' })
   category: string;
 
-  @Column({ type: 'varchar', length: 30, default: 'available' })
+  @Column({ type: 'varchar', length: 30, default: AssetStatus.AVAILABLE })
   status: AssetStatus;
 
   @Column({ type: 'uuid', nullable: true })

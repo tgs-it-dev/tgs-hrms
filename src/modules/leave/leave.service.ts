@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
+import { LeaveStatus } from '../../common/constants/enums';
 import { Leave } from 'src/entities/leave.entity';
 import { CreateLeaveDto } from './dto/create-leave.dto';
 import { User } from '../../entities/user.entity';
@@ -23,6 +24,32 @@ export class LeaveService {
     return await this.leaveRepo.save(leave);
   }
 
+  // Helper method to calculate leaves taken in the last 12 months
+  async getLeavesTakenInLast12Months(user_id: string): Promise<number> {
+    const twelveMonthsAgo = new Date();
+    twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
+    const now = new Date();
+    
+    // Get all APPROVED leaves for user within the range
+    const leaves = await this.leaveRepo.createQueryBuilder('leave')
+      .where('leave.user_id = :user_id', { user_id })
+      .andWhere('leave.status = :status', { status: LeaveStatus.APPROVED })
+      .andWhere('leave.from_date >= :start', { start: twelveMonthsAgo })
+      .andWhere('leave.from_date <= :end', { end: now })
+      .getMany();
+
+    // Sum the leave days
+    let totalDays = 0;
+    for (const leave of leaves) {
+      const from = new Date(leave.from_date);
+      const to = new Date(leave.to_date);
+      // Add 1 to include both from_date and to_date (inclusive dates)
+      const days = Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      totalDays += days;
+    }
+    return totalDays;
+  }
+
   async getLeaves(
     user_id?: string,
     page: number = 1
@@ -32,6 +59,8 @@ export class LeaveService {
     page: number;
     limit: number;
     totalPages: number;
+    leavesLeft?: number;
+    totalLeaves: number;
   }> {
     const limit = 10;
     const skip = (page - 1) * limit;
@@ -45,12 +74,21 @@ export class LeaveService {
       .take(limit)
       .getManyAndCount();
     const totalPages = Math.ceil(total / limit);
+    // Calculate leaves left
+    let leavesLeft: number | undefined = undefined;
+    if (user_id) {
+      const taken = await this.getLeavesTakenInLast12Months(user_id);
+      leavesLeft = 21 - taken;
+      if (leavesLeft < 0) leavesLeft = 0;
+    }
     return {
       items,
       total,
       page,
       limit,
       totalPages,
+      ...(leavesLeft !== undefined ? { leavesLeft } : {}),
+      totalLeaves: 21,
     };
   }
 
@@ -71,7 +109,7 @@ export class LeaveService {
         user: {
           tenant_id: tenantId,
         },
-        status: In(['pending', 'Approved', 'Rejected']), 
+        status: In([LeaveStatus.PENDING, LeaveStatus.APPROVED, LeaveStatus.REJECTED]), 
       },
       relations: ['user'],
       order: { created_at: 'DESC' },
@@ -88,7 +126,7 @@ export class LeaveService {
     };
   }
 
-  async updateStatus(id: string, status: string, adminTenantId: string): Promise<Leave> {
+  async updateStatus(id: string, status: LeaveStatus, adminTenantId: string): Promise<Leave> {
     const leave = await this.leaveRepo.findOne({ where: { id }, relations: ['user'] });
 
     if (!leave) throw new NotFoundException('Leave not found');
@@ -97,7 +135,7 @@ export class LeaveService {
       throw new ForbiddenException('Access denied');
     }
 
-    leave.status = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+    leave.status = status;
     return await this.leaveRepo.save(leave);
   }
 
@@ -112,11 +150,11 @@ export class LeaveService {
     }
 
   
-    if (leave.status !== 'pending') {
+    if (leave.status !== LeaveStatus.PENDING) {
       throw new ForbiddenException('You can only withdraw pending leave requests');
     }
 
-    leave.status = 'withdrawn';
+    leave.status = LeaveStatus.CANCELLED;
     return await this.leaveRepo.save(leave);
   }
   
@@ -199,7 +237,7 @@ export class LeaveService {
     const [items, total] = await this.leaveRepo.findAndCount({
       where: {
         user_id: In(userIds),
-        status: In(['pending', 'Approved', 'Rejected']), // Exclude withdrawn leaves
+        status: In([LeaveStatus.PENDING, LeaveStatus.APPROVED, LeaveStatus.REJECTED]),
       },
       relations: ['user'],
       order: { created_at: 'DESC' },
@@ -265,7 +303,7 @@ export class LeaveService {
     const leaveApplications = await this.leaveRepo
       .createQueryBuilder('leave')
       .where('leave.user_id IN (:...userIds)', { userIds: teamMemberUserIds })
-      .andWhere('leave.status IN (:...statuses)', { statuses: ['pending', 'Approved', 'Rejected'] })
+      .andWhere('leave.status IN (:...statuses)', { statuses: [LeaveStatus.PENDING, LeaveStatus.APPROVED, LeaveStatus.REJECTED] })
       .select(['leave.user_id', 'COUNT(leave.id) as totalApplications'])
       .groupBy('leave.user_id')
       .getRawMany();
