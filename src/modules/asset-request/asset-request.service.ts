@@ -29,17 +29,26 @@ export class AssetRequestService {
 
   async findAll(tenantId: string, requestedBy?: string, page = 1) {
     const limit = 25;
+    const skip = (page - 1) * limit;
+
     const qb = this.reqRepo
       .createQueryBuilder('r')
       .leftJoinAndSelect('r.requestedByUser', 'requestedByUser')
       .leftJoinAndSelect('r.approvedByUser', 'approvedByUser')
       .where('r.tenant_id = :tenantId', { tenantId })
       .orderBy('r.created_at', 'DESC');
+
     if (requestedBy) qb.andWhere('r.requested_by = :requestedBy', { requestedBy });
-    qb.skip((page - 1) * limit).take(limit);
-    const [rows, total] = await qb.getManyAndCount();
+
+    const [items, total] = await qb
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+
+    const totalPages = Math.ceil(total / limit);
+
     return {
-      data: rows.map((r) => ({
+      items: items.map((r) => ({
         ...r,
         requestedByName: r.requestedByUser
           ? `${r.requestedByUser.first_name ?? ''} ${r.requestedByUser.last_name ?? ''}`.trim()
@@ -48,9 +57,10 @@ export class AssetRequestService {
           ? `${r.approvedByUser.first_name ?? ''} ${r.approvedByUser.last_name ?? ''}`.trim()
           : null,
       })),
+      total,
       page,
       limit,
-      total,
+      totalPages,
     };
   }
 

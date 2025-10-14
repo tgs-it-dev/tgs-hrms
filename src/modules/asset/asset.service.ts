@@ -30,28 +30,35 @@ export class AssetService {
   ) {
     const { status, category, page = 1 } = filters;
     const limit = 25;
+    const skip = (page - 1) * limit;
+
     const qb = this.assetRepo
       .createQueryBuilder('a')
       .leftJoinAndSelect('a.assignedToUser', 'assignedUser')
       .where('a.tenant_id = :tenantId', { tenantId });
+
     if (status) qb.andWhere('a.status = :status', { status });
     if (category) qb.andWhere('a.category = :category', { category });
-    qb.orderBy('a.created_at', 'DESC');
 
-    qb.skip((page - 1) * limit).take(limit);
+    const [items, total] = await qb
+      .orderBy('a.created_at', 'DESC')
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
 
-    const [assets, total] = await qb.getManyAndCount();
+    const totalPages = Math.ceil(total / limit);
 
     return {
-      data: assets.map((a) => ({
+      items: items.map((a) => ({
         ...a,
         assignedToName: a.assignedToUser
           ? `${a.assignedToUser.first_name ?? ''} ${a.assignedToUser.last_name ?? ''}`.trim()
           : null,
       })),
+      total,
       page,
       limit,
-      total,
+      totalPages,
     };
   }
 
