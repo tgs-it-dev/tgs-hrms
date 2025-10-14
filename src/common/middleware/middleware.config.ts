@@ -3,7 +3,7 @@
  * Global middleware setup for the application
  */
 
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { JwtMiddleware } from './jwt.middleware';
 import { SharedJwtModule } from '../modules/jwt.module';
 
@@ -26,6 +26,7 @@ export class MiddlewareConfigModule implements NestModule {
         'auth/resend-verification',
         'auth/refresh',
         'auth/logout',
+        { path: 'users/:id/profile-picture', method: RequestMethod.GET },
         // Allow unauthenticated access to signup flow
         'signup/personal-details',
         'signup/company-details',
@@ -41,3 +42,4 @@ export class MiddlewareConfigModule implements NestModule {
       .forRoutes('*');
   }
 }
+ 
