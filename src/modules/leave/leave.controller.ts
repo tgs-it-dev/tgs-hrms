@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Put,
   Param,
   Body,
   Query,
@@ -173,7 +174,7 @@ export class LeaveController {
   @Patch(':id/approve')
   @UseGuards(RolesGuard, PermissionsGuard)
   @Roles('admin', 'system-admin', 'hr-admin')
-  @Permissions('approve_leaves')
+  @Permissions('approve_leaves', 'manage_leaves')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Approve a leave request (Admin/HR Admin only)' })
   @ApiResponse({
@@ -187,7 +188,7 @@ export class LeaveController {
   @Patch(':id/reject')
   @UseGuards(RolesGuard, PermissionsGuard)
   @Roles('admin', 'system-admin', 'hr-admin')
-  @Permissions('approve_leaves')
+  @Permissions('approve_leaves', 'manage_leaves')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Reject a leave request with remarks (Admin/HR Admin only)' })
   @ApiResponse({
@@ -195,6 +196,29 @@ export class LeaveController {
     description: 'Leave request rejected successfully',
   })
   async rejectLeave(@Param('id') id: string, @Body() dto: RejectLeaveDto, @Request() req: any) {
+    return this.leaveService.rejectLeave(id, req.user.id, req.user.tenant_id, dto.remarks);
+  }
+
+  // PUT aliases for approve/reject to match external API spec
+  @Put(':id/approve')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('admin', 'system-admin', 'hr-admin')
+  @Permissions('approve_leaves', 'manage_leaves')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Approve a leave request (Admin/HR Admin only) [PUT alias]' })
+  @ApiResponse({ status: 200, description: 'Leave request approved successfully' })
+  async approveLeavePut(@Param('id') id: string, @Body() dto: ApproveLeaveDto, @Request() req: any) {
+    return this.leaveService.approveLeave(id, req.user.id, req.user.tenant_id, dto.remarks);
+  }
+
+  @Put(':id/reject')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('admin', 'system-admin', 'hr-admin')
+  @Permissions('approve_leaves', 'manage_leaves')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Reject a leave request with remarks (Admin/HR Admin only) [PUT alias]' })
+  @ApiResponse({ status: 200, description: 'Leave request rejected successfully' })
+  async rejectLeavePut(@Param('id') id: string, @Body() dto: RejectLeaveDto, @Request() req: any) {
     return this.leaveService.rejectLeave(id, req.user.id, req.user.tenant_id, dto.remarks);
   }
 
@@ -261,6 +285,8 @@ export class LeaveController {
         rows.push({
           id: l.id,
           user_id: req.user.id,
+          first_name: req.user.first_name || '',
+          last_name: req.user.last_name || '',
           user_name: `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim(),
           leave_type: l.leaveType?.name || 'N/A',
           start_date: l.startDate,
@@ -293,6 +319,8 @@ export class LeaveController {
     const rows = (items || []).map((l: any) => ({
       id: l.id,
       user_id: l.employeeId,
+      first_name: l.employee?.first_name || '',
+      last_name: l.employee?.last_name || '',
       user_name: `${l.employee?.first_name || ''} ${l.employee?.last_name || ''}`.trim(),
       leave_type: l.leaveType?.name || 'N/A',
       start_date: l.startDate,
@@ -322,6 +350,8 @@ export class LeaveController {
         rows.push({
           id: l.id,
           user_id: l.employeeId,
+          first_name: l.employee?.first_name || '',
+          last_name: l.employee?.last_name || '',
           user_name: `${l.employee?.first_name || ''} ${l.employee?.last_name || ''}`.trim(),
           leave_type: l.leaveType?.name || 'N/A',
           start_date: l.startDate,

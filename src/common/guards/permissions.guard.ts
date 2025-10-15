@@ -48,8 +48,8 @@ export class PermissionsGuard implements CanActivate {
       allowed = true;
       this.logger.log(`PermissionsGuard: Admin-equivalent access granted`);
     } else {
-      // Regular users need to have all required permissions
-      allowed = required.every((perm) => userPermissions.includes(perm.toLowerCase()));
+      // Regular users need to have at least one of the required permissions (OR logic)
+      allowed = required.some((perm) => userPermissions.includes(perm.toLowerCase()));
       this.logger.log(
         `PermissionsGuard: Regular user permission check result - allowed: ${allowed}`
       );
