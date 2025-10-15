@@ -1,31 +1,34 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { typeOrmConfig } from './config/typeorm.config';
-import { UserModule } from './modules/user/user.module';
-import { AuthModule } from './modules/auth/auth.module';
-import { DepartmentModule } from './modules/department/department.module';
-import { DesignationModule } from './modules/designation/designation.module';
-import { EmployeeModule } from './modules/employee/employee.module';
-import { TenantModule } from './modules/tenant/tenant.module';
-import { RoleModule } from './modules/role/role.module';
-import { PermissionModule } from './modules/permission/permission.module';
-import { ThrottlerModule } from '@nestjs/throttler';
-import { JwtModule } from '@nestjs/jwt';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-import { AttendanceModule } from './modules/attendance/attendace.module';
-import { TimesheetModule } from './modules/timesheet/timesheet.module';
-import { LeaveModule } from './modules/leave/leave.module';
-import { PolicyModule } from './modules/policy/policy.module';
+import { Module } from "@nestjs/common";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { typeOrmConfig } from "./config/typeorm.config";
+import { UserModule } from "./modules/user/user.module";
+import { AuthModule } from "./modules/auth/auth.module";
+import { DepartmentModule } from "./modules/department/department.module";
+import { DesignationModule } from "./modules/designation/designation.module";
+import { EmployeeModule } from "./modules/employee/employee.module";
+import { TenantModule } from "./modules/tenant/tenant.module";
+import { RoleModule } from "./modules/role/role.module";
+import { PermissionModule } from "./modules/permission/permission.module";
+import { ThrottlerModule } from "@nestjs/throttler";
+import { JwtModule } from "@nestjs/jwt";
+import { AppController } from "./app.controller";
+import { AppService } from "./app.service";
+import { AttendanceModule } from "./modules/attendance/attendace.module";
+import { TimesheetModule } from "./modules/timesheet/timesheet.module";
+import { LeaveModule } from "./modules/leave/leave.module";
+import { PolicyModule } from "./modules/policy/policy.module";
 
 // Added imports for mailer
-import { MailerModule } from '@nestjs-modules/mailer';
-import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
-import { join } from 'path';
-
+import { MailerModule } from "@nestjs-modules/mailer";
+import { HandlebarsAdapter } from "@nestjs-modules/mailer/dist/adapters/handlebars.adapter";
+import { join } from "path";
+import { BenefitsModule } from "./modules/benefits/benefits.module";
+import { ScheduleModule } from "@nestjs/schedule";
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
+
     ConfigModule.forRoot({ isGlobal: true }),
 
     TypeOrmModule.forRootAsync({
@@ -42,13 +45,13 @@ import { join } from 'path';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: async (config: ConfigService) => {
-        const secret = config.get<string>('JWT_SECRET');
-        if (!secret) throw new Error('JWT_SECRET not found');
-        console.log('JWT_SECRET in AppModule:', secret);
+        const secret = config.get<string>("JWT_SECRET");
+        if (!secret) throw new Error("JWT_SECRET not found");
+        console.log("JWT_SECRET in AppModule:", secret);
         return {
           secret,
           signOptions: {
-            expiresIn: config.get<string>('JWT_EXPIRES_IN', '15m'),
+            expiresIn: config.get<string>("JWT_EXPIRES_IN", "15m"),
           },
         };
       },
@@ -60,19 +63,19 @@ import { join } from 'path';
       inject: [ConfigService],
       useFactory: async (config: ConfigService) => ({
         transport: {
-          host: config.get<string>('SMTP_HOST'),
-          port: config.get<number>('SMTP_PORT'),
+          host: config.get<string>("SMTP_HOST"),
+          port: config.get<number>("SMTP_PORT"),
           secure: false,
           auth: {
-            user: config.get<string>('SMTP_USER'),
-            pass: config.get<string>('SMTP_PASS'),
+            user: config.get<string>("SMTP_USER"),
+            pass: config.get<string>("SMTP_PASS"),
           },
         },
         defaults: {
-          from: config.get<string>('SMTP_FROM'),
+          from: config.get<string>("SMTP_FROM"),
         },
         template: {
-          dir: join(process.cwd(), 'src', 'templates'), // works in dev
+          dir: join(process.cwd(), "src", "templates"), // works in dev
           adapter: new HandlebarsAdapter(),
           options: {
             strict: true,
@@ -92,8 +95,9 @@ import { join } from 'path';
     PermissionModule,
     AttendanceModule,
     TimesheetModule,
-    LeaveModule, 
+    LeaveModule,
     PolicyModule,
+    BenefitsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

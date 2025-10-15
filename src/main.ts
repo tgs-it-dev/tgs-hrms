@@ -45,9 +45,14 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
-  const port = parseInt(process.env.PORT || '3001', 10);
-  const host = process.env.HOST || '0.0.0.0';
-  await app.listen(port, host);
+  SwaggerModule.setup("api", app, document, {
+    swaggerOptions: {
+      docExpansion: "none",
+    },
+  });
+
+  // ✅ Use Render-provided PORT or fallback to 3001
+  const port = parseInt(process.env.PORT || "3001", 10);
+  await app.listen(port, "0.0.0.0");
 }
 bootstrap();

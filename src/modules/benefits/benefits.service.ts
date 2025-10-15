@@ -1,0 +1,125 @@
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository, QueryFailedError } from "typeorm";
+import { Benefit } from "../../entities/benefit.entity";
+import { Tenant } from "../../entities/tenant.entity";
+import { CreateBenefitDto } from "./dto/benefit/create-benefit.dto";
+import { UpdateBenefitDto } from "./dto/benefit/update-benefit.dto";
+
+@Injectable()
+export class BenefitsService {
+  constructor(
+    @InjectRepository(Benefit)
+    private readonly benefitRepo: Repository<Benefit>,
+
+    @InjectRepository(Tenant)
+    private readonly tenantRepo: Repository<Tenant>,
+  ) {}
+
+  async create(tenant_id: string, createdBy: string, dto: CreateBenefitDto) {
+    const tenant = await this.tenantRepo.findOne({ where: { id: tenant_id } });
+    if (!tenant) {
+      throw new BadRequestException("Invalid tenant ID");
+    }
+
+    // Ensure unique benefit name within same tenant
+    const existing = await this.benefitRepo.findOne({
+      where: { name: dto.name, tenant_id },
+    });
+    if (existing) {
+      throw new ConflictException(
+        `Benefit with name '${dto.name}' already exists for this tenant.`,
+      );
+    }
+
+    try {
+      const benefit = this.benefitRepo.create({
+        ...dto,
+        tenant_id,
+        createdBy,
+      });
+      return await this.benefitRepo.save(benefit);
+    } catch (err: unknown) {
+      if (err instanceof QueryFailedError) {
+        const code: unknown = (err as QueryFailedError & { code?: string })
+          .code;
+        if (code === "23505") {
+          throw new ConflictException(
+            "Benefit name must be unique for this tenant",
+          );
+        }
+        if (code === "23502") {
+          throw new BadRequestException("Missing required fields");
+        }
+      }
+      throw err;
+    }
+  }
+
+  async update(tenant_id: string, id: string, dto: UpdateBenefitDto) {
+    const benefit = await this.findOne(tenant_id, id);
+
+    // If updating name, ensure uniqueness
+    if (dto.name && dto.name !== benefit.name) {
+      const exists = await this.benefitRepo.findOne({
+        where: { name: dto.name, tenant_id: benefit.tenant_id },
+      });
+
+      if (exists && exists.id !== id) {
+        throw new ConflictException(
+          `Benefit with name '${dto.name}' already exists for this tenant.`,
+        );
+      }
+    }
+
+    Object.assign(benefit, dto);
+
+    try {
+      return await this.benefitRepo.save(benefit);
+    } catch (err) {
+      if (
+        err instanceof QueryFailedError &&
+        (err as QueryFailedError & { code?: string }).code === "23505"
+      ) {
+        throw new ConflictException(
+          "Benefit name must be unique for this tenant",
+        );
+      }
+      throw err;
+    }
+  }
+
+  async findAllByTenant(tenant_id: string, page = 1) {
+    const limit = 25;
+    const skip = (page - 1) * limit;
+
+    return await this.benefitRepo.find({
+      where: { tenant_id },
+      order: { createdAt: "DESC" },
+      skip,
+      take: limit,
+    });
+  }
+
+  async findOne(tenant_id: string, id: string) {
+    const benefit = await this.benefitRepo.findOneBy({ id, tenant_id });
+    if (!benefit) {
+      throw new NotFoundException("Benefit not found.");
+    }
+    return benefit;
+  }
+
+  async remove(
+    tenant_id: string,
+    id: string,
+  ): Promise<{ deleted: true; id: string }> {
+    await this.findOne(tenant_id, id); // ensure it exists
+    await this.benefitRepo.delete(id);
+    return { deleted: true, id };
+  }
+}

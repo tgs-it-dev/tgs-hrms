@@ -4,16 +4,18 @@ import {
   Column,
   CreateDateColumn,
   OneToMany,
-} from 'typeorm';
-import { User } from './user.entity';
-import { Department } from './department.entity';
+} from "typeorm";
+import { User } from "./user.entity";
+import { Department } from "./department.entity";
+import { Benefit } from "./benefit.entity";
+import { EmployeeBenefit } from "./employee-benefit.entity";
 
-@Entity('tenants')
+@Entity("tenants")
 export class Tenant {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id: string;
 
-  @Column({ type: 'varchar' })
+  @Column({ type: "varchar" })
   name: string;
 
   @CreateDateColumn()
@@ -24,4 +26,10 @@ export class Tenant {
 
   @OneToMany(() => Department, (department) => department.tenant)
   departments: Department[];
-} 
+
+  @OneToMany(() => Benefit, (benefit) => benefit.tenant)
+  benefits: Benefit[];
+
+  @OneToMany(() => EmployeeBenefit, (employeeBenefit) => employeeBenefit.tenant)
+  employeeBenefits: EmployeeBenefit[];
+}
