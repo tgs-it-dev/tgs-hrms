@@ -78,7 +78,7 @@ export class AssetRequestController {
   }
 
   @Delete(':id')
-  @Roles('user', 'employee')
+  @Roles('user', 'employee', 'manager')
   @ApiOperation({ summary: 'Delete own pending request' })
   @ApiResponse({ status: 200, description: 'Request deleted successfully' })
   remove(@Request() req: any, @Param('id') id: string) {

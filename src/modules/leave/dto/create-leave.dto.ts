@@ -1,22 +1,25 @@
+import { IsString, IsDateString, IsNotEmpty, IsUUID } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { IsDateString, IsNotEmpty, IsString, IsUUID } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateLeaveDto {
-  @ApiProperty({ example: '2025-08-10' })
-  @IsDateString()
-  from_date: string;
+  @ApiProperty({ description: 'Leave type ID', example: 'leaveType_001' })
+  @IsUUID()
+  @IsNotEmpty()
+  leaveTypeId: string;
 
-  @ApiProperty({ example: '2025-08-15' })
+  @ApiProperty({ description: 'Start date of leave', example: '2025-10-10' })
   @IsDateString()
-  to_date: string;
+  @IsNotEmpty()
+  startDate: string;
 
-  @ApiProperty({ example: 'Family function' })
+  @ApiProperty({ description: 'End date of leave', example: '2025-10-12' })
+  @IsDateString()
+  @IsNotEmpty()
+  endDate: string;
+
+  @ApiProperty({ description: 'Reason for leave', example: 'Family function' })
   @IsString()
   @IsNotEmpty()
   reason: string;
-
-  @ApiProperty({ example: 'casual' })
-  @IsString()
-  @IsNotEmpty()
-  type: string;
 }

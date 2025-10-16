@@ -37,8 +37,15 @@ export class AssetService {
       .leftJoinAndSelect('a.assignedToUser', 'assignedUser')
       .where('a.tenant_id = :tenantId', { tenantId });
 
-    if (status) qb.andWhere('a.status = :status', { status });
-    if (category) qb.andWhere('a.category = :category', { category });
+    // Trim whitespace and make case-insensitive filtering
+    if (status) {
+      const trimmedStatus = status.trim().toLowerCase();
+      qb.andWhere('LOWER(a.status) = :status', { status: trimmedStatus });
+    }
+    if (category) {
+      const trimmedCategory = category.trim();
+      qb.andWhere('LOWER(a.category) = LOWER(:category)', { category: trimmedCategory });
+    }
 
     const [items, total] = await qb
       .orderBy('a.created_at', 'DESC')

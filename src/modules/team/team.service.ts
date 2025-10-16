@@ -167,8 +167,21 @@ export class TeamService {
       } : undefined,
     }));
 
+    // Represent the employee pool as a pseudo team in the list
+    const itemsWithEmployeePool = [
+      ...items,
+      {
+        id: 'employee-pool',
+        name: 'Employee Pool',
+        description: 'Unassigned employees',
+        manager: undefined,
+        created_at: undefined,
+        members: employeePool,
+      },
+    ];
+
     return {
-      items,
+      items: itemsWithEmployeePool,
       total,
       page,
       limit,

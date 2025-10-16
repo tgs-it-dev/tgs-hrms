@@ -1,8 +1,9 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, Repository, Between } from 'typeorm';
 import { LeaveStatus } from '../../common/constants/enums';
 import { Leave } from 'src/entities/leave.entity';
+import { LeaveType } from 'src/entities/leave-type.entity';
 import { CreateLeaveDto } from './dto/create-leave.dto';
 import { User } from '../../entities/user.entity';
 import { PaginationResponse } from '../../common/interfaces/pagination.interface';
@@ -16,12 +17,62 @@ export class LeaveService {
     @InjectRepository(User)
     private userRepo: Repository<User>,
     @InjectRepository(Employee)
-    private readonly employeeRepo: Repository<Employee> 
+    private readonly employeeRepo: Repository<Employee>,
+    @InjectRepository(LeaveType)
+    private readonly leaveTypeRepo: Repository<LeaveType>
   ) {}
 
-  async createLeave(user_id: string, dto: CreateLeaveDto): Promise<Leave> {
-    const leave = this.leaveRepo.create({ ...dto, user_id });
+  async createLeave(employeeId: string, tenantId: string, dto: CreateLeaveDto): Promise<Leave> {
+    // Verify leave type exists and belongs to tenant
+    const leaveType = await this.leaveTypeRepo.findOne({
+      where: { id: dto.leaveTypeId, tenantId, status: 'active' }
+    });
+
+    if (!leaveType) {
+      throw new NotFoundException('Leave type not found');
+    }
+
+    // Calculate total days
+    const startDate = new Date(dto.startDate);
+    const endDate = new Date(dto.endDate);
+    const totalDays = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+    // Check if employee has enough leave balance
+    const usedDays = await this.getUsedLeaveDays(employeeId, dto.leaveTypeId);
+    const availableDays = leaveType.maxDaysPerYear - usedDays;
+
+    if (totalDays > availableDays) {
+      throw new ForbiddenException(`Insufficient leave balance. Available: ${availableDays} days, Requested: ${totalDays} days`);
+    }
+
+    const leave = this.leaveRepo.create({
+      employeeId,
+      leaveTypeId: dto.leaveTypeId,
+      startDate: new Date(dto.startDate),
+      endDate: new Date(dto.endDate),
+      totalDays,
+      reason: dto.reason,
+      tenantId,
+    });
+
     return await this.leaveRepo.save(leave);
+  }
+
+  private async getUsedLeaveDays(employeeId: string, leaveTypeId: string): Promise<number> {
+    const currentYear = new Date().getFullYear();
+    const startOfYear = new Date(currentYear, 0, 1);
+    const endOfYear = new Date(currentYear, 11, 31);
+
+    const leaves = await this.leaveRepo.find({
+      where: {
+        employeeId,
+        leaveTypeId,
+        status: In([LeaveStatus.APPROVED, LeaveStatus.PENDING]),
+        startDate: Between(startOfYear, endOfYear)
+      }
+    });
+
+    return leaves.reduce((total, leave) => total + leave.totalDays, 0);
   }
 
   // Helper method to calculate leaves taken in the last 12 months
@@ -32,20 +83,16 @@ export class LeaveService {
     
     // Get all APPROVED leaves for user within the range
     const leaves = await this.leaveRepo.createQueryBuilder('leave')
-      .where('leave.user_id = :user_id', { user_id })
+      .where('leave.employeeId = :user_id', { user_id })
       .andWhere('leave.status = :status', { status: LeaveStatus.APPROVED })
-      .andWhere('leave.from_date >= :start', { start: twelveMonthsAgo })
-      .andWhere('leave.from_date <= :end', { end: now })
+      .andWhere('leave.startDate >= :start', { start: twelveMonthsAgo })
+      .andWhere('leave.startDate <= :end', { end: now })
       .getMany();
 
     // Sum the leave days
     let totalDays = 0;
     for (const leave of leaves) {
-      const from = new Date(leave.from_date);
-      const to = new Date(leave.to_date);
-      // Add 1 to include both from_date and to_date (inclusive dates)
-      const days = Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-      totalDays += days;
+      totalDays += leave.totalDays;
     }
     return totalDays;
   }
@@ -66,10 +113,10 @@ export class LeaveService {
     const skip = (page - 1) * limit;
     let query = this.leaveRepo.createQueryBuilder('leave');
     if (user_id) {
-      query = query.where('leave.user_id = :user_id', { user_id });
+      query = query.where('leave.employeeId = :user_id', { user_id });
     }
     const [items, total] = await query
-      .orderBy('leave.created_at', 'DESC')
+      .orderBy('leave.createdAt', 'DESC')
       .skip(skip)
       .take(limit)
       .getManyAndCount();
@@ -94,7 +141,8 @@ export class LeaveService {
 
   async getAllLeaves(
     tenantId: string,
-    page: number = 1
+    page: number = 1,
+    status?: string
   ): Promise<{
     items: Leave[];
     total: number;
@@ -104,15 +152,21 @@ export class LeaveService {
   }> {
     const limit = 10;
     const skip = (page - 1) * limit;
+    
+    const whereConditions: any = {
+      tenantId,
+    };
+
+    if (status) {
+      whereConditions.status = status;
+    } else {
+      whereConditions.status = In([LeaveStatus.PENDING, LeaveStatus.APPROVED, LeaveStatus.REJECTED]);
+    }
+
     const [items, total] = await this.leaveRepo.findAndCount({
-      where: {
-        user: {
-          tenant_id: tenantId,
-        },
-        status: In([LeaveStatus.PENDING, LeaveStatus.APPROVED, LeaveStatus.REJECTED]), 
-      },
-      relations: ['user'],
-      order: { created_at: 'DESC' },
+      where: whereConditions,
+      relations: ['employee', 'leaveType', 'approver'],
+      order: { createdAt: 'DESC' },
       skip,
       take: limit,
     });
@@ -126,37 +180,94 @@ export class LeaveService {
     };
   }
 
-  async updateStatus(id: string, status: LeaveStatus, adminTenantId: string): Promise<Leave> {
-    const leave = await this.leaveRepo.findOne({ where: { id }, relations: ['user'] });
+  async getLeaveById(id: string, employeeId: string, tenantId: string): Promise<Leave> {
+    const leave = await this.leaveRepo.findOne({
+      where: { id, tenantId },
+      relations: ['employee', 'leaveType', 'approver'],
+    });
 
-    if (!leave) throw new NotFoundException('Leave not found');
-
-    if (leave.user.tenant_id !== adminTenantId) {
-      throw new ForbiddenException('Access denied');
+    if (!leave) {
+      throw new NotFoundException('Leave not found');
     }
 
-    leave.status = status;
+    // Check if user can access this leave (own leave or admin)
+    if (leave.employeeId !== employeeId) {
+      // Check if user is admin/manager
+      const user = await this.userRepo.findOne({ where: { id: employeeId } });
+      if (!user || !['admin', 'system-admin', 'hr-admin', 'manager'].includes(user.role as unknown as string)) {
+        throw new ForbiddenException('Access denied');
+      }
+    }
+
+    return leave;
+  }
+
+  async approveLeave(id: string, approverId: string, tenantId: string, remarks?: string): Promise<Leave> {
+    const leave = await this.leaveRepo.findOne({
+      where: { id, tenantId },
+      relations: ['employee'],
+    });
+
+    if (!leave) {
+      throw new NotFoundException('Leave not found');
+    }
+
+    if (leave.status !== LeaveStatus.PENDING) {
+      throw new ForbiddenException('Only pending leaves can be approved');
+    }
+
+    leave.status = LeaveStatus.APPROVED;
+    leave.approvedBy = approverId;
+    leave.approvedAt = new Date();
+    leave.remarks = remarks || '';
+
     return await this.leaveRepo.save(leave);
   }
 
-  async withdrawLeave(id: string, userId: string): Promise<Leave> {
-    const leave = await this.leaveRepo.findOne({ where: { id } });
+  async rejectLeave(id: string, approverId: string, tenantId: string, remarks?: string): Promise<Leave> {
+    const leave = await this.leaveRepo.findOne({
+      where: { id, tenantId },
+      relations: ['employee'],
+    });
 
-    if (!leave) throw new NotFoundException('Leave not found');
-
-    
-    if (leave.user_id !== userId) {
-      throw new ForbiddenException('You can only withdraw your own leave requests');
+    if (!leave) {
+      throw new NotFoundException('Leave not found');
     }
 
-  
     if (leave.status !== LeaveStatus.PENDING) {
-      throw new ForbiddenException('You can only withdraw pending leave requests');
+      throw new ForbiddenException('Only pending leaves can be rejected');
+    }
+
+    leave.status = LeaveStatus.REJECTED;
+    leave.approvedBy = approverId;
+    leave.approvedAt = new Date();
+    leave.remarks = remarks || '';
+
+    return await this.leaveRepo.save(leave);
+  }
+
+  async cancelLeave(id: string, employeeId: string): Promise<Leave> {
+    const leave = await this.leaveRepo.findOne({
+      where: { id },
+    });
+
+    if (!leave) {
+      throw new NotFoundException('Leave not found');
+    }
+
+    if (leave.employeeId !== employeeId) {
+      throw new ForbiddenException('You can only cancel your own leave requests');
+    }
+
+    if (leave.status !== LeaveStatus.PENDING) {
+      throw new ForbiddenException('You can only cancel pending leave requests');
     }
 
     leave.status = LeaveStatus.CANCELLED;
     return await this.leaveRepo.save(leave);
   }
+
+
   
   async getTotalLeavesForCurrentMonth(tenantId: string): Promise<{ totalLeaves: number }> {
     const now = new Date();
@@ -167,9 +278,8 @@ export class LeaveService {
 
     const leavesCount = await this.leaveRepo
       .createQueryBuilder('leave')
-      .leftJoin('leave.user', 'user')
-      .where('user.tenant_id = :tenantId', { tenantId })
-      .andWhere('leave.created_at >= :startOfMonth AND leave.created_at <= :endOfMonth', {
+      .where('leave.tenantId = :tenantId', { tenantId })
+      .andWhere('leave.createdAt >= :startOfMonth AND leave.createdAt <= :endOfMonth', {
         startOfMonth,
         endOfMonth,
       })
@@ -236,11 +346,11 @@ export class LeaveService {
     
     const [items, total] = await this.leaveRepo.findAndCount({
       where: {
-        user_id: In(userIds),
+        employeeId: In(userIds),
         status: In([LeaveStatus.PENDING, LeaveStatus.APPROVED, LeaveStatus.REJECTED]),
       },
-      relations: ['user'],
-      order: { created_at: 'DESC' },
+      relations: ['employee', 'leaveType', 'approver'],
+      order: { createdAt: 'DESC' },
       skip,
       take: limit,
     });
@@ -302,16 +412,16 @@ export class LeaveService {
   
     const leaveApplications = await this.leaveRepo
       .createQueryBuilder('leave')
-      .where('leave.user_id IN (:...userIds)', { userIds: teamMemberUserIds })
+      .where('leave.employeeId IN (:...userIds)', { userIds: teamMemberUserIds })
       .andWhere('leave.status IN (:...statuses)', { statuses: [LeaveStatus.PENDING, LeaveStatus.APPROVED, LeaveStatus.REJECTED] })
-      .select(['leave.user_id', 'COUNT(leave.id) as totalApplications'])
-      .groupBy('leave.user_id')
+      .select(['leave.employeeId', 'COUNT(leave.id) as totalApplications'])
+      .groupBy('leave.employeeId')
       .getRawMany();
 
     
     const leaveCountMap = new Map();
     leaveApplications.forEach((item) => {
-      leaveCountMap.set(item.leave_user_id, parseInt(item.totalapplications));
+      leaveCountMap.set(item.leave_employeeId, parseInt(item.totalapplications));
     });
 
   
