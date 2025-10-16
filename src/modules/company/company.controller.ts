@@ -1,4 +1,3 @@
-
 import {
   Controller,
   Get,
@@ -144,4 +143,3 @@ export class CompanyController {
     );
   }
 }
-

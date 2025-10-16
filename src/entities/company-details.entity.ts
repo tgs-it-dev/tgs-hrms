@@ -59,5 +59,4 @@ export class CompanyDetails {
 
   @UpdateDateColumn()
   updated_at: Date;
-
 }

@@ -16,7 +16,6 @@ export class InviteStatusService {
     private readonly userRepo: Repository<User>,
   ) {}
 
-
   async updateInviteStatusOnLogin(userId: string): Promise<void> {
     try {
       const employee = await this.employeeRepo.findOne({

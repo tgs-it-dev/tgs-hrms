@@ -108,7 +108,7 @@ export class UserService {
     const user = await this.findOne(userId, tenantId, userId);
     if (user.profile_pic) {
       await this.fileUploadService.deleteProfilePicture(user.profile_pic);
-      user.profile_pic = null;
+      user.profile_pic = "";
       return this.userRepo.save(user);
     }
     return user;

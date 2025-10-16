@@ -30,9 +30,11 @@ import { SubscriptionModule } from './modules/subscription/subscription.module';
 import { CompanyModule } from './modules/company/company.module';
 import { AssetModule } from './modules/asset/asset.module';
 import { AssetRequestModule } from './modules/asset-request/asset-request.module';
-
+import { BenefitsModule } from "./modules/benefits/benefits.module";
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
+
     ConfigModule.forRoot({ isGlobal: true }),
     MiddlewareConfigModule,
     EmailModule,
@@ -142,6 +144,7 @@ import { AssetRequestModule } from './modules/asset-request/asset-request.module
     CompanyModule,
     AssetModule,
     AssetRequestModule,
+    BenefitsModule
   ],
 })
 export class AppModule {}

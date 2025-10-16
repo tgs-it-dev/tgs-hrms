@@ -365,7 +365,6 @@ export class TeamService {
   }> {
     const limit = 25;
     const skip = (page - 1) * limit;
-
     const [items, total] = await this.employeeRepo.findAndCount({
       where: {
         team_id: teamId,
