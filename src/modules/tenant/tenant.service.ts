@@ -4,18 +4,17 @@ import { Repository } from 'typeorm';
 import { Tenant } from '../../entities/tenant.entity';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
+import { PaginationResponse } from '../../common/interfaces/pagination.interface';
 
 @Injectable()
 export class TenantService {
   constructor(
     @InjectRepository(Tenant)
-    private readonly tenantRepo: Repository<Tenant>,
+    private readonly tenantRepo: Repository<Tenant>
   ) {}
 
-  async findAll(page: number = 1): Promise<Tenant[]> {
-    const limit = 25;
-    const skip = (page - 1) * limit;
-    return this.tenantRepo.find({ skip, take: limit });
+  async findAll(): Promise<Tenant[]> {
+    return this.tenantRepo.find();
   }
 
   async findOne(id: string): Promise<Tenant> {

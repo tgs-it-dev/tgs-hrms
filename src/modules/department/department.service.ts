@@ -9,12 +9,13 @@ import { Repository, QueryFailedError } from 'typeorm';
 import { Department } from '../../entities/department.entity';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
-
+import { PaginationResponse } from '../../common/interfaces/pagination.interface';
+const GLOBAL = '00000000-0000-0000-0000-000000000000';
 @Injectable()
 export class DepartmentService {
   constructor(
     @InjectRepository(Department)
-    private repo: Repository<Department>,
+    private repo: Repository<Department>
   ) {}
 
   async create(tenant_id: string, dto: CreateDepartmentDto) {
@@ -23,24 +24,21 @@ export class DepartmentService {
     });
 
     if (existing) {
-      throw new ConflictException(
-        `Department '${dto.name}' already exists in your company.`,
-      );
+      throw new ConflictException(`Department '${dto.name}' already exists in your company.`);
     }
 
     try {
       const department = this.repo.create({
-        ...dto,
+        name: dto.name,
+        description: dto.description || null, 
         tenant_id,
-        tenant: { id: tenant_id } as any, // attach tenant relation
+        tenant: { id: tenant_id } as any, 
       });
 
       return await this.repo.save(department);
     } catch (err) {
       if (err instanceof QueryFailedError && (err as any).code === '23505') {
-        throw new ConflictException(
-          'Department name must be unique within your company',
-        );
+        throw new ConflictException('Department name must be unique within your company');
       }
       if (err instanceof QueryFailedError && (err as any).code === '23502') {
         throw new BadRequestException('Department name is required.');
@@ -50,10 +48,20 @@ export class DepartmentService {
   }
 
   async update(tenant_id: string, id: string, dto: UpdateDepartmentDto) {
-    const department = await this.repo.findOneBy({ id, tenant_id });
+    const department = await this.repo.findOne({ where: { id } });
 
     if (!department) {
       throw new NotFoundException('Department not found.');
+    }
+
+  
+    if (department.tenant_id === GLOBAL) {
+      throw new BadRequestException('Global departments cannot be modified. They are provided as reference templates for your organization.');
+    }
+
+  
+    if (department.tenant_id !== tenant_id) {
+      throw new BadRequestException('Department does not belong to your organization');
     }
 
     if (dto.name && dto.name !== department.name) {
@@ -63,49 +71,100 @@ export class DepartmentService {
 
       if (existing && existing.id !== id) {
         throw new ConflictException(
-          `Department name '${dto.name}' already exists for this tenant.`,
+          `Department name '${dto.name}' already exists for this tenant.`
         );
       }
     }
 
-    Object.assign(department, dto);
+    if (dto.description !== undefined) {
+      department.description =
+        dto.description === '' || dto.description === null ? null : dto.description;
+    }
+
+    
+    if (dto.name !== undefined) {
+      department.name = dto.name;
+    }
 
     try {
       return await this.repo.save(department);
     } catch (err) {
       if (err instanceof QueryFailedError && (err as any).code === '23505') {
-        throw new ConflictException(
-          'Department name must be unique within your company',
-        );
+        throw new ConflictException('Department name must be unique within your company');
       }
       throw err;
     }
   }
 
-  async findAll(tenant_id: string, page: number = 1) {
-    const limit = 25;
-    const skip = (page - 1) * limit;
-    return this.repo.find({
-      where: { tenant_id },
-      order: { created_at: 'DESC' },
-      skip,
-      take: limit,
-    });
+  
+  async findAll(tenant_id: string) {
+    return this.repo.createQueryBuilder('dept')
+      .where('dept.tenant_id IN (:...tenants)', { tenants: [GLOBAL, tenant_id] })
+      .orderBy('dept.name', 'ASC')
+      .getMany();
   }
 
+
   async findOne(tenant_id: string, id: string) {
-    const dept = await this.repo.findOne({ where: { id, tenant_id } });
+    const dept = await this.repo.findOne({ where: { id } });
 
     if (!dept) {
       throw new NotFoundException('Department not found');
+    }
+
+    
+    if (dept.tenant_id === GLOBAL && dept.tenant_id !== tenant_id) {
+      throw new BadRequestException('This is a global department and cannot be modified. You can only view it as a reference.');
+    }
+
+
+    if (dept.tenant_id !== GLOBAL && dept.tenant_id !== tenant_id) {
+      throw new BadRequestException('Department does not belong to your organization');
     }
 
     return dept;
   }
 
   async remove(tenant_id: string, id: string): Promise<{ deleted: true; id: string }> {
-    await this.findOne(tenant_id, id);
-    await this.repo.delete({ id, tenant_id });
-    return { deleted: true, id };
+    const dept = await this.repo.findOne({ 
+      where: { id }, 
+      relations: ['designations'] 
+    });
+
+    if (!dept) {
+      throw new NotFoundException('Department not found');
+    }
+
+  
+    if (dept.tenant_id === GLOBAL) {
+      throw new BadRequestException('Global departments cannot be deleted. They are provided as reference templates for your organization.');
+    }
+
+  
+    if (dept.tenant_id !== tenant_id) {
+      throw new BadRequestException('Department does not belong to your organization');
+    }
+
+    
+    if (dept.designations && dept.designations.length > 0) {
+      throw new BadRequestException(
+        `Cannot delete department "${dept.name}" because it contains ${dept.designations.length} designation(s). Please delete all designations first, or reassign employees to other designations.`
+      );
+    }
+
+    try {
+      await this.repo.delete({ id, tenant_id });
+      return { deleted: true, id };
+    } catch (err) {
+      if (err instanceof QueryFailedError) {
+        const code = (err as any).code;
+        if (code === '23503') { 
+          throw new BadRequestException(
+            'Cannot delete department because it is still being referenced by other records. Please check for any remaining designations or employees.'
+          );
+        }
+      }
+      throw err;
+    }
   }
 }

@@ -1,35 +1,46 @@
-import { Module } from "@nestjs/common";
-import { ConfigModule, ConfigService } from "@nestjs/config";
-import { TypeOrmModule } from "@nestjs/typeorm";
-import { typeOrmConfig } from "./config/typeorm.config";
-import { UserModule } from "./modules/user/user.module";
-import { AuthModule } from "./modules/auth/auth.module";
-import { DepartmentModule } from "./modules/department/department.module";
-import { DesignationModule } from "./modules/designation/designation.module";
-import { EmployeeModule } from "./modules/employee/employee.module";
-import { TenantModule } from "./modules/tenant/tenant.module";
-import { RoleModule } from "./modules/role/role.module";
-import { PermissionModule } from "./modules/permission/permission.module";
-import { ThrottlerModule } from "@nestjs/throttler";
-import { JwtModule } from "@nestjs/jwt";
-import { AppController } from "./app.controller";
-import { AppService } from "./app.service";
-import { AttendanceModule } from "./modules/attendance/attendace.module";
-import { TimesheetModule } from "./modules/timesheet/timesheet.module";
-import { LeaveModule } from "./modules/leave/leave.module";
-import { PolicyModule } from "./modules/policy/policy.module";
 
-// Added imports for mailer
-import { MailerModule } from "@nestjs-modules/mailer";
-import { HandlebarsAdapter } from "@nestjs-modules/mailer/dist/adapters/handlebars.adapter";
-import { join } from "path";
+import { Module, Logger, MiddlewareConsumer, NestModule } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { typeOrmConfig } from './config/typeorm.config';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { JwtModule } from '@nestjs/jwt';
+import { MailerModule } from '@nestjs-modules/mailer';
+import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
+import { ScheduleModule } from '@nestjs/schedule';
+import { join } from 'path';
+import { MiddlewareConfigModule } from './common/middleware/middleware.config';
+import { EmailModule } from './common/utils/email/email.module';
+import { UserModule } from './modules/user/user.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { DepartmentModule } from './modules/department/department.module';
+import { DesignationModule } from './modules/designation/designation.module';
+import { EmployeeModule } from './modules/employee/employee.module';
+import { TenantModule } from './modules/tenant/tenant.module';
+import { RoleModule } from './modules/role/role.module';
+import { PermissionModule } from './modules/permission/permission.module';
+import { AttendanceModule } from './modules/attendance/attendace.module';
+import { TimesheetModule } from './modules/timesheet/timesheet.module';
+import { LeaveModule } from './modules/leave/leave.module';
+import { PolicyModule } from './modules/policy/policy.module';
+import { ReportsModule } from './modules/reports/reports.module';
+import { TeamModule } from './modules/team/team.module';
+import { SignupModule } from './modules/signup/signup.module';
+import { SubscriptionModule } from './modules/subscription/subscription.module';
+import { CompanyModule } from './modules/company/company.module';
+import { AssetModule } from './modules/asset/asset.module';
+import { AssetRequestModule } from './modules/asset-request/asset-request.module';
 import { BenefitsModule } from "./modules/benefits/benefits.module";
-import { ScheduleModule } from "@nestjs/schedule";
 @Module({
   imports: [
     ScheduleModule.forRoot(),
 
     ConfigModule.forRoot({ isGlobal: true }),
+    MiddlewareConfigModule,
+    EmailModule,
+
+    // Schedule module for cron jobs
+    ScheduleModule.forRoot(),
 
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
@@ -41,50 +52,79 @@ import { ScheduleModule } from "@nestjs/schedule";
       throttlers: [{ ttl: 60_000, limit: 5 }],
     }),
 
+    
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: async (config: ConfigService) => {
-        const secret = config.get<string>("JWT_SECRET");
-        if (!secret) throw new Error("JWT_SECRET not found");
-        console.log("JWT_SECRET in AppModule:", secret);
+        const secret = config.get<string>('JWT_SECRET');
+        if (!secret) throw new Error('JWT_SECRET not found');
         return {
           secret,
           signOptions: {
-            expiresIn: config.get<string>("JWT_EXPIRES_IN", "15m"),
+            expiresIn: config.get<string>('JWT_EXPIRES_IN', '24h'),
           },
         };
       },
     }),
 
-    // ✅ Mailer Module configuration
+  
     MailerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (config: ConfigService) => ({
-        transport: {
-          host: config.get<string>("SMTP_HOST"),
-          port: config.get<number>("SMTP_PORT"),
-          secure: false,
-          auth: {
-            user: config.get<string>("SMTP_USER"),
-            pass: config.get<string>("SMTP_PASS"),
+      useFactory: async (config: ConfigService) => {
+        const logger = new Logger('MailerModule');
+        const sendgridApiKey = config.get<string>('SENDGRID_API_KEY');
+        const sendgridFrom = config.get<string>('SENDGRID_FROM');
+
+        
+        if (!sendgridApiKey || !sendgridFrom) {
+          logger.warn('SendGrid configuration incomplete. Using fallback configuration.');
+          logger.warn('Required: SENDGRID_API_KEY, SENDGRID_FROM');
+          
+          
+          return {
+            transport: {
+              service: 'sendgrid',
+              auth: {
+                api_key: 'dummy-key',
+              },
+            },
+            defaults: {
+              from: 'noreply@example.com',
+            },
+            template: {
+              dir: join(process.cwd(), 'src', 'templates'),
+              adapter: new HandlebarsAdapter(),
+              options: {
+                strict: true,
+              },
+            },
+          };
+        }
+
+        return {
+          transport: {
+            service: 'sendgrid',
+            auth: {
+              api_key: sendgridApiKey,
+            },
           },
-        },
-        defaults: {
-          from: config.get<string>("SMTP_FROM"),
-        },
-        template: {
-          dir: join(process.cwd(), "src", "templates"), // works in dev
-          adapter: new HandlebarsAdapter(),
-          options: {
-            strict: true,
+          defaults: {
+            from: sendgridFrom,
           },
-        },
-      }),
+          template: {
+            dir: join(process.cwd(), 'src', 'templates'),
+            adapter: new HandlebarsAdapter(),
+            options: {
+              strict: true,
+            },
+          },
+        };
+      },
     }),
 
-    // Existing modules
+    
     UserModule,
     AuthModule,
     DepartmentModule,
@@ -95,11 +135,16 @@ import { ScheduleModule } from "@nestjs/schedule";
     PermissionModule,
     AttendanceModule,
     TimesheetModule,
-    LeaveModule,
     PolicyModule,
-    BenefitsModule,
+    LeaveModule,
+    ReportsModule,
+    TeamModule,
+    SignupModule,
+    SubscriptionModule,
+    CompanyModule,
+    AssetModule,
+    AssetRequestModule,
+    BenefitsModule
   ],
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}

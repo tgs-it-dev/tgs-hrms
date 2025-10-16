@@ -8,6 +8,7 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { User } from './user.entity';
+import { AttendanceType } from '../common/constants/enums';
 
 @Entity('attendance')
 export class Attendance {
@@ -22,12 +23,11 @@ export class Attendance {
   user: User;
 
   @Column({ type: 'varchar', length: 20 })
-  type: 'check-in' | 'check-out';
+  type: AttendanceType;
 
   @Column({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
   timestamp: Date;
 
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
-
 }

@@ -7,12 +7,23 @@ import {
   ManyToOne,
   JoinColumn,
   OneToMany,
-} from "typeorm";
-import { Tenant } from "./tenant.entity";
-import { Role } from "./role.entity";
-import { Employee } from "./employee.entity";
-import { Attendance } from "./attendance.entity"; // ✅ Add this if not already
-import { Team } from "./team.entity";
+} from 'typeorm';
+import { Tenant } from './tenant.entity';
+import { Role } from './role.entity';
+import { Employee } from './employee.entity';
+import { Attendance } from './attendance.entity';
+import { Team } from './team.entity';
+import { UserGender } from '../common/constants/enums';
+
+export enum UserRole {
+  ADMIN = 'admin',
+  USER = 'user',
+  MANAGER = 'manager',
+  HR = 'hr',
+  SYSTEM_ADMIN = 'system-admin',
+  NETWORK_ADMIN = 'network-admin',
+  HR_ADMIN = 'hr-admin',
+}
 
 @Entity("users")
 export class User {
@@ -40,8 +51,8 @@ export class User {
   @Column({ type: "uuid" })
   role_id: string;
 
-  @Column({ type: "varchar", length: 10, nullable: true })
-  gender: "male" | "female" | null; // Gender field, nullable
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  gender: UserGender | null;
 
   @Column({ type: "uuid" })
   tenant_id: string;
@@ -66,18 +77,19 @@ export class User {
   @OneToMany(() => Employee, (employee) => employee.user)
   employees: Employee[];
 
-  @OneToMany(() => Attendance, (attendance) => attendance.user) // ✅ Add this
+  @OneToMany(() => Attendance, (attendance) => attendance.user)
   attendances: Attendance[];
 
   @OneToMany(() => Team, (team) => team.manager)
   managedTeams: Team[];
 
-  @Column({ type: "text", nullable: true })
-  refresh_token: string;
+  @Column({ type: 'text', nullable: true })
+  refresh_token: string | null;
 
   @Column({ type: "text", nullable: true })
   reset_token: string | null;
 
   @Column({ type: "timestamptz", nullable: true })
   reset_token_expiry: Date | null;
+
 }

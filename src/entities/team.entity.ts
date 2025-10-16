@@ -6,30 +6,30 @@ import {
   ManyToOne,
   JoinColumn,
   OneToMany,
-} from "typeorm";
-import { User } from "./user.entity";
-import { Employee } from "./employee.entity";
+} from 'typeorm';
+import { User } from './user.entity';
+import { Employee } from './employee.entity';
 
-@Entity("teams")
+@Entity('teams')
 export class Team {
-  @PrimaryGeneratedColumn("uuid")
+  @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: "varchar" })
+  @Column({ type: 'varchar' })
   name: string;
 
-  @Column({ type: "text", nullable: true })
+  @Column({ type: 'text', nullable: true })
   description: string;
 
-  @Column({ type: "uuid" })
+  @Column({ type: 'uuid' })
   manager_id: string;
 
   @CreateDateColumn()
   created_at: Date;
 
-  // Relationships
+  
   @ManyToOne(() => User, (user) => user.managedTeams, { nullable: false })
-  @JoinColumn({ name: "manager_id" })
+  @JoinColumn({ name: 'manager_id' })
   manager: User;
 
   @OneToMany(() => Employee, (employee) => employee.team)

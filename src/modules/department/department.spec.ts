@@ -14,16 +14,15 @@ describe('DepartmentService', () => {
 
   const mockDepartment: Department = {
     id: deptId,
-    tenantId,
+    tenant_id: tenantId,
     name: 'Operations',
     description: 'Engineering dept',
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    created_at: new Date(),
     tenant: {
       id: tenantId,
       name: 'Mock Tenant',
     } as any,
-    designations: [], 
+    designations: [],
   };
 
   beforeEach(async () => {
@@ -65,7 +64,7 @@ describe('DepartmentService', () => {
     jest.spyOn(repo, 'findOne').mockResolvedValue(mockDepartment);
 
     await expect(
-      service.create(tenantId, { name: 'Engineering', description: '' }),
+      service.create(tenantId, { name: 'Engineering', description: '' })
     ).rejects.toThrow(ConflictException);
   });
 
@@ -92,32 +91,31 @@ describe('DepartmentService', () => {
   it('should throw ConflictException when updating to name used by another department', async () => {
     const anotherDepartment: Department = {
       id: 'other-id',
-      tenantId,
+      tenant_id: tenantId,
       name: 'Engineering',
       description: 'Duplicate name',
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      created_at: new Date(),
       tenant: {
         id: tenantId,
         name: 'Mock Tenant',
       } as any,
-      designations: [], 
+      designations: [],
     };
 
     jest.spyOn(repo, 'findOneBy').mockResolvedValue(mockDepartment);
     jest.spyOn(repo, 'findOne').mockResolvedValue(anotherDepartment);
 
-    await expect(
-      service.update(tenantId, deptId, { name: 'Engineering' }),
-    ).rejects.toThrow(ConflictException);
+    await expect(service.update(tenantId, deptId, { name: 'Engineering' })).rejects.toThrow(
+      ConflictException
+    );
   });
 
   it('should throw NotFoundException when updating non-existent department', async () => {
     jest.spyOn(repo, 'findOneBy').mockResolvedValue(null);
 
-    await expect(
-      service.update(tenantId, 'non-existent-id', { name: 'New Name' }),
-    ).rejects.toThrow(NotFoundException);
+    await expect(service.update(tenantId, 'non-existent-id', { name: 'New Name' })).rejects.toThrow(
+      NotFoundException
+    );
   });
 
   it('should delete department successfully', async () => {

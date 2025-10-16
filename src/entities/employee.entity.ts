@@ -7,10 +7,12 @@ import {
   JoinColumn,
   OneToMany,
 } from "typeorm";
-import { User } from "./user.entity";
-import { Designation } from "./designation.entity";
+
 import { EmployeeBenefit } from "./employee-benefit.entity";
-import { Team } from "./team.entity";
+import { User } from './user.entity';
+import { Designation } from './designation.entity';
+import { Team } from './team.entity';
+import { EmployeeStatus, InviteStatus } from '../common/constants/enums';
 
 @Entity("employees")
 export class Employee {
@@ -23,20 +25,18 @@ export class Employee {
   @Column({ type: "uuid" })
   designation_id: string;
 
-  @Column({ type: "uuid" })
+  @Column({ type: 'varchar', length: 20, default: EmployeeStatus.ACTIVE })
+  status: EmployeeStatus;
+
+  @Column({ type: 'varchar', length: 20, nullable:false, default: InviteStatus.INVITE_SENT })
+  invite_status: InviteStatus;
+
+  @Column({ type: 'uuid', nullable: true })
   team_id: string | null;
 
   @CreateDateColumn()
   created_at: Date;
-
-  @Column({
-    type: "varchar",
-    length: 20,
-    nullable: false,
-    default: "Invite Sent",
-  })
-  invite_status: string;
-
+  
   @ManyToOne(() => User, (user) => user.employees, { nullable: false })
   @JoinColumn({ name: "user_id" })
   user: User;

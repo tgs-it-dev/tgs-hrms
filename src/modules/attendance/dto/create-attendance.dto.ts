@@ -1,8 +1,9 @@
 import { IsEnum, IsOptional, IsDateString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { AttendanceType } from '../../../common/constants/enums';
 
 export class CreateAttendanceDto {
-  @ApiProperty({ enum: ['check-in', 'check-out'] })
-  @IsEnum(['check-in', 'check-out'])
-  type: 'check-in' | 'check-out';
+  @ApiProperty({ enum: [AttendanceType.CHECK_IN, AttendanceType.CHECK_OUT] })
+  @IsEnum(AttendanceType)
+  type: AttendanceType;
 }

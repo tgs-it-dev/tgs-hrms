@@ -3,16 +3,16 @@ import {
   NotFoundException,
   ForbiddenException,
   Logger,
-} from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
-import { CompanyDetails } from "../../entities/company-details.entity";
-import { Tenant } from "../../entities/tenant.entity";
-import { UpdateCompanyDto } from "./dto/update-company.dto";
-import { CompanyResponseDto } from "./dto/company-response.dto";
-import * as fs from "fs";
-import * as path from "path";
-import { createReadStream, statSync, existsSync } from "fs";
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { CompanyDetails } from '../../entities/company-details.entity';
+import { Tenant } from '../../entities/tenant.entity';
+import { UpdateCompanyDto } from './dto/update-company.dto';
+import { CompanyResponseDto } from './dto/company-response.dto';
+import * as fs from 'fs';
+import * as path from 'path';
+import { createReadStream, statSync, existsSync } from 'fs';
 
 @Injectable()
 export class CompanyService {
@@ -31,16 +31,16 @@ export class CompanyService {
     const company = await this.companyDetailsRepo.findOne({
       where: { tenant_id: tenantId },
     });
-    this.logger.log(
-      `Fetched logo_url from DB for tenant ${tenantId}: ${company?.logo_url}`,
-    );
+    this.logger.log(`Fetched logo_url from DB for tenant ${tenantId}: ${company?.logo_url}`);
 
     if (!company) {
-      throw new NotFoundException("Company details not found");
+      throw new NotFoundException('Company details not found');
     }
 
     if (!company.tenant_id) {
-      throw new NotFoundException("Company is not associated with any tenant");
+      throw new NotFoundException(
+        'Company is not associated with any tenant',
+      );
     }
 
     return {
@@ -65,9 +65,9 @@ export class CompanyService {
       `Updating company details for tenant: ${tenantId}, role: ${userRole}`,
     );
 
-    if (userRole !== "admin" && userRole !== "system-admin") {
+    if (userRole !== 'admin' && userRole !== 'system-admin') {
       throw new ForbiddenException(
-        "Only admin users can update company details",
+        'Only admin users can update company details',
       );
     }
 
@@ -76,7 +76,7 @@ export class CompanyService {
     });
 
     if (!company) {
-      throw new NotFoundException("Company details not found");
+      throw new NotFoundException('Company details not found');
     }
 
     company.company_name = updateDto.company_name;
@@ -97,7 +97,9 @@ export class CompanyService {
     }
 
     if (!updatedCompany.tenant_id) {
-      throw new NotFoundException("Company is not associated with any tenant");
+      throw new NotFoundException(
+        'Company is not associated with any tenant',
+      );
     }
 
     return {
@@ -122,8 +124,10 @@ export class CompanyService {
       `Updating company logo for tenant: ${tenantId}, role: ${userRole}`,
     );
 
-    if (userRole !== "admin" && userRole !== "system-admin") {
-      throw new ForbiddenException("Only admin users can update company logo");
+    if (userRole !== 'admin' && userRole !== 'system-admin') {
+      throw new ForbiddenException(
+        'Only admin users can update company logo',
+      );
     }
 
     const company = await this.companyDetailsRepo.findOne({
@@ -131,15 +135,15 @@ export class CompanyService {
     });
 
     if (!company) {
-      throw new NotFoundException("Company details not found");
+      throw new NotFoundException('Company details not found');
     }
 
-    const uploadsDir = path.join(process.cwd(), "public", "company-logos");
+    const uploadsDir = path.join(process.cwd(), 'public', 'company-logos');
     if (!fs.existsSync(uploadsDir)) {
       await fs.promises.mkdir(uploadsDir, { recursive: true });
     }
 
-    // unique filename
+  
     const timestamp = Date.now();
     const randomNum = Math.floor(Math.random() * 1000000000);
     const fileExtension = path.extname(file.originalname);
@@ -148,9 +152,9 @@ export class CompanyService {
 
     await fs.promises.writeFile(filePath, file.buffer);
 
-    // delete old logo safely
+  
     if (company.logo_url) {
-      const oldFileName = company.logo_url.split("/").pop()?.split("?")[0];
+      const oldFileName = company.logo_url.split('/').pop()?.split('?')[0];
       if (oldFileName) {
         const oldFilePath = path.join(uploadsDir, oldFileName);
         try {
@@ -164,14 +168,16 @@ export class CompanyService {
       }
     }
 
-    // add cache-busting param
+  
     const logoUrl = `/company-logos/${fileName}?v=${Date.now()}`;
     company.logo_url = logoUrl;
 
     const updatedCompany = await this.companyDetailsRepo.save(company);
 
     if (!updatedCompany.tenant_id) {
-      throw new NotFoundException("Company is not associated with any tenant");
+      throw new NotFoundException(
+        'Company is not associated with any tenant',
+      );
     }
 
     this.logger.log(
@@ -191,7 +197,9 @@ export class CompanyService {
     };
   }
 
-  async getCompanyLogoStream(tenantId: string): Promise<{
+  async getCompanyLogoStream(
+    tenantId: string,
+  ): Promise<{
     fileStream: fs.ReadStream | null;
     contentType: string;
     fileSize: number;
@@ -203,37 +211,37 @@ export class CompanyService {
     });
 
     if (!company || !company.logo_url) {
-      return { fileStream: null, contentType: "image/jpeg", fileSize: 0 };
+      return { fileStream: null, contentType: 'image/jpeg', fileSize: 0 };
     }
 
-    const uploadsDir = path.join(process.cwd(), "public", "company-logos");
-    const fileName = company.logo_url.split("/").pop()?.split("?")[0]; // ignore ?v=
+    const uploadsDir = path.join(process.cwd(), 'public', 'company-logos');
+    const fileName = company.logo_url.split('/').pop()?.split('?')[0]; 
     if (!fileName) {
-      return { fileStream: null, contentType: "image/jpeg", fileSize: 0 };
+      return { fileStream: null, contentType: 'image/jpeg', fileSize: 0 };
     }
 
     const filePath = path.join(uploadsDir, fileName);
     if (!existsSync(filePath)) {
-      return { fileStream: null, contentType: "image/jpeg", fileSize: 0 };
+      return { fileStream: null, contentType: 'image/jpeg', fileSize: 0 };
     }
 
     const stats = statSync(filePath);
     const ext = path.extname(filePath).toLowerCase();
-    let contentType = "image/jpeg";
+    let contentType = 'image/jpeg';
 
     switch (ext) {
-      case ".png":
-        contentType = "image/png";
+      case '.png':
+        contentType = 'image/png';
         break;
-      case ".gif":
-        contentType = "image/gif";
+      case '.gif':
+        contentType = 'image/gif';
         break;
-      case ".jpg":
-      case ".jpeg":
-        contentType = "image/jpeg";
+      case '.jpg':
+      case '.jpeg':
+        contentType = 'image/jpeg';
         break;
-      case ".webp":
-        contentType = "image/webp";
+      case '.webp':
+        contentType = 'image/webp';
         break;
     }
 

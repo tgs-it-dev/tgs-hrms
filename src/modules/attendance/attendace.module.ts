@@ -4,9 +4,11 @@ import { Attendance } from '../../entities/attendance.entity';
 import { AttendanceService } from './attendance.service';
 import { AttendanceController } from './attendance.controller';
 import { TimesheetModule } from '../timesheet/timesheet.module';
+import { Employee } from 'src/entities/employee.entity';
+import { SharedJwtModule } from '../../common/modules/jwt.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Attendance]), TimesheetModule],
+  imports: [TypeOrmModule.forFeature([Attendance, Employee]), TimesheetModule, SharedJwtModule],
   controllers: [AttendanceController],
   providers: [AttendanceService],
   exports: [AttendanceService],

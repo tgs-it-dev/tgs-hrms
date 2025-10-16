@@ -4,20 +4,20 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
-} from "typeorm";
+} from 'typeorm';
 
-@Entity("subscription_plans")
+@Entity('subscription_plans')
 export class SubscriptionPlan {
-  @PrimaryGeneratedColumn("uuid")
+  @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: "varchar", length: 100 })
+  @Column({ type: 'varchar', length: 100 })
   name: string;
 
-  @Column({ type: "varchar", length: 200 })
+  @Column({ type: 'varchar', length: 200 })
   stripePriceId: string;
 
-  @Column({ type: "text", nullable: true })
+  @Column({ type: 'text', nullable: true })
   description: string | null;
 
   @CreateDateColumn()

@@ -18,8 +18,8 @@ export class Department {
   @Column({ type: 'varchar' })
   name: string;
 
-  @Column({ type: 'text' })
-  description: string;
+  @Column({ type: 'text', nullable: true })
+  description: string | null;
 
   @Column({ type: 'uuid' })
   tenant_id: string;

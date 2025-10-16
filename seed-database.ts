@@ -1,36 +1,39 @@
-import { DataSource } from "typeorm";
-import { config } from "dotenv";
-import { seedRolesAndPermissions } from "./src/common/seeders/seed-roles-and-permissions";
+import { DataSource } from 'typeorm';
+import { config } from 'dotenv';
+import { seedRolesAndPermissions } from './src/common/seeders/seed-roles-and-permissions';
+import { Logger } from '@nestjs/common';
 
 // Load environment variables
 config();
 
+const logger = new Logger('DatabaseSeeder');
+
 async function runSeeder() {
   const dataSource = new DataSource({
-    type: "postgres",
-    host: process.env.DB_HOST || "localhost",
-    port: parseInt(process.env.DB_PORT || "5432"),
-    username: process.env.DB_USER || "postgres",
-    password: process.env.DB_PASS || "password",
-    database: process.env.DB_NAME || "tgs_hrms",
-    entities: ["src/**/*.entity.ts"],
-    migrations: ["src/migrations/*.ts"],
+    type: 'postgres',
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '5432'),
+    username: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASS || 'password',
+    database: process.env.DB_NAME || 'tgs_hrms',
+    entities: ['src/**/*.entity.ts'],
+    migrations: ['src/migrations/*.ts'],
     synchronize: false,
     logging: true,
   });
 
   try {
     await dataSource.initialize();
-    console.log("Database connection established");
-
+    logger.log('Database connection established');
+    
     await seedRolesAndPermissions(dataSource);
-    console.log("Seeding completed successfully");
+    logger.log('Seeding completed successfully');
   } catch (error) {
-    console.error("Seeding failed:", error);
+    logger.error('Seeding failed:', error);
     process.exit(1);
   } finally {
     await dataSource.destroy();
-    console.log("Database connection closed");
+    logger.log('Database connection closed');
   }
 }
 

@@ -1,22 +1,14 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 import { v4 as uuidv4 } from "uuid";
 
-export class AddHrAdminAndNetworkAdminRoles1760000000000
-  implements MigrationInterface
-{
-  name = "AddHrAdminAndNetworkAdminRoles1760000000000";
+export class AddHrAdminAndNetworkAdminRoles1760000000000 implements MigrationInterface {
+  name = 'AddHrAdminAndNetworkAdminRoles1760000000000'
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // 1. Insert only hr-admin and network-admin roles
     const roles = [
-      {
-        name: "hr-admin",
-        description: "HR administrator with employee and attendance management",
-      },
-      {
-        name: "network-admin",
-        description: "Network administrator with same permissions as admin",
-      },
+      { name: "hr-admin", description: "HR administrator with employee and attendance management" },
+      { name: "network-admin", description: "Network administrator with same permissions as admin" },
     ];
 
     for (const role of roles) {
@@ -32,44 +24,20 @@ export class AddHrAdminAndNetworkAdminRoles1760000000000
       {
         role: "hr-admin",
         permissions: [
-          "view_self_attendance",
-          "view_self_leaves",
-          "create_self_timesheet",
-          "view_self_reports",
-          "request_leave",
-          "view_self_schedule",
-          "manage_attendance",
-          "create_self_attendance",
-          "manage_leaves",
+          "view_self_attendance", "view_self_leaves", "create_self_timesheet", "view_self_reports",
+          "request_leave", "view_self_schedule", "manage_attendance", "create_self_attendance",
+          "manage_leaves"
         ],
       },
       {
         role: "network-admin",
         permissions: [
-          "manage_users",
-          "manage_roles",
-          "manage_permissions",
-          "manage_departments",
-          "manage_designations",
-          "manage_policies",
-          "view_reports",
-          "manage_attendance",
-          "manage_leaves",
-          "manage_timesheets",
-          "manage_employees",
-          "approve_leaves",
-          "view_team_reports",
-          "manage_team_schedules",
-          "view_team_attendance",
-          "view_team_timesheets",
-          "manage_team_leaves",
-          "view_self_attendance",
-          "view_self_leaves",
-          "create_self_timesheet",
-          "view_self_reports",
-          "request_leave",
-          "view_self_schedule",
-          "manage_company",
+          "manage_users", "manage_roles", "manage_permissions", "manage_departments",
+          "manage_designations", "manage_policies", "view_reports", "manage_attendance",
+          "manage_leaves", "manage_timesheets", "manage_employees", "approve_leaves",
+          "view_team_reports", "manage_team_schedules", "view_team_attendance", "view_team_timesheets",
+          "manage_team_leaves", "view_self_attendance", "view_self_leaves", "create_self_timesheet",
+          "view_self_reports", "request_leave", "view_self_schedule", "manage_company"
         ],
       },
     ];
@@ -113,10 +81,8 @@ export class AddHrAdminAndNetworkAdminRoles1760000000000
         SELECT id FROM roles WHERE name IN ('hr-admin', 'network-admin')
       )
     `);
-
+    
     // Remove hr-admin and network-admin roles
-    await queryRunner.query(
-      `DELETE FROM roles WHERE name IN ('hr-admin', 'network-admin');`,
-    );
+    await queryRunner.query(`DELETE FROM roles WHERE name IN ('hr-admin', 'network-admin');`);
   }
 }

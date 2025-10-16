@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Employee } from 'src/entities/employee.entity';
 import { Attendance } from 'src/entities/attendance.entity';
+import { AttendanceType } from '../../../common/constants/enums';
 import { Leave } from 'src/entities/leave.entity';
 
 @Injectable()
@@ -15,7 +16,7 @@ export class EmployeeProfileService {
     private readonly attendanceRepo: Repository<Attendance>,
 
     @InjectRepository(Leave)
-    private readonly leaveRepo: Repository<Leave>,
+    private readonly leaveRepo: Repository<Leave>
   ) {}
 
   async getEmployeeProfileByUserId(userId: string) {
@@ -54,6 +55,7 @@ export class EmployeeProfileService {
       department: employee.designation?.department?.name || null,
       joinedAt: employee.created_at,
       attendanceSummary: groupedAttendance,
+      profile_pic: employee.user.profile_pic,
       leaveHistory: leaveHistory.map((leave) => ({
         id: leave.id,
         fromDate: leave.from_date,
@@ -74,17 +76,16 @@ export class EmployeeProfileService {
         grouped[date] = { workedHours: 0 };
       }
 
-      if (record.type === 'check-in') {
+      if (record.type === AttendanceType.CHECK_IN) {
         grouped[date].checkIn = record.timestamp;
-      } else if (record.type === 'check-out') {
+      } else if (record.type === AttendanceType.CHECK_OUT) {
         grouped[date].checkOut = record.timestamp;
       }
 
       if (grouped[date].checkIn && grouped[date].checkOut) {
         const diffMs =
-          new Date(grouped[date].checkOut!).getTime() -
-          new Date(grouped[date].checkIn!).getTime();
-        grouped[date].workedHours = Math.round(diffMs / (1000 * 60 * 60) * 100) / 100;
+          new Date(grouped[date].checkOut!).getTime() - new Date(grouped[date].checkIn!).getTime();
+        grouped[date].workedHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
       }
     }
 

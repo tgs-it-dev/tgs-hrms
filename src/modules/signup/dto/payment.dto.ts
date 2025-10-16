@@ -1,5 +1,5 @@
-import { ApiProperty } from "@nestjs/swagger";
-import { IsEnum, IsNotEmpty, IsString } from "class-validator";
+import { ApiProperty } from '@nestjs/swagger';
+import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
 
 export class PaymentDto {
   @ApiProperty()
@@ -7,7 +7,7 @@ export class PaymentDto {
   @IsNotEmpty()
   signupSessionId: string;
 
-  @ApiProperty({ enum: ["checkout", "payment_intent"] })
-  @IsEnum(["checkout", "payment_intent"] as any)
-  mode: "checkout" | "payment_intent";
+  @ApiProperty({ enum: ['checkout', 'payment_intent'] })
+  @IsEnum(['checkout', 'payment_intent'] as any)
+  mode: 'checkout' | 'payment_intent';
 }
