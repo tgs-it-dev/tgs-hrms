@@ -61,7 +61,7 @@ export class DesignationController {
 
   
   @Get('department/:departmentId')
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('manage_designations')
   @ApiOperation({ summary: 'List designations under a department' })
   @ApiResponse({ status: 200, description: 'List of designations.' })
@@ -74,7 +74,7 @@ export class DesignationController {
   }
 
   @Get(':id')
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('manage_designations')
   @ApiOperation({ summary: 'Get a single designation' })
   @ApiResponse({ status: 200, description: 'Designation found.' })

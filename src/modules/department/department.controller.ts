@@ -73,7 +73,7 @@ export class DepartmentController {
   }
 
   @Get()
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('manage_departments')
   @ApiOperation({ summary: 'List all departments for tenant' })
   @ApiResponse({ status: 200, description: 'List of departments returned.' })
