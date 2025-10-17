@@ -131,7 +131,7 @@ export class TeamService {
 
     const totalPages = Math.ceil(total / limit);
 
-    // Also include unassigned employees inside items without a pseudo team label
+    // Get unassigned employees for employee pool
     const unassignedEmployees = await this.employeeRepo.find({
       where: {
         team_id: IsNull(),
@@ -163,11 +163,21 @@ export class TeamService {
       } : undefined,
     }));
 
+    // Represent the employee pool as a pseudo team in the list
+    const itemsWithEmployeePool = [
+      ...items,
+      {
+        id: 'employee-pool',
+        name: 'Employee Pool',
+        description: 'Unassigned employees',
+        manager: undefined,
+        created_at: undefined,
+        members: employeePool,
+      },
+    ];
+
     return {
-      items: [
-        ...items,
-        ...employeePool,
-      ],
+      items: itemsWithEmployeePool,
       total,
       page,
       limit,
