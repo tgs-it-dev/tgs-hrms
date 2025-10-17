@@ -24,7 +24,7 @@ export class RoleController {
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('manage_roles')
   @ApiOperation({ summary: 'Get all roles (Admin only)' })
   @ApiResponse({
@@ -54,7 +54,7 @@ export class RoleController {
 
   @Get(':id')
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin' ,'hr-admin')
   @Permissions('manage_roles')
   @ApiOperation({ summary: 'Get role by ID (Admin only)' })
   @ApiParam({
