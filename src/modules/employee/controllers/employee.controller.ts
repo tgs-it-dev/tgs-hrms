@@ -147,7 +147,7 @@ export class EmployeeController {
   }
 
   @Get()
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('manage_employees')
   @ApiOperation({
     summary: 'List all employees for tenant with optional designation and department filters',
@@ -192,7 +192,7 @@ export class EmployeeController {
 
 
   @Get('export')
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin' ,'hr-admin')
   @ApiOperation({ summary: 'Download employees list as CSV (Admin only)' })
   async exportAll(
     @TenantId() tenant_id: string,
@@ -216,7 +216,7 @@ export class EmployeeController {
   }
 
   @Get('joining-report')
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('view_reports', 'view_team_reports')
   @ApiOperation({ summary: 'Get employee joining report month-wise' })
   @ApiResponse({
@@ -249,7 +249,7 @@ export class EmployeeController {
   }
 
   @Get('gender-percentage')
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('view_reports', 'view_team_reports')
   @ApiOperation({ summary: 'Get gender percentage of employees' })
   @ApiResponse({
@@ -278,7 +278,7 @@ export class EmployeeController {
   }
 
   @Get('leaves-this-month')
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('view_reports', 'view_team_reports')
   @ApiOperation({ summary: 'Get total leaves applied by all employees for the current month' })
   @ApiResponse({ status: 200, description: 'Total leaves for the current month.' })
@@ -287,7 +287,7 @@ export class EmployeeController {
   }
 
   @Get('attendance-this-month')
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('view_reports', 'view_team_reports')
   @ApiOperation({
     summary:
@@ -299,7 +299,7 @@ export class EmployeeController {
   }
 
   @Get(':id')
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('manage_employees', 'view_team_reports')
   @ApiOperation({ summary: 'Get single employee by ID' })
   @ApiResponse({ status: 200, description: 'Employee found.' })
@@ -329,7 +329,7 @@ export class EmployeeController {
   }
 
   @Get(':id/details')
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('manage_employees', 'view_team_reports')
   @ApiOperation({ summary: 'Get editable details for an employee' })
   @ApiResponse({ status: 200, description: 'Editable details returned.' })
