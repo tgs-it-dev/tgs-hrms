@@ -204,7 +204,7 @@ export class TeamController {
   }
 
   @Get('employee-pool')
-  @Roles('admin', 'system-admin', 'hr-admin')
+  @Roles('admin', 'system-admin', 'hr-admin', 'manager')
   @ApiOperation({ summary: 'Get employees not assigned to any team (Admin and HR only)' })
   @ApiQuery({
     name: 'page',

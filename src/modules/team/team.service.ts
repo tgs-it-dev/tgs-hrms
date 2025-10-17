@@ -75,10 +75,6 @@ export class TeamService {
     page: number;
     limit: number;
     totalPages: number;
-    employeePool: {
-      items: any[];
-      total: number;
-    };
   }> {
     const limit = 25;
     const skip = (page - 1) * limit;
@@ -186,10 +182,6 @@ export class TeamService {
       page,
       limit,
       totalPages,
-      employeePool: {
-        items: employeePool,
-        total: employeePool.length,
-      },
     };
   }
 
