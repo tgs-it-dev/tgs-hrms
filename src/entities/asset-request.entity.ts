@@ -18,6 +18,9 @@ export class AssetRequest {
   @Column({ type: 'varchar' })
   asset_category: string;
 
+  @Column({ type: 'varchar', nullable: true })
+  asset_sub_category: string | null;
+
   @Column({ type: 'uuid' })
   requested_by: string;
 
