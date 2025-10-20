@@ -6,11 +6,6 @@ export class CreateAssetRequestDto {
   @IsString()
   assetCategory: string;
 
-  @ApiProperty({ example: 'Gaming Laptop', required: false })
-  @IsOptional()
-  @IsString()
-  assetSubCategory?: string;
-
   @ApiProperty({ example: 'Need for design work', required: false })
   @IsOptional()
   @IsString()

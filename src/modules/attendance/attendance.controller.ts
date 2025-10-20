@@ -39,11 +39,14 @@ export class AttendanceController {
   @Permissions('manage_attendance')
   async findAllForAdmin(
     @Req() req: any,
+    @Query('page') page?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string
   ) {
+    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
     return this.attendanceService.getAllAttendance(
       req.user.tenant_id,
+      pageNumber,
       startDate,
       endDate
     );
@@ -52,11 +55,13 @@ export class AttendanceController {
   async events(
     @Req() req: Request,
     @Query('userId') userId?: string,
+    @Query('page') page?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string
   ) {
     const id = userId || (req.user as any).id;
-    return this.attendanceService.findEvents(id, startDate, endDate);
+    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+    return this.attendanceService.findEvents(id, pageNumber, startDate, endDate);
   }
 
   @Get('today')
@@ -104,8 +109,9 @@ export class AttendanceController {
       },
     },
   })
-  async getTeamAttendance(@Req() req: any) {
-    return this.attendanceService.getTeamAttendance(req.user.id, req.user.tenant_id);
+  async getTeamAttendance(@Req() req: any, @Query('page') page?: string) {
+    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+    return this.attendanceService.getTeamAttendance(req.user.id, req.user.tenant_id, pageNumber);
   }
 
   
@@ -119,15 +125,21 @@ export class AttendanceController {
   ) {
     const userId = (req.user as any).id;
     const userName = `${(req.user as any).first_name || ''} ${(req.user as any).last_name || ''}`.trim();
-    const { items } = await this.attendanceService.findEvents(userId, startDate, endDate);
+    const pageSize = 100;
+    let page = 1;
     const rows: any[] = [];
-    for (const ev of items) {
-      rows.push({
-        id: (ev as any).id,
-        user_id: userId,
-        type: (ev as any).type,
-        timestamp: (ev as any).timestamp,
-      });
+    while (true) {
+      const { items, total } = await this.attendanceService.findEvents(userId, page, startDate, endDate);
+      for (const ev of items) {
+        rows.push({
+          id: (ev as any).id,
+          user_id: userId,
+          type: (ev as any).type,
+          timestamp: (ev as any).timestamp,
+        });
+      }
+      if (items.length < pageSize || rows.length >= total) break;
+      page += 1;
     }
     return sendCsvResponse(res, 'attendance-self.csv', rows);
   }
@@ -139,9 +151,11 @@ export class AttendanceController {
   @ApiOperation({ summary: 'Download team attendance as CSV (Manager only)' })
   async exportTeam(
     @Req() req: any,
-    @Res() res: Response
+    @Res() res: Response,
+    @Query('page') page?: string
   ) {
-    const { items } = await this.attendanceService.getTeamAttendance(req.user.id, req.user.tenant_id);
+    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+    const { items } = await this.attendanceService.getTeamAttendance(req.user.id, req.user.tenant_id, pageNumber);
     const rows = (items || []).flatMap((member: any) => {
       const attendance = member.attendance || [];
       return attendance.map((a: any) => ({
@@ -169,20 +183,27 @@ export class AttendanceController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string
   ) {
-    const { items } = await this.attendanceService.getAllAttendance(
-      req.user.tenant_id,
-      startDate,
-      endDate
-    );
+    let page = 1;
     const rows: any[] = [];
-    for (const ev of items) {
-      rows.push({
-        id: (ev as any).id,
-        user_id: (ev as any).user_id,
-        user_name: `${(ev as any).user?.first_name || ''} ${(ev as any).user?.last_name || ''}`.trim(),
-        timestamp: (ev as any).timestamp,
-        type: (ev as any).type,
-      });
+    while (true) {
+      const { items, total, limit } = await this.attendanceService.getAllAttendance(
+        req.user.tenant_id,
+        page,
+        startDate,
+        endDate
+      );
+      for (const ev of items) {
+        rows.push({
+          id: (ev as any).id,
+          user_id: (ev as any).user_id,
+          user_name: `${(ev as any).user?.first_name || ''} ${(ev as any).user?.last_name || ''}`.trim(),
+          timestamp: (ev as any).timestamp,
+          type: (ev as any).type,
+        });
+      }
+      if (!items.length || rows.length >= total) break;
+      page += 1;
+      if (limit && items.length < limit) break;
     }
     return sendCsvResponse(res, 'attendance-all.csv', rows);
   }

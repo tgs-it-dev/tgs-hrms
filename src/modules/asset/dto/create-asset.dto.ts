@@ -10,11 +10,6 @@ export class CreateAssetDto {
   @IsString()
   category: string;
 
-  @ApiProperty({ example: 'Gaming Laptop', required: false })
-  @IsOptional()
-  @IsString()
-  subCategory?: string;
-
   @ApiProperty({ example: '2024-01-10', required: false })
   @IsOptional()
   @IsDateString()

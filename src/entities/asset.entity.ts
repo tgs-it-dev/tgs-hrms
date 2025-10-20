@@ -21,9 +21,6 @@ export class Asset {
   @Column({ type: 'varchar' })
   category: string;
 
-  @Column({ type: 'varchar', nullable: true })
-  sub_category: string | null;
-
   @Column({ type: 'varchar', length: 30, default: AssetStatus.AVAILABLE })
   status: AssetStatus;
 
