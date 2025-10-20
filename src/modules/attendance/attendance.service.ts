@@ -263,7 +263,9 @@ export class AttendanceService {
     return { totalAttendance: result.length };
   }
 
-  async getAllAttendance(tenantId: string, startDate?: string, endDate?: string) {
+  async getAllAttendance(tenantId: string, page = 1, startDate?: string, endDate?: string) {
+    const limit = 20;
+    const skip = (page - 1) * limit;
     const qb = this.attendanceRepo
       .createQueryBuilder('attendance')
       .leftJoinAndSelect('attendance.user', 'user')
@@ -271,11 +273,14 @@ export class AttendanceService {
     if (startDate) qb.andWhere('attendance.timestamp >= :start', { start: new Date(startDate) });
     if (endDate)
       qb.andWhere('attendance.timestamp <= :end', { end: new Date(endDate + 'T23:59:59.999Z') });
-    qb.orderBy('attendance.timestamp', 'DESC');
-    const items = await qb.getMany();
-    return { items };
+    qb.orderBy('attendance.timestamp', 'DESC').skip(skip).take(limit);
+    const [items, total] = await qb.getManyAndCount();
+    const totalPages = Math.ceil(total / limit);
+    return { items, total, page, limit, totalPages };
   }
-  async findEvents(userId?: string, startDate?: string, endDate?: string) {
+  async findEvents(userId?: string, page = 1, startDate?: string, endDate?: string) {
+    const limit = 20;
+    const skip = (page - 1) * limit;
     const qb = this.attendanceRepo
       .createQueryBuilder('attendance')
       .leftJoinAndSelect('attendance.user', 'user')
@@ -284,14 +289,16 @@ export class AttendanceService {
     if (startDate) qb.andWhere('attendance.timestamp >= :start', { start: new Date(startDate) });
     if (endDate)
       qb.andWhere('attendance.timestamp <= :end', { end: new Date(endDate + 'T23:59:59.999Z') });
-    const items = await qb.getMany();
-    return { items };
+    const [items, total] = await qb.skip(skip).take(limit).getManyAndCount();
+    const totalPages = Math.ceil(total / limit);
+    return { items, total, page, limit, totalPages };
   }
 
   
   async getTeamAttendance(
     managerId: string,
-    tenantId: string
+    tenantId: string,
+    page: number = 1
   ): Promise<{
     items: Array<{
       user_id: string;
@@ -310,7 +317,13 @@ export class AttendanceService {
       totalDaysWorked: number;
       totalHoursWorked: number;
     }>;
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
   }> {
+    const limit = 10;
+    const skip = (page - 1) * limit;
 
     
     const teamMembers = await this.employeeRepo
@@ -322,6 +335,8 @@ export class AttendanceService {
       .where('user.tenant_id = :tenantId', { tenantId })
       .andWhere('team.manager_id = :managerId', { managerId })
       .andWhere('employee.user_id != :managerId', { managerId })
+      .skip(skip)
+      .take(limit)
       .getMany();
 
     this.logger.debug(`Fetched ${teamMembers.length} team members for manager ${managerId}`);
@@ -331,6 +346,10 @@ export class AttendanceService {
     if (userIds.length === 0) {
       return {
         items: [],
+        total: 0,
+        page,
+        limit,
+        totalPages: 0,
       };
     }
 
@@ -433,8 +452,13 @@ export class AttendanceService {
       };
     });
 
+    const totalPages = Math.ceil(teamMembers.length / limit);
     return {
       items: transformedMembers,
+      total: teamMembers.length,
+      page,
+      limit,
+      totalPages,
     };
   }
 }
