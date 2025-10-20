@@ -17,6 +17,7 @@ export class AssetService {
     const entity = this.assetRepo.create({
       name: dto.name,
       category: dto.category,
+      sub_category: dto.subCategory ?? null,
       status: AssetStatus.AVAILABLE,
       purchase_date: dto.purchaseDate ?? null,
       tenant_id: tenantId,
@@ -89,6 +90,7 @@ export class AssetService {
     Object.assign(asset, {
       name: dto.name ?? asset.name,
       category: dto.category ?? asset.category,
+      sub_category: dto.subCategory ?? asset.sub_category,
       status: (dto.status as AssetStatus) ?? asset.status,
       assigned_to: dto.assignedTo ?? asset.assigned_to,
     });
