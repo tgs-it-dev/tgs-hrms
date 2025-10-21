@@ -7,12 +7,13 @@ import {
   JoinColumn,
   OneToMany,
 } from "typeorm";
-
+import { User } from "./user.entity";
+import { Designation } from "./designation.entity";
 import { EmployeeBenefit } from "./employee-benefit.entity";
-import { User } from './user.entity';
-import { Designation } from './designation.entity';
-import { Team } from './team.entity';
-import { EmployeeStatus, InviteStatus } from '../common/constants/enums';
+import { Team } from "./team.entity";
+import { EmployeeKpi } from "./employee-kpi.entity";
+import { PerformanceReview } from "./performance-review.entity";
+import { Promotion } from "./promotion.entity";
 
 @Entity("employees")
 export class Employee {
@@ -25,18 +26,20 @@ export class Employee {
   @Column({ type: "uuid" })
   designation_id: string;
 
-  @Column({ type: 'varchar', length: 20, default: EmployeeStatus.ACTIVE })
-  status: EmployeeStatus;
-
-  @Column({ type: 'varchar', length: 20, nullable:false, default: InviteStatus.INVITE_SENT })
-  invite_status: InviteStatus;
-
-  @Column({ type: 'uuid', nullable: true })
+  @Column({ type: "uuid", nullable: true })
   team_id: string | null;
 
   @CreateDateColumn()
   created_at: Date;
-  
+
+  @Column({
+    type: "varchar",
+    length: 20,
+    nullable: false,
+    default: "Invite Sent",
+  })
+  invite_status: string;
+
   @ManyToOne(() => User, (user) => user.employees, { nullable: false })
   @JoinColumn({ name: "user_id" })
   user: User;
@@ -51,9 +54,21 @@ export class Employee {
   @JoinColumn({ name: "team_id" })
   team: Team;
 
+  @OneToMany(() => EmployeeKpi, (employeeKpi) => employeeKpi.employee)
+  employeeKpis: EmployeeKpi[];
+
   @OneToMany(
     () => EmployeeBenefit,
     (employeeBenefit) => employeeBenefit.employee,
   )
   employeeBenefits: EmployeeBenefit[];
+
+  @OneToMany(
+    () => PerformanceReview,
+    (performanceReview) => performanceReview.employee,
+  )
+  employeePerformanceReviews: PerformanceReview[];
+
+  @OneToMany(() => Promotion, (promotion) => promotion.employee)
+  employeePromotions: Promotion[];
 }
