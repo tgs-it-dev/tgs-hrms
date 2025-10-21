@@ -15,6 +15,7 @@ import { Promotion } from "src/entities/promotion.entity";
 import { Tenant } from "src/entities/tenant.entity";
 import { Employee } from "src/entities/employee.entity";
 import { User } from "src/entities/user.entity";
+import { SharedJwtModule } from '../../common/modules/jwt.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { User } from "src/entities/user.entity";
       Employee,
       User,
     ]),
+    SharedJwtModule,
   ],
   providers: [
     KpiService,

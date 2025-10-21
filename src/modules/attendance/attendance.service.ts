@@ -79,26 +79,17 @@ export class AttendanceService {
   }
 
   
-  async findAll(userId?: string, page: number = 1) {
-    const limit = 20;
-    const skip = (page - 1) * limit;
+  async findAll(userId?: string) {
     const query = this.attendanceRepo.createQueryBuilder('attendance');
     if (userId) {
       query.where('attendance.user_id = :userId', { userId });
     }
+    const records = await query.orderBy('attendance.timestamp', 'ASC').getMany();
 
-    const [records, total] = await query
-      .orderBy('attendance.timestamp', 'ASC')
-      .skip(skip)
-      .take(limit)
-      .getManyAndCount();
-
-    
+    // Maintain the summarizing and grouping logic
     const sessions: Array<{ checkIn: Attendance; checkOut?: Attendance; startDate: string }> = [];
     const checkIns: Attendance[] = [];
     const checkOuts: Attendance[] = [];
-
-  
     for (const record of records) {
       if (record.type === AttendanceType.CHECK_IN) {
         checkIns.push(record);
@@ -106,50 +97,36 @@ export class AttendanceService {
         checkOuts.push(record);
       }
     }
-
-    
     for (const checkIn of checkIns) {
       const startDate = checkIn.timestamp.toISOString().split('T')[0];
-      
-      
       const matchingCheckOut = checkOuts.find(
         checkout => checkout.timestamp > checkIn.timestamp
       );
-
       sessions.push({
         checkIn,
         checkOut: matchingCheckOut,
         startDate
       });
-
-      
       if (matchingCheckOut) {
         const index = checkOuts.indexOf(matchingCheckOut);
         checkOuts.splice(index, 1);
       }
     }
-
-    
     const groupedByDate: Record<string, { checkIn?: Attendance; checkOut?: Attendance }> = {};
     for (const session of sessions) {
       if (!groupedByDate[session.startDate]) {
         groupedByDate[session.startDate] = {};
       }
-      
-    
       if (!groupedByDate[session.startDate].checkIn || 
           session.checkIn.timestamp > (groupedByDate[session.startDate].checkIn?.timestamp || new Date(0))) {
         groupedByDate[session.startDate].checkIn = session.checkIn;
         groupedByDate[session.startDate].checkOut = session.checkOut;
       }
     }
-
     const items = Object.entries(groupedByDate).map(([date, { checkIn, checkOut }]) => {
       let workedHours = 0;
-  
       if (checkIn && checkOut && new Date(checkOut.timestamp) > new Date(checkIn.timestamp)) {
-        const diffMs =
-          new Date(checkOut.timestamp).getTime() - new Date(checkIn.timestamp).getTime();
+        const diffMs = new Date(checkOut.timestamp).getTime() - new Date(checkIn.timestamp).getTime();
         workedHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
       }
       return {
@@ -162,15 +139,7 @@ export class AttendanceService {
         workedHours,
       };
     });
-
-    const totalPages = Math.ceil(total / limit);
-    return {
-      items,
-      total,
-      page,
-      limit,
-      totalPages,
-    };
+    return { items, total: items.length };
   }
 
  
@@ -263,42 +232,33 @@ export class AttendanceService {
     return { totalAttendance: result.length };
   }
 
-  async getAllAttendance(tenantId: string, page = 1, startDate?: string, endDate?: string) {
-    const limit = 20;
-    const skip = (page - 1) * limit;
+  async getAllAttendance(tenantId: string, startDate?: string, endDate?: string) {
     const qb = this.attendanceRepo
       .createQueryBuilder('attendance')
       .leftJoinAndSelect('attendance.user', 'user')
       .where('user.tenant_id = :tenantId', { tenantId });
     if (startDate) qb.andWhere('attendance.timestamp >= :start', { start: new Date(startDate) });
-    if (endDate)
-      qb.andWhere('attendance.timestamp <= :end', { end: new Date(endDate + 'T23:59:59.999Z') });
-    qb.orderBy('attendance.timestamp', 'DESC').skip(skip).take(limit);
-    const [items, total] = await qb.getManyAndCount();
-    const totalPages = Math.ceil(total / limit);
-    return { items, total, page, limit, totalPages };
+    if (endDate) qb.andWhere('attendance.timestamp <= :end', { end: new Date(endDate + 'T23:59:59.999Z') });
+    qb.orderBy('attendance.timestamp', 'DESC');
+    const items = await qb.getMany();
+    return { items, total: items.length };
   }
-  async findEvents(userId?: string, page = 1, startDate?: string, endDate?: string) {
-    const limit = 20;
-    const skip = (page - 1) * limit;
+  async findEvents(userId?: string, startDate?: string, endDate?: string) {
     const qb = this.attendanceRepo
       .createQueryBuilder('attendance')
       .leftJoinAndSelect('attendance.user', 'user')
       .orderBy('attendance.timestamp', 'DESC');
     if (userId) qb.where('attendance.user_id = :userId', { userId });
     if (startDate) qb.andWhere('attendance.timestamp >= :start', { start: new Date(startDate) });
-    if (endDate)
-      qb.andWhere('attendance.timestamp <= :end', { end: new Date(endDate + 'T23:59:59.999Z') });
-    const [items, total] = await qb.skip(skip).take(limit).getManyAndCount();
-    const totalPages = Math.ceil(total / limit);
-    return { items, total, page, limit, totalPages };
+    if (endDate) qb.andWhere('attendance.timestamp <= :end', { end: new Date(endDate + 'T23:59:59.999Z') });
+    const items = await qb.getMany();
+    return { items, total: items.length };
   }
 
   
   async getTeamAttendance(
     managerId: string,
     tenantId: string,
-    page: number = 1
   ): Promise<{
     items: Array<{
       user_id: string;
@@ -318,14 +278,8 @@ export class AttendanceService {
       totalHoursWorked: number;
     }>;
     total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
   }> {
-    const limit = 10;
-    const skip = (page - 1) * limit;
-
-    
+    // fetch all employee records for the team
     const teamMembers = await this.employeeRepo
       .createQueryBuilder('employee')
       .leftJoinAndSelect('employee.user', 'user')
@@ -335,79 +289,50 @@ export class AttendanceService {
       .where('user.tenant_id = :tenantId', { tenantId })
       .andWhere('team.manager_id = :managerId', { managerId })
       .andWhere('employee.user_id != :managerId', { managerId })
-      .skip(skip)
-      .take(limit)
       .getMany();
-
-    this.logger.debug(`Fetched ${teamMembers.length} team members for manager ${managerId}`);
     const userIds = teamMembers.map((member) => member.user_id);
-
-    this.logger.debug(`Team member userIds: ${JSON.stringify(userIds)}`);
     if (userIds.length === 0) {
       return {
         items: [],
         total: 0,
-        page,
-        limit,
-        totalPages: 0,
       };
     }
-
-    
     const attendanceRecords = await this.attendanceRepo
       .createQueryBuilder('attendance')
       .where('attendance.user_id IN (:...userIds)', { userIds })
       .orderBy('attendance.timestamp', 'ASC')
       .getMany();
-
-    this.logger.debug(`Fetched ${attendanceRecords.length} attendance records for team`);
-
     const groupedAttendance: Record<
       string,
       Record<string, { checkIn?: Attendance; checkOut?: Attendance }>
     > = {};
-    
-  
     for (const userId of userIds) {
       const userRecords = attendanceRecords.filter(r => r.user_id === userId);
       const checkIns = userRecords.filter(r => r.type === AttendanceType.CHECK_IN);
       const checkOuts = userRecords.filter(r => r.type === AttendanceType.CHECK_OUT);
-      
-    
       const sessions: Array<{ checkIn: Attendance; checkOut?: Attendance; startDate: string }> = [];
-      
       for (const checkIn of checkIns) {
         const startDate = checkIn.timestamp.toISOString().split('T')[0];
-        
-    
         const matchingCheckOut = checkOuts.find(
           checkout => checkout.timestamp > checkIn.timestamp
         );
-        
         sessions.push({
           checkIn,
           checkOut: matchingCheckOut,
           startDate
         });
-        
-      
         if (matchingCheckOut) {
           const index = checkOuts.indexOf(matchingCheckOut);
           checkOuts.splice(index, 1);
         }
       }
-      
-    
       if (!groupedAttendance[userId]) {
         groupedAttendance[userId] = {};
       }
-      
       for (const session of sessions) {
         if (!groupedAttendance[userId][session.startDate]) {
           groupedAttendance[userId][session.startDate] = {};
         }
-        
-
         if (!groupedAttendance[userId][session.startDate].checkIn || 
             session.checkIn.timestamp > (groupedAttendance[userId][session.startDate].checkIn?.timestamp || new Date(0))) {
           groupedAttendance[userId][session.startDate].checkIn = session.checkIn;
@@ -415,15 +340,12 @@ export class AttendanceService {
         }
       }
     }
-
-
     const transformedMembers = teamMembers.map((member) => {
       const userAttendance = groupedAttendance[member.user_id] || {};
       const attendanceData = Object.entries(userAttendance).map(([date, { checkIn, checkOut }]) => {
         let workedHours = 0;
         if (checkIn && checkOut && new Date(checkOut.timestamp) > new Date(checkIn.timestamp)) {
-          const diffMs =
-            new Date(checkOut.timestamp).getTime() - new Date(checkIn.timestamp).getTime();
+          const diffMs = new Date(checkOut.timestamp).getTime() - new Date(checkIn.timestamp).getTime();
           workedHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
         }
         return {
@@ -451,14 +373,9 @@ export class AttendanceService {
         totalHoursWorked: Math.round(totalHoursWorked * 100) / 100,
       };
     });
-
-    const totalPages = Math.ceil(teamMembers.length / limit);
     return {
       items: transformedMembers,
       total: teamMembers.length,
-      page,
-      limit,
-      totalPages,
     };
   }
 }
