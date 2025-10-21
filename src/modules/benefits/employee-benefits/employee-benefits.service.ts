@@ -97,23 +97,63 @@ export class EmployeeBenefitsService {
     }
   }
 
-  async findAllByEmployee(tenant_id: string, employeeId: string) {
-    const employee = await this.employeeRepo
-      .createQueryBuilder("employee")
-      .innerJoin("employee.user", "user")
-      .where("employee.id = :employeeId", { employeeId })
-      .andWhere("user.tenant_id = :tenantId", { tenantId: tenant_id })
-      .getOne();
+  async findAll(
+    tenant_id: string,
+    filters?: {
+      employeeId?: string;
+      department?: string;
+      designation?: string;
+    },
+    page: number = 1,
+  ) {
+    const qb = this.employeeBenefitRepo
+      .createQueryBuilder("eb")
+      .leftJoinAndSelect("eb.employee", "employee")
+      .leftJoinAndSelect("employee.user", "user")
+      .leftJoinAndSelect("employee.designation", "designation")
+      .leftJoinAndSelect("designation.department", "department")
+      .leftJoinAndSelect("eb.benefit", "benefit")
+      .where("user.tenant_id = :tenant_id", { tenant_id });
 
-    if (!employee) {
-      throw new NotFoundException("Employee not found for this tenant");
+    if (filters?.employeeId) {
+      qb.andWhere("employee.id = :employeeId", {
+        employeeId: filters.employeeId,
+      });
     }
 
-    return await this.employeeBenefitRepo.find({
-      where: { employeeId, tenant_id },
-      relations: ["benefit"],
-      order: { createdAt: "DESC" },
-    });
+    if (filters?.department) {
+      qb.andWhere("department.name = :department", {
+        department: filters.department,
+      });
+    }
+
+    if (filters?.designation) {
+      qb.andWhere("designation.title = :designation", {
+        designation: filters.designation,
+      });
+    }
+
+    qb.orderBy("eb.createdAt", "DESC");
+
+    const skip = (page - 1) * 25;
+    qb.skip(skip).take(25);
+
+    const results = await qb.getMany();
+
+    const data = results.map((record) => ({
+      id: record.id,
+      employeeId: record.employee?.id,
+      employeeName: `${record.employee.user.first_name} ${record.employee.user.last_name}`,
+      department: record.employee.designation.department.name,
+      designation: record.employee.designation.title,
+      benefit: record.benefit,
+      status: record.status,
+      startDate: record.startDate,
+      endDate: record.endDate,
+      createdAt: record.createdAt,
+    }));
+
+    return data;
   }
 
   async cancel(tenant_id: string, id: string) {
@@ -132,5 +172,75 @@ export class EmployeeBenefitsService {
     benefitRecord.status = "cancelled";
 
     return await this.employeeBenefitRepo.save(benefitRecord);
+  }
+
+  async getAllEmployeesWithBenefits(tenant_id: string, page: number = 1) {
+    const qb = this.employeeRepo
+      .createQueryBuilder("employee")
+      .leftJoinAndSelect("employee.employeeBenefits", "eb")
+      .leftJoinAndSelect("eb.benefit", "benefit")
+      .innerJoinAndSelect("employee.user", "user")
+      .innerJoinAndSelect("employee.designation", "designation")
+      .innerJoinAndSelect("designation.department", "department")
+      .where("user.tenant_id = :tenant_id", { tenant_id })
+      .orderBy("employee.id", "ASC");
+
+    const skip = (page - 1) * 25;
+    qb.skip(skip).take(25);
+
+    const employees = await qb.getMany();
+
+    const data = employees.map((e) => ({
+      employeeId: e.id,
+      employeeName: `${e.user.first_name} ${e.user.last_name}`,
+      department: e.designation?.department?.name,
+      designation: e.designation?.title,
+      benefits: e.employeeBenefits.map((b) => ({
+        name: b.benefit.name,
+        status: b.status,
+      })),
+    }));
+
+    return data;
+  }
+
+  async getSummary(tenant_id: string) {
+    // Total Active Benefits
+    const totalActiveBenefits = await this.employeeBenefitRepo
+      .createQueryBuilder("eb")
+      .innerJoin("eb.benefit", "benefit")
+      .where("eb.tenant_id = :tenant_id", { tenant_id })
+      .andWhere("eb.status = :status", { status: "active" })
+      .getCount();
+
+    // Most Common Benefit Type
+    const mostCommon: { benefitName: string } | null | undefined =
+      await this.employeeBenefitRepo
+        .createQueryBuilder("eb")
+        .innerJoin("eb.benefit", "benefit")
+        .where("eb.tenant_id = :tenant_id", { tenant_id })
+        .select("benefit.name", "benefitName")
+        .addSelect("COUNT(eb.id)", "count")
+        .groupBy("benefit.name")
+        .orderBy("count", "DESC")
+        .limit(1)
+        .getRawOne();
+
+    // Total Employees Covered
+    const totalEmployeesCovered: { count: string } | null | undefined =
+      await this.employeeBenefitRepo
+        .createQueryBuilder("eb")
+        .where("eb.tenant_id = :tenant_id", { tenant_id })
+        .andWhere("eb.status = :status", { status: "active" })
+        .select("COUNT(DISTINCT eb.employee_id)", "count")
+        .getRawOne();
+
+    return {
+      totalActiveBenefits,
+      mostCommonBenefitType: mostCommon?.benefitName ?? null,
+      totalEmployeesCovered: totalEmployeesCovered
+        ? parseInt(totalEmployeesCovered.count, 10) || 0
+        : 0,
+    };
   }
 }
