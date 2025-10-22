@@ -42,7 +42,7 @@ export class LeaveTypeController {
   }
 
   @Get()
-  @Roles('hr-admin', 'system-admin','manager')
+  @Roles('hr-admin', 'system-admin','manager','employee')
 @Permissions('manage_leave_types')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get list of leave types (filter by tenant)' })
