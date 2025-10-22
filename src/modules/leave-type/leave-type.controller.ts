@@ -29,7 +29,7 @@ export class LeaveTypeController {
   constructor(private readonly leaveTypeService: LeaveTypeService) {}
 
   @Post()
-  @Roles('hr-admin', 'system-admin')
+  @Roles('hr-admin', 'system-admin', 'Admin')
 @Permissions('manage_leave_types')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new leave type' })
@@ -42,8 +42,8 @@ export class LeaveTypeController {
   }
 
   @Get()
-  @Roles('hr-admin', 'system-admin','manager','employee')
-@Permissions('manage_leave_types')
+  @Roles('hr-admin', 'system-admin','manager', 'employee', 'admin' , 'network-admin')
+@Permissions('manage_leave_types', 'view_leave_types')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get list of leave types (filter by tenant)' })
   @ApiResponse({
@@ -57,8 +57,8 @@ export class LeaveTypeController {
   }
 
   @Get(':id')
-  @Roles('hr-admin', 'system-admin')
-@Permissions('manage_leave_types')
+  @Roles('hr-admin', 'system-admin','manager', 'employee', 'admin' , 'network-admin')
+@Permissions('manage_leave_types', 'view_leave_types')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get details of a specific leave type' })
   @ApiResponse({

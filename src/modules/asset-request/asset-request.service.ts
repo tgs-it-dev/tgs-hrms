@@ -18,6 +18,7 @@ export class AssetRequestService {
   async create(dto: CreateAssetRequestDto, userId: string, tenantId: string) {
     const entity = this.reqRepo.create({
       asset_category: dto.assetCategory,
+      subcategory_id: dto.subcategoryId ?? null,
       requested_by: userId,
       status: AssetRequestStatus.PENDING,
       requested_date: new Date().toISOString().slice(0, 10),
@@ -35,6 +36,7 @@ export class AssetRequestService {
       .createQueryBuilder('r')
       .leftJoinAndSelect('r.requestedByUser', 'requestedByUser')
       .leftJoinAndSelect('r.approvedByUser', 'approvedByUser')
+      .leftJoinAndSelect('r.subcategory', 'subcategory')
       .where('r.tenant_id = :tenantId', { tenantId })
       .orderBy('r.created_at', 'DESC');
 
@@ -56,6 +58,7 @@ export class AssetRequestService {
         approvedByName: r.approvedByUser
           ? `${r.approvedByUser.first_name ?? ''} ${r.approvedByUser.last_name ?? ''}`.trim()
           : null,
+        subcategoryName: r.subcategory?.name ?? null,
       })),
       total,
       page,
@@ -69,6 +72,7 @@ export class AssetRequestService {
       .createQueryBuilder('r')
       .leftJoinAndSelect('r.requestedByUser', 'requestedByUser')
       .leftJoinAndSelect('r.approvedByUser', 'approvedByUser')
+      .leftJoinAndSelect('r.subcategory', 'subcategory')
       .where('r.id = :id AND r.tenant_id = :tenantId', { id, tenantId })
       .getOne();
     if (!req) throw new NotFoundException('Request not found');
@@ -80,6 +84,7 @@ export class AssetRequestService {
       approvedByName: req.approvedByUser
         ? `${req.approvedByUser.first_name ?? ''} ${req.approvedByUser.last_name ?? ''}`.trim()
         : null,
+      subcategoryName: req.subcategory?.name ?? null,
     };
   }
 

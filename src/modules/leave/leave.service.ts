@@ -116,6 +116,7 @@ export class LeaveService {
       query = query.where('leave.employeeId = :user_id', { user_id });
     }
     const [items, total] = await query
+      .leftJoinAndSelect('leave.leaveType', 'leaveType')
       .orderBy('leave.createdAt', 'DESC')
       .skip(skip)
       .take(limit)
