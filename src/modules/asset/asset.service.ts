@@ -17,6 +17,7 @@ export class AssetService {
     const entity = this.assetRepo.create({
       name: dto.name,
       category: dto.category,
+      subcategory_id: dto.subcategoryId ?? null,
       status: AssetStatus.AVAILABLE,
       purchase_date: dto.purchaseDate ?? null,
       tenant_id: tenantId,
@@ -35,6 +36,7 @@ export class AssetService {
     const qb = this.assetRepo
       .createQueryBuilder('a')
       .leftJoinAndSelect('a.assignedToUser', 'assignedUser')
+      .leftJoinAndSelect('a.subcategory', 'subcategory')
       .where('a.tenant_id = :tenantId', { tenantId });
 
     // Trim whitespace and make case-insensitive filtering
@@ -61,6 +63,7 @@ export class AssetService {
         assignedToName: a.assignedToUser
           ? `${a.assignedToUser.first_name ?? ''} ${a.assignedToUser.last_name ?? ''}`.trim()
           : null,
+        subcategoryName: a.subcategory?.name ?? null,
       })),
       total,
       page,
@@ -73,6 +76,7 @@ export class AssetService {
     const asset = await this.assetRepo
       .createQueryBuilder('a')
       .leftJoinAndSelect('a.assignedToUser', 'assignedUser')
+      .leftJoinAndSelect('a.subcategory', 'subcategory')
       .where('a.id = :id AND a.tenant_id = :tenantId', { id, tenantId })
       .getOne();
     if (!asset) throw new NotFoundException('Asset not found');
@@ -81,6 +85,7 @@ export class AssetService {
       assignedToName: asset.assignedToUser
         ? `${asset.assignedToUser.first_name ?? ''} ${asset.assignedToUser.last_name ?? ''}`.trim()
         : null,
+      subcategoryName: asset.subcategory?.name ?? null,
     };
   }
 
@@ -89,6 +94,7 @@ export class AssetService {
     Object.assign(asset, {
       name: dto.name ?? asset.name,
       category: dto.category ?? asset.category,
+      subcategory_id: dto.subcategoryId !== undefined ? dto.subcategoryId : asset.subcategory_id,
       status: (dto.status as AssetStatus) ?? asset.status,
       assigned_to: dto.assignedTo ?? asset.assigned_to,
     });

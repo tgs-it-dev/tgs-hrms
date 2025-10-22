@@ -1,6 +1,6 @@
 import { PartialType } from '@nestjs/swagger';
 import { CreateAssetDto } from './create-asset.dto';
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class UpdateAssetDto extends PartialType(CreateAssetDto) {
   @IsOptional()
@@ -10,6 +10,10 @@ export class UpdateAssetDto extends PartialType(CreateAssetDto) {
   @IsOptional()
   @IsString()
   assignedTo?: string | null;
+
+  @IsOptional()
+  @IsUUID()
+  subcategoryId?: string;
 }
 
 
