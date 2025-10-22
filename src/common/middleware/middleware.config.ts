@@ -36,6 +36,7 @@ export class MiddlewareConfigModule implements NestModule {
         'signup/complete',
         'signup/google-init',
         'subscription-plans',
+        'subscription-plans/prices',
         'health',
         'docs',
         'api-docs',
