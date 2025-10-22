@@ -1,6 +1,8 @@
 import { ApiProperty } from "@nestjs/swagger";
 
 export class GetAllEmployeesWithBenefitsBenefitDto {
+  @ApiProperty({ example: "benefit-uuid-123" })
+  id: string; // <-- Add this line
   @ApiProperty({ example: "Health Insurance" })
   name: string;
 

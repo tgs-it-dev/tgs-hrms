@@ -9,10 +9,10 @@ import { PassportModule } from '@nestjs/passport';
 import { JwtMiddleware, JwtAuthGuard, JwtTokenValidator } from '../../common/middleware/jwt.middleware';
 import { EmailService, SendGridService } from '../../common/utils/email';
 import { InviteStatusModule } from '../invite-status/invite-status.module';
-
+import { Employee } from 'src/entities/employee.entity';
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, CompanyDetails]),
+    TypeOrmModule.forFeature([User, CompanyDetails, Employee]),
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'default_secret',

@@ -196,6 +196,7 @@ export class EmployeeBenefitsService {
       department: e.designation?.department?.name,
       designation: e.designation?.title,
       benefits: e.employeeBenefits.map((b) => ({
+        id: b.benefit.id,    
         name: b.benefit.name,
         status: b.status,
       })),

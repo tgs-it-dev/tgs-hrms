@@ -12,7 +12,7 @@ import { ConfigService } from '@nestjs/config';
 import { NotFoundException } from '@nestjs/common';
 import { EmailService } from '../../common/utils/email';
 import { InviteStatusService } from '../invite-status/invite-status.service';
-
+import { Employee } from 'src/entities/employee.entity';
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -22,6 +22,8 @@ export class AuthService {
     private userRepository: Repository<User>,
     @InjectRepository(CompanyDetails)
     private companyDetailsRepository: Repository<CompanyDetails>,
+    @InjectRepository(Employee)
+    private employeeRepository: Repository<Employee>,
     private jwtService: JwtService,
     private configService: ConfigService,
     private emailService: EmailService,
@@ -205,7 +207,7 @@ export class AuthService {
   
     const permissions = await this.getUserPermissions(user.id);
 
-    
+    const employee = await this.employeeRepository.findOne({ where: { user_id: user.id } });
     const companyDetails = await this.getCompanyDetails(user.tenant_id);
 
     this.logger.log(`User ${user.email} has role: ${user.role.name}`);
@@ -250,6 +252,7 @@ export class AuthService {
       refreshToken,
       user,
       permissions,
+      employee: employee,
       company: companyDetails,
     };
   }
