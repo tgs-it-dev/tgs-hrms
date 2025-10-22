@@ -99,11 +99,7 @@ export class EmployeeBenefitsService {
 
   async findAll(
     tenant_id: string,
-    filters?: {
-      employeeId?: string;
-      department?: string;
-      designation?: string;
-    },
+    employeeId: string,
     page: number = 1,
   ) {
     const qb = this.employeeBenefitRepo
@@ -113,47 +109,51 @@ export class EmployeeBenefitsService {
       .leftJoinAndSelect("employee.designation", "designation")
       .leftJoinAndSelect("designation.department", "department")
       .leftJoinAndSelect("eb.benefit", "benefit")
-      .where("user.tenant_id = :tenant_id", { tenant_id });
-
-    if (filters?.employeeId) {
-      qb.andWhere("employee.id = :employeeId", {
-        employeeId: filters.employeeId,
-      });
-    }
-
-    if (filters?.department) {
-      qb.andWhere("department.name = :department", {
-        department: filters.department,
-      });
-    }
-
-    if (filters?.designation) {
-      qb.andWhere("designation.title = :designation", {
-        designation: filters.designation,
-      });
-    }
+      .where("user.tenant_id = :tenant_id", { tenant_id })
+      .andWhere("employee.id = :employeeId", { employeeId });
 
     qb.orderBy("eb.createdAt", "DESC");
-
     const skip = (page - 1) * 25;
     qb.skip(skip).take(25);
-
     const results = await qb.getMany();
-
-    const data = results.map((record) => ({
-      id: record.id,
-      employeeId: record.employee?.id,
-      employeeName: `${record.employee.user.first_name} ${record.employee.user.last_name}`,
-      department: record.employee.designation.department.name,
-      designation: record.employee.designation.title,
-      benefit: record.benefit,
-      status: record.status,
-      startDate: record.startDate,
-      endDate: record.endDate,
-      createdAt: record.createdAt,
-    }));
-
-    return data;
+    
+    // Group by employee, collect all their benefits into an array
+    const employeeMap = new Map();
+    for (const record of results) {
+      const eid = record.employee?.id;
+      if (!eid) continue;
+      let empObj = employeeMap.get(eid);
+      const benefitDetails = {
+        id: record.benefit.id,
+        name: record.benefit.name,
+        description: record.benefit.description,
+        type: record.benefit.type,
+        eligibilityCriteria: record.benefit.eligibilityCriteria,
+        status: record.benefit.status,
+        tenant_id: record.benefit.tenant_id,
+        createdBy: record.benefit.createdBy,
+        createdAt: record.benefit.createdAt,
+        // extra assignment attributes:
+        statusOfAssignment: record.status,
+        startDate: record.startDate,
+        endDate: record.endDate,
+        benefitAssignmentId: record.id,
+        benefitCreatedAt: record.createdAt,
+      };
+      if (!empObj) {
+        empObj = {
+          employeeId: eid,
+          employeeName: `${record.employee.user.first_name} ${record.employee.user.last_name}`,
+          department: record.employee.designation.department.name,
+          designation: record.employee.designation.title,
+          benefits: [benefitDetails],
+        };
+        employeeMap.set(eid, empObj);
+      } else {
+        empObj.benefits.push(benefitDetails);
+      }
+    }
+    return Array.from(employeeMap.values());
   }
 
   async cancel(tenant_id: string, id: string) {

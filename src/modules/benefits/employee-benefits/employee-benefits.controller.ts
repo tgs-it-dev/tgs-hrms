@@ -63,49 +63,26 @@ export class EmployeeBenefitsController {
   @Get()
   @Roles("hr-admin", "network-admin", "employee")
   @ApiOperation({
-    summary:
-      "Get employee benefits (optionally filtered by employee, department, or designation)",
+    summary: "Get benefits assigned to a specific employee (by employeeId)",
   })
   @ApiQuery({
     name: "employeeId",
-    required: false,
+    required: true,
     description: "Filter by specific employee ID",
   })
   @ApiQuery({
-    name: "department",
+    name: "page",
     required: false,
-    description: "Filter by department name",
-  })
-  @ApiQuery({
-    name: "designation",
-    required: false,
-    description: "Filter by designation title",
+    description: "Page number for pagination",
   })
   async findAll(
     @TenantId() tenant_id: string,
     @Req() req: any,
-    @Query("employeeId") employeeId?: string,
-    @Query("department") department?: string,
-    @Query("designation") designation?: string,
+    @Query("employeeId") employeeId: string,
     @Query("page") page: number = 1,
   ) {
-    const user: JwtUserPayloadDto = (req as { user: JwtUserPayloadDto }).user;
-
-    // Employees can only view their own benefits
-    if (user.role === "employee" && employeeId && employeeId !== user.id) {
-      throw new ForbiddenException(
-        "You are not allowed to view other employees' benefits",
-      );
-    }
-
-    // Determine final filters
-    const filters = {
-      employeeId,
-      department,
-      designation,
-    };
-
-    return this.employeeBenefitsService.findAll(tenant_id, filters, page);
+    // Only show benefits for the requested employeeId
+    return this.employeeBenefitsService.findAll(tenant_id, employeeId, page);
   }
 
   @Put(":id/cancel")
