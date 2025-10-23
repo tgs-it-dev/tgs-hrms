@@ -93,7 +93,7 @@ export class EmployeeBenefitsController {
   }
 
   @Get("employees")
-  @Roles("hr-admin")
+  @Roles("hr-admin","network-admin")
   @ApiOperation({
     summary: "Get all employees with their assigned benefits (HR Admin view)",
   })

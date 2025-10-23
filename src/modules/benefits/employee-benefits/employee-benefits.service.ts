@@ -196,9 +196,22 @@ export class EmployeeBenefitsService {
       department: e.designation?.department?.name,
       designation: e.designation?.title,
       benefits: e.employeeBenefits.map((b) => ({
-        id: b.benefit.id,    
+        id: b.benefit.id,
         name: b.benefit.name,
-        status: b.status,
+        description: b.benefit.description,
+        type: b.benefit.type,
+        eligibilityCriteria: b.benefit.eligibilityCriteria,
+        status: b.benefit.status,
+        tenant_id: b.benefit.tenant_id,
+        createdBy: b.benefit.createdBy,
+        createdAt: b.benefit.createdAt,
+        // Assignment details:
+        benefitAssignmentId: b.id,  // ← This is what you need for cancellation!
+        statusOfAssignment: b.status,
+        startDate: b.startDate,
+        endDate: b.endDate,
+        assignedBy: b.assignedBy,
+        benefitCreatedAt: b.createdAt,
       })),
     }));
 
