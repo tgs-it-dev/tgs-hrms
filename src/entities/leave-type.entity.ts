@@ -7,7 +7,6 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
-  Index,
 } from 'typeorm';
 import { User } from './user.entity';
 import { Tenant } from './tenant.entity';
@@ -33,7 +32,6 @@ export class LeaveType {
   @Column({ type: 'uuid' })
   tenantId: string;
 
-  @Index()
   @ManyToOne(() => Tenant)
   @JoinColumn({ name: 'tenantId' })
   tenant: Tenant;
@@ -45,7 +43,6 @@ export class LeaveType {
   @JoinColumn({ name: 'createdBy' })
   creator: User;
 
-  @Index()
   @Column({ type: 'varchar', length: 50, default: 'active' })
   status: string;
 
