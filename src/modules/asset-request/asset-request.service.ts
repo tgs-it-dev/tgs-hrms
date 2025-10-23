@@ -115,13 +115,13 @@ export class AssetRequestService {
     return this.findOne(tenantId, id);
   }
 
-  async reject(id: string, adminId: string, tenantId: string, remarks?: string) {
+  async reject(id: string, adminId: string, tenantId: string, rejectionReason?: string) {
     const req = await this.findOne(tenantId, id);
     if (req.status !== AssetRequestStatus.PENDING) throw new BadRequestException('Request already processed');
     req.status = AssetRequestStatus.REJECTED;
     req.approved_by = adminId;
     req.approved_date = new Date().toISOString().slice(0, 10);
-    req.remarks = remarks ?? req.remarks;
+    req.rejection_reason = rejectionReason || null;
     await this.reqRepo.save(req);
     return this.findOne(tenantId, id);
   }

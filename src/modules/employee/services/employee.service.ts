@@ -300,6 +300,7 @@ export class EmployeeService implements OnModuleInit {
     const qb = this.employeeRepo
       .createQueryBuilder('employee')
       .leftJoinAndSelect('employee.user', 'user')
+      .leftJoinAndSelect('user.role', 'role')
       .leftJoinAndSelect('employee.designation', 'designation')
       .leftJoinAndSelect('designation.department', 'department')
       .leftJoinAndSelect('employee.team', 'team')
@@ -336,7 +337,10 @@ export class EmployeeService implements OnModuleInit {
     const totalPages = Math.ceil(total / limit);
 
     return {
-      items,
+      items: items.map(employee => ({
+        ...employee,
+        role_name: employee.user?.role?.name || null,
+      })),
       total,
       page,
       limit,
@@ -347,7 +351,7 @@ export class EmployeeService implements OnModuleInit {
   async findOne(tenant_id: string, id: string) {
     const employee = await this.employeeRepo.findOne({
       where: { id },
-      relations: ['user', 'designation', 'designation.department', 'team'],
+      relations: ['user', 'user.role', 'designation', 'designation.department', 'team'],
     });
 
     if (!employee || employee.user.tenant_id !== tenant_id) {
@@ -360,7 +364,10 @@ export class EmployeeService implements OnModuleInit {
       employee.invite_status = currentStatus as InviteStatus;
     }
 
-    return employee;
+    return {
+      ...employee,
+      role_name: employee.user?.role?.name || null,
+    };
   }
 
   async update(tenant_id: string, id: string, dto: UpdateEmployeeDto) {
