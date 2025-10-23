@@ -38,10 +38,7 @@ export class AssetSubcategoryService {
     return await this.subcategoryRepo.save(entity);
   }
 
-  async findAll(tenantId: string, category?: string, page = 1) {
-    const limit = 25;
-    const skip = (page - 1) * limit;
-
+  async findAll(tenantId: string, category?: string) {
     const qb = this.subcategoryRepo
       .createQueryBuilder('s')
       .where('s.tenant_id IN (:...tenants)', { tenants: [GLOBAL, tenantId] })
@@ -53,20 +50,7 @@ export class AssetSubcategoryService {
       qb.andWhere('LOWER(s.category) = LOWER(:category)', { category: trimmedCategory });
     }
 
-    const [items, total] = await qb
-      .skip(skip)
-      .take(limit)
-      .getManyAndCount();
-
-    const totalPages = Math.ceil(total / limit);
-
-    return {
-      items,
-      total,
-      page,
-      limit,
-      totalPages,
-    };
+    return await qb.getMany();
   }
 
   async findOne(tenantId: string, id: string) {

@@ -35,14 +35,12 @@ export class AssetSubcategoryController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all subcategories (filter by category, paginated)' })
+  @ApiOperation({ summary: 'Get all subcategories (filter by category)' })
   findAll(
     @Request() req: any,
     @Query('category') category?: string,
-    @Query('page') page?: string,
   ) {
-    const parsedPage = page ? parseInt(page, 10) : 1;
-    return this.subcategoryService.findAll(req.user.tenant_id, category, parsedPage);
+    return this.subcategoryService.findAll(req.user.tenant_id, category);
   }
 
   @Get('categories')
