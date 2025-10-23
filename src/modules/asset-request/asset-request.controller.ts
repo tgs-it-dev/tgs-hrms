@@ -17,6 +17,7 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AssetRequestService } from './asset-request.service';
 import { CreateAssetRequestDto } from './dto/create-asset-request.dto';
+import { RejectAssetRequestDto } from './dto/reject-asset-request.dto';
 
 @ApiTags('Asset Requests')
 @ApiBearerAuth()
@@ -63,18 +64,8 @@ export class AssetRequestController {
   @ApiResponse({ status: 200, description: 'Request rejected successfully' })
   @ApiResponse({ status: 400, description: 'Request already processed' })
   @ApiResponse({ status: 404, description: 'Request not found' })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        remarks: { type: 'string', example: 'Insufficient justification for request', description: 'Reason for rejection' },
-      },
-      required: ['remarks'],
-    },
-    description: 'Rejection reason for the asset request',
-  })
-  reject(@Request() req: any, @Param('id') id: string, @Body('remarks') remarks: string) {
-    return this.service.reject(id, req.user.id, req.user.tenant_id, remarks);
+  reject(@Request() req: any, @Param('id') id: string, @Body() dto: RejectAssetRequestDto) {
+    return this.service.reject(id, req.user.id, req.user.tenant_id, dto.rejection_reason);
   }
 
   @Delete(':id')
