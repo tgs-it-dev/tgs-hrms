@@ -185,4 +185,146 @@ export class LeaveReportsService {
       balances,
     };
   }
+
+  async getAllLeaveReports(tenantId: string) {
+    const currentYear = new Date().getFullYear();
+    const startOfYear = new Date(currentYear, 0, 1);
+    const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+
+    // Get all employees for the tenant
+    const employees = await this.employeeRepo
+      .createQueryBuilder('employee')
+      .leftJoinAndSelect('employee.user', 'user')
+      .leftJoinAndSelect('employee.designation', 'designation')
+      .leftJoinAndSelect('designation.department', 'department')
+      .where('user.tenant_id = :tenantId', { tenantId })
+      .getMany();
+
+    // Get all leave types for the tenant
+    const leaveTypes = await this.leaveTypeRepo.find({
+      where: { tenantId, status: 'active' },
+    });
+
+    // Get all leaves for the current year
+    const employeeIds = employees.map(emp => emp.user_id);
+    const leaves = await this.leaveRepo
+      .createQueryBuilder('leave')
+      .leftJoinAndSelect('leave.leaveType', 'leaveType')
+      .leftJoinAndSelect('leave.employee', 'employee')
+      .where('leave.startDate BETWEEN :startDate AND :endDate', { startDate: startOfYear, endDate: endOfYear })
+      .andWhere('leave.employeeId IN (:...employeeIds)', { employeeIds })
+      .getMany();
+
+    // Group leaves by employee
+    const leavesByEmployee = leaves.reduce((acc, leave) => {
+      if (!acc[leave.employeeId]) {
+        acc[leave.employeeId] = [];
+      }
+      acc[leave.employeeId].push(leave);
+      return acc;
+    }, {} as Record<string, Leave[]>);
+
+    // Generate comprehensive report for each employee
+    const employeeReports = await Promise.all(
+      employees.map(async (employee) => {
+        const employeeLeaves = leavesByEmployee[employee.user_id] || [];
+        
+        // Calculate leave summary by type
+        const leaveSummary = leaveTypes.map(leaveType => {
+          const typeLeaves = employeeLeaves.filter(leave => leave.leaveTypeId === leaveType.id);
+          const totalDays = typeLeaves.reduce((sum, leave) => sum + leave.totalDays, 0);
+          const approvedDays = typeLeaves
+            .filter(leave => leave.status === LeaveStatus.APPROVED)
+            .reduce((sum, leave) => sum + leave.totalDays, 0);
+          const pendingDays = typeLeaves
+            .filter(leave => leave.status === LeaveStatus.PENDING)
+            .reduce((sum, leave) => sum + leave.totalDays, 0);
+          const rejectedDays = typeLeaves
+            .filter(leave => leave.status === LeaveStatus.REJECTED)
+            .reduce((sum, leave) => sum + leave.totalDays, 0);
+
+          return {
+            leaveTypeId: leaveType.id,
+            leaveTypeName: leaveType.name,
+            totalDays,
+            approvedDays,
+            pendingDays,
+            rejectedDays,
+            maxDaysPerYear: leaveType.maxDaysPerYear,
+            remainingDays: Math.max(0, leaveType.maxDaysPerYear - approvedDays),
+          };
+        });
+
+        // Get detailed leave records
+        const leaveRecords = employeeLeaves.map(leave => ({
+          id: leave.id,
+          leaveTypeName: leave.leaveType?.name || 'Unknown',
+          startDate: leave.startDate,
+          endDate: leave.endDate,
+          totalDays: leave.totalDays,
+          status: leave.status,
+          reason: leave.reason,
+          appliedDate: leave.createdAt,
+          approvedBy: leave.approvedBy,
+          approvedDate: leave.approvedAt,
+        }));
+
+        // Calculate totals
+        const totalLeaveDays = employeeLeaves.reduce((sum, leave) => sum + leave.totalDays, 0);
+        const approvedLeaveDays = employeeLeaves
+          .filter(leave => leave.status === LeaveStatus.APPROVED)
+          .reduce((sum, leave) => sum + leave.totalDays, 0);
+        const pendingLeaveDays = employeeLeaves
+          .filter(leave => leave.status === LeaveStatus.PENDING)
+          .reduce((sum, leave) => sum + leave.totalDays, 0);
+
+        return {
+          employeeId: employee.user_id,
+          employeeName: `${employee.user.first_name} ${employee.user.last_name}`,
+          email: employee.user.email,
+          department: employee.designation?.department?.name || 'N/A',
+          designation: employee.designation?.title || 'N/A',
+          leaveSummary,
+          leaveRecords,
+          totals: {
+            totalLeaveDays,
+            approvedLeaveDays,
+            pendingLeaveDays,
+            totalLeaveRequests: employeeLeaves.length,
+            approvedRequests: employeeLeaves.filter(leave => leave.status === LeaveStatus.APPROVED).length,
+            pendingRequests: employeeLeaves.filter(leave => leave.status === LeaveStatus.PENDING).length,
+            rejectedRequests: employeeLeaves.filter(leave => leave.status === LeaveStatus.REJECTED).length,
+          },
+        };
+      })
+    );
+
+    // Calculate organization-wide statistics
+    const orgStats = {
+      totalEmployees: employees.length,
+      employeesOnLeave: employeeReports.filter(emp => emp.totals.approvedLeaveDays > 0).length,
+      totalLeaveDays: employeeReports.reduce((sum, emp) => sum + emp.totals.approvedLeaveDays, 0),
+      totalPendingDays: employeeReports.reduce((sum, emp) => sum + emp.totals.pendingLeaveDays, 0),
+      totalLeaveRequests: employeeReports.reduce((sum, emp) => sum + emp.totals.totalLeaveRequests, 0),
+      approvedRequests: employeeReports.reduce((sum, emp) => sum + emp.totals.approvedRequests, 0),
+      pendingRequests: employeeReports.reduce((sum, emp) => sum + emp.totals.pendingRequests, 0),
+      rejectedRequests: employeeReports.reduce((sum, emp) => sum + emp.totals.rejectedRequests, 0),
+    };
+
+    return {
+      period: {
+        year: currentYear,
+        startDate: startOfYear,
+        endDate: endOfYear,
+      },
+      organizationStats: orgStats,
+      employeeReports,
+      leaveTypes: leaveTypes.map(lt => ({
+        id: lt.id,
+        name: lt.name,
+        maxDaysPerYear: lt.maxDaysPerYear,
+        carryForward: lt.carryForward,
+      })),
+    };
+  }
 }
