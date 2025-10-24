@@ -175,4 +175,93 @@ export class LeaveReportsController {
     }));
     return sendCsvResponse(res, 'leave-balance.csv', rows);
   }
+
+  // Comprehensive Leave Reports for Admin, HR-Admin, and System-Admin
+  @Get('all-leave-reports')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('admin', 'hr-admin', 'system-admin')
+  @Permissions('view_leave_reports')
+  @ApiBearerAuth()
+  @ApiOperation({ 
+    summary: 'Get comprehensive leave reports for all employees',
+    description: 'Returns detailed leave reports for the current year including employee summaries, leave records, and organization statistics. Accessible by admin, hr-admin, and system-admin roles. No parameters required.'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns comprehensive leave reports',
+    schema: {
+      example: {
+        period: {
+          year: 2025,
+          startDate: '2025-01-01T00:00:00.000Z',
+          endDate: '2025-12-31T23:59:59.999Z'
+        },
+        organizationStats: {
+          totalEmployees: 50,
+          employeesOnLeave: 12,
+          totalLeaveDays: 120,
+          totalPendingDays: 15,
+          totalLeaveRequests: 45,
+          approvedRequests: 35,
+          pendingRequests: 8,
+          rejectedRequests: 2
+        },
+        employeeReports: [
+          {
+            employeeId: 'emp_123',
+            employeeName: 'John Doe',
+            email: 'john.doe@company.com',
+            department: 'Engineering',
+            designation: 'Senior Developer',
+            leaveSummary: [
+              {
+                leaveTypeId: 'lt_1',
+                leaveTypeName: 'Annual Leave',
+                totalDays: 10,
+                approvedDays: 8,
+                pendingDays: 2,
+                rejectedDays: 0,
+                maxDaysPerYear: 20,
+                remainingDays: 12
+              }
+            ],
+            leaveRecords: [
+              {
+                id: 'leave_123',
+                leaveTypeName: 'Annual Leave',
+                startDate: '2025-01-15',
+                endDate: '2025-01-20',
+                totalDays: 5,
+                status: 'APPROVED',
+                reason: 'Family vacation',
+                appliedDate: '2025-01-10T09:00:00.000Z',
+                approvedBy: 'manager_123',
+                approvedDate: '2025-01-11T14:30:00.000Z'
+              }
+            ],
+            totals: {
+              totalLeaveDays: 10,
+              approvedLeaveDays: 8,
+              pendingLeaveDays: 2,
+              totalLeaveRequests: 3,
+              approvedRequests: 2,
+              pendingRequests: 1,
+              rejectedRequests: 0
+            }
+          }
+        ],
+        leaveTypes: [
+          {
+            id: 'lt_1',
+            name: 'Annual Leave',
+            maxDaysPerYear: 20,
+            carryForward: true
+          }
+        ]
+      }
+    }
+  })
+  async getAllLeaveReports(@Request() req: any) {
+    return this.leaveReportsService.getAllLeaveReports(req.user.tenant_id);
+  }
 }
