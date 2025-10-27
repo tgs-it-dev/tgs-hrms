@@ -250,26 +250,26 @@ export class LeaveController {
     return this.leaveService.rejectLeave(id, req.user.id, req.user.tenant_id, dto.remarks);
   }
 
-  @Patch(':id/cancel')
+  @Patch(':id/withdraw')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Cancel a pending leave request',
+    summary: 'Withdraw a pending leave request',
   })
   @ApiResponse({
     status: 200,
-    description: 'Leave request cancelled successfully',
+    description: 'Leave request withdrawn successfully',
   })
   @ApiResponse({
     status: 403,
-    description: 'Forbidden - Can only cancel own pending leave requests',
+    description: 'Forbidden - Can only withdraw own pending leave requests',
   })
   @ApiResponse({
     status: 404,
     description: 'Leave request not found',
   })
-  async cancelLeave(@Param('id') id: string, @Request() req: any) {
-    return this.leaveService.cancelLeave(id, req.user.id);
+  async withdrawLeave(@Param('id') id: string, @Request() req: any) {
+    return this.leaveService.withdrawLeave(id, req.user.id);
   }
 
   
