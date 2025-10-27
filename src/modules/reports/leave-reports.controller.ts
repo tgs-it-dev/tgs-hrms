@@ -184,11 +184,11 @@ export class LeaveReportsController {
   @ApiBearerAuth()
   @ApiOperation({ 
     summary: 'Get comprehensive leave reports for all employees',
-    description: 'Returns detailed leave reports for the current year including employee summaries, leave records, and organization statistics. Accessible by admin, hr-admin, and system-admin roles. No parameters required.'
+    description: 'Returns detailed leave reports for the current year including employee summaries, leave records, and organization statistics. Accessible by admin, hr-admin, and system-admin roles. Supports pagination.'
   })
   @ApiResponse({
     status: 200,
-    description: 'Returns comprehensive leave reports',
+    description: 'Returns comprehensive leave reports with pagination',
     schema: {
       example: {
         period: {
@@ -257,11 +257,20 @@ export class LeaveReportsController {
             maxDaysPerYear: 20,
             carryForward: true
           }
-        ]
+        ],
+        total: 50,
+        page: 1,
+        limit: 10,
+        totalPages: 5
       }
     }
   })
-  async getAllLeaveReports(@Request() req: any) {
-    return this.leaveReportsService.getAllLeaveReports(req.user.tenant_id);
+  async getAllLeaveReports(
+    @Request() req: any,
+    @Query('page') page?: string
+  ) {
+    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+    // Call service with pagination support
+    return this.leaveReportsService.getAllLeaveReports(req.user.tenant_id, pageNumber);
   }
 }
