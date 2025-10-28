@@ -186,32 +186,18 @@ export class LeaveReportsService {
     };
   }
 
-  async getAllLeaveReports(tenantId: string, page: number = 1) {
+  async getAllLeaveReports(tenantId: string) {
     const currentYear = new Date().getFullYear();
     const startOfYear = new Date(currentYear, 0, 1);
     const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59, 999);
 
-    const limit = 10;
-    const skip = (page - 1) * limit;
-
-    // Get total count of employees for pagination
-    const totalEmployees = await this.employeeRepo
-      .createQueryBuilder('employee')
-      .leftJoin('employee.user', 'user')
-      .where('user.tenant_id = :tenantId', { tenantId })
-      .getCount();
-
-    // Get paginated employees for the tenant
+    // Get all employees for the tenant
     const employees = await this.employeeRepo
       .createQueryBuilder('employee')
       .leftJoinAndSelect('employee.user', 'user')
       .leftJoinAndSelect('employee.designation', 'designation')
       .leftJoinAndSelect('designation.department', 'department')
       .where('user.tenant_id = :tenantId', { tenantId })
-      .orderBy('user.first_name', 'ASC')
-      .addOrderBy('user.last_name', 'ASC')
-      .skip(skip)
-      .take(limit)
       .getMany();
 
     // Get all leave types for the tenant
@@ -313,9 +299,9 @@ export class LeaveReportsService {
       })
     );
 
-    // Calculate organization-wide statistics (for current page only)
+    // Calculate organization-wide statistics
     const orgStats = {
-      totalEmployees: totalEmployees, // Total employees in tenant
+      totalEmployees: employees.length,
       employeesOnLeave: employeeReports.filter(emp => emp.totals.approvedLeaveDays > 0).length,
       totalLeaveDays: employeeReports.reduce((sum, emp) => sum + emp.totals.approvedLeaveDays, 0),
       totalPendingDays: employeeReports.reduce((sum, emp) => sum + emp.totals.pendingLeaveDays, 0),
@@ -324,8 +310,6 @@ export class LeaveReportsService {
       pendingRequests: employeeReports.reduce((sum, emp) => sum + emp.totals.pendingRequests, 0),
       rejectedRequests: employeeReports.reduce((sum, emp) => sum + emp.totals.rejectedRequests, 0),
     };
-
-    const totalPages = Math.ceil(totalEmployees / limit);
 
     return {
       period: {
@@ -341,10 +325,6 @@ export class LeaveReportsService {
         maxDaysPerYear: lt.maxDaysPerYear,
         carryForward: lt.carryForward,
       })),
-      total: totalEmployees,
-      page,
-      limit,
-      totalPages,
     };
   }
 }
