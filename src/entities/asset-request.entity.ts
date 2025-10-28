@@ -43,9 +43,6 @@ export class AssetRequest {
   @Column({ type: 'text', nullable: true })
   remarks: string | null;
 
-  @Column({ type: 'text', nullable: true })
-  rejection_reason: string | null;
-
   @CreateDateColumn()
   created_at: Date;
 
@@ -53,6 +50,11 @@ export class AssetRequest {
   @JoinColumn({ name: 'requested_by' })
   requestedByUser?: User;
 
+
+  @Column({ type: 'text', nullable: true })
+  rejection_reason: string | null;
+
+  
   @ManyToOne(() => User, (user) => user.id, { nullable: true })
   @JoinColumn({ name: 'approved_by' })
   approvedByUser?: User | null;
@@ -65,5 +67,3 @@ export class AssetRequest {
   @JoinColumn({ name: 'tenant_id' })
   tenant?: Tenant;
 }
-
-

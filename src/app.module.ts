@@ -32,6 +32,7 @@ import { SubscriptionModule } from './modules/subscription/subscription.module';
 import { CompanyModule } from './modules/company/company.module';
 import { AssetModule } from './modules/asset/asset.module';
 import { AssetRequestModule } from './modules/asset-request/asset-request.module';
+import { AssetSubcategoryModule } from './modules/asset-subcategory/asset-subcategory.module';
 import { BenefitsModule } from "./modules/benefits/benefits.module";
 import { PmsModule } from './modules/pms/pms.module';
 import { SystemModule } from './modules/system/system.module';
@@ -154,6 +155,7 @@ import { SystemLog } from './entities/system-log.entity';
     CompanyModule,
     AssetModule,
     AssetRequestModule,
+    AssetSubcategoryModule,
     BenefitsModule,
     PmsModule,
     SystemModule,
