@@ -1,3 +1,4 @@
+
 import { Module, Logger, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -31,9 +32,12 @@ import { SubscriptionModule } from './modules/subscription/subscription.module';
 import { CompanyModule } from './modules/company/company.module';
 import { AssetModule } from './modules/asset/asset.module';
 import { AssetRequestModule } from './modules/asset-request/asset-request.module';
-import { AssetSubcategoryModule } from './modules/asset-subcategory/asset-subcategory.module';
 import { BenefitsModule } from "./modules/benefits/benefits.module";
 import { PmsModule } from './modules/pms/pms.module';
+import { SystemModule } from './modules/system/system.module';
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { SystemLoggingInterceptor } from './common/interceptors/system-logging.interceptor';
+import { SystemLog } from './entities/system-log.entity';
 @Module({
   imports: [
     ScheduleModule.forRoot(),
@@ -50,6 +54,7 @@ import { PmsModule } from './modules/pms/pms.module';
       useFactory: typeOrmConfig,
       inject: [ConfigService],
     }),
+    TypeOrmModule.forFeature([SystemLog]),
 
     ThrottlerModule.forRoot({
       throttlers: [{ ttl: 60_000, limit: 5 }],
@@ -138,8 +143,8 @@ import { PmsModule } from './modules/pms/pms.module';
     PermissionModule,
     AttendanceModule,
     TimesheetModule,
-    PolicyModule,
     LeaveModule,
+    PolicyModule,
     LeaveTypeModule,
     LeaveReportsModule,
     ReportsModule,
@@ -149,9 +154,15 @@ import { PmsModule } from './modules/pms/pms.module';
     CompanyModule,
     AssetModule,
     AssetRequestModule,
-    AssetSubcategoryModule,
     BenefitsModule,
-    PmsModule
+    PmsModule,
+    SystemModule,
   ],
+  providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: SystemLoggingInterceptor,
+    },
+  ]
 })
 export class AppModule {}

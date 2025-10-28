@@ -6,16 +6,19 @@ import {
   JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  Index,
 } from 'typeorm';
 import { User } from './user.entity';
 import { LeaveType } from './leave-type.entity';
 import { LeaveStatus } from '../common/constants/enums';
+import { Tenant } from './tenant.entity';
 
 @Entity('leaves')
 export class Leave {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  @Index()
   @Column({ type: 'uuid' })
   employeeId: string;
 
@@ -23,6 +26,7 @@ export class Leave {
   @JoinColumn({ name: 'employeeId' })
   employee: User;
 
+  @Index()
   @Column({ type: 'uuid' })
   leaveTypeId: string;
 
@@ -42,6 +46,7 @@ export class Leave {
   @Column({ type: 'text' })
   reason: string;
 
+  @Index()
   @Column({ type: 'varchar', default: LeaveStatus.PENDING }) 
   status: LeaveStatus;
 
@@ -52,6 +57,7 @@ export class Leave {
   @JoinColumn({ name: 'approvedBy' })
   approver: User;
 
+  @Index()
   @Column({ type: 'uuid' })
   tenantId: string;
 
@@ -66,4 +72,9 @@ export class Leave {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @ManyToOne(() => Tenant
+  , (tenant) => tenant.leaves, { nullable: false })
+  @JoinColumn({ name: 'tenantId' })
+  tenant: Tenant;
 }

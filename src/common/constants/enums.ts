@@ -69,7 +69,6 @@ export enum LeaveStatus {
   APPROVED = 'approved',
   REJECTED = 'rejected',
   CANCELLED = 'cancelled',
-  WITHDRAWN = 'withdrawn',
 }
 
 // Asset Enums
