@@ -161,7 +161,7 @@ export class LeaveService {
     if (status) {
       whereConditions.status = status;
     } else {
-      whereConditions.status = In([LeaveStatus.PENDING, LeaveStatus.APPROVED, LeaveStatus.REJECTED, LeaveStatus.WITHDRAWN]);
+      whereConditions.status = In([LeaveStatus.PENDING, LeaveStatus.APPROVED, LeaveStatus.REJECTED]);
     }
 
     const [items, total] = await this.leaveRepo.findAndCount({
@@ -247,7 +247,7 @@ export class LeaveService {
     return await this.leaveRepo.save(leave);
   }
 
-  async withdrawLeave(id: string, employeeId: string): Promise<Leave> {
+  async cancelLeave(id: string, employeeId: string): Promise<Leave> {
     const leave = await this.leaveRepo.findOne({
       where: { id },
     });
@@ -257,14 +257,14 @@ export class LeaveService {
     }
 
     if (leave.employeeId !== employeeId) {
-      throw new ForbiddenException('You can only withdraw your own leave requests');
+      throw new ForbiddenException('You can only cancel your own leave requests');
     }
 
     if (leave.status !== LeaveStatus.PENDING) {
-      throw new ForbiddenException('You can only withdraw pending leave requests');
+      throw new ForbiddenException('You can only cancel pending leave requests');
     }
 
-    leave.status = LeaveStatus.WITHDRAWN;
+    leave.status = LeaveStatus.CANCELLED;
     return await this.leaveRepo.save(leave);
   }
 
@@ -348,7 +348,7 @@ export class LeaveService {
     const [items, total] = await this.leaveRepo.findAndCount({
       where: {
         employeeId: In(userIds),
-        status: In([LeaveStatus.PENDING, LeaveStatus.APPROVED, LeaveStatus.REJECTED, LeaveStatus.WITHDRAWN]),
+        status: In([LeaveStatus.PENDING, LeaveStatus.APPROVED, LeaveStatus.REJECTED]),
       },
       relations: ['employee', 'leaveType', 'approver'],
       order: { createdAt: 'DESC' },
@@ -414,7 +414,7 @@ export class LeaveService {
     const leaveApplications = await this.leaveRepo
       .createQueryBuilder('leave')
       .where('leave.employeeId IN (:...userIds)', { userIds: teamMemberUserIds })
-      .andWhere('leave.status IN (:...statuses)', { statuses: [LeaveStatus.PENDING, LeaveStatus.APPROVED, LeaveStatus.REJECTED, LeaveStatus.WITHDRAWN] })
+      .andWhere('leave.status IN (:...statuses)', { statuses: [LeaveStatus.PENDING, LeaveStatus.APPROVED, LeaveStatus.REJECTED] })
       .select(['leave.employeeId', 'COUNT(leave.id) as totalApplications'])
       .groupBy('leave.employeeId')
       .getRawMany();
