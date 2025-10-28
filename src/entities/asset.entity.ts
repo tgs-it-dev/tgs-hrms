@@ -8,7 +8,6 @@ import {
 } from 'typeorm';
 import { User } from './user.entity';
 import { Tenant } from './tenant.entity';
-import { AssetSubcategory } from './asset-subcategory.entity';
 import { AssetStatus } from '../common/constants/enums';
 
 @Entity('assets')
@@ -21,9 +20,6 @@ export class Asset {
 
   @Column({ type: 'varchar' })
   category: string;
-
-  @Column({ type: 'uuid', nullable: true })
-  subcategory_id: string | null;
 
   @Column({ type: 'varchar', length: 30, default: AssetStatus.AVAILABLE })
   status: AssetStatus;
@@ -44,13 +40,9 @@ export class Asset {
   @JoinColumn({ name: 'assigned_to' })
   assignedToUser?: User | null;
 
-  @ManyToOne(() => AssetSubcategory, (subcategory) => subcategory.id, { nullable: true })
-  @JoinColumn({ name: 'subcategory_id' })
-  subcategory?: AssetSubcategory | null;
-
-  @ManyToOne(() => Tenant, (tenant) => tenant.id, { nullable: false })
+  @ManyToOne(() => Tenant, (tenant) => tenant.assets, { nullable: false })
   @JoinColumn({ name: 'tenant_id' })
-  tenant?: Tenant;
+  tenant: Tenant;
 }
 
 
