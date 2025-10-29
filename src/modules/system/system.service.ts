@@ -3,6 +3,8 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { Tenant } from "src/entities/tenant.entity";
 import { Employee } from "src/entities/employee.entity";
+import { Department } from "src/entities/department.entity";
+import { Designation } from "src/entities/designation.entity";
 import { SystemLog } from "src/entities/system-log.entity";
 import { toCsv } from "src/common/utils/csv.util";
 
@@ -14,6 +16,12 @@ export class SystemService {
 
     @InjectRepository(Employee)
     private readonly employeeRepo: Repository<Employee>,
+
+    @InjectRepository(Department)
+    private readonly departmentRepo: Repository<Department>,
+
+    @InjectRepository(Designation)
+    private readonly designationRepo: Repository<Designation>,
 
     @InjectRepository(SystemLog)
     private readonly systemLogRepo: Repository<SystemLog>,
@@ -36,15 +44,28 @@ export class SystemService {
 
     const totalEmployees = await this.employeeRepo.count();
 
+    // const activeEmployeesPerTenant = await this.employeeRepo
+    //   .createQueryBuilder("employee")
+    //   .innerJoin("employee.user", "user")
+    //   .select("user.tenant_id", "tenantId")
+    //   .addSelect("COUNT(employee.id)", "activeCount")
+    //   .where("employee.status = :status", { status: "active" })
+    //   .groupBy("user.tenant_id")
+    //   .orderBy("COUNT(employee.id)", "DESC")
+    //   .getRawMany();
+
     const activeEmployeesPerTenant = await this.employeeRepo
-      .createQueryBuilder("employee")
-      .innerJoin("employee.user", "user")
-      .select("user.tenant_id", "tenantId")
-      .addSelect("COUNT(employee.id)", "activeCount")
-      .where("employee.status = :status", { status: "active" })
-      .groupBy("user.tenant_id")
-      .orderBy("COUNT(employee.id)", "DESC")
-      .getRawMany();
+  .createQueryBuilder("employee")
+  .innerJoin("employee.user", "user")
+  .innerJoin("user.tenant", "tenant")
+  .select("user.tenant_id", "tenantId")
+  .addSelect("tenant.name", "tenantName")
+  .addSelect("COUNT(employee.id)", "activeCount")
+  .where("employee.status = :status", { status: "active" })
+  .groupBy("user.tenant_id")
+  .addGroupBy("tenant.name")
+  .orderBy("COUNT(employee.id)", "DESC")
+  .getRawMany();
 
     const systemUptimeSeconds = Math.floor(process.uptime());
 
@@ -131,5 +152,128 @@ export class SystemService {
     }));
 
     return toCsv(csvData);
+  }
+
+  /**
+   * Get Tenant Growth Overview
+   * Returns month-wise cumulative counts of employees, departments, and designations
+   * @param year - Year for growth data (e.g., 2025)
+   * @param tenant_id - Tenant ID (required)
+   */
+  async getTenantGrowthOverview(year: number, tenant_id: string) {
+    if (!tenant_id) {
+      throw new NotFoundException("Tenant ID is required");
+    }
+
+    // Fetch tenant information
+    const tenant = await this.tenantRepo.findOne({
+      where: { id: tenant_id },
+      select: ['id', 'name'],
+    });
+
+    if (!tenant) {
+      throw new NotFoundException("Tenant not found");
+    }
+
+    // Generate all 12 months for the year
+    const months = Array.from({ length: 12 }, (_, i) => i + 1);
+
+    // Get monthly new additions (non-cumulative) for each entity
+    // Employees: New employees created per month
+    const employeeMonthlyAdditions = await this.employeeRepo
+      .createQueryBuilder("employee")
+      .innerJoin("employee.user", "user")
+      .select("TO_CHAR(employee.created_at, 'YYYY-MM')", "month")
+      .addSelect("COUNT(employee.id)", "count")
+      .where("EXTRACT(YEAR FROM employee.created_at) = :year", { year })
+      .andWhere("user.tenant_id = :tenant_id", { tenant_id })
+      .groupBy("month")
+      .orderBy("month", "ASC")
+      .getRawMany();
+
+    // Departments: New departments created per month
+    const departmentMonthlyAdditions = await this.departmentRepo
+      .createQueryBuilder("department")
+      .select("TO_CHAR(department.created_at, 'YYYY-MM')", "month")
+      .addSelect("COUNT(department.id)", "count")
+      .where("EXTRACT(YEAR FROM department.created_at) = :year", { year })
+      .andWhere("department.tenant_id = :tenant_id", { tenant_id })
+      .groupBy("month")
+      .orderBy("month", "ASC")
+      .getRawMany();
+
+    // Designations: New designations created per month
+    const designationMonthlyAdditions = await this.designationRepo
+      .createQueryBuilder("designation")
+      .innerJoin("designation.department", "department")
+      .select("TO_CHAR(designation.created_at, 'YYYY-MM')", "month")
+      .addSelect("COUNT(designation.id)", "count")
+      .where("EXTRACT(YEAR FROM designation.created_at) = :year", { year })
+      .andWhere("department.tenant_id = :tenant_id", { tenant_id })
+      .groupBy("month")
+      .orderBy("month", "ASC")
+      .getRawMany();
+
+    // Get baseline counts (total created before the specified year)
+    const baselineEmployees = await this.employeeRepo
+      .createQueryBuilder("employee")
+      .innerJoin("employee.user", "user")
+      .where("EXTRACT(YEAR FROM employee.created_at) < :year", { year })
+      .andWhere("user.tenant_id = :tenant_id", { tenant_id })
+      .getCount();
+
+    const baselineDepartments = await this.departmentRepo
+      .createQueryBuilder("department")
+      .where("EXTRACT(YEAR FROM department.created_at) < :year", { year })
+      .andWhere("department.tenant_id = :tenant_id", { tenant_id })
+      .getCount();
+
+    const baselineDesignations = await this.designationRepo
+      .createQueryBuilder("designation")
+      .innerJoin("designation.department", "department")
+      .where("EXTRACT(YEAR FROM designation.created_at) < :year", { year })
+      .andWhere("department.tenant_id = :tenant_id", { tenant_id })
+      .getCount();
+
+    // Initialize cumulative counters with baseline
+    let cumulativeEmployees = baselineEmployees;
+    let cumulativeDepartments = baselineDepartments;
+    let cumulativeDesignations = baselineDesignations;
+
+    // Process each month and calculate cumulative totals
+    const growthData = months.map((month) => {
+      const monthKey = `${year}-${String(month).padStart(2, "0")}`;
+      const monthName = new Date(year, month - 1).toLocaleString("default", {
+        month: "short",
+      });
+
+      // Find additions for this month
+      const newEmployees =
+        employeeMonthlyAdditions.find((e) => e.month === monthKey)?.count ||
+        "0";
+      const newDepartments =
+        departmentMonthlyAdditions.find((d) => d.month === monthKey)?.count ||
+        "0";
+      const newDesignations =
+        designationMonthlyAdditions.find((d) => d.month === monthKey)?.count ||
+        "0";
+
+      // Update cumulative totals
+      cumulativeEmployees += parseInt(newEmployees, 10);
+      cumulativeDepartments += parseInt(newDepartments, 10);
+      cumulativeDesignations += parseInt(newDesignations, 10);
+
+      return {
+        tenantId: tenant.id,
+        tenantName: tenant.name,
+        month: monthKey,
+        monthName: monthName,
+        employees: cumulativeEmployees,
+        departments: cumulativeDepartments,
+        designations: cumulativeDesignations,
+      };
+    });
+
+    return growthData;
   }
 }

@@ -14,6 +14,8 @@ import { SystemEmployeeService } from "./system-employee/system-employee.service
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { Tenant } from "src/entities/tenant.entity";
 import { Employee } from "src/entities/employee.entity";
+import { Department } from "src/entities/department.entity";
+import { Designation } from "src/entities/designation.entity";
 import { SystemLog } from "src/entities/system-log.entity";
 import { SharedJwtModule } from "src/common/modules/jwt.module";
 import { Leave } from "src/entities/leave.entity";
@@ -27,6 +29,8 @@ import { PerformanceReview } from "src/entities/performance-review.entity";
     TypeOrmModule.forFeature([
       Tenant,
       Employee,
+      Department,
+      Designation,
       SystemLog,
       Leave,
       Asset,

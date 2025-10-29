@@ -16,6 +16,7 @@ import {
 import { JwtAuthGuard } from "src/common/guards/jwt-auth.guard";
 import { RolesGuard } from "src/common/guards/roles.guard";
 import { Roles } from "src/common/decorators/roles.decorator";
+import { TenantId } from "src/common/decorators/company.deorator";
 import { SystemService } from "./system.service";
 import { Response } from "express";
 
@@ -70,5 +71,60 @@ export class SystemController {
       `attachment; filename=system-logs-${Date.now()}.csv`,
     );
     res.send(csv);
+  }
+
+  @Get("tenant-growth")
+  @ApiOperation({
+    summary: "Get tenant growth overview with month-wise cumulative counts",
+  })
+  @ApiQuery({
+    name: "year",
+    required: true,
+    type: Number,
+    example: 2025,
+    description: "Year for growth data",
+  })
+  @ApiQuery({
+    name: "tenantId",
+    required: true,
+    type: String,
+    example: "uuid-here",
+    description: "Tenant ID for which to fetch growth data",
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      "Returns month-wise cumulative growth data for employees, departments, and designations",
+    schema: {
+      example: [
+        {
+          tenantId: "uuid-here",
+          tenantName: "Company ABC",
+          month: "2025-01",
+          monthName: "Jan",
+          employees: 20,
+          departments: 2,
+          designations: 5,
+        },
+        {
+          tenantId: "uuid-here",
+          tenantName: "Company ABC",
+          month: "2025-02",
+          monthName: "Feb",
+          employees: 25,
+          departments: 2,
+          designations: 25,
+        },
+      ],
+    },
+  })
+  async getTenantGrowth(
+    @Query("year") year: number,
+    @Query("tenantId") tenantId: string,
+  ) {
+    if (!tenantId) {
+      throw new NotFoundException("Tenant ID is required");
+    }
+    return this.systemService.getTenantGrowthOverview(year, tenantId);
   }
 }
