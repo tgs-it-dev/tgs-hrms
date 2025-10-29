@@ -98,4 +98,13 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsEnum(UserGender)
   gender?: UserGender;
+
+  @ApiProperty({ 
+    example: '12345-1234567-1',
+    required: false,
+    description: 'CNIC number in format: XXXXX-XXXXXXX-X'
+  })
+  @IsOptional()
+  @IsString()
+  cnic_number?: string;
 }

@@ -66,4 +66,12 @@ export class UpdateEmployeeDto {
   @IsOptional()
   @IsUUID()
   role_id?: string;
+
+  @ApiPropertyOptional({ 
+    example: '12345-1234567-1',
+    description: 'CNIC number in format: XXXXX-XXXXXXX-X'
+  })
+  @IsOptional()
+  @IsString()
+  cnic_number?: string;
 }

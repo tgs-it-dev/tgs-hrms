@@ -16,6 +16,7 @@ import { LeaveModule } from '../leave/leave.module';
 import { SendGridService } from '../../common/utils/email';
 import { InviteStatusModule } from '../invite-status/invite-status.module';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
+import { EmployeeFileUploadService } from './services/employee-file-upload.service';
 
 @Module({
   imports: [
@@ -26,6 +27,6 @@ import { SharedJwtModule } from '../../common/modules/jwt.module';
     SharedJwtModule,
   ],
   controllers: [EmployeeController, EmployeeProfileController],
-  providers: [EmployeeService, EmployeeProfileService, SendGridService],
+  providers: [EmployeeService, EmployeeProfileService, SendGridService, EmployeeFileUploadService],
 })
 export class EmployeeModule {}
