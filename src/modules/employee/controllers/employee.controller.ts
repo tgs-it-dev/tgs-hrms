@@ -10,6 +10,11 @@ import {
   Query,
   Patch,
   Res,
+  UseInterceptors,
+  UploadedFiles,
+  ParseFilePipe,
+  MaxFileSizeValidator,
+  FileTypeValidator,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -18,6 +23,8 @@ import {
   ApiTags,
   ApiQuery,
   ApiParam,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
 import { EmployeeService } from '../services/employee.service';
 import { CreateEmployeeDto, UpdateEmployeeDto, EmployeeQueryDto } from '../dto/employee.dto';
@@ -33,6 +40,7 @@ import { Permissions } from '../../../common/decorators/permissions.decorator';
 import { PermissionsGuard } from '../../../common/guards/permissions.guard';
 import { Response } from 'express';
 import { sendCsvResponse } from '../../../common/utils/csv.util';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('Employees')
 @ApiBearerAuth()
@@ -47,13 +55,56 @@ export class EmployeeController {
 
   @Post('manager')
   @Roles('admin', 'system-admin')
-  @ApiOperation({ summary: 'Create a new manager employee. Optionally assign a role by role_id.' })
+  @UseInterceptors(FileFieldsInterceptor([
+    { name: 'profile_picture', maxCount: 1 },
+    { name: 'cnic_picture', maxCount: 1 },
+    { name: 'cnic_back_picture', maxCount: 1 }
+  ], {
+    fileFilter: (req, file, cb) => {
+      if (!file.mimetype.startsWith('image/')) {
+        return cb(new Error('Only image files are allowed!'), false);
+      }
+      cb(null, true);
+    },
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  }))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Create a new manager employee with optional profile and CNIC pictures' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        first_name: { type: 'string', example: 'John' },
+        last_name: { type: 'string', example: 'Doe' },
+        email: { type: 'string', example: 'john.doe@company.com' },
+        phone: { type: 'string', example: '+1234567890' },
+        designation_id: { type: 'string', example: 'uuid-string' },
+        team_id: { type: 'string', example: 'uuid-string' },
+        role_id: { type: 'string', example: 'uuid-string' },
+        gender: { type: 'string', enum: ['male', 'female'] },
+        password: { type: 'string', example: 'SecurePassword123!' },
+        cnic_number: { type: 'string', example: '12345-1234567-1' },
+        profile_picture: { type: 'string', format: 'binary' },
+        cnic_picture: { type: 'string', format: 'binary' },
+        cnic_back_picture: { type: 'string', format: 'binary' },
+      },
+      required: ['first_name', 'last_name', 'email', 'phone', 'designation_id'],
+    },
+  })
   @ApiResponse({
     status: 201,
     description: 'Manager created successfully with manager role assigned (or custom role if provided)',
   })
-  async createManager(@TenantId() tenant_id: string, @Body() createEmployeeDto: CreateEmployeeDto) {
-    return this.service.createManager(tenant_id, createEmployeeDto);
+  async createManager(
+    @TenantId() tenant_id: string, 
+    @Body() createEmployeeDto: CreateEmployeeDto,
+    @UploadedFiles() files?: { 
+      profile_picture?: Express.Multer.File[], 
+      cnic_picture?: Express.Multer.File[], 
+      cnic_back_picture?: Express.Multer.File[] 
+    }
+  ) {
+    return this.service.createManager(tenant_id, createEmployeeDto, files);
   }
 
   @Patch(':id/promote-to-manager')
@@ -83,8 +134,44 @@ export class EmployeeController {
   @Post()
   @Roles('admin', 'system-admin')
   @Permissions('manage_employees')
-  @ApiOperation({ summary: 'Create employee by assigning user to designation. Optionally assign a role by role_name or role_id.' })
-  @ApiResponse({ status: 201, description: 'Employee created.' })
+  @UseInterceptors(FileFieldsInterceptor([
+    { name: 'profile_picture', maxCount: 1 },
+    { name: 'cnic_picture', maxCount: 1 },
+    { name: 'cnic_back_picture', maxCount: 1 }
+  ], {
+    fileFilter: (req, file, cb) => {
+      if (!file.mimetype.startsWith('image/')) {
+        return cb(new Error('Only image files are allowed!'), false);
+      }
+      cb(null, true);
+    },
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  }))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Create employee with optional profile and CNIC pictures' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        first_name: { type: 'string', example: 'John' },
+        last_name: { type: 'string', example: 'Doe' },
+        email: { type: 'string', example: 'john.doe@company.com' },
+        phone: { type: 'string', example: '+1234567890' },
+        designation_id: { type: 'string', example: 'uuid-string' },
+        team_id: { type: 'string', example: 'uuid-string' },
+        role_id: { type: 'string', example: 'uuid-string' },
+        gender: { type: 'string', enum: ['male', 'female'] },
+        password: { type: 'string', example: 'SecurePassword123!' },
+        role_name: { type: 'string', example: 'employee' },
+        cnic_number: { type: 'string', example: '12345-1234567-1' },
+        profile_picture: { type: 'string', format: 'binary' },
+        cnic_picture: { type: 'string', format: 'binary' },
+        cnic_back_picture: { type: 'string', format: 'binary' },
+      },
+      required: ['first_name', 'last_name', 'email', 'phone', 'designation_id'],
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Employee created successfully.' })
   @ApiResponse({
     status: 400,
     description: 'Invalid user or designation.',
@@ -107,15 +194,58 @@ export class EmployeeController {
       },
     },
   })
-  async create(@TenantId() tenant_id: string, @Body() dto: CreateEmployeeDto) {
-    return this.service.create(tenant_id, dto);
+  async create(
+    @TenantId() tenant_id: string, 
+    @Body() dto: CreateEmployeeDto,
+    @UploadedFiles() files?: { 
+      profile_picture?: Express.Multer.File[], 
+      cnic_picture?: Express.Multer.File[], 
+      cnic_back_picture?: Express.Multer.File[] 
+    }
+  ) {
+    return this.service.create(tenant_id, dto, files);
   }
 
   @Put(':id')
   @Roles('admin', 'system-admin')
   @Permissions('manage_employees')
-  @ApiOperation({ summary: 'Update employee details including designation, role by role_name or role_id' })
-  @ApiResponse({ status: 200, description: 'Employee updated.' })
+  @UseInterceptors(FileFieldsInterceptor([
+    { name: 'profile_picture', maxCount: 1 },
+    { name: 'cnic_picture', maxCount: 1 },
+    { name: 'cnic_back_picture', maxCount: 1 }
+  ], {
+    fileFilter: (req, file, cb) => {
+      if (!file.mimetype.startsWith('image/')) {
+        return cb(new Error('Only image files are allowed!'), false);
+      }
+      cb(null, true);
+    },
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  }))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Update employee details including designation, role, and pictures (profile, CNIC front/back)' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        first_name: { type: 'string', example: 'John' },
+        last_name: { type: 'string', example: 'Doe' },
+        email: { type: 'string', example: 'john.doe@company.com' },
+        phone: { type: 'string', example: '+1234567890' },
+        password: { type: 'string', example: 'SecurePassword123!' },
+        designation_id: { type: 'string', example: 'uuid-string' },
+        team_id: { type: 'string', example: 'uuid-string' },
+        role_id: { type: 'string', example: 'uuid-string' },
+        role_name: { type: 'string', example: 'employee' },
+        gender: { type: 'string', enum: ['male', 'female', 'other'] },
+        cnic_number: { type: 'string', example: '12345-1234567-1' },
+        profile_picture: { type: 'string', format: 'binary' },
+        cnic_picture: { type: 'string', format: 'binary' },
+        cnic_back_picture: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Employee updated successfully.' })
   @ApiResponse({
     status: 400,
     description: 'Invalid designation.',
@@ -141,9 +271,14 @@ export class EmployeeController {
   async update(
     @TenantId() tenant_id: string,
     @Param('id') id: string,
-    @Body() dto: UpdateEmployeeDto
+    @Body() dto: UpdateEmployeeDto,
+    @UploadedFiles() files?: { 
+      profile_picture?: Express.Multer.File[], 
+      cnic_picture?: Express.Multer.File[], 
+      cnic_back_picture?: Express.Multer.File[] 
+    }
   ) {
-    return this.service.update(tenant_id, id, dto);
+    return this.service.update(tenant_id, id, dto, files);
   }
 
   @Get()
@@ -345,4 +480,108 @@ export class EmployeeController {
       department_id: emp.designation?.department?.id ?? null,
     };
   }
+
+  @Get(':id/profile-picture')
+  @Roles('admin', 'system-admin', 'hr-admin', 'manager', 'employee')
+  @ApiOperation({ summary: 'Get employee profile picture file' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Profile picture file returned successfully',
+    content: {
+      'image/*': {
+        schema: {
+          type: 'string',
+          format: 'binary'
+        }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 404, 
+    description: 'Employee not found or no profile picture',
+    schema: {
+      example: {
+        message: 'Employee not found or no profile picture available',
+        error: 'Not Found',
+        statusCode: 404
+      }
+    }
+  })
+  async getProfilePicture(
+    @TenantId() tenant_id: string, 
+    @Param('id') id: string,
+    @Res() res: Response
+  ) {
+    return this.service.getProfilePictureFile(tenant_id, id, res);
+  }
+
+  @Get(':id/cnic-picture')
+  @Roles('admin', 'system-admin', 'hr-admin', 'manager')
+  @ApiOperation({ summary: 'Get employee CNIC front picture file' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'CNIC picture file returned successfully',
+    content: {
+      'image/*': {
+        schema: {
+          type: 'string',
+          format: 'binary'
+        }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 404, 
+    description: 'Employee not found or no CNIC picture',
+    schema: {
+      example: {
+        message: 'Employee not found or no CNIC picture available',
+        error: 'Not Found',
+        statusCode: 404
+      }
+    }
+  })
+  async getCnicPicture(
+    @TenantId() tenant_id: string, 
+    @Param('id') id: string,
+    @Res() res: Response
+  ) {
+    return this.service.getCnicPictureFile(tenant_id, id, res);
+  }
+
+  @Get(':id/cnic-back-picture')
+  @Roles('admin', 'system-admin', 'hr-admin', 'manager')
+  @ApiOperation({ summary: 'Get employee CNIC back picture file' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'CNIC back picture file returned successfully',
+    content: {
+      'image/*': {
+        schema: {
+          type: 'string',
+          format: 'binary'
+        }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 404, 
+    description: 'Employee not found or no CNIC back picture',
+    schema: {
+      example: {
+        message: 'Employee not found or no CNIC back picture available',
+        error: 'Not Found',
+        statusCode: 404
+      }
+    }
+  })
+  async getCnicBackPicture(
+    @TenantId() tenant_id: string, 
+    @Param('id') id: string,
+    @Res() res: Response
+  ) {
+    return this.service.getCnicBackPictureFile(tenant_id, id, res);
+  }
+
+
 }

@@ -37,6 +37,18 @@ export class Employee {
   @Column({ type: 'uuid', nullable: true })
   team_id: string | null;
 
+  @Column({ type: 'varchar', length: 15, nullable: true })
+  cnic_number: string | null;
+
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  profile_picture: string | null;
+
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  cnic_picture: string | null;
+
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  cnic_back_picture: string | null;
+
   @CreateDateColumn()
   created_at: Date;
   

@@ -51,6 +51,14 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsString()
   role_name?: string;
+
+  @ApiPropertyOptional({ 
+    description: 'CNIC number in format: XXXXX-XXXXXXX-X',
+    example: '12345-1234567-1'
+  })
+  @IsOptional()
+  @IsString()
+  cnic_number?: string;
 }
 
 // Update Employee DTO
@@ -102,6 +110,14 @@ export class UpdateEmployeeDto {
   @IsOptional()
   @IsString()
   role_name?: string;
+
+  @ApiPropertyOptional({ 
+    description: 'CNIC number in format: XXXXX-XXXXXXX-X',
+    example: '12345-1234567-1'
+  })
+  @IsOptional()
+  @IsString()
+  cnic_number?: string;
 }
 
 // Employee Query DTO
@@ -146,6 +162,21 @@ export class EmployeeProfileDto {
 
   @ApiPropertyOptional({ description: 'Employee gender', enum: UserGender })
   gender?: UserGender;
+
+  @ApiPropertyOptional({ 
+    description: 'CNIC number in format: XXXXX-XXXXXXX-X',
+    example: '12345-1234567-1'
+  })
+  cnic_number?: string;
+
+  @ApiPropertyOptional({ description: 'Profile picture URL' })
+  profile_picture?: string;
+
+  @ApiPropertyOptional({ description: 'CNIC picture URL' })
+  cnic_picture?: string;
+
+  @ApiPropertyOptional({ description: 'CNIC back picture URL' })
+  cnic_back_picture?: string;
 
   @ApiProperty({ description: 'Designation information' })
   designation?: {
@@ -195,6 +226,21 @@ export class EmployeeResponseDto {
 
   @ApiProperty({ description: 'Team name', example: 'Development Team' })
   team: string;
+
+  @ApiPropertyOptional({ 
+    description: 'CNIC number in format: XXXXX-XXXXXXX-X',
+    example: '12345-1234567-1'
+  })
+  cnic_number?: string;
+
+  @ApiPropertyOptional({ description: 'Profile picture URL' })
+  profile_picture?: string;
+
+  @ApiPropertyOptional({ description: 'CNIC picture URL' })
+  cnic_picture?: string;
+
+  @ApiPropertyOptional({ description: 'CNIC back picture URL' })
+  cnic_back_picture?: string;
 
   @ApiProperty({ description: 'Creation date' })
   created_at: Date;

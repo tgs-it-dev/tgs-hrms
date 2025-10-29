@@ -16,6 +16,7 @@ import { CreateEmployeeDto, UpdateEmployeeDto, EmployeeQueryDto } from '../dto/e
 import { ConfigService } from '@nestjs/config';
 import { SendGridService } from '../../../common/utils/email';
 import { InviteStatusService } from '../../invite-status/invite-status.service';
+import { EmployeeFileUploadService } from './employee-file-upload.service';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 
@@ -23,6 +24,9 @@ const GLOBAL = '00000000-0000-0000-0000-000000000000';
 import { PaginationResponse } from '../../../common/interfaces/pagination.interface';
 import { Logger } from '@nestjs/common';
 import { InviteStatus, UserGender, EmployeeStatus } from '../../../common/constants/enums';
+import { Response } from 'express';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class EmployeeService implements OnModuleInit {
@@ -40,7 +44,8 @@ export class EmployeeService implements OnModuleInit {
     private readonly teamRepo: Repository<Team>,
     private readonly configService: ConfigService,
     private readonly sendGridService: SendGridService,
-    private readonly inviteStatusService: InviteStatusService
+    private readonly inviteStatusService: InviteStatusService,
+    private readonly employeeFileUploadService: EmployeeFileUploadService
   ) {}
 
   onModuleInit() {
@@ -134,7 +139,11 @@ export class EmployeeService implements OnModuleInit {
     }
   }
 
-  async createManager(tenant_id: string, dto: CreateEmployeeDto) {
+  async createManager(tenant_id: string, dto: CreateEmployeeDto, files?: { 
+    profile_picture?: Express.Multer.File[], 
+    cnic_picture?: Express.Multer.File[], 
+    cnic_back_picture?: Express.Multer.File[] 
+  }) {
     await this.validateDesignation(dto.designation_id, tenant_id);
 
     // Validate optional UUID fields if provided
@@ -183,7 +192,7 @@ export class EmployeeService implements OnModuleInit {
 
 
     try {
-      return await this.userRepo.manager.transaction(async (manager) => {
+      const result = await this.userRepo.manager.transaction(async (manager) => {
         const userRepo = manager.getRepository(User);
         const employeeRepo = manager.getRepository(Employee);
 
@@ -194,15 +203,45 @@ export class EmployeeService implements OnModuleInit {
           designation_id: dto.designation_id,
           team_id: dto.team_id || null,
           invite_status: InviteStatus.INVITE_SENT,
+          cnic_number: dto.cnic_number || null,
         });
 
         const savedEmployee = await employeeRepo.save(employee);
-
-        
-        await this.sendPasswordResetEmail(dto.email, resetToken);
-
         return savedEmployee;
       });
+
+      // Handle file uploads if provided (after transaction)
+      if (files) {
+        if (files.profile_picture && files.profile_picture.length > 0) {
+          const profilePictureUrl = await this.employeeFileUploadService.uploadProfilePicture(files.profile_picture[0], result.id);
+          result.profile_picture = profilePictureUrl;
+          
+          // Also update User table with profile picture
+          const user = await this.userRepo.findOne({ where: { id: result.user_id } });
+          if (user) {
+            user.profile_pic = profilePictureUrl;
+            await this.userRepo.save(user);
+          }
+        }
+        
+        if (files.cnic_picture && files.cnic_picture.length > 0) {
+          const cnicPictureUrl = await this.employeeFileUploadService.uploadCnicPicture(files.cnic_picture[0], result.id);
+          result.cnic_picture = cnicPictureUrl;
+        }
+        
+        if (files.cnic_back_picture && files.cnic_back_picture.length > 0) {
+          const cnicBackPictureUrl = await this.employeeFileUploadService.uploadCnicBackPicture(files.cnic_back_picture[0], result.id);
+          result.cnic_back_picture = cnicBackPictureUrl;
+        }
+        
+        // Save employee with file URLs
+        await this.employeeRepo.save(result);
+      }
+
+      
+      await this.sendPasswordResetEmail(dto.email, resetToken);
+
+      return result;
     } catch (err) {
       if (err instanceof QueryFailedError && (err as any).code === '23505') {
         throw new ConflictException('Manager already exists.');
@@ -211,7 +250,11 @@ export class EmployeeService implements OnModuleInit {
     }
   }
 
-  async create(tenant_id: string, dto: CreateEmployeeDto) {
+  async create(tenant_id: string, dto: CreateEmployeeDto, files?: { 
+    profile_picture?: Express.Multer.File[], 
+    cnic_picture?: Express.Multer.File[], 
+    cnic_back_picture?: Express.Multer.File[] 
+  }) {
     await this.validateDesignation(dto.designation_id, tenant_id);
 
     // Validate optional UUID fields if provided
@@ -265,7 +308,7 @@ export class EmployeeService implements OnModuleInit {
 
     
     try {
-      return await this.userRepo.manager.transaction(async (manager) => {
+      const result = await this.userRepo.manager.transaction(async (manager) => {
         const userRepo = manager.getRepository(User);
         const employeeRepo = manager.getRepository(Employee);
 
@@ -276,15 +319,44 @@ export class EmployeeService implements OnModuleInit {
           designation_id: dto.designation_id,
           team_id: dto.team_id || null,
           invite_status: InviteStatus.INVITE_SENT,
+          cnic_number: dto.cnic_number || null,
         });
 
         const savedEmployee = await employeeRepo.save(employee);
-
-      
-        await this.sendPasswordResetEmail(dto.email, resetToken);
-
         return savedEmployee;
       });
+
+      // Handle file uploads if provided (after transaction)
+      if (files) {
+        if (files.profile_picture && files.profile_picture.length > 0) {
+          const profilePictureUrl = await this.employeeFileUploadService.uploadProfilePicture(files.profile_picture[0], result.id);
+          result.profile_picture = profilePictureUrl;
+          
+          // Also update User table with profile picture
+          const user = await this.userRepo.findOne({ where: { id: result.user_id } });
+          if (user) {
+            user.profile_pic = profilePictureUrl;
+            await this.userRepo.save(user);
+          }
+        }
+        
+        if (files.cnic_picture && files.cnic_picture.length > 0) {
+          const cnicPictureUrl = await this.employeeFileUploadService.uploadCnicPicture(files.cnic_picture[0], result.id);
+          result.cnic_picture = cnicPictureUrl;
+        }
+        
+        if (files.cnic_back_picture && files.cnic_back_picture.length > 0) {
+          const cnicBackPictureUrl = await this.employeeFileUploadService.uploadCnicBackPicture(files.cnic_back_picture[0], result.id);
+          result.cnic_back_picture = cnicBackPictureUrl;
+        }
+        
+        // Save employee with file URLs
+        await this.employeeRepo.save(result);
+      }
+      
+      await this.sendPasswordResetEmail(dto.email, resetToken);
+
+      return result;
     } catch (err) {
       if (err instanceof QueryFailedError && (err as any).code === '23505') {
         throw new ConflictException('Employee already exists.');
@@ -370,7 +442,11 @@ export class EmployeeService implements OnModuleInit {
     };
   }
 
-  async update(tenant_id: string, id: string, dto: UpdateEmployeeDto) {
+  async update(tenant_id: string, id: string, dto: UpdateEmployeeDto, files?: { 
+    profile_picture?: Express.Multer.File[], 
+    cnic_picture?: Express.Multer.File[], 
+    cnic_back_picture?: Express.Multer.File[] 
+  }) {
     const employee = await this.employeeRepo.findOne({
       where: { id },
       relations: ['user', 'designation', 'designation.department'],
@@ -440,6 +516,87 @@ export class EmployeeService implements OnModuleInit {
     if (dto.password) {
       user.password = await bcrypt.hash(dto.password, 10);
       shouldSaveUser = true;
+    }
+
+    if (dto.cnic_number !== undefined) {
+      employee.cnic_number = dto.cnic_number;
+    }
+
+    // Handle file uploads
+    if (files) {
+      if (files.profile_picture?.[0]) {
+        // Delete old profile picture if exists
+        if (user.profile_pic) {
+          try {
+            console.log('Deleting old profile picture:', user.profile_pic);
+            await this.employeeFileUploadService.deleteProfilePicture(user.profile_pic);
+            console.log('Old profile picture deleted successfully');
+          } catch (error) {
+            console.warn('Failed to delete old profile picture:', error);
+          }
+        }
+        
+        // Upload new profile picture
+        try {
+          console.log('Uploading new profile picture for employee:', employee.id);
+          const profilePictureUrl = await this.employeeFileUploadService.uploadProfilePicture(files.profile_picture[0], employee.id);
+          console.log('Profile picture uploaded successfully:', profilePictureUrl);
+          user.profile_pic = profilePictureUrl;
+          employee.profile_picture = profilePictureUrl; // Also update employee table
+          shouldSaveUser = true;
+        } catch (error) {
+          console.error('Failed to upload profile picture:', error);
+          throw new BadRequestException('Failed to upload profile picture');
+        }
+      }
+      
+      if (files.cnic_picture?.[0]) {
+        // Delete old CNIC picture if exists
+        if (employee.cnic_picture) {
+          try {
+            console.log('Deleting old CNIC picture:', employee.cnic_picture);
+            await this.employeeFileUploadService.deleteCnicPicture(employee.cnic_picture);
+            console.log('Old CNIC picture deleted successfully');
+          } catch (error) {
+            console.warn('Failed to delete old CNIC picture:', error);
+          }
+        }
+        
+        // Upload new CNIC picture
+        try {
+          console.log('Uploading new CNIC picture for employee:', employee.id);
+          const cnicPictureUrl = await this.employeeFileUploadService.uploadCnicPicture(files.cnic_picture[0], employee.id);
+          console.log('CNIC picture uploaded successfully:', cnicPictureUrl);
+          employee.cnic_picture = cnicPictureUrl;
+        } catch (error) {
+          console.error('Failed to upload CNIC picture:', error);
+          throw new BadRequestException('Failed to upload CNIC picture');
+        }
+      }
+      
+      if (files.cnic_back_picture?.[0]) {
+        // Delete old CNIC back picture if exists
+        if (employee.cnic_back_picture) {
+          try {
+            console.log('Deleting old CNIC back picture:', employee.cnic_back_picture);
+            await this.employeeFileUploadService.deleteCnicBackPicture(employee.cnic_back_picture);
+            console.log('Old CNIC back picture deleted successfully');
+          } catch (error) {
+            console.warn('Failed to delete old CNIC back picture:', error);
+          }
+        }
+        
+        // Upload new CNIC back picture
+        try {
+          console.log('Uploading new CNIC back picture for employee:', employee.id);
+          const cnicBackPictureUrl = await this.employeeFileUploadService.uploadCnicBackPicture(files.cnic_back_picture[0], employee.id);
+          console.log('CNIC back picture uploaded successfully:', cnicBackPictureUrl);
+          employee.cnic_back_picture = cnicBackPictureUrl;
+        } catch (error) {
+          console.error('Failed to upload CNIC back picture:', error);
+          throw new BadRequestException('Failed to upload CNIC back picture');
+        }
+      }
     }
 
     try {
@@ -599,4 +756,152 @@ export class EmployeeService implements OnModuleInit {
     await this.sendPasswordResetEmail(employee.user.email, resetToken);
     return { message: 'Invite resent successfully' };
   }
+
+  async getProfilePictureFile(tenant_id: string, employee_id: string, res: Response) {
+    const employee = await this.employeeRepo.findOne({
+      where: { id: employee_id },
+      relations: ['user'],
+    });
+
+    if (!employee || employee.user.tenant_id !== tenant_id) {
+      throw new NotFoundException('Employee not found');
+    }
+
+    let imagePath: string | null = null;
+
+    // Check if employee has profile picture in employee table
+    if (employee.profile_picture) {
+      imagePath = employee.profile_picture;
+    }
+    // Fallback to user table profile picture
+    else if (employee.user.profile_pic) {
+      imagePath = employee.user.profile_pic;
+    }
+
+    if (!imagePath) {
+      throw new NotFoundException('No profile picture available');
+    }
+
+    // Convert URL path to actual file path
+    const fileName = imagePath.split('/').pop();
+    if (!fileName) {
+      throw new NotFoundException('Invalid image path');
+    }
+
+    const filePath = path.join(process.cwd(), 'public', 'profile-pictures', fileName);
+
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      throw new NotFoundException('Profile picture file not found');
+    }
+
+    // Set appropriate headers
+    const ext = path.extname(fileName).toLowerCase();
+    const contentType = this.getContentType(ext);
+    
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+    res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+
+    // Stream the file
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+  }
+
+  async getCnicPictureFile(tenant_id: string, employee_id: string, res: Response) {
+    const employee = await this.employeeRepo.findOne({
+      where: { id: employee_id },
+      relations: ['user'],
+    });
+
+    if (!employee || employee.user.tenant_id !== tenant_id) {
+      throw new NotFoundException('Employee not found');
+    }
+
+    if (!employee.cnic_picture) {
+      throw new NotFoundException('No CNIC picture available');
+    }
+
+    // Convert URL path to actual file path
+    const fileName = employee.cnic_picture.split('/').pop();
+    if (!fileName) {
+      throw new NotFoundException('Invalid CNIC image path');
+    }
+
+    const filePath = path.join(process.cwd(), 'public', 'cnic-pictures', fileName);
+
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      throw new NotFoundException('CNIC picture file not found');
+    }
+
+    // Set appropriate headers
+    const ext = path.extname(fileName).toLowerCase();
+    const contentType = this.getContentType(ext);
+    
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+    res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+
+    // Stream the file
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+  }
+
+  async getCnicBackPictureFile(tenant_id: string, employee_id: string, res: Response) {
+    const employee = await this.employeeRepo.findOne({
+      where: { id: employee_id },
+      relations: ['user'],
+    });
+
+    if (!employee || employee.user.tenant_id !== tenant_id) {
+      throw new NotFoundException('Employee not found');
+    }
+
+    if (!employee.cnic_back_picture) {
+      throw new NotFoundException('No CNIC back picture available');
+    }
+
+    // Convert URL path to actual file path
+    const fileName = employee.cnic_back_picture.split('/').pop();
+    if (!fileName) {
+      throw new NotFoundException('Invalid CNIC back image path');
+    }
+
+    const filePath = path.join(process.cwd(), 'public', 'cnic-back-pictures', fileName);
+
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      throw new NotFoundException('CNIC back picture file not found');
+    }
+
+    // Set appropriate headers
+    const ext = path.extname(fileName).toLowerCase();
+    const contentType = this.getContentType(ext);
+    
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+    res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+
+    // Stream the file
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+  }
+
+
+  private getContentType(ext: string): string {
+    const contentTypes: { [key: string]: string } = {
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
+      '.bmp': 'image/bmp',
+      '.svg': 'image/svg+xml',
+    };
+    
+    return contentTypes[ext] || 'application/octet-stream';
+  }
+
+
 }
