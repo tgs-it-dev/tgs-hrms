@@ -68,7 +68,7 @@ export enum LeaveStatus {
   PENDING = 'pending',
   APPROVED = 'approved',
   REJECTED = 'rejected',
-  CANCELLED = 'cancelled',
+  CANCELLED = 'withdrawn',
 }
 
 // Asset Enums
@@ -115,6 +115,25 @@ export enum PolicyCategory {
   CODE_OF_CONDUCT = 'code_of_conduct',
   PRIVACY_POLICY = 'privacy_policy',
   OTHER = 'other',
+}
+
+// Payroll Enums
+export enum PayrollStatus {
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  PAID = 'paid',
+  REJECTED = 'rejected',
+}
+
+export enum SalaryCycle {
+  MONTHLY = 'monthly',
+  BI_WEEKLY = 'bi-weekly',
+  WEEKLY = 'weekly',
+}
+
+export enum SalaryStatus {
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
 }
 
 // export enum PolicyStatus {

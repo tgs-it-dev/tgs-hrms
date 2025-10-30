@@ -27,6 +27,11 @@ export class MiddlewareConfigModule implements NestModule {
         'auth/refresh',
         'auth/logout',
         { path: 'users/:id/profile-picture', method: RequestMethod.GET },
+        // Public static assets (serve without auth)
+        { path: 'profile-pictures/(.*)', method: RequestMethod.GET },
+        { path: 'cnic-pictures/(.*)', method: RequestMethod.GET },
+        { path: 'cnic-back-pictures/(.*)', method: RequestMethod.GET },
+        { path: 'company-logos/(.*)', method: RequestMethod.GET },
         // Allow unauthenticated access to signup flow
         'signup/personal-details',
         'signup/company-details',
