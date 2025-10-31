@@ -346,13 +346,24 @@ export class PayrollRecordService {
     let unpaidLeaves = 0;
 
     for (const leave of leaves) {
-      if (leave.startDate >= startDate && leave.endDate <= endDate) {
-        // Check if leave type is paid or unpaid (assuming leaveType has a paid field)
-        // For now, treat all approved leaves as paid unless specified otherwise
-        if (leave.leaveType?.name?.toLowerCase().includes('unpaid')) {
-          unpaidLeaves += leave.totalDays;
+      // Check if leave overlaps with the payroll period
+      const leaveStart = new Date(leave.startDate);
+      const leaveEnd = new Date(leave.endDate);
+      
+      // Check overlap: leave starts before/at period end AND leave ends after/at period start
+      if (leaveStart <= endDate && leaveEnd >= startDate) {
+        // Calculate days within the payroll period
+        const overlapStart = leaveStart > startDate ? leaveStart : startDate;
+        const overlapEnd = leaveEnd < endDate ? leaveEnd : endDate;
+        const overlapDays = Math.floor(
+          (overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24),
+        ) + 1;
+
+        const isPaidType = leave.leaveType?.isPaid === undefined ? true : !!leave.leaveType.isPaid;
+        if (isPaidType) {
+          paidLeaves += overlapDays;
         } else {
-          paidLeaves += leave.totalDays;
+          unpaidLeaves += overlapDays;
         }
       }
     }
