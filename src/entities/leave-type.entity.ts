@@ -29,6 +29,9 @@ export class LeaveType {
   @Column({ type: 'boolean', default: false })
   carryForward: boolean;
 
+  @Column({ type: 'boolean', default: true })
+  isPaid: boolean;
+
   @Column({ type: 'uuid' })
   tenantId: string;
 

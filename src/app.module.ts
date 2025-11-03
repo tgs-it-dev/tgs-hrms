@@ -29,6 +29,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { TeamModule } from './modules/team/team.module';
 import { SignupModule } from './modules/signup/signup.module';
 import { SubscriptionModule } from './modules/subscription/subscription.module';
+import { PayrollModule } from './modules/payroll/payroll.module';
 import { CompanyModule } from './modules/company/company.module';
 import { AssetModule } from './modules/asset/asset.module';
 import { AssetRequestModule } from './modules/asset-request/asset-request.module';
@@ -159,6 +160,7 @@ import { SystemLog } from './entities/system-log.entity';
     BenefitsModule,
     PmsModule,
     SystemModule,
+    PayrollModule,
   ],
   providers: [
     {

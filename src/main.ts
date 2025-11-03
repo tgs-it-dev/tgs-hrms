@@ -8,8 +8,8 @@ import { join } from 'path';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  // Serve static files (if you have public assets)
-  app.useStaticAssets(join(__dirname, '..', 'public'), {
+  // Serve static files from project root /public (matches upload services)
+  app.useStaticAssets(join(process.cwd(), 'public'), {
     prefix: '/',
   });
 

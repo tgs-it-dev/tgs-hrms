@@ -22,4 +22,9 @@ export class CreateLeaveTypeDto {
   @IsBoolean()
   @IsNotEmpty()
   carryForward: boolean;
+
+  @ApiProperty({ description: 'Whether this leave type is paid', example: true, required: false, default: true })
+  @IsBoolean()
+  @IsOptional()
+  isPaid?: boolean;
 }

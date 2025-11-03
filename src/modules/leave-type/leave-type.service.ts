@@ -16,6 +16,7 @@ export class LeaveTypeService {
   async create(createLeaveTypeDto: CreateLeaveTypeDto, tenantId: string, createdBy: string): Promise<LeaveType> {
     const leaveType = this.leaveTypeRepo.create({
       ...createLeaveTypeDto,
+      isPaid: createLeaveTypeDto.isPaid !== undefined ? createLeaveTypeDto.isPaid : true, // Default to true if not provided
       tenantId,
       createdBy,
     });
