@@ -17,7 +17,7 @@ export class AssetRequestService {
 
   async create(dto: CreateAssetRequestDto, userId: string, tenantId: string) {
     const entity = this.reqRepo.create({
-      asset_category: dto.assetCategory,
+      category_id: dto.categoryId,
       subcategory_id: dto.subcategoryId ?? null,
       requested_by: userId,
       status: AssetRequestStatus.PENDING,
@@ -36,6 +36,7 @@ export class AssetRequestService {
       .createQueryBuilder('r')
       .leftJoinAndSelect('r.requestedByUser', 'requestedByUser')
       .leftJoinAndSelect('r.approvedByUser', 'approvedByUser')
+      .leftJoinAndSelect('r.category', 'category')
       .leftJoinAndSelect('r.subcategory', 'subcategory')
       .where('r.tenant_id = :tenantId', { tenantId })
       .orderBy('r.created_at', 'DESC');
@@ -92,13 +93,21 @@ export class AssetRequestService {
     const req = await this.findOne(tenantId, id);
     if (req.status !== AssetRequestStatus.PENDING) throw new BadRequestException('Request already processed');
 
-    const asset = await this.assetRepo
+    const assetQuery = this.assetRepo
       .createQueryBuilder('a')
       .where('a.tenant_id = :tenantId', { tenantId })
-      .andWhere('a.category = :cat', { cat: req.asset_category })
-      .andWhere('a.status = :st', { st: AssetStatus.AVAILABLE })
-      .getOne();
-    if (!asset) throw new BadRequestException('No available asset in category');
+      .andWhere('a.category_id = :catId', { catId: req.category_id })
+      .andWhere('a.status = :st', { st: AssetStatus.AVAILABLE });
+
+    // Match subcategory if specified in request
+    if (req.subcategory_id) {
+      assetQuery.andWhere('a.subcategory_id = :subcatId', { subcatId: req.subcategory_id });
+    } else {
+      assetQuery.andWhere('a.subcategory_id IS NULL');
+    }
+
+    const asset = await assetQuery.getOne();
+    if (!asset) throw new BadRequestException('No available asset matching request criteria');
 
     // assign asset
     asset.status = AssetStatus.ASSIGNED;

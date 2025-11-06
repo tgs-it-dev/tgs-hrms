@@ -35,18 +35,12 @@ export class AssetSubcategoryController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all subcategories (filter by category)' })
+  @ApiOperation({ summary: 'Get all subcategories (filter by categoryId)' })
   findAll(
     @Request() req: any,
-    @Query('category') category?: string,
+    @Query('categoryId') categoryId?: string,
   ) {
-    return this.subcategoryService.findAll(req.user.tenant_id, category);
-  }
-
-  @Get('categories')
-  @ApiOperation({ summary: 'Get all available categories' })
-  getCategories(@Request() req: any) {
-    return this.subcategoryService.getCategories(req.user.tenant_id);
+    return this.subcategoryService.findAll(req.user.tenant_id, categoryId);
   }
 
   @Get(':id')

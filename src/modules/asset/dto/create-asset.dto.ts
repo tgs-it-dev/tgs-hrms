@@ -6,9 +6,9 @@ export class CreateAssetDto {
   @IsString()
   name: string;
 
-  @ApiProperty({ example: 'Laptop' })
-  @IsString()
-  category: string;
+  @ApiProperty({ example: 'uuid-of-category' })
+  @IsUUID()
+  categoryId: string;
 
   @ApiProperty({ example: 'uuid-of-subcategory', required: false })
   @IsOptional()

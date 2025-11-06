@@ -33,6 +33,7 @@ import { PayrollModule } from './modules/payroll/payroll.module';
 import { CompanyModule } from './modules/company/company.module';
 import { AssetModule } from './modules/asset/asset.module';
 import { AssetRequestModule } from './modules/asset-request/asset-request.module';
+import { AssetCategoryModule } from './modules/asset-category/asset-category.module';
 import { AssetSubcategoryModule } from './modules/asset-subcategory/asset-subcategory.module';
 import { BenefitsModule } from "./modules/benefits/benefits.module";
 import { PmsModule } from './modules/pms/pms.module';
@@ -156,6 +157,7 @@ import { SystemLog } from './entities/system-log.entity';
     CompanyModule,
     AssetModule,
     AssetRequestModule,
+    AssetCategoryModule,
     AssetSubcategoryModule,
     BenefitsModule,
     PmsModule,

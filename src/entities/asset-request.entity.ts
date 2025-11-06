@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { User } from './user.entity';
 import { Tenant } from './tenant.entity';
+import { AssetCategory } from './asset-category.entity';
 import { AssetSubcategory } from './asset-subcategory.entity';
 import { AssetRequestStatus } from '../common/constants/enums';
 
@@ -16,8 +17,8 @@ export class AssetRequest {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar' })
-  asset_category: string;
+  @Column({ type: 'uuid' })
+  category_id: string;
 
   @Column({ type: 'uuid', nullable: true })
   subcategory_id: string | null;
@@ -58,6 +59,10 @@ export class AssetRequest {
   @ManyToOne(() => User, (user) => user.id, { nullable: true })
   @JoinColumn({ name: 'approved_by' })
   approvedByUser?: User | null;
+
+  @ManyToOne(() => AssetCategory, (category) => category.id, { nullable: false })
+  @JoinColumn({ name: 'category_id' })
+  category?: AssetCategory;
 
   @ManyToOne(() => AssetSubcategory, (subcategory) => subcategory.id, { nullable: true })
   @JoinColumn({ name: 'subcategory_id' })
