@@ -4,24 +4,25 @@ import {
   Column,
   CreateDateColumn,
   ManyToOne,
+  OneToMany,
   JoinColumn,
 } from 'typeorm';
 import { Tenant } from './tenant.entity';
-import { AssetCategory } from './asset-category.entity';
+import { AssetSubcategory } from './asset-subcategory.entity';
 
-@Entity('asset_subcategories')
-export class AssetSubcategory {
+@Entity('asset_categories')
+export class AssetCategory {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @Column({ type: 'varchar' })
   name: string;
 
-  @Column({ type: 'uuid' })
-  category_id: string;
-
   @Column({ type: 'text', nullable: true })
   description: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  icon: string | null;
 
   @Column({ type: 'uuid' })
   tenant_id: string;
@@ -29,11 +30,11 @@ export class AssetSubcategory {
   @CreateDateColumn()
   created_at: Date;
 
-  @ManyToOne(() => AssetCategory, (category) => category.subcategories, { nullable: false })
-  @JoinColumn({ name: 'category_id' })
-  category?: AssetCategory;
-
   @ManyToOne(() => Tenant, (tenant) => tenant.id, { nullable: false })
   @JoinColumn({ name: 'tenant_id' })
   tenant?: Tenant;
+
+  @OneToMany(() => AssetSubcategory, (subcategory) => subcategory.category)
+  subcategories?: AssetSubcategory[];
 }
+

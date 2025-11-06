@@ -2,21 +2,24 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Asset } from '../../entities/asset.entity';
+import { AssetRequest } from '../../entities/asset-request.entity';
 import { CreateAssetDto } from './dto/create-asset.dto';
 import { UpdateAssetDto } from './dto/update-asset.dto';
-import { AssetStatus } from '../../common/constants/enums';
+import { AssetStatus, AssetRequestStatus } from '../../common/constants/enums';
 
 @Injectable()
 export class AssetService {
   constructor(
     @InjectRepository(Asset)
     private readonly assetRepo: Repository<Asset>,
+    @InjectRepository(AssetRequest)
+    private readonly assetRequestRepo: Repository<AssetRequest>,
   ) {}
 
   async create(dto: CreateAssetDto, tenantId: string) {
     const entity = this.assetRepo.create({
       name: dto.name,
-      category: dto.category,
+      category_id: dto.categoryId,
       subcategory_id: dto.subcategoryId ?? null,
       status: AssetStatus.AVAILABLE,
       purchase_date: dto.purchaseDate ?? null,
@@ -27,15 +30,16 @@ export class AssetService {
 
   async findAll(
     tenantId: string,
-    filters: { status?: string; category?: string; page?: number }
+    filters: { status?: string; categoryId?: string; page?: number }
   ) {
-    const { status, category, page = 1 } = filters;
+    const { status, categoryId, page = 1 } = filters;
     const limit = 25;
     const skip = (page - 1) * limit;
 
     const qb = this.assetRepo
       .createQueryBuilder('a')
       .leftJoinAndSelect('a.assignedToUser', 'assignedUser')
+      .leftJoinAndSelect('a.category', 'category')
       .leftJoinAndSelect('a.subcategory', 'subcategory')
       .where('a.tenant_id = :tenantId', { tenantId });
 
@@ -44,9 +48,8 @@ export class AssetService {
       const trimmedStatus = status.trim().toLowerCase();
       qb.andWhere('LOWER(a.status) = :status', { status: trimmedStatus });
     }
-    if (category) {
-      const trimmedCategory = category.trim();
-      qb.andWhere('LOWER(a.category) = LOWER(:category)', { category: trimmedCategory });
+    if (categoryId) {
+      qb.andWhere('a.category_id = :categoryId', { categoryId });
     }
 
     const [items, total] = await qb
@@ -57,18 +60,61 @@ export class AssetService {
 
     const totalPages = Math.ceil(total / limit);
 
+    // Get counts for all statuses in a single query
+    const statusCounts = await this.assetRepo
+      .createQueryBuilder('a')
+      .select('a.status', 'status')
+      .addSelect('COUNT(*)', 'count')
+      .where('a.tenant_id = :tenantId', { tenantId })
+      .groupBy('a.status')
+      .getRawMany();
+
+    // Initialize counts
+    const counts = {
+      total: 0,
+      available: 0,
+      assigned: 0,
+      retired: 0,
+      pending: 0,
+    };
+
+    // Map status counts
+    statusCounts.forEach((row) => {
+      const count = parseInt(row.count, 10);
+      counts.total += count;
+      
+      if (row.status === AssetStatus.AVAILABLE) {
+        counts.available = count;
+      } else if (row.status === AssetStatus.ASSIGNED) {
+        counts.assigned = count;
+      } else if (row.status === AssetStatus.RETIRED) {
+        counts.retired = count;
+      }
+    });
+
+    // Get pending asset requests count
+    const pendingRequestsCount = await this.assetRequestRepo.count({
+      where: { 
+        tenant_id: tenantId, 
+        status: AssetRequestStatus.PENDING 
+      },
+    });
+    counts.pending = pendingRequestsCount;
+
     return {
       items: items.map((a) => ({
         ...a,
         assignedToName: a.assignedToUser
           ? `${a.assignedToUser.first_name ?? ''} ${a.assignedToUser.last_name ?? ''}`.trim()
           : null,
+        categoryName: a.category?.name ?? null,
         subcategoryName: a.subcategory?.name ?? null,
       })),
       total,
       page,
       limit,
       totalPages,
+      counts,
     };
   }
 
@@ -76,6 +122,7 @@ export class AssetService {
     const asset = await this.assetRepo
       .createQueryBuilder('a')
       .leftJoinAndSelect('a.assignedToUser', 'assignedUser')
+      .leftJoinAndSelect('a.category', 'category')
       .leftJoinAndSelect('a.subcategory', 'subcategory')
       .where('a.id = :id AND a.tenant_id = :tenantId', { id, tenantId })
       .getOne();
@@ -85,6 +132,7 @@ export class AssetService {
       assignedToName: asset.assignedToUser
         ? `${asset.assignedToUser.first_name ?? ''} ${asset.assignedToUser.last_name ?? ''}`.trim()
         : null,
+      categoryName: asset.category?.name ?? null,
       subcategoryName: asset.subcategory?.name ?? null,
     };
   }
@@ -93,7 +141,7 @@ export class AssetService {
     const asset = await this.findOne(tenantId, id);
     Object.assign(asset, {
       name: dto.name ?? asset.name,
-      category: dto.category ?? asset.category,
+      category_id: dto.categoryId !== undefined ? dto.categoryId : asset.category_id,
       subcategory_id: dto.subcategoryId !== undefined ? dto.subcategoryId : asset.subcategory_id,
       status: (dto.status as AssetStatus) ?? asset.status,
       assigned_to: dto.assignedTo ?? asset.assigned_to,

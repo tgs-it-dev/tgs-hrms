@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ConflictException } from '@nestjs/common
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AssetSubcategory } from '../../entities/asset-subcategory.entity';
+import { AssetCategory } from '../../entities/asset-category.entity';
 import { CreateAssetSubcategoryDto } from './dto/create-asset-subcategory.dto';
 import { UpdateAssetSubcategoryDto } from './dto/update-asset-subcategory.dto';
 
@@ -12,14 +13,32 @@ export class AssetSubcategoryService {
   constructor(
     @InjectRepository(AssetSubcategory)
     private readonly subcategoryRepo: Repository<AssetSubcategory>,
+    @InjectRepository(AssetCategory)
+    private readonly categoryRepo: Repository<AssetCategory>,
   ) {}
 
   async create(dto: CreateAssetSubcategoryDto, tenantId: string) {
+    // Verify category exists and belongs to tenant
+    const category = await this.categoryRepo.findOne({
+      where: { id: dto.categoryId, tenant_id: tenantId },
+    });
+
+    if (!category) {
+      // Try global category
+      const globalCategory = await this.categoryRepo.findOne({
+        where: { id: dto.categoryId, tenant_id: GLOBAL },
+      });
+
+      if (!globalCategory) {
+        throw new NotFoundException('Category not found');
+      }
+    }
+
     // Check if subcategory with same name and category already exists
     const existing = await this.subcategoryRepo.findOne({
       where: {
         name: dto.name,
-        category: dto.category,
+        category_id: dto.categoryId,
         tenant_id: tenantId,
       },
     });
@@ -30,7 +49,7 @@ export class AssetSubcategoryService {
 
     const entity = this.subcategoryRepo.create({
       name: dto.name,
-      category: dto.category,
+      category_id: dto.categoryId,
       description: dto.description ?? null,
       tenant_id: tenantId,
     });
@@ -38,16 +57,16 @@ export class AssetSubcategoryService {
     return await this.subcategoryRepo.save(entity);
   }
 
-  async findAll(tenantId: string, category?: string) {
+  async findAll(tenantId: string, categoryId?: string) {
     const qb = this.subcategoryRepo
       .createQueryBuilder('s')
+      .leftJoinAndSelect('s.category', 'category')
       .where('s.tenant_id IN (:...tenants)', { tenants: [GLOBAL, tenantId] })
-      .orderBy('s.category', 'ASC')
+      .orderBy('category.name', 'ASC')
       .addOrderBy('s.name', 'ASC');
 
-    if (category) {
-      const trimmedCategory = category.trim();
-      qb.andWhere('LOWER(s.category) = LOWER(:category)', { category: trimmedCategory });
+    if (categoryId) {
+      qb.andWhere('s.category_id = :categoryId', { categoryId });
     }
 
     return await qb.getMany();
@@ -87,12 +106,30 @@ export class AssetSubcategoryService {
       throw new ConflictException('Cannot modify global subcategories');
     }
 
+    // If categoryId is being updated, verify it exists
+    if (dto.categoryId) {
+      const category = await this.categoryRepo.findOne({
+        where: { id: dto.categoryId, tenant_id: tenantId },
+      });
+
+      if (!category) {
+        const globalCategory = await this.categoryRepo.findOne({
+          where: { id: dto.categoryId, tenant_id: GLOBAL },
+        });
+
+        if (!globalCategory) {
+          throw new NotFoundException('Category not found');
+        }
+      }
+    }
+
     // Check if updating name/category would create a duplicate
-    if (dto.name || dto.category) {
+    const categoryIdToCheck = dto.categoryId ?? subcategory.category_id;
+    if (dto.name || dto.categoryId) {
       const existing = await this.subcategoryRepo.findOne({
         where: {
           name: dto.name ?? subcategory.name,
-          category: dto.category ?? subcategory.category,
+          category_id: categoryIdToCheck,
           tenant_id: tenantId,
         },
       });
@@ -104,7 +141,7 @@ export class AssetSubcategoryService {
 
     Object.assign(subcategory, {
       name: dto.name ?? subcategory.name,
-      category: dto.category ?? subcategory.category,
+      category_id: dto.categoryId ?? subcategory.category_id,
       description: dto.description ?? subcategory.description,
     });
 
@@ -118,19 +155,34 @@ export class AssetSubcategoryService {
     if (subcategory.tenant_id === GLOBAL && tenantId !== GLOBAL) {
       throw new ConflictException('Cannot delete global subcategories');
     }
+
+    // Check if subcategory is in use by assets
+    const assetsCount = await this.subcategoryRepo.manager
+      .createQueryBuilder()
+      .from('assets', 'a')
+      .where('a.subcategory_id = :id', { id })
+      .getCount();
+
+    if (assetsCount > 0) {
+      throw new ConflictException(
+        `Cannot delete subcategory. It is being used by ${assetsCount} asset(s)`
+      );
+    }
+
+    // Check if subcategory is in use by requests
+    const requestsCount = await this.subcategoryRepo.manager
+      .createQueryBuilder()
+      .from('asset_requests', 'r')
+      .where('r.subcategory_id = :id', { id })
+      .getCount();
+
+    if (requestsCount > 0) {
+      throw new ConflictException(
+        `Cannot delete subcategory. It is being used by ${requestsCount} request(s)`
+      );
+    }
     
     await this.subcategoryRepo.remove(subcategory);
     return { message: 'Subcategory deleted successfully' };
-  }
-
-  async getCategories(tenantId: string) {
-    const categories = await this.subcategoryRepo
-      .createQueryBuilder('s')
-      .select('DISTINCT s.category', 'category')
-      .where('s.tenant_id IN (:...tenants)', { tenants: [GLOBAL, tenantId] })
-      .orderBy('s.category', 'ASC')
-      .getRawMany();
-
-    return categories.map(c => c.category);
   }
 }

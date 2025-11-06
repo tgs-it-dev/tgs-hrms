@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsNotEmpty } from 'class-validator';
+import { IsString, IsOptional, IsNotEmpty, IsUUID } from 'class-validator';
 
 export class CreateAssetSubcategoryDto {
   @ApiProperty({ example: 'Gaming Laptop' })
@@ -7,10 +7,10 @@ export class CreateAssetSubcategoryDto {
   @IsNotEmpty()
   name: string;
 
-  @ApiProperty({ example: 'Laptop' })
-  @IsString()
+  @ApiProperty({ example: 'uuid-of-category' })
+  @IsUUID()
   @IsNotEmpty()
-  category: string;
+  categoryId: string;
 
   @ApiProperty({ example: 'High-performance gaming laptops', required: false })
   @IsOptional()

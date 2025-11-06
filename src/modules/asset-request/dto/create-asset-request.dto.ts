@@ -2,9 +2,9 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateAssetRequestDto {
-  @ApiProperty({ example: 'Laptop' })
-  @IsString()
-  assetCategory: string;
+  @ApiProperty({ example: 'uuid-of-category' })
+  @IsUUID()
+  categoryId: string;
 
   @ApiProperty({ example: 'uuid-of-subcategory', required: false })
   @IsOptional()
