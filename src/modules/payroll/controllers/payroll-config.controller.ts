@@ -8,6 +8,7 @@ import {
   Req,
   UseGuards,
   Query,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { PayrollConfigService } from '../services/payroll-config.service';
@@ -25,11 +26,15 @@ export class PayrollConfigController {
   constructor(private readonly payrollConfigService: PayrollConfigService) {}
 
   @Post()
-  @Roles('admin', 'system-admin', 'hr-admin')
+  @Roles('admin', 'hr-admin')
   @ApiOperation({ summary: 'Create payroll configuration for tenant' })
   @ApiResponse({ status: 201, description: 'Payroll configuration created successfully.' })
   @ApiResponse({ status: 400, description: 'Payroll configuration already exists.' })
   async create(@Req() req: any, @Body() dto: CreatePayrollConfigDto) {
+    const userRole = req.user.role?.toLowerCase();
+    if (userRole === 'system-admin') {
+      throw new ForbiddenException('System admin cannot create payroll configuration');
+    }
     const tenantId = req.user.tenant_id;
     const userId = req.user.id;
     return await this.payrollConfigService.create(tenantId, userId, dto);

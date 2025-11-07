@@ -32,14 +32,27 @@ export class EmployeeSalaryController {
   ) {}
 
   @Post()
-  @Roles('admin', 'system-admin', 'hr-admin')
+  @Roles('admin', 'hr-admin')
   @ApiOperation({ summary: 'Assign salary structure to employee' })
   @ApiResponse({ status: 201, description: 'Salary structure assigned successfully.' })
   @ApiResponse({ status: 404, description: 'Employee not found.' })
   async create(@Req() req: any, @Body() dto: CreateEmployeeSalaryDto) {
+    const userRole = req.user.role?.toLowerCase();
+    if (userRole === 'system-admin') {
+      throw new ForbiddenException('System admin cannot create employee salary');
+    }
     const tenantId = req.user.tenant_id;
     const userId = req.user.id;
     return await this.employeeSalaryService.create(tenantId, userId, dto);
+  }
+
+  @Get()
+  @Roles('admin', 'system-admin', 'hr-admin')
+  @ApiOperation({ summary: 'Get salary structure of all employees' })
+  @ApiResponse({ status: 200, description: 'Salary structures retrieved successfully.' })
+  async getAll(@Req() req: any) {
+    const tenantId = req.user.tenant_id;
+    return await this.employeeSalaryService.getAllEmployeeSalaries(tenantId);
   }
 
   @Get(':employeeId')
