@@ -38,7 +38,7 @@ export class EmployeeBenefitsController {
   ) {}
 
   @Post()
-  @Roles("hr-admin")
+  @Roles("hr-admin", 'admin')
   @ApiOperation({ summary: "Assign a benefit to an employee" })
   async create(
     @TenantId() tenant_id: string,
@@ -86,7 +86,7 @@ export class EmployeeBenefitsController {
   }
 
   @Put(":id/cancel")
-  @Roles("hr-admin")
+  @Roles("hr-admin" , 'admin')
   @ApiOperation({ summary: "Cancel an employee benefit" })
   async cancel(@TenantId() tenant_id: string, @Param("id") id: string) {
     return this.employeeBenefitsService.cancel(tenant_id, id);
