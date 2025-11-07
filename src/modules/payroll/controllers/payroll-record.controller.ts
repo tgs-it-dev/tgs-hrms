@@ -26,13 +26,17 @@ export class PayrollRecordController {
   constructor(private readonly payrollRecordService: PayrollRecordService) {}
 
   @Post('generate')
-  @Roles('admin', 'system-admin', 'hr-admin')
+  @Roles('admin', 'hr-admin')
   @ApiOperation({ summary: 'Generate payroll for employees' })
   @ApiResponse({ status: 201, description: 'Payroll generated successfully.' })
   @ApiQuery({ name: 'month', required: true, type: Number, description: 'Month (1-12)' })
   @ApiQuery({ name: 'year', required: true, type: Number, description: 'Year' })
   @ApiQuery({ name: 'employee_id', required: false, type: String, description: 'Employee ID (optional, generates for all if not provided)' })
   async generatePayroll(@Req() req: any, @Query() query: GeneratePayrollDto) {
+    const userRole = req.user.role?.toLowerCase();
+    if (userRole === 'system-admin') {
+      throw new ForbiddenException('System admin cannot generate payroll');
+    }
     const tenantId = req.user.tenant_id;
     const userId = req.user.id;
     return await this.payrollRecordService.generatePayroll(tenantId, userId, query);

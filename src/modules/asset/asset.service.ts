@@ -75,6 +75,7 @@ export class AssetService {
       available: 0,
       assigned: 0,
       retired: 0,
+      under_maintenance: 0,
       pending: 0,
     };
 
@@ -89,6 +90,8 @@ export class AssetService {
         counts.assigned = count;
       } else if (row.status === AssetStatus.RETIRED) {
         counts.retired = count;
+      } else if (row.status === AssetStatus.UNDER_MAINTENANCE) {
+        counts.under_maintenance = count;
       }
     });
 
@@ -138,15 +141,36 @@ export class AssetService {
   }
 
   async update(tenantId: string, id: string, dto: UpdateAssetDto) {
-    const asset = await this.findOne(tenantId, id);
-    Object.assign(asset, {
-      name: dto.name ?? asset.name,
-      category_id: dto.categoryId !== undefined ? dto.categoryId : asset.category_id,
-      subcategory_id: dto.subcategoryId !== undefined ? dto.subcategoryId : asset.subcategory_id,
-      status: (dto.status as AssetStatus) ?? asset.status,
-      assigned_to: dto.assignedTo ?? asset.assigned_to,
+    // Get the actual entity, not the modified object from findOne
+    const asset = await this.assetRepo.findOne({
+      where: { id, tenant_id: tenantId },
     });
-    return this.assetRepo.save(asset);
+    
+    if (!asset) {
+      throw new NotFoundException('Asset not found');
+    }
+
+    // Update fields
+    if (dto.name !== undefined) {
+      asset.name = dto.name;
+    }
+    if (dto.categoryId !== undefined) {
+      asset.category_id = dto.categoryId;
+    }
+    if (dto.subcategoryId !== undefined) {
+      asset.subcategory_id = dto.subcategoryId || null;
+    }
+    if (dto.status !== undefined) {
+      asset.status = dto.status as AssetStatus;
+    }
+    if (dto.assignedTo !== undefined) {
+      asset.assigned_to = dto.assignedTo || null;
+    }
+    if (dto.purchaseDate !== undefined) {
+      asset.purchase_date = dto.purchaseDate || null;
+    }
+
+    return await this.assetRepo.save(asset);
   }
 
   async softDelete(tenantId: string, id: string) {

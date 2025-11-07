@@ -50,6 +50,40 @@ export class AssetRequestService {
 
     const totalPages = Math.ceil(total / limit);
 
+    // Get counts for all statuses in a single query
+    const statusCounts = await this.reqRepo
+      .createQueryBuilder('r')
+      .select('r.status', 'status')
+      .addSelect('COUNT(*)', 'count')
+      .where('r.tenant_id = :tenantId', { tenantId })
+      .groupBy('r.status')
+      .getRawMany();
+
+    // Initialize counts
+    const counts = {
+      total: 0,
+      pending: 0,
+      approved: 0,
+      rejected: 0,
+      cancelled: 0,
+    };
+
+    // Map status counts
+    statusCounts.forEach((row) => {
+      const count = parseInt(row.count, 10);
+      counts.total += count;
+      
+      if (row.status === AssetRequestStatus.PENDING) {
+        counts.pending = count;
+      } else if (row.status === AssetRequestStatus.APPROVED) {
+        counts.approved = count;
+      } else if (row.status === AssetRequestStatus.REJECTED) {
+        counts.rejected = count;
+      } else if (row.status === AssetRequestStatus.CANCELLED) {
+        counts.cancelled = count;
+      }
+    });
+
     return {
       items: items.map((r) => ({
         ...r,
@@ -65,6 +99,7 @@ export class AssetRequestService {
       page,
       limit,
       totalPages,
+      counts,
     };
   }
 

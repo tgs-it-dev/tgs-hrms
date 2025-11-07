@@ -25,7 +25,10 @@ export class SystemLeaveService {
       .createQueryBuilder("leave")
       .leftJoinAndSelect("leave.employee", "employee")
       .leftJoinAndSelect("employee.tenant", "tenant")
-      .leftJoinAndSelect("leave.leaveType", "leaveType");
+      .leftJoinAndSelect("leave.leaveType", "leaveType")
+      .leftJoinAndSelect("employee.employees", "emp")
+      .leftJoinAndSelect("emp.designation", "designation")
+      .leftJoinAndSelect("designation.department", "department");
 
     // Filters
     if (filters?.tenantId) {
@@ -48,23 +51,31 @@ export class SystemLeaveService {
 
     const results = await qb.getMany();
 
-    const data = results.map((l) => ({
-      id: l.id,
-      employeeId: l.employeeId,
-      employeeName:
-        `${l.employee?.first_name ?? ""} ${l.employee?.last_name ?? ""}`.trim(),
-      tenantId: l.tenantId,
-      tenantName: l.tenant?.name,
-      leaveType: l.leaveType?.name,
-      startDate: l.startDate,
-      endDate: l.endDate,
-      totalDays: l.totalDays,
-      reason: l.reason,
-      status: l.status,
-      approvedBy: l.approvedBy,
-      approvedAt: l.approvedAt,
-      createdAt: l.createdAt,
-    }));
+    const data = results.map((l) => {
+      // Get the first employee record (user can have multiple employee records, but typically one)
+      const employeeRecord = l.employee?.employees?.[0];
+      const department = employeeRecord?.designation?.department;
+      
+      return {
+        id: l.id,
+        employeeId: l.employeeId,
+        employeeName:
+          `${l.employee?.first_name ?? ""} ${l.employee?.last_name ?? ""}`.trim(),
+        tenantId: l.tenantId,
+        tenantName: l.tenant?.name,
+        departmentId: department?.id ?? null,
+        departmentName: department?.name ?? null,
+        leaveType: l.leaveType?.name,
+        startDate: l.startDate,
+        endDate: l.endDate,
+        totalDays: l.totalDays,
+        reason: l.reason,
+        status: l.status,
+        approvedBy: l.approvedBy,
+        approvedAt: l.approvedAt,
+        createdAt: l.createdAt,
+      };
+    });
 
     return data;
   }

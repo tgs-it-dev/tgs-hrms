@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { Repository, Between, In } from 'typeorm';
 import { EmployeeSalary } from '../../../entities/employee-salary.entity';
 import { Employee } from '../../../entities/employee.entity';
 import { Tenant } from '../../../entities/tenant.entity';
@@ -131,6 +131,86 @@ export class EmployeeSalaryService {
       .andWhere('salary.status = :status', { status: 'active' })
       .orderBy('salary.effectiveDate', 'DESC')
       .getOne();
+  }
+
+  async getAllEmployeeSalaries(tenantId: string): Promise<any[]> {
+    const employees = await this.employeeRepo
+      .createQueryBuilder('employee')
+      .innerJoinAndSelect('employee.user', 'user')
+      .leftJoinAndSelect('employee.designation', 'designation')
+      .leftJoinAndSelect('designation.department', 'department')
+      .leftJoinAndSelect('employee.team', 'team')
+      .where('user.tenant_id = :tenantId', { tenantId })
+      .orderBy('employee.created_at', 'ASC')
+      .getMany();
+
+    const employeeIds = employees.map((e) => e.id);
+
+    // Get all active salaries for these employees
+    const salaries = employeeIds.length > 0
+      ? await this.employeeSalaryRepo.find({
+          where: {
+            employee_id: In(employeeIds),
+            tenant_id: tenantId,
+            status: 'active',
+          },
+          relations: ['employee'],
+        })
+      : [];
+
+    // Create a map of employee_id -> salary for quick lookup
+    const salaryMap = new Map<string, EmployeeSalary>();
+    salaries.forEach((salary) => {
+      salaryMap.set(salary.employee_id, salary);
+    });
+
+    // Combine employee data with their salary structures
+    return employees.map((employee) => {
+      const salary = salaryMap.get(employee.id);
+      return {
+        employee: {
+          id: employee.id,
+          user: {
+            id: employee.user.id,
+            first_name: employee.user.first_name,
+            last_name: employee.user.last_name,
+            email: employee.user.email,
+            profile_pic: employee.user.profile_pic,
+          },
+          designation: employee.designation
+            ? {
+                id: employee.designation.id,
+                title: employee.designation.title,
+              }
+            : null,
+          department: employee.designation?.department
+            ? {
+                id: employee.designation.department.id,
+                name: employee.designation.department.name,
+              }
+            : null,
+          team: employee.team
+            ? {
+                id: employee.team.id,
+                name: employee.team.name,
+              }
+            : null,
+          status: employee.status,
+        },
+        salary: salary
+          ? {
+              id: salary.id,
+              baseSalary: salary.baseSalary,
+              allowances: salary.allowances,
+              deductions: salary.deductions,
+              effectiveDate: salary.effectiveDate,
+              endDate: salary.endDate,
+              status: salary.status,
+              notes: salary.notes,
+            }
+          : null,
+      };
+    });
   }
 }
 
