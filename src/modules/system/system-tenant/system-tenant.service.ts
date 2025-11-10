@@ -60,12 +60,9 @@ export class SystemTenantService {
   }
 
   /**
-   * Get paginated list of tenants
+   * Get list of tenants without pagination
    */
-  async findAll(page: number = 1, includeDeleted: boolean = false) {
-    const limit = 25;
-    const skip = (page - 1) * limit;
-
+  async findAll(includeDeleted: boolean = false) {
     const where: FindOptionsWhere<Tenant> = includeDeleted
       ? {}
       : { isDeleted: false };
@@ -73,8 +70,6 @@ export class SystemTenantService {
     const data = await this.tenantRepo.find({
       where,
       order: { created_at: "DESC" },
-      skip,
-      take: limit,
     });
 
     return data;
