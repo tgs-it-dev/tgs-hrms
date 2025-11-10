@@ -36,15 +36,13 @@ export class SystemLeaveController {
     required: false,
     description: "format: yyyy-mm--dd",
   })
-  @ApiQuery({ name: "page", required: false, example: 1 })
   async findAll(
     @Query("tenantId") tenantId?: string,
     @Query("status") status?: LeaveStatus,
     @Query("startDate") startDate?: string,
     @Query("endDate") endDate?: string,
-    @Query("page") page: number = 1,
   ) {
-    const data = await this.systemLeaveService.findAll(page, {
+    const data = await this.systemLeaveService.findAll({
       tenantId,
       status,
       startDate,

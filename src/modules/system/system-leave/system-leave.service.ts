@@ -12,15 +12,12 @@ export class SystemLeaveService {
     private readonly leaveRepo: Repository<Leave>,
   ) {}
 
-  async findAll(
-    page: number = 1,
-    filters?: {
-      tenantId?: string;
-      status?: LeaveStatus;
-      startDate?: string;
-      endDate?: string;
-    },
-  ) {
+  async findAll(filters?: {
+    tenantId?: string;
+    status?: LeaveStatus;
+    startDate?: string;
+    endDate?: string;
+  }) {
     const qb = this.leaveRepo
       .createQueryBuilder("leave")
       .leftJoinAndSelect("leave.employee", "employee")
@@ -47,7 +44,6 @@ export class SystemLeaveService {
     }
 
     qb.orderBy("leave.createdAt", "DESC");
-    qb.skip((page - 1) * 25).take(25);
 
     const results = await qb.getMany();
 
