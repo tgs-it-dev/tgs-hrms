@@ -13,11 +13,15 @@ export class SystemLeaveService {
   ) {}
 
   async findAll(filters?: {
+    page?: number;
     tenantId?: string;
     status?: LeaveStatus;
     startDate?: string;
     endDate?: string;
   }) {
+    const page = filters?.page && filters.page > 0 ? filters.page : 1;
+    const limit = 25;
+    const offset = (page - 1) * limit; 
     const qb = this.leaveRepo
       .createQueryBuilder("leave")
       .leftJoinAndSelect("leave.employee", "employee")
@@ -45,7 +49,7 @@ export class SystemLeaveService {
 
     qb.orderBy("leave.createdAt", "DESC");
 
-    const results = await qb.getMany();
+    const results = await qb.skip(offset).take(limit).getMany();
 
     const data = results.map((l) => {
       // Get the first employee record (user can have multiple employee records, but typically one)

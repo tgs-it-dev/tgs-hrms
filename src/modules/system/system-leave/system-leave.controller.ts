@@ -1,3 +1,4 @@
+
 import { Controller, Get, Query, UseGuards } from "@nestjs/common";
 import {
   ApiBearerAuth,
@@ -36,13 +37,20 @@ export class SystemLeaveController {
     required: false,
     description: "format: yyyy-mm--dd",
   })
+  @ApiQuery({
+    name: "page",
+    required: false,
+    description: "Page number for pagination (default: 1)",
+  })
   async findAll(
+    @Query("page") page: string = "1",
     @Query("tenantId") tenantId?: string,
     @Query("status") status?: LeaveStatus,
     @Query("startDate") startDate?: string,
     @Query("endDate") endDate?: string,
   ) {
     const data = await this.systemLeaveService.findAll({
+      page: Number(page) || 1,
       tenantId,
       status,
       startDate,
@@ -78,3 +86,9 @@ export class SystemLeaveController {
     return data;
   }
 }
+
+
+
+
+
+
