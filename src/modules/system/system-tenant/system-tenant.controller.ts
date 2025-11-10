@@ -47,16 +47,15 @@ export class SystemTenantController {
   }
 
   /**
-   * Get all tenants with pagination
+   * Get all tenants without pagination
    */
   @Get()
   @ApiOperation({ summary: "List all tenants (System Admin only)" })
   @ApiResponse({ status: 200, description: "List of tenants." })
   async findAll(
-    @Query("page") page: number = 1,
     @Query("includeDeleted", ParseBoolPipe) includeDeleted: boolean = true,
   ) {
-    return this.tenantService.findAll(page, includeDeleted);
+    return this.tenantService.findAll(includeDeleted);
   }
 
   /**
