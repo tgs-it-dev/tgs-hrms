@@ -69,7 +69,18 @@ export class AuthService {
     }
   }
 
-  private async getCompanyDetails(tenantId: string): Promise<any> {
+  private async getCompanyDetails(tenantId: string): Promise<{
+    id: string;
+    company_name: string;
+    domain: string | null;
+    logo_url: string | null;
+    tenant_id: string | null;
+    is_paid: boolean;
+    plan_id: string | null;
+    stripe_session_id: string | null;
+    stripe_customer_id: string | null;
+    stripe_payment_intent_id: string | null;
+  } | null> {
     try {
       this.logger.log(`Loading company details for tenant: ${tenantId}`);
 
@@ -88,6 +99,11 @@ export class AuthService {
         domain: company.domain,
         logo_url: company.logo_url,
         tenant_id: company.tenant_id,
+        is_paid: !!company.is_paid,
+        plan_id: company.plan_id ?? null,
+        stripe_session_id: company.stripe_session_id ?? null,
+        stripe_customer_id: company.stripe_customer_id ?? null,
+        stripe_payment_intent_id: company.stripe_payment_intent_id ?? null,
       };
     } catch (error) {
       this.logger.error(`Failed to load company details for tenant ${tenantId}: ${error.message}`);
@@ -209,6 +225,7 @@ export class AuthService {
 
     const employee = await this.employeeRepository.findOne({ where: { user_id: user.id } });
     const companyDetails = await this.getCompanyDetails(user.tenant_id);
+    const requiresPayment = companyDetails ? !companyDetails.is_paid : false;
 
     this.logger.log(`User ${user.email} has role: ${user.role.name}`);
     this.logger.log(`User ${user.email} permissions: ${JSON.stringify(permissions)}`);
@@ -254,6 +271,7 @@ export class AuthService {
       permissions,
       employee: employee,
       company: companyDetails,
+      requiresPayment,
     };
   }
 

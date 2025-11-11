@@ -23,6 +23,10 @@ import { Asset } from "src/entities/asset.entity";
 import { EmployeeKpi } from "src/entities/employee-kpi.entity";
 import { Promotion } from "src/entities/promotion.entity";
 import { PerformanceReview } from "src/entities/performance-review.entity";
+import { User } from "src/entities/user.entity";
+import { Role } from "src/entities/role.entity";
+import { EmailModule } from "src/common/utils/email/email.module";
+import { CompanyDetails } from "src/entities/company-details.entity";
 
 @Module({
   imports: [
@@ -37,8 +41,12 @@ import { PerformanceReview } from "src/entities/performance-review.entity";
       EmployeeKpi,
       Promotion,
       PerformanceReview,
+      User,
+      Role,
+      CompanyDetails,
     ]),
     SharedJwtModule,
+    EmailModule,
   ],
   providers: [
     SystemService,

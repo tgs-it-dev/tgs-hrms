@@ -40,12 +40,14 @@ export class CompanyDetails {
   @Column({ type: 'varchar', nullable: true })
   logo_url: string | null;
 
-  @Column({ type: 'uuid' })
-  signup_session_id: string;
+  @Column({ type: 'uuid', nullable: true })
+  signup_session_id: string | null;
 
-  @OneToOne(() => SignupSession, (session) => session.companyDetails, { nullable: false })
+  @OneToOne(() => SignupSession, (session) => session.companyDetails, {
+    nullable: true,
+  })
   @JoinColumn({ name: 'signup_session_id' })
-  signupSession: SignupSession;
+  signupSession: SignupSession | null;
 
   @Column({ type: 'uuid', nullable: true })
   tenant_id: string | null;
