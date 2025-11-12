@@ -45,7 +45,7 @@ export class LeaveReportsService {
         const leaves = await this.leaveRepo
           .createQueryBuilder('leave')
           .where('leave.employeeId = :employeeId', { employeeId })
-          .andWhere('leave.leaveTypeId = :leaveTypeId', { leaveTypeId })
+          .andWhere('leave.leaveTypeId = :leaveTypeId', { leaveTypeId: leaveType.id })
           .andWhere('leave.status = :status', { status: LeaveStatus.APPROVED })
           .andWhere('leave.startDate >= :startOfYear', { startOfYear })
           .andWhere('leave.startDate <= :endOfYear', { endOfYear })
@@ -161,7 +161,7 @@ export class LeaveReportsService {
         const leaves = await this.leaveRepo
           .createQueryBuilder('leave')
           .where('leave.employeeId = :employeeId', { employeeId })
-          .andWhere('leave.leaveTypeId = :leaveTypeId', { leaveTypeId })
+          .andWhere('leave.leaveTypeId = :leaveTypeId', { leaveTypeId: leaveType.id })
           .andWhere('leave.status = :status', { status: LeaveStatus.APPROVED })
           .andWhere('leave.startDate >= :startOfYear', { startOfYear })
           .andWhere('leave.startDate <= :endOfYear', { endOfYear })
