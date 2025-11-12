@@ -30,7 +30,7 @@ export class LeaveReportsService {
       throw new NotFoundException('Employee not found');
     }
 
-    const startOfYear = new Date(year, 0, 1);
+    const startOfYear = new Date(year, 0, 1, 0, 0, 0, 0);
     const endOfYear = new Date(year, 11, 31, 23, 59, 59, 999);
 
     // Get all leave types for the tenant
@@ -41,14 +41,15 @@ export class LeaveReportsService {
     // Get leave summary for each type
     const summary = await Promise.all(
       leaveTypes.map(async (leaveType) => {
-        const leaves = await this.leaveRepo.find({
-          where: {
-            employeeId,
-            leaveTypeId: leaveType.id,
-            status: LeaveStatus.APPROVED,
-            startDate: Between(startOfYear, endOfYear),
-          },
-        });
+        // Use QueryBuilder for more reliable date range queries
+        const leaves = await this.leaveRepo
+          .createQueryBuilder('leave')
+          .where('leave.employeeId = :employeeId', { employeeId })
+          .andWhere('leave.leaveTypeId = :leaveTypeId', { leaveTypeId })
+          .andWhere('leave.status = :status', { status: LeaveStatus.APPROVED })
+          .andWhere('leave.startDate >= :startOfYear', { startOfYear })
+          .andWhere('leave.startDate <= :endOfYear', { endOfYear })
+          .getMany();
 
         const used = leaves.reduce((total, leave) => total + leave.totalDays, 0);
         const remaining = Math.max(0, leaveType.maxDaysPerYear - used);
@@ -145,7 +146,7 @@ export class LeaveReportsService {
     }
 
     const currentYear = new Date().getFullYear();
-    const startOfYear = new Date(currentYear, 0, 1);
+    const startOfYear = new Date(currentYear, 0, 1, 0, 0, 0, 0);
     const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59, 999);
 
     // Get all leave types for the tenant
@@ -156,14 +157,15 @@ export class LeaveReportsService {
     // Calculate balance for each leave type
     const balances = await Promise.all(
       leaveTypes.map(async (leaveType) => {
-        const leaves = await this.leaveRepo.find({
-          where: {
-            employeeId,
-            leaveTypeId: leaveType.id,
-            status: LeaveStatus.APPROVED,
-            startDate: Between(startOfYear, endOfYear),
-          },
-        });
+        // Use QueryBuilder for more reliable date range queries
+        const leaves = await this.leaveRepo
+          .createQueryBuilder('leave')
+          .where('leave.employeeId = :employeeId', { employeeId })
+          .andWhere('leave.leaveTypeId = :leaveTypeId', { leaveTypeId })
+          .andWhere('leave.status = :status', { status: LeaveStatus.APPROVED })
+          .andWhere('leave.startDate >= :startOfYear', { startOfYear })
+          .andWhere('leave.startDate <= :endOfYear', { endOfYear })
+          .getMany();
 
         const used = leaves.reduce((total, leave) => total + leave.totalDays, 0);
         const remaining = Math.max(0, leaveType.maxDaysPerYear - used);

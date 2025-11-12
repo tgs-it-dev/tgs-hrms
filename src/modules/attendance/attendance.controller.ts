@@ -10,6 +10,7 @@ import { Permissions } from 'src/common/decorators/permissions.decorator';
 import { PermissionsGuard } from 'src/common/guards/permissions.guard';
 import { Response } from 'express';
 import { sendCsvResponse } from 'src/common/utils/csv.util';
+import { AttendanceType } from 'src/common/constants/enums';
 
 @ApiTags('Attendance')
 @ApiBearerAuth()
@@ -115,16 +116,64 @@ export class AttendanceController {
   ) {
     const userId = (req.user as any).id;
     const userName = `${(req.user as any).first_name || ''} ${(req.user as any).last_name || ''}`.trim();
-    const rows: any[] = [];
     const { items } = await this.attendanceService.findEvents(userId, startDate, endDate);
+    
+    // Group events by date and combine check-in/check-out
+    const groupedByDate: Record<string, { checkIn?: any; checkOut?: any }> = {};
+    const checkIns: any[] = [];
+    const checkOuts: any[] = [];
+    
     for (const ev of items) {
+      if (ev.type === AttendanceType.CHECK_IN) {
+        checkIns.push(ev);
+      } else if (ev.type === AttendanceType.CHECK_OUT) {
+        checkOuts.push(ev);
+      }
+    }
+    
+    // Match check-ins with check-outs
+    for (const checkIn of checkIns) {
+      const date = checkIn.timestamp.toISOString().split('T')[0];
+      const matchingCheckOut = checkOuts.find(
+        checkout => checkout.timestamp > checkIn.timestamp
+      );
+      
+      if (!groupedByDate[date]) {
+        groupedByDate[date] = {};
+      }
+      
+      // Keep the latest check-in and its matching check-out for each date
+      if (!groupedByDate[date].checkIn || 
+          checkIn.timestamp > (groupedByDate[date].checkIn?.timestamp || new Date(0))) {
+        groupedByDate[date].checkIn = checkIn;
+        groupedByDate[date].checkOut = matchingCheckOut;
+      }
+    }
+    
+    // Convert to CSV rows
+    const rows: any[] = [];
+    for (const [date, { checkIn, checkOut }] of Object.entries(groupedByDate)) {
+      let workedHours = 0;
+      if (checkIn && checkOut && new Date(checkOut.timestamp) > new Date(checkIn.timestamp)) {
+        const diffMs = new Date(checkOut.timestamp).getTime() - new Date(checkIn.timestamp).getTime();
+        workedHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
+      }
+      
       rows.push({
-        id: (ev as any).id,
+        date: date,
         user_id: userId,
-        type: (ev as any).type,
-        timestamp: (ev as any).timestamp,
+        user_name: userName,
+        check_in: checkIn?.timestamp || '',
+        check_out: (checkOut && checkIn && new Date(checkOut.timestamp) > new Date(checkIn.timestamp))
+          ? checkOut.timestamp
+          : '',
+        worked_hours: workedHours,
       });
     }
+    
+    // Sort by date descending
+    rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
     return sendCsvResponse(res, 'attendance-self.csv', rows);
   }
 
@@ -165,21 +214,86 @@ export class AttendanceController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string
   ) {
-    const rows: any[] = [];
     const { items } = await this.attendanceService.getAllAttendance(
       req.user.tenant_id,
       startDate,
       endDate
     );
+    
+    // Group events by user_id and date, then combine check-in/check-out
+    const groupedByUserAndDate: Record<string, Record<string, { checkIn?: any; checkOut?: any }>> = {};
+    
+    // First, group by user_id
+    const userGroups: Record<string, any[]> = {};
     for (const ev of items) {
-      rows.push({
-        id: (ev as any).id,
-        user_id: (ev as any).user_id,
-        user_name: `${(ev as any).user?.first_name || ''} ${(ev as any).user?.last_name || ''}`.trim(),
-        timestamp: (ev as any).timestamp,
-        type: (ev as any).type,
-      });
+      const userId = ev.user_id;
+      if (!userGroups[userId]) {
+        userGroups[userId] = [];
+      }
+      userGroups[userId].push(ev);
     }
+    
+    // For each user, group by date and match check-ins with check-outs
+    for (const [userId, userEvents] of Object.entries(userGroups)) {
+      const checkIns = userEvents.filter(e => e.type === AttendanceType.CHECK_IN);
+      const checkOuts = userEvents.filter(e => e.type === AttendanceType.CHECK_OUT);
+      
+      if (!groupedByUserAndDate[userId]) {
+        groupedByUserAndDate[userId] = {};
+      }
+      
+      for (const checkIn of checkIns) {
+        const date = checkIn.timestamp.toISOString().split('T')[0];
+        const matchingCheckOut = checkOuts.find(
+          checkout => checkout.timestamp > checkIn.timestamp
+        );
+        
+        if (!groupedByUserAndDate[userId][date]) {
+          groupedByUserAndDate[userId][date] = {};
+        }
+        
+        // Keep the latest check-in and its matching check-out for each date
+        if (!groupedByUserAndDate[userId][date].checkIn || 
+            checkIn.timestamp > (groupedByUserAndDate[userId][date].checkIn?.timestamp || new Date(0))) {
+          groupedByUserAndDate[userId][date].checkIn = checkIn;
+          groupedByUserAndDate[userId][date].checkOut = matchingCheckOut;
+        }
+      }
+    }
+    
+    // Convert to CSV rows
+    const rows: any[] = [];
+    for (const [userId, dateGroups] of Object.entries(groupedByUserAndDate)) {
+      const user = items.find(e => e.user_id === userId)?.user;
+      const userName = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : '';
+      
+      for (const [date, { checkIn, checkOut }] of Object.entries(dateGroups)) {
+        let workedHours = 0;
+        if (checkIn && checkOut && new Date(checkOut.timestamp) > new Date(checkIn.timestamp)) {
+          const diffMs = new Date(checkOut.timestamp).getTime() - new Date(checkIn.timestamp).getTime();
+          workedHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
+        }
+        
+        rows.push({
+          date: date,
+          user_id: userId,
+          user_name: userName,
+          check_in: checkIn?.timestamp || '',
+          check_out: (checkOut && checkIn && new Date(checkOut.timestamp) > new Date(checkIn.timestamp))
+            ? checkOut.timestamp
+            : '',
+          worked_hours: workedHours,
+        });
+      }
+    }
+    
+    // Sort by date descending, then by user_name
+    rows.sort((a, b) => {
+      const dateCompare = new Date(b.date).getTime() - new Date(a.date).getTime();
+      if (dateCompare !== 0) return dateCompare;
+      return a.user_name.localeCompare(b.user_name);
+    });
+    
     return sendCsvResponse(res, 'attendance-all.csv', rows);
   }
 }

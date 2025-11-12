@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository, Between } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { LeaveStatus } from '../../common/constants/enums';
 import { Leave } from 'src/entities/leave.entity';
 import { LeaveType } from 'src/entities/leave-type.entity';
@@ -60,17 +60,18 @@ export class LeaveService {
 
   private async getUsedLeaveDays(employeeId: string, leaveTypeId: string): Promise<number> {
     const currentYear = new Date().getFullYear();
-    const startOfYear = new Date(currentYear, 0, 1);
-    const endOfYear = new Date(currentYear, 11, 31);
+    const startOfYear = new Date(currentYear, 0, 1, 0, 0, 0, 0);
+    const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59, 999);
 
-    const leaves = await this.leaveRepo.find({
-      where: {
-        employeeId,
-        leaveTypeId,
-        status: In([LeaveStatus.APPROVED, LeaveStatus.PENDING]),
-        startDate: Between(startOfYear, endOfYear)
-      }
-    });
+    // Use QueryBuilder for more reliable date range queries
+    const leaves = await this.leaveRepo
+      .createQueryBuilder('leave')
+      .where('leave.employeeId = :employeeId', { employeeId })
+      .andWhere('leave.leaveTypeId = :leaveTypeId', { leaveTypeId })
+      .andWhere('leave.status IN (:...statuses)', { statuses: [LeaveStatus.APPROVED, LeaveStatus.PENDING] })
+      .andWhere('leave.startDate >= :startOfYear', { startOfYear })
+      .andWhere('leave.startDate <= :endOfYear', { endOfYear })
+      .getMany();
 
     return leaves.reduce((total, leave) => total + leave.totalDays, 0);
   }
