@@ -43,7 +43,7 @@ export class TeamController {
 
   @Get('export')
   @Roles('admin', 'system-admin')
-  @ApiOperation({ summary: 'Download teams list as CSV (Admin only)' })
+  @ApiOperation({ summary: 'Download teams list with all members including employee pool as CSV (Admin only)' })
   async exportAll(
     @TenantId() tenantId: string,
     @Res() res: Response,
@@ -51,12 +51,45 @@ export class TeamController {
   ) {
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
     const { items } = await this.teamService.findAll(tenantId, pageNumber);
-    const rows = (items || []).map((t: any) => ({
-      id: t.id,
-      name: t.name,
-      manager_id: t.manager?.id,
-      manager_name: t.manager ? `${t.manager.first_name} ${t.manager.last_name}` : '',
-    }));
+    
+    // Flatten all team members including employee pool into rows
+    const rows: any[] = [];
+    let employeePoolProcessed = false;
+    
+    for (const team of items) {
+      // Employee pool ko sirf ek baar process karo
+      if (team.id === 'employee-pool') {
+        if (employeePoolProcessed) {
+          continue; // Skip if already processed
+        }
+        employeePoolProcessed = true;
+      }
+      
+      const teamName = team.name;
+      const managerName = team.manager ? `${team.manager.first_name || ''} ${team.manager.last_name || ''}`.trim() : '';
+      
+      // Add each member as a row
+      for (const member of team.members || []) {
+        // Handle both cases: user with name only or with first_name/last_name
+        const userName = member.user?.name || '';
+        const firstName = member.user?.first_name || (userName ? userName.split(' ')[0] : '');
+        const lastName = member.user?.last_name || (userName ? userName.split(' ').slice(1).join(' ') : '');
+        const fullName = member.user?.name || `${firstName} ${lastName}`.trim();
+        
+        rows.push({
+          team_name: teamName,
+          manager_name: managerName,
+          employee_name: fullName,
+          first_name: firstName,
+          last_name: lastName,
+          email: member.user?.email || '',
+          designation: member.designation?.title || '',
+          department: member.department?.name || '',
+          status: member.status || '',
+        });
+      }
+    }
+    
     return sendCsvResponse(res, 'teams.csv', rows);
   }
 
