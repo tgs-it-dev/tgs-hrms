@@ -13,6 +13,7 @@ import { NotFoundException } from '@nestjs/common';
 import { EmailService } from '../../common/utils/email';
 import { InviteStatusService } from '../invite-status/invite-status.service';
 import { Employee } from 'src/entities/employee.entity';
+import { SignupSession } from 'src/entities/signup-session.entity';
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -24,6 +25,8 @@ export class AuthService {
     private companyDetailsRepository: Repository<CompanyDetails>,
     @InjectRepository(Employee)
     private employeeRepository: Repository<Employee>,
+    @InjectRepository(SignupSession)
+    private signupSessionRepository: Repository<SignupSession>,
     private jwtService: JwtService,
     private configService: ConfigService,
     private emailService: EmailService,
@@ -263,6 +266,11 @@ export class AuthService {
     
     await this.userRepository.save(user);
 
+    // Find SignupSession by email to get session_id
+    const signupSession = await this.signupSessionRepository.findOne({
+      where: { email: normalizedEmail },
+    });
+
     this.logger.log(`Login successful for email: ${normalizedEmail}`);
     return {
       accessToken,
@@ -272,6 +280,7 @@ export class AuthService {
       employee: employee,
       company: companyDetails,
       requiresPayment,
+      session_id: signupSession?.id || null,
     };
   }
 

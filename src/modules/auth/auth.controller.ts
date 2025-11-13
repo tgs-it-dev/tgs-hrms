@@ -52,7 +52,34 @@ export class AuthController {
   @Post('login')
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiBody({ type: LoginDto })
-  @ApiResponse({ status: 200, description: 'Login successful' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Login successful',
+    schema: {
+      example: {
+        accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+        refreshToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+        user: {
+          id: 'user-id',
+          email: 'user@example.com',
+          first_name: 'John',
+          last_name: 'Doe',
+          role: 'admin',
+          tenant_id: 'tenant-id'
+        },
+        permissions: ['manage_users', 'view_reports'],
+        employee: null,
+        company: {
+          id: 'company-id',
+          company_name: 'Company Name',
+          domain: 'company.com',
+          is_paid: false
+        },
+        requiresPayment: true,
+        session_id: 'signup-session-id'
+      }
+    }
+  })
   @ApiResponse({
     status: 400,
     description: 'Missing Fields Error',

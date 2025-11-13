@@ -20,6 +20,7 @@ import { Role } from "src/entities/role.entity";
 import * as bcrypt from "bcrypt";
 import { EmailService } from "src/common/utils/email/email.service";
 import { CompanyDetails } from "src/entities/company-details.entity";
+import { SignupSession } from "src/entities/signup-session.entity";
 
 @Injectable()
 export class SystemTenantService {
@@ -35,6 +36,8 @@ export class SystemTenantService {
     private readonly roleRepo: Repository<Role>,
     @InjectRepository(CompanyDetails)
     private readonly companyDetailsRepo: Repository<CompanyDetails>,
+    @InjectRepository(SignupSession)
+    private readonly signupSessionRepo: Repository<SignupSession>,
     private readonly dataSource: DataSource,
     private readonly emailService: EmailService,
   ) {}
@@ -97,11 +100,13 @@ export class SystemTenantService {
         admin,
         temporaryPassword,
         company,
+        signupSession,
       } = await this.dataSource.transaction(async (manager) => {
         const tenantRepository = manager.getRepository(Tenant);
         const userRepository = manager.getRepository(User);
         const roleRepository = manager.getRepository(Role);
         const companyRepository = manager.getRepository(CompanyDetails);
+        const signupSessionRepository = manager.getRepository(SignupSession);
 
         const tenantToCreate = tenantRepository.create({
           name: tenantName,
@@ -113,6 +118,17 @@ export class SystemTenantService {
         const { firstName, lastName } = this.splitName(adminName);
         const password = this.generateTemporaryPassword();
         const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Create SignupSession for system tenant (similar to manual signup flow)
+        const sessionToCreate = signupSessionRepository.create({
+          email: normalizedAdminEmail,
+          password_hash: hashedPassword,
+          first_name: firstName,
+          last_name: lastName,
+          phone: "",
+          status: "completed", // System tenants are already completed
+        });
+        const savedSession = await signupSessionRepository.save(sessionToCreate);
 
         const adminToCreate = userRepository.create({
           email: normalizedAdminEmail,
@@ -138,12 +154,13 @@ export class SystemTenantService {
             is_paid: false,
             tenant_id: savedTenant.id,
             logo_url: dto.logo?.trim() || null,
-            signup_session_id: null,
+            signup_session_id: savedSession.id, // Link to the signup session
           });
         } else {
           companyDetails.company_name = tenantName;
           companyDetails.domain = domain;
           companyDetails.logo_url = dto.logo?.trim() || null;
+          companyDetails.signup_session_id = savedSession.id; // Link to the signup session
         }
 
         const savedCompany = await companyRepository.save(companyDetails);
@@ -153,6 +170,7 @@ export class SystemTenantService {
           admin: savedAdmin,
           temporaryPassword: password,
           company: savedCompany,
+          signupSession: savedSession,
         };
       });
 
@@ -187,6 +205,12 @@ export class SystemTenantService {
           is_paid: company.is_paid,
           plan_id: company.plan_id,
           tenant_id: company.tenant_id,
+        },
+        signupSession: {
+          id: signupSession.id,
+          email: signupSession.email,
+          status: signupSession.status,
+          created_at: signupSession.created_at,
         },
       };
     } catch (err: unknown) {
