@@ -30,6 +30,9 @@ export class LoginResponseDto {
     role: string;
     status: string;
   };
+
+  @ApiPropertyOptional({ description: 'Signup session ID', nullable: true })
+  session_id?: string | null;
 }
 
 // Register Response DTO

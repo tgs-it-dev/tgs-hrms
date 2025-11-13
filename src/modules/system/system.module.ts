@@ -27,6 +27,7 @@ import { User } from "src/entities/user.entity";
 import { Role } from "src/entities/role.entity";
 import { EmailModule } from "src/common/utils/email/email.module";
 import { CompanyDetails } from "src/entities/company-details.entity";
+import { SignupSession } from "src/entities/signup-session.entity";
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { CompanyDetails } from "src/entities/company-details.entity";
       User,
       Role,
       CompanyDetails,
+      SignupSession,
     ]),
     SharedJwtModule,
     EmailModule,

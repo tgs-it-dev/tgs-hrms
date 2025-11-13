@@ -10,9 +10,10 @@ import { JwtMiddleware, JwtAuthGuard, JwtTokenValidator } from '../../common/mid
 import { EmailService, SendGridService } from '../../common/utils/email';
 import { InviteStatusModule } from '../invite-status/invite-status.module';
 import { Employee } from 'src/entities/employee.entity';
+import { SignupSession } from 'src/entities/signup-session.entity';
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, CompanyDetails, Employee]),
+    TypeOrmModule.forFeature([User, CompanyDetails, Employee, SignupSession]),
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'default_secret',
