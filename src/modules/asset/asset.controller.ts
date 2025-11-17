@@ -44,11 +44,16 @@ export class AssetController {
   ) {
     // Always 25 records per page
     const parsedPage = page ? parseInt(page, 10) : 1;
-    return this.assetService.findAll(req.user.tenant_id, {
-      status,
-      categoryId,
-      page: parsedPage
-    });
+    return this.assetService.findAll(
+      req.user.tenant_id, 
+      {
+        status,
+        categoryId,
+        page: parsedPage
+      },
+      req.user.id || req.user.sub,
+      req.user.role
+    );
   }
 
   @Get(':id')
