@@ -15,8 +15,11 @@ import {
   DataSource,
 } from "typeorm";
 import { CreateTenantDto } from "../dto/system-tenant/create-tenant.dto";
+import { UpdateTenantDto } from "../dto/system-tenant/update-tenant.dto";
 import { User } from "src/entities/user.entity";
 import { Role } from "src/entities/role.entity";
+import { Department } from "src/entities/department.entity";
+import { PaginationResponse } from "src/common/interfaces/pagination.interface";
 import * as bcrypt from "bcrypt";
 import { EmailService } from "src/common/utils/email/email.service";
 import { CompanyDetails } from "src/entities/company-details.entity";
@@ -26,6 +29,7 @@ import { SignupSession } from "src/entities/signup-session.entity";
 export class SystemTenantService {
   private readonly logger = new Logger(SystemTenantService.name);
   private readonly defaultPlanId = "system-manual";
+  private readonly GLOBAL_TENANT_ID = "00000000-0000-0000-0000-000000000000";
 
   constructor(
     @InjectRepository(Tenant)
@@ -34,6 +38,8 @@ export class SystemTenantService {
     private readonly userRepo: Repository<User>,
     @InjectRepository(Role)
     private readonly roleRepo: Repository<Role>,
+    @InjectRepository(Department)
+    private readonly departmentRepo: Repository<Department>,
     @InjectRepository(CompanyDetails)
     private readonly companyDetailsRepo: Repository<CompanyDetails>,
     @InjectRepository(SignupSession)
@@ -310,19 +316,30 @@ export class SystemTenantService {
   }
 
   /**
-   * Get list of tenants without pagination
+   * Get list of tenants with pagination
    */
-  async findAll(includeDeleted: boolean = false) {
+  async findAll(page: number = 1, limit: number = 25, includeDeleted: boolean = false): Promise<PaginationResponse<Tenant>> {
+    const skip = (page - 1) * limit;
     const where: FindOptionsWhere<Tenant> = includeDeleted
       ? {}
       : { isDeleted: false };
 
-    const data = await this.tenantRepo.find({
+    const [items, total] = await this.tenantRepo.findAndCount({
       where,
       order: { created_at: "DESC" },
+      skip,
+      take: limit,
     });
 
-    return data;
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages,
+    };
   }
 
   /**
@@ -342,7 +359,7 @@ export class SystemTenantService {
   }
 
   /**
-   * Get full tenant details with departments, employee count
+   * Get full tenant details with departments (including default/global departments), employee count
    */
   async getTenantDetails(id: string) {
     const tenant = await this.findOne(id, ["departments", "users"]);
@@ -355,7 +372,27 @@ export class SystemTenantService {
       where: { tenant_id: tenant.id },
     });
 
-    const departmentCount = tenant.departments.length || 0;
+    // Get tenant's own departments
+    const tenantDepartments = tenant.departments || [];
+    
+    // Get global default departments
+    const globalDepartments = await this.departmentRepo.find({
+      where: { tenant_id: this.GLOBAL_TENANT_ID },
+      order: { name: "ASC" },
+    });
+
+    // Combine tenant departments and global departments
+    // If a department with same name exists in both, prioritize tenant's department
+    const tenantDeptNames = new Set(tenantDepartments.map(d => d.name.toLowerCase()));
+    const allDepartments = [
+      ...tenantDepartments,
+      ...globalDepartments.filter(gd => !tenantDeptNames.has(gd.name.toLowerCase()))
+    ];
+
+    // Sort all departments by name
+    allDepartments.sort((a, b) => a.name.localeCompare(b.name));
+
+    const departmentCount = allDepartments.length;
     const employeeCount = tenant.users.length || 0;
 
     return {
@@ -377,9 +414,11 @@ export class SystemTenantService {
             plan_id: company.plan_id,
           }
         : null,
-      departments: tenant.departments.map((d) => ({
+      departments: allDepartments.map((d) => ({
         id: d.id,
         name: d.name,
+        description: d.description,
+        isDefault: d.tenant_id === this.GLOBAL_TENANT_ID, // Flag to indicate if it's a default department
       })),
     };
   }
@@ -409,5 +448,115 @@ export class SystemTenantService {
     await this.tenantRepo.save(tenant);
 
     return { restored: true, id };
+  }
+
+  /**
+   * Update tenant company details (name, logo, domain)
+   */
+  async update(dto: UpdateTenantDto) {
+    const tenant = await this.findOne(dto.tenantId);
+
+    if (!tenant) {
+      throw new NotFoundException("Tenant not found.");
+    }
+
+    // Get or create company details
+    let companyDetails = await this.companyDetailsRepo.findOne({
+      where: { tenant_id: tenant.id },
+    });
+
+    // Update tenant name if provided
+    if (dto.companyName) {
+      const trimmedName = dto.companyName.trim();
+      if (!trimmedName) {
+        throw new BadRequestException("Company name cannot be empty");
+      }
+
+      // Check for duplicate name (case-insensitive, excluding current tenant)
+      const existing = await this.tenantRepo.findOne({
+        where: {
+          name: ILike(trimmedName),
+          isDeleted: false,
+        },
+      });
+
+      if (existing && existing.id !== tenant.id) {
+        throw new ConflictException(
+          `Tenant with name '${trimmedName}' already exists.`,
+        );
+      }
+
+      tenant.name = trimmedName;
+    }
+
+    // Update company details
+    if (!companyDetails) {
+      companyDetails = this.companyDetailsRepo.create({
+        tenant_id: tenant.id,
+        company_name: dto.companyName || tenant.name,
+        domain: dto.domain?.trim().toLowerCase() || "",
+        plan_id: this.defaultPlanId,
+        is_paid: false,
+        logo_url: dto.logo?.trim() || null,
+      });
+    } else {
+      if (dto.companyName) {
+        companyDetails.company_name = dto.companyName.trim();
+      }
+      if (dto.domain) {
+        const trimmedDomain = dto.domain.trim().toLowerCase();
+        if (!trimmedDomain) {
+          throw new BadRequestException("Domain cannot be empty");
+        }
+
+        // Check for duplicate domain (excluding current tenant)
+        const existingCompany = await this.companyDetailsRepo.findOne({
+          where: { domain: ILike(trimmedDomain) },
+        });
+
+        if (existingCompany && existingCompany.tenant_id !== tenant.id) {
+          throw new ConflictException(
+            `Company details already exist for domain '${dto.domain}'.`,
+          );
+        }
+
+        companyDetails.domain = trimmedDomain;
+      }
+      if (dto.logo !== undefined) {
+        companyDetails.logo_url = dto.logo?.trim() || null;
+      }
+    }
+
+    // Save both tenant and company details in a transaction
+    const result = await this.dataSource.transaction(async (manager) => {
+      const tenantRepository = manager.getRepository(Tenant);
+      const companyRepository = manager.getRepository(CompanyDetails);
+
+      const savedTenant = await tenantRepository.save(tenant);
+      const savedCompany = await companyRepository.save(companyDetails);
+
+      return {
+        tenant: savedTenant,
+        company: savedCompany,
+      };
+    });
+
+    return {
+      id: result.tenant.id,
+      name: result.tenant.name,
+      domain: result.company.domain,
+      logo: result.company.logo_url,
+      status: result.tenant.status,
+      updated_at: result.tenant.updated_at,
+      company: {
+        id: result.company.id,
+        company_name: result.company.company_name,
+        domain: result.company.domain,
+        logo_url: result.company.logo_url,
+        is_paid: result.company.is_paid,
+        plan_id: result.company.plan_id,
+        tenant_id: result.company.tenant_id,
+      },
+    };
   }
 }

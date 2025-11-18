@@ -54,7 +54,7 @@ export class SystemPerformanceController {
   @Get("records")
   @Roles("system-admin")
   @ApiOperation({
-    summary: "Fetch summarized performance reviews per employee",
+    summary: "Fetch summarized performance reviews per employee (Paginated)",
   })
   @ApiQuery({ name: "tenantId", required: false })
   @ApiQuery({ name: "cycle", required: false })
@@ -67,6 +67,8 @@ export class SystemPerformanceController {
   @ApiQuery({ name: "maxScore", required: false, type: Number })
   @ApiQuery({ name: "startDate", required: false })
   @ApiQuery({ name: "endDate", required: false })
+  @ApiQuery({ name: "page", required: false, type: Number, description: "Page number (default: 1)" })
+  @ApiQuery({ name: "limit", required: false, type: Number, description: "Items per page (default: 25, max: 100)" })
   @ApiResponse({
     status: 200,
     description: "List of performance reviews across tenants.",
@@ -79,7 +81,11 @@ export class SystemPerformanceController {
     @Query("maxScore") maxScore?: number,
     @Query("startDate") startDate?: string,
     @Query("endDate") endDate?: string,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
   ) {
+    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+    const limitNumber = Math.min(100, Math.max(1, parseInt(limit || '25', 10) || 25));
     return this.performanceService.getPerformanceRecords({
       tenantId,
       cycle,
@@ -88,6 +94,8 @@ export class SystemPerformanceController {
       maxScore,
       startDate,
       endDate,
+      page: pageNumber,
+      limit: limitNumber,
     });
   }
 
@@ -98,7 +106,7 @@ export class SystemPerformanceController {
   @Get("promotions")
   @Roles("system-admin")
   @ApiOperation({
-    summary: "Track vertical promotions and pending evaluations",
+    summary: "Track vertical promotions and pending evaluations (Paginated)",
   })
   @ApiQuery({ name: "tenantId", required: false })
   @ApiQuery({
@@ -116,6 +124,8 @@ export class SystemPerformanceController {
     required: false,
     description: "format: yyyy-mm--dd",
   })
+  @ApiQuery({ name: "page", required: false, type: Number, description: "Page number (default: 1)" })
+  @ApiQuery({ name: "limit", required: false, type: Number, description: "Items per page (default: 25, max: 100)" })
   @ApiResponse({
     status: 200,
     description: "List of promotions and aggregate promotion statistics.",
@@ -145,12 +155,18 @@ export class SystemPerformanceController {
     @Query("status") status?: "pending" | "approved" | "rejected",
     @Query("startDate") startDate?: string,
     @Query("endDate") endDate?: string,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
   ) {
+    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+    const limitNumber = Math.min(100, Math.max(1, parseInt(limit || '25', 10) || 25));
     return this.performanceService.getPromotionsOverview({
       tenantId,
       status,
       startDate,
       endDate,
+      page: pageNumber,
+      limit: limitNumber,
     });
   }
 }

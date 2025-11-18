@@ -146,7 +146,7 @@ export class EmployeeService implements OnModuleInit {
   }) {
     await this.validateDesignation(dto.designation_id, tenant_id);
 
-    // Validate optional UUID fields if provided
+    
     if (dto.team_id && dto.team_id !== null) {
       this.validateUUID(dto.team_id, 'team_id');
       await this.validateTeam(dto.team_id, tenant_id);
@@ -210,13 +210,13 @@ export class EmployeeService implements OnModuleInit {
         return savedEmployee;
       });
 
-      // Handle file uploads if provided (after transaction)
+      
       if (files) {
         if (files.profile_picture && files.profile_picture.length > 0) {
           const profilePictureUrl = await this.employeeFileUploadService.uploadProfilePicture(files.profile_picture[0], result.id);
           result.profile_picture = profilePictureUrl;
           
-          // Also update User table with profile picture
+          
           const user = await this.userRepo.findOne({ where: { id: result.user_id } });
           if (user) {
             user.profile_pic = profilePictureUrl;
@@ -234,7 +234,7 @@ export class EmployeeService implements OnModuleInit {
           result.cnic_back_picture = cnicBackPictureUrl;
         }
         
-        // Save employee with file URLs
+      
         await this.employeeRepo.save(result);
       }
 
@@ -257,7 +257,7 @@ export class EmployeeService implements OnModuleInit {
   }) {
     await this.validateDesignation(dto.designation_id, tenant_id);
 
-    // Validate optional UUID fields if provided
+  
     if (dto.team_id && dto.team_id !== null) {
       this.validateUUID(dto.team_id, 'team_id');
       await this.validateTeam(dto.team_id, tenant_id);
@@ -326,13 +326,13 @@ export class EmployeeService implements OnModuleInit {
         return savedEmployee;
       });
 
-      // Handle file uploads if provided (after transaction)
+
       if (files) {
         if (files.profile_picture && files.profile_picture.length > 0) {
           const profilePictureUrl = await this.employeeFileUploadService.uploadProfilePicture(files.profile_picture[0], result.id);
           result.profile_picture = profilePictureUrl;
           
-          // Also update User table with profile picture
+          
           const user = await this.userRepo.findOne({ where: { id: result.user_id } });
           if (user) {
             user.profile_pic = profilePictureUrl;
@@ -350,7 +350,7 @@ export class EmployeeService implements OnModuleInit {
           result.cnic_back_picture = cnicBackPictureUrl;
         }
         
-        // Save employee with file URLs
+        
         await this.employeeRepo.save(result);
       }
       
@@ -366,7 +366,7 @@ export class EmployeeService implements OnModuleInit {
   }
 
   async findAll(tenant_id: string, query: EmployeeQueryDto, page: number) {
-    const limit = 10;
+    const limit = 25;
     const skip = (page - 1) * limit;
 
     const qb = this.employeeRepo
@@ -483,7 +483,7 @@ export class EmployeeService implements OnModuleInit {
 
     let shouldSaveUser = false;
     if (dto.role_name) {
-      // Handle role_name - find role by name and assign
+      
       const newRole = await this.roleRepo.findOne({ where: { name: dto.role_name } });
       if (!newRole) throw new NotFoundException(`Role with name '${dto.role_name}' not found.`);
       user.role_id = newRole.id;
@@ -522,10 +522,10 @@ export class EmployeeService implements OnModuleInit {
       employee.cnic_number = dto.cnic_number;
     }
 
-    // Handle file uploads
+  
     if (files) {
       if (files.profile_picture?.[0]) {
-        // Delete old profile picture if exists
+      
         if (user.profile_pic) {
           try {
             console.log('Deleting old profile picture:', user.profile_pic);
@@ -536,13 +536,13 @@ export class EmployeeService implements OnModuleInit {
           }
         }
         
-        // Upload new profile picture
+      
         try {
           console.log('Uploading new profile picture for employee:', employee.id);
           const profilePictureUrl = await this.employeeFileUploadService.uploadProfilePicture(files.profile_picture[0], employee.id);
           console.log('Profile picture uploaded successfully:', profilePictureUrl);
           user.profile_pic = profilePictureUrl;
-          employee.profile_picture = profilePictureUrl; // Also update employee table
+          employee.profile_picture = profilePictureUrl; 
           shouldSaveUser = true;
         } catch (error) {
           console.error('Failed to upload profile picture:', error);
@@ -551,7 +551,7 @@ export class EmployeeService implements OnModuleInit {
       }
       
       if (files.cnic_picture?.[0]) {
-        // Delete old CNIC picture if exists
+        
         if (employee.cnic_picture) {
           try {
             console.log('Deleting old CNIC picture:', employee.cnic_picture);
@@ -562,7 +562,7 @@ export class EmployeeService implements OnModuleInit {
           }
         }
         
-        // Upload new CNIC picture
+      
         try {
           console.log('Uploading new CNIC picture for employee:', employee.id);
           const cnicPictureUrl = await this.employeeFileUploadService.uploadCnicPicture(files.cnic_picture[0], employee.id);
@@ -575,7 +575,7 @@ export class EmployeeService implements OnModuleInit {
       }
       
       if (files.cnic_back_picture?.[0]) {
-        // Delete old CNIC back picture if exists
+        
         if (employee.cnic_back_picture) {
           try {
             console.log('Deleting old CNIC back picture:', employee.cnic_back_picture);
@@ -586,7 +586,7 @@ export class EmployeeService implements OnModuleInit {
           }
         }
         
-        // Upload new CNIC back picture
+        
         try {
           console.log('Uploading new CNIC back picture for employee:', employee.id);
           const cnicBackPictureUrl = await this.employeeFileUploadService.uploadCnicBackPicture(files.cnic_back_picture[0], employee.id);
@@ -769,11 +769,11 @@ export class EmployeeService implements OnModuleInit {
 
     let imagePath: string | null = null;
 
-    // Check if employee has profile picture in employee table
+    
     if (employee.profile_picture) {
       imagePath = employee.profile_picture;
     }
-    // Fallback to user table profile picture
+    
     else if (employee.user.profile_pic) {
       imagePath = employee.user.profile_pic;
     }
@@ -782,7 +782,7 @@ export class EmployeeService implements OnModuleInit {
       throw new NotFoundException('No profile picture available');
     }
 
-    // Convert URL path to actual file path
+  
     const fileName = imagePath.split('/').pop();
     if (!fileName) {
       throw new NotFoundException('Invalid image path');
@@ -790,12 +790,11 @@ export class EmployeeService implements OnModuleInit {
 
     const filePath = path.join(process.cwd(), 'public', 'profile-pictures', fileName);
 
-    // Check if file exists
     if (!fs.existsSync(filePath)) {
       throw new NotFoundException('Profile picture file not found');
     }
 
-    // Set appropriate headers
+    
     const ext = path.extname(fileName).toLowerCase();
     const contentType = this.getContentType(ext);
     
@@ -803,7 +802,6 @@ export class EmployeeService implements OnModuleInit {
     res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
     res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
 
-    // Stream the file
     const fileStream = fs.createReadStream(filePath);
     fileStream.pipe(res);
   }
@@ -822,7 +820,7 @@ export class EmployeeService implements OnModuleInit {
       throw new NotFoundException('No CNIC picture available');
     }
 
-    // Convert URL path to actual file path
+  
     const fileName = employee.cnic_picture.split('/').pop();
     if (!fileName) {
       throw new NotFoundException('Invalid CNIC image path');
@@ -830,12 +828,12 @@ export class EmployeeService implements OnModuleInit {
 
     const filePath = path.join(process.cwd(), 'public', 'cnic-pictures', fileName);
 
-    // Check if file exists
+  
     if (!fs.existsSync(filePath)) {
       throw new NotFoundException('CNIC picture file not found');
     }
 
-    // Set appropriate headers
+    
     const ext = path.extname(fileName).toLowerCase();
     const contentType = this.getContentType(ext);
     
@@ -843,7 +841,7 @@ export class EmployeeService implements OnModuleInit {
     res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
     res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
 
-    // Stream the file
+    
     const fileStream = fs.createReadStream(filePath);
     fileStream.pipe(res);
   }
@@ -862,7 +860,7 @@ export class EmployeeService implements OnModuleInit {
       throw new NotFoundException('No CNIC back picture available');
     }
 
-    // Convert URL path to actual file path
+    
     const fileName = employee.cnic_back_picture.split('/').pop();
     if (!fileName) {
       throw new NotFoundException('Invalid CNIC back image path');
@@ -870,12 +868,12 @@ export class EmployeeService implements OnModuleInit {
 
     const filePath = path.join(process.cwd(), 'public', 'cnic-back-pictures', fileName);
 
-    // Check if file exists
+    
     if (!fs.existsSync(filePath)) {
       throw new NotFoundException('CNIC back picture file not found');
     }
 
-    // Set appropriate headers
+    
     const ext = path.extname(fileName).toLowerCase();
     const contentType = this.getContentType(ext);
     
@@ -883,7 +881,7 @@ export class EmployeeService implements OnModuleInit {
     res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
     res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
 
-    // Stream the file
+  
     const fileStream = fs.createReadStream(filePath);
     fileStream.pipe(res);
   }

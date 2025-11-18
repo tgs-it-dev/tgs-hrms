@@ -23,7 +23,7 @@ export class LeaveService {
   ) {}
 
   async createLeave(employeeId: string, tenantId: string, dto: CreateLeaveDto): Promise<Leave> {
-    // Verify leave type exists and belongs to tenant
+    
     const leaveType = await this.leaveTypeRepo.findOne({
       where: { id: dto.leaveTypeId, tenantId, status: 'active' }
     });
@@ -32,12 +32,12 @@ export class LeaveService {
       throw new NotFoundException('Leave type not found');
     }
 
-    // Calculate total days
+    
     const startDate = new Date(dto.startDate);
     const endDate = new Date(dto.endDate);
     const totalDays = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
-    // Check if employee has enough leave balance
+    
     const usedDays = await this.getUsedLeaveDays(employeeId, dto.leaveTypeId);
     const availableDays = leaveType.maxDaysPerYear - usedDays;
 
@@ -63,7 +63,7 @@ export class LeaveService {
     const startOfYear = new Date(currentYear, 0, 1, 0, 0, 0, 0);
     const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59, 999);
 
-    // Use QueryBuilder for more reliable date range queries
+    
     const leaves = await this.leaveRepo
       .createQueryBuilder('leave')
       .where('leave.employeeId = :employeeId', { employeeId })
@@ -76,13 +76,13 @@ export class LeaveService {
     return leaves.reduce((total, leave) => total + leave.totalDays, 0);
   }
 
-  // Helper method to calculate leaves taken in the last 12 months
+
   async getLeavesTakenInLast12Months(user_id: string): Promise<number> {
     const twelveMonthsAgo = new Date();
     twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
     const now = new Date();
     
-    // Get all APPROVED leaves for user within the range
+    
     const leaves = await this.leaveRepo.createQueryBuilder('leave')
       .where('leave.employeeId = :user_id', { user_id })
       .andWhere('leave.status = :status', { status: LeaveStatus.APPROVED })
@@ -90,7 +90,7 @@ export class LeaveService {
       .andWhere('leave.startDate <= :end', { end: now })
       .getMany();
 
-    // Sum the leave days
+  
     let totalDays = 0;
     for (const leave of leaves) {
       totalDays += leave.totalDays;
@@ -123,7 +123,7 @@ export class LeaveService {
       .take(limit)
       .getManyAndCount();
     const totalPages = Math.ceil(total / limit);
-    // Calculate leaves left
+  
     let leavesLeft: number | undefined = undefined;
     if (user_id) {
       const taken = await this.getLeavesTakenInLast12Months(user_id);
@@ -152,7 +152,7 @@ export class LeaveService {
     limit: number;
     totalPages: number;
   }> {
-    const limit = 10;
+    const limit = 25;
     const skip = (page - 1) * limit;
     
     const whereConditions: any = {
@@ -192,9 +192,9 @@ export class LeaveService {
       throw new NotFoundException('Leave not found');
     }
 
-    // Check if user can access this leave (own leave or admin)
+    
     if (leave.employeeId !== employeeId) {
-      // Check if user is admin/manager
+    
       const user = await this.userRepo.findOne({ where: { id: employeeId } });
       if (!user || !['admin', 'system-admin', 'hr-admin', 'manager'].includes(user.role as unknown as string)) {
         throw new ForbiddenException('Access denied');

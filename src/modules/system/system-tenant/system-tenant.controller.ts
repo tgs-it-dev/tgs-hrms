@@ -16,6 +16,8 @@ import {
   ApiBearerAuth,
   ApiOperation,
   ApiResponse,
+  ApiQuery,
+  ApiBody,
 } from "@nestjs/swagger";
 // import { CreateTenantDto } from "../dto/system-tenant/create-tenant.dto";
 import { JwtAuthGuard } from "src/common/guards/jwt-auth.guard";
@@ -23,6 +25,7 @@ import { RolesGuard } from "src/common/guards/roles.guard";
 import { Roles } from "src/common/decorators/roles.decorator";
 import { SystemTenantService } from "./system-tenant.service";
 import { CreateTenantDto } from "../dto/system-tenant/create-tenant.dto";
+import { UpdateTenantDto } from "../dto/system-tenant/update-tenant.dto";
 
 @ApiTags("System (Tenants)")
 @ApiBearerAuth()
@@ -47,15 +50,45 @@ export class SystemTenantController {
   }
 
   /**
-   * Get all tenants without pagination
+   * Update tenant company details (name, logo, domain)
+   */
+  @Put()
+  @ApiOperation({ summary: "Update tenant company details (System Admin only)" })
+  @ApiBody({ type: UpdateTenantDto })
+  @ApiResponse({
+    status: 200,
+    description: "Tenant company details updated successfully.",
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Tenant not found.",
+  })
+  @ApiResponse({
+    status: 409,
+    description: "Conflict: Tenant name or domain already exists.",
+  })
+  async update(@Body() dto: UpdateTenantDto) {
+    return this.tenantService.update(dto);
+  }
+
+  /**
+   * Get all tenants with pagination
    */
   @Get()
-  @ApiOperation({ summary: "List all tenants (System Admin only)" })
+  @ApiOperation({ summary: "List all tenants (System Admin only) - Paginated" })
   @ApiResponse({ status: 200, description: "List of tenants." })
+  @ApiQuery({ name: "page", required: false, type: Number, description: "Page number (default: 1)" })
+  @ApiQuery({ name: "limit", required: false, type: Number, description: "Items per page (default: 25, max: 100)" })
+  @ApiQuery({ name: "includeDeleted", required: false, type: Boolean, description: "Include deleted tenants (default: true)" })
   async findAll(
-    @Query("includeDeleted", ParseBoolPipe) includeDeleted: boolean = true,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
+    @Query("includeDeleted") includeDeleted?: string,
   ) {
-    return this.tenantService.findAll(includeDeleted);
+    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+    const limitNumber = Math.min(100, Math.max(1, parseInt(limit || '25', 10) || 25));
+    const includeDeletedFlag = includeDeleted !== undefined ? includeDeleted === 'true' : true;
+    return this.tenantService.findAll(pageNumber, limitNumber, includeDeletedFlag);
   }
 
   /**

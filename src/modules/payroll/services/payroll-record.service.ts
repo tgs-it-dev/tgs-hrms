@@ -9,10 +9,12 @@ import { Attendance } from '../../../entities/attendance.entity';
 import { Leave } from '../../../entities/leave.entity';
 import { EmployeeKpi } from '../../../entities/employee-kpi.entity';
 import { User } from '../../../entities/user.entity';
+import { Tenant } from '../../../entities/tenant.entity';
 import { GeneratePayrollDto, UpdatePayrollStatusDto } from '../dto/payroll-record.dto';
 import { PayrollConfigService } from './payroll-config.service';
 import { EmployeeSalaryService } from './employee-salary.service';
 import { AttendanceType, LeaveStatus, PayrollStatus } from '../../../common/constants/enums';
+import { PaginationResponse } from '../../../common/interfaces/pagination.interface';
 
 @Injectable()
 export class PayrollRecordService {
@@ -33,6 +35,8 @@ export class PayrollRecordService {
     private readonly employeeKpiRepo: Repository<EmployeeKpi>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    @InjectRepository(Tenant)
+    private readonly tenantRepo: Repository<Tenant>,
     private readonly payrollConfigService: PayrollConfigService,
     private readonly employeeSalaryService: EmployeeSalaryService,
   ) {}
@@ -557,7 +561,10 @@ export class PayrollRecordService {
     month: number,
     year: number,
     employeeId?: string,
-  ): Promise<PayrollRecord[]> {
+    page: number = 1,
+    limit: number = 25,
+  ): Promise<PaginationResponse<PayrollRecord>> {
+    const skip = (page - 1) * limit;
     const where: any = {
       tenant_id: tenantId,
       month,
@@ -568,25 +575,52 @@ export class PayrollRecordService {
       where.employee_id = employeeId;
     }
 
-    return await this.payrollRecordRepo.find({
+    const [items, total] = await this.payrollRecordRepo.findAndCount({
       where,
       relations: ['employee', 'employee.user', 'generatedBy'],
       order: { created_at: 'DESC' },
+      skip,
+      take: limit,
     });
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages,
+    };
   }
 
   async getEmployeePayrollHistory(
     employeeId: string,
     tenantId: string,
-  ): Promise<PayrollRecord[]> {
-    return await this.payrollRecordRepo.find({
+    page: number = 1,
+    limit: number = 25,
+  ): Promise<PaginationResponse<PayrollRecord>> {
+    const skip = (page - 1) * limit;
+    const [items, total] = await this.payrollRecordRepo.findAndCount({
       where: {
         employee_id: employeeId,
         tenant_id: tenantId,
       },
       relations: ['employee', 'employee.user', 'generatedBy'],
       order: { year: 'DESC', month: 'DESC' },
+      skip,
+      take: limit,
     });
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages,
+    };
   }
 
   async updatePayrollStatus(
@@ -690,37 +724,72 @@ export class PayrollRecordService {
   }
 
   async getPayrollStatistics(tenantId: string, startDate?: Date, endDate?: Date): Promise<any> {
-    const query = this.payrollRecordRepo
-      .createQueryBuilder('record')
-      .where('record.tenant_id = :tenantId', { tenantId })
-      .andWhere('record.status = :status', { status: PayrollStatus.PAID });
-
-    if (startDate) {
-      query.andWhere('(record.year > :startYear OR (record.year = :startYear AND record.month >= :startMonth))', {
-        startYear: startDate.getFullYear(),
-        startMonth: startDate.getMonth() + 1,
-      });
+    // If tenantId is provided, get statistics for that tenant only
+    // Otherwise, get statistics for all tenants (system-admin access)
+    let tenants: Tenant[] = [];
+    
+    if (tenantId) {
+      const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
+      if (tenant) {
+        tenants = [tenant];
+      }
+    } else {
+      // Get all tenants for system-admin
+      tenants = await this.tenantRepo.find();
     }
 
-    if (endDate) {
-      query.andWhere('(record.year < :endYear OR (record.year = :endYear AND record.month <= :endMonth))', {
-        endYear: endDate.getFullYear(),
-        endMonth: endDate.getMonth() + 1,
-      });
+    const allRecords: PayrollRecord[] = [];
+
+    // Get records for each tenant
+    for (const tenant of tenants) {
+      const query = this.payrollRecordRepo
+        .createQueryBuilder('record')
+        .where('record.tenant_id = :tenantId', { tenantId: tenant.id })
+        .andWhere('record.status = :status', { status: PayrollStatus.PAID });
+
+      if (startDate) {
+        query.andWhere('(record.year > :startYear OR (record.year = :startYear AND record.month >= :startMonth))', {
+          startYear: startDate.getFullYear(),
+          startMonth: startDate.getMonth() + 1,
+        });
+      }
+
+      if (endDate) {
+        query.andWhere('(record.year < :endYear OR (record.year = :endYear AND record.month <= :endMonth))', {
+          endYear: endDate.getFullYear(),
+          endMonth: endDate.getMonth() + 1,
+        });
+      }
+
+      const records = await query
+        .leftJoinAndSelect('record.employee', 'employee')
+        .leftJoinAndSelect('employee.designation', 'designation')
+        .leftJoinAndSelect('designation.department', 'department')
+        .getMany();
+
+      allRecords.push(...records);
     }
 
-    const records = await query
-      .leftJoinAndSelect('record.employee', 'employee')
-      .leftJoinAndSelect('employee.designation', 'designation')
-      .leftJoinAndSelect('designation.department', 'department')
-      .getMany();
+    // Group by tenant and month
+    const tenantMonthlyData: Record<string, Record<string, any>> = {};
+    const tenantDepartmentStats: Record<string, Record<string, any>> = {};
 
-    // Group by month
-    const monthlyData: Record<string, any> = {};
-    for (const record of records) {
+    for (const record of allRecords) {
+      const tenantIdKey = record.tenant_id;
+      
+      // Initialize tenant data if not exists
+      if (!tenantMonthlyData[tenantIdKey]) {
+        tenantMonthlyData[tenantIdKey] = {};
+      }
+      if (!tenantDepartmentStats[tenantIdKey]) {
+        tenantDepartmentStats[tenantIdKey] = {};
+      }
+
+      // Group by month
       const key = `${record.year}-${record.month.toString().padStart(2, '0')}`;
-      if (!monthlyData[key]) {
-        monthlyData[key] = {
+      if (!tenantMonthlyData[tenantIdKey][key]) {
+        tenantMonthlyData[tenantIdKey][key] = {
+          tenantId: tenantIdKey,
           month: record.month,
           year: record.year,
           totalGross: 0,
@@ -730,19 +799,18 @@ export class PayrollRecordService {
           employeeCount: 0,
         };
       }
-      monthlyData[key].totalGross += Number(record.grossSalary);
-      monthlyData[key].totalDeductions += Number(record.totalDeductions);
-      monthlyData[key].totalBonuses += Number(record.bonuses);
-      monthlyData[key].totalNet += Number(record.netSalary);
-      monthlyData[key].employeeCount += 1;
-    }
+      tenantMonthlyData[tenantIdKey][key].totalGross += Number(record.grossSalary);
+      tenantMonthlyData[tenantIdKey][key].totalDeductions += Number(record.totalDeductions);
+      tenantMonthlyData[tenantIdKey][key].totalBonuses += Number(record.bonuses);
+      tenantMonthlyData[tenantIdKey][key].totalNet += Number(record.netSalary);
+      tenantMonthlyData[tenantIdKey][key].employeeCount += 1;
 
-    // Department comparison
-    const departmentStats: Record<string, any> = {};
-    for (const record of records) {
+      // Group by department
       const deptName = record.employee?.designation?.department?.name || 'Unassigned';
-      if (!departmentStats[deptName]) {
-        departmentStats[deptName] = {
+      if (!tenantDepartmentStats[tenantIdKey][deptName]) {
+        tenantDepartmentStats[tenantIdKey][deptName] = {
+          tenantId: tenantIdKey,
+          department: deptName,
           totalGross: 0,
           totalDeductions: 0,
           totalBonuses: 0,
@@ -750,22 +818,31 @@ export class PayrollRecordService {
           employeeCount: 0,
         };
       }
-      departmentStats[deptName].totalGross += Number(record.grossSalary);
-      departmentStats[deptName].totalDeductions += Number(record.totalDeductions);
-      departmentStats[deptName].totalBonuses += Number(record.bonuses);
-      departmentStats[deptName].totalNet += Number(record.netSalary);
-      departmentStats[deptName].employeeCount += 1;
+      tenantDepartmentStats[tenantIdKey][deptName].totalGross += Number(record.grossSalary);
+      tenantDepartmentStats[tenantIdKey][deptName].totalDeductions += Number(record.totalDeductions);
+      tenantDepartmentStats[tenantIdKey][deptName].totalBonuses += Number(record.bonuses);
+      tenantDepartmentStats[tenantIdKey][deptName].totalNet += Number(record.netSalary);
+      tenantDepartmentStats[tenantIdKey][deptName].employeeCount += 1;
     }
 
-    return {
-      monthlyTrend: Object.values(monthlyData).sort((a: any, b: any) => {
+    // Convert to array format with tenantId
+    const tenantStatistics = Object.keys(tenantMonthlyData).map((tId) => {
+      const monthlyTrend = Object.values(tenantMonthlyData[tId]).sort((a: any, b: any) => {
         if (a.year !== b.year) return a.year - b.year;
         return a.month - b.month;
-      }),
-      departmentComparison: Object.entries(departmentStats).map(([name, data]) => ({
-        department: name,
-        ...data,
-      })),
+      });
+
+      const departmentComparison = Object.values(tenantDepartmentStats[tId]);
+
+      return {
+        tenantId: tId,
+        monthlyTrend,
+        departmentComparison,
+      };
+    });
+
+    return {
+      statistics: tenantStatistics,
     };
   }
 }

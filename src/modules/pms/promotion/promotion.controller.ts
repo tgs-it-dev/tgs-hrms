@@ -62,12 +62,18 @@ export class PromotionController {
     description: "List of promotions for the tenant.",
   })
   @ApiQuery({ name: "employeeId", type: String, required: false })
+  @ApiQuery({ name: "page", type: Number, required: false, description: "Page number (default: 1)" })
+  @ApiQuery({ name: "limit", type: Number, required: false, description: "Items per page (default: 25, max: 100)" })
   async findAll(
     @Req() req: any,
     @TenantId() tenantId: string,
     @Query("employeeId") employeeId?: string,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
   ) {
     const user: JwtUserPayloadDto = (req as { user: JwtUserPayloadDto }).user;
+    const pageNumber = Math.max(1, parseInt(page || "1", 10) || 1);
+    const limitNumber = Math.min(100, Math.max(1, parseInt(limit || "25", 10) || 25));
 
     // Employee can only view their own promotions
     if (user.role === "employee") {
@@ -77,17 +83,16 @@ export class PromotionController {
         );
       }
 
-      const all = await this.promotionService.findAll(tenantId, user.id);
-      return all.filter((p) => p.employee_id === user.id);
+      return this.promotionService.findAll(tenantId, user.id, pageNumber, limitNumber);
     }
 
     // Manager can view any promotions they created (by their employees)
     if (user.role === "manager") {
-      return this.promotionService.findAll(tenantId, employeeId);
+      return this.promotionService.findAll(tenantId, employeeId, pageNumber, limitNumber);
     }
 
     // HR Admin can view all
-    return this.promotionService.findAll(tenantId, employeeId);
+    return this.promotionService.findAll(tenantId, employeeId, pageNumber, limitNumber);
   }
 
   /**

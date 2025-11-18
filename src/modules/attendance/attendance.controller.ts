@@ -220,10 +220,10 @@ export class AttendanceController {
       endDate
     );
     
-    // Group events by user_id and date, then combine check-in/check-out
+    
     const groupedByUserAndDate: Record<string, Record<string, { checkIn?: any; checkOut?: any }>> = {};
     
-    // First, group by user_id
+    
     const userGroups: Record<string, any[]> = {};
     for (const ev of items) {
       const userId = ev.user_id;
@@ -233,7 +233,7 @@ export class AttendanceController {
       userGroups[userId].push(ev);
     }
     
-    // For each user, group by date and match check-ins with check-outs
+  
     for (const [userId, userEvents] of Object.entries(userGroups)) {
       const checkIns = userEvents.filter(e => e.type === AttendanceType.CHECK_IN);
       const checkOuts = userEvents.filter(e => e.type === AttendanceType.CHECK_OUT);
@@ -252,7 +252,7 @@ export class AttendanceController {
           groupedByUserAndDate[userId][date] = {};
         }
         
-        // Keep the latest check-in and its matching check-out for each date
+      
         if (!groupedByUserAndDate[userId][date].checkIn || 
             checkIn.timestamp > (groupedByUserAndDate[userId][date].checkIn?.timestamp || new Date(0))) {
           groupedByUserAndDate[userId][date].checkIn = checkIn;
@@ -261,7 +261,7 @@ export class AttendanceController {
       }
     }
     
-    // Convert to CSV rows
+    
     const rows: any[] = [];
     for (const [userId, dateGroups] of Object.entries(groupedByUserAndDate)) {
       const user = items.find(e => e.user_id === userId)?.user;
@@ -287,7 +287,7 @@ export class AttendanceController {
       }
     }
     
-    // Sort by date descending, then by user_name
+
     rows.sort((a, b) => {
       const dateCompare = new Date(b.date).getTime() - new Date(a.date).getTime();
       if (dateCompare !== 0) return dateCompare;

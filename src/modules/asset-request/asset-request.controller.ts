@@ -35,7 +35,7 @@ export class AssetRequestController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Fetch requests (filter by requester or tenant, paginated)' })
+  @ApiOperation({ summary: 'Fetch requests (filter by requester or tenant, paginated). Employees see their own, Managers see team members, Admins see all' })
   findAll(
     @Request() req: any,
     @Query('requestedBy') requestedBy?: string,

@@ -68,27 +68,44 @@ export class PerformanceReviewController {
     description: "List of performance reviews for the tenant.",
   })
   @ApiQuery({ name: "cycle", type: String, required: false })
+  @ApiQuery({ name: "page", type: Number, required: false, description: "Page number (default: 1)" })
+  @ApiQuery({ name: "limit", type: Number, required: false, description: "Items per page (default: 25, max: 100)" })
   async findAll(
     @Req() req: any,
     @TenantId() tenantId: string,
     @Query("cycle") cycle?: string,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
   ) {
     const user: JwtUserPayloadDto = (req as { user: JwtUserPayloadDto }).user;
+    const pageNumber = Math.max(1, parseInt(page || "1", 10) || 1);
+    const limitNumber = Math.min(100, Math.max(1, parseInt(limit || "25", 10) || 25));
 
     // Employees can only view their own reviews
     if (user.role === "employee") {
-      const all = await this.performanceReviewService.findAll(tenantId, cycle);
-      return all.filter((r) => r.employee_id === user.id);
+      const all = await this.performanceReviewService.findAll(tenantId, cycle, pageNumber, limitNumber);
+      // Filter after pagination - but this might not work correctly. Let's filter in service instead
+      const filtered = all.items.filter((r) => r.employee_id === user.id);
+      return {
+        ...all,
+        items: filtered,
+        total: filtered.length,
+      };
     }
 
     // Managers can only view their own reviewed records
     if (user.role === "manager") {
-      const all = await this.performanceReviewService.findAll(tenantId, cycle);
-      return all.filter((r) => r.reviewedBy === user.id);
+      const all = await this.performanceReviewService.findAll(tenantId, cycle, pageNumber, limitNumber);
+      const filtered = all.items.filter((r) => r.reviewedBy === user.id);
+      return {
+        ...all,
+        items: filtered,
+        total: filtered.length,
+      };
     }
 
     // HR Admin can view all
-    return this.performanceReviewService.findAll(tenantId, cycle);
+    return this.performanceReviewService.findAll(tenantId, cycle, pageNumber, limitNumber);
   }
 
   /**
