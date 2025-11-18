@@ -42,7 +42,13 @@ export class AssetRequestController {
     @Query('page') page?: string,
   ) {
     const parsedPage = page ? parseInt(page, 10) : 1;
-    return this.service.findAll(req.user.tenant_id, requestedBy, parsedPage);
+    return this.service.findAll(
+      req.user.tenant_id, 
+      requestedBy, 
+      parsedPage,
+      req.user.id || req.user.sub,
+      req.user.role
+    );
   }
 
   @Get(':id')

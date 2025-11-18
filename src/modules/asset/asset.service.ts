@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Asset } from '../../entities/asset.entity';
 import { AssetRequest } from '../../entities/asset-request.entity';
+import { Employee } from '../../entities/employee.entity';
+import { Team } from '../../entities/team.entity';
 import { CreateAssetDto } from './dto/create-asset.dto';
 import { UpdateAssetDto } from './dto/update-asset.dto';
 import { AssetStatus, AssetRequestStatus } from '../../common/constants/enums';
@@ -14,6 +16,10 @@ export class AssetService {
     private readonly assetRepo: Repository<Asset>,
     @InjectRepository(AssetRequest)
     private readonly assetRequestRepo: Repository<AssetRequest>,
+    @InjectRepository(Employee)
+    private readonly employeeRepo: Repository<Employee>,
+    @InjectRepository(Team)
+    private readonly teamRepo: Repository<Team>,
   ) {}
 
   async create(dto: CreateAssetDto, tenantId: string) {
@@ -30,7 +36,9 @@ export class AssetService {
 
   async findAll(
     tenantId: string,
-    filters: { status?: string; categoryId?: string; page?: number }
+    filters: { status?: string; categoryId?: string; page?: number },
+    userId?: string,
+    userRole?: string
   ) {
     const { status, categoryId, page = 1 } = filters;
     const limit = 25;
@@ -61,11 +69,18 @@ export class AssetService {
     const totalPages = Math.ceil(total / limit);
 
     // Get counts for all statuses in a single query
-    const statusCounts = await this.assetRepo
+    // Apply same filters as main query (categoryId) for consistency
+    const statusCountsQuery = this.assetRepo
       .createQueryBuilder('a')
       .select('a.status', 'status')
       .addSelect('COUNT(*)', 'count')
-      .where('a.tenant_id = :tenantId', { tenantId })
+      .where('a.tenant_id = :tenantId', { tenantId });
+    
+    if (categoryId) {
+      statusCountsQuery.andWhere('a.category_id = :categoryId', { categoryId });
+    }
+    
+    const statusCounts = await statusCountsQuery
       .groupBy('a.status')
       .getRawMany();
 
@@ -76,6 +91,7 @@ export class AssetService {
       assigned: 0,
       retired: 0,
       under_maintenance: 0,
+      lost: 0,
       pending: 0,
     };
 
@@ -92,16 +108,62 @@ export class AssetService {
         counts.retired = count;
       } else if (row.status === AssetStatus.UNDER_MAINTENANCE) {
         counts.under_maintenance = count;
+      } else if (row.status === AssetStatus.LOST) {
+        counts.lost = count;
       }
     });
 
-    // Get pending asset requests count
-    const pendingRequestsCount = await this.assetRequestRepo.count({
-      where: { 
-        tenant_id: tenantId, 
-        status: AssetRequestStatus.PENDING 
-      },
-    });
+    // Get pending asset requests count based on user role
+    const pendingRequestsQuery = this.assetRequestRepo
+      .createQueryBuilder('ar')
+      .where('ar.tenant_id = :tenantId', { tenantId })
+      .andWhere('ar.status = :status', { status: AssetRequestStatus.PENDING });
+
+    // Filter based on user role
+    if (userId && userRole) {
+      const roleLower = userRole.toLowerCase();
+      
+      // Employee: only their own requests
+      if (roleLower === 'employee' || roleLower === 'user') {
+        pendingRequestsQuery.andWhere('ar.requested_by = :userId', { userId });
+      }
+      // Manager: requests from their team members
+      else if (roleLower === 'manager') {
+        // Get team IDs where this user is the manager
+        const teams = await this.teamRepo.find({
+          where: { manager_id: userId },
+          select: ['id'],
+        });
+        const teamIds = teams.map(t => t.id);
+        
+        if (teamIds.length > 0) {
+          // Get employee user IDs in manager's teams
+          const teamEmployees = await this.employeeRepo
+            .createQueryBuilder('e')
+            .select('e.user_id', 'userId')
+            .where('e.team_id IN (:...teamIds)', { teamIds })
+            .getRawMany();
+          
+          const employeeUserIds = teamEmployees.map(emp => emp.userId);
+          
+          if (employeeUserIds.length > 0) {
+            pendingRequestsQuery.andWhere('ar.requested_by IN (:...employeeUserIds)', { 
+              employeeUserIds 
+            });
+          } else {
+            // Manager has teams but no employees, so no pending requests
+            pendingRequestsQuery.andWhere('1 = 0'); // Always false condition
+          }
+        } else {
+          // Manager has no teams, so no pending requests
+          pendingRequestsQuery.andWhere('1 = 0'); // Always false condition
+        }
+      }
+      // Admin/HR roles: show all pending requests (no additional filter)
+      // system-admin, network-admin, hr-admin, admin - all see everything
+    }
+
+    const pendingRequestsCount = await pendingRequestsQuery.getCount();
     counts.pending = pendingRequestsCount;
 
     return {
