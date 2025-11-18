@@ -4,6 +4,7 @@ import { Repository } from "typeorm";
 import { EmployeeKpi } from "src/entities/employee-kpi.entity";
 import { Promotion } from "src/entities/promotion.entity";
 import { PerformanceReview } from "src/entities/performance-review.entity";
+import { PaginationResponse } from "src/common/interfaces/pagination.interface";
 import {
   KpiCategoryStats,
   KpiOverviewRow,
@@ -75,7 +76,13 @@ export class SystemPerformanceService {
     maxScore?: number;
     startDate?: string;
     endDate?: string;
-  }) {
+    page?: number;
+    limit?: number;
+  }): Promise<PaginationResponse<PerformanceReview>> {
+    const page = filters?.page && filters.page > 0 ? filters.page : 1;
+    const limit = filters?.limit && filters.limit > 0 ? Math.min(100, filters.limit) : 25;
+    const skip = (page - 1) * limit;
+
     const qb = this.reviewRepo
       .createQueryBuilder("review")
       .leftJoinAndSelect("review.employee", "employee")
@@ -108,7 +115,17 @@ export class SystemPerformanceService {
 
     qb.orderBy("review.createdAt", "DESC");
 
-    return await qb.getMany();
+    const [items, total] = await qb.skip(skip).take(limit).getManyAndCount();
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages,
+    };
   }
 
   async getPromotionsOverview(filters?: {
@@ -116,7 +133,13 @@ export class SystemPerformanceService {
     status?: "pending" | "approved" | "rejected";
     startDate?: string;
     endDate?: string;
+    page?: number;
+    limit?: number;
   }) {
+    const page = filters?.page && filters.page > 0 ? filters.page : 1;
+    const limit = filters?.limit && filters.limit > 0 ? Math.min(100, filters.limit) : 25;
+    const skip = (page - 1) * limit;
+
     const qb = this.promotionRepo
       .createQueryBuilder("promotion")
       .leftJoinAndSelect("promotion.employee", "employee")
@@ -143,7 +166,8 @@ export class SystemPerformanceService {
 
     qb.orderBy("promotion.createdAt", "DESC");
 
-    const promotions = await qb.getMany();
+    const [promotions, total] = await qb.skip(skip).take(limit).getManyAndCount();
+    const totalPages = Math.ceil(total / limit);
 
     const statsQb = this.promotionRepo
       .createQueryBuilder("promotion")
@@ -176,7 +200,13 @@ export class SystemPerformanceService {
     const stats: PerformanceStatRow[] = await statsQb.getRawMany();
 
     return {
-      promotions,
+      promotions: {
+        items: promotions,
+        total,
+        page,
+        limit,
+        totalPages,
+      },
       stats: stats.map((s): PerformanceStat => {
         return {
           tenantId: s.tenantId,

@@ -6,6 +6,7 @@ import { Employee } from '../../../entities/employee.entity';
 import { Tenant } from '../../../entities/tenant.entity';
 import { CreateEmployeeSalaryDto, UpdateEmployeeSalaryDto } from '../dto/employee-salary.dto';
 import { EmployeeStatus } from '../../../common/constants/enums';
+import { PaginationResponse } from '../../../common/interfaces/pagination.interface';
 
 @Injectable()
 export class EmployeeSalaryService {
@@ -19,7 +20,7 @@ export class EmployeeSalaryService {
   ) {}
 
   async create(tenantId: string, userId: string, dto: CreateEmployeeSalaryDto): Promise<EmployeeSalary> {
-    // Validate employee exists and belongs to tenant
+
     const employee = await this.employeeRepo.findOne({
       where: { id: dto.employee_id },
       relations: ['user'],
@@ -37,7 +38,7 @@ export class EmployeeSalaryService {
       throw new BadRequestException('Can only assign salary to active employees');
     }
 
-    // Check if there's an active salary for this employee
+  
     const existingActiveSalary = await this.employeeSalaryRepo.findOne({
       where: {
         employee_id: dto.employee_id,
@@ -47,7 +48,7 @@ export class EmployeeSalaryService {
     });
 
     if (existingActiveSalary) {
-      // Deactivate the existing salary
+    
       existingActiveSalary.status = 'inactive';
       existingActiveSalary.endDate = new Date(dto.effectiveDate);
       existingActiveSalary.updated_by = userId;
@@ -107,7 +108,7 @@ export class EmployeeSalaryService {
       throw new NotFoundException('Active salary not found for this employee');
     }
 
-    // Update only provided fields
+    
     if (dto.baseSalary !== undefined) salary.baseSalary = dto.baseSalary;
     if (dto.allowances !== undefined) salary.allowances = dto.allowances;
     if (dto.deductions !== undefined) salary.deductions = dto.deductions;
@@ -133,8 +134,10 @@ export class EmployeeSalaryService {
       .getOne();
   }
 
-  async getAllEmployeeSalaries(tenantId: string): Promise<any[]> {
-    const employees = await this.employeeRepo
+  async getAllEmployeeSalaries(tenantId: string, page: number = 1, limit: number = 25): Promise<PaginationResponse<any>> {
+    const skip = (page - 1) * limit;
+    
+    const [employees, total] = await this.employeeRepo
       .createQueryBuilder('employee')
       .innerJoinAndSelect('employee.user', 'user')
       .leftJoinAndSelect('employee.designation', 'designation')
@@ -142,11 +145,13 @@ export class EmployeeSalaryService {
       .leftJoinAndSelect('employee.team', 'team')
       .where('user.tenant_id = :tenantId', { tenantId })
       .orderBy('employee.created_at', 'ASC')
-      .getMany();
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
 
     const employeeIds = employees.map((e) => e.id);
 
-    // Get all active salaries for these employees
+    
     const salaries = employeeIds.length > 0
       ? await this.employeeSalaryRepo.find({
           where: {
@@ -158,14 +163,14 @@ export class EmployeeSalaryService {
         })
       : [];
 
-    // Create a map of employee_id -> salary for quick lookup
+    
     const salaryMap = new Map<string, EmployeeSalary>();
     salaries.forEach((salary) => {
       salaryMap.set(salary.employee_id, salary);
     });
 
-    // Combine employee data with their salary structures
-    return employees.map((employee) => {
+    
+    const items = employees.map((employee) => {
       const salary = salaryMap.get(employee.id);
       return {
         employee: {
@@ -211,6 +216,16 @@ export class EmployeeSalaryService {
           : null,
       };
     });
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages,
+    };
   }
 }
 

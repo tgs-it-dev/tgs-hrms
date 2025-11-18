@@ -44,43 +44,58 @@ export class PayrollRecordController {
 
   @Get()
   @Roles('admin', 'system-admin', 'hr-admin')
-  @ApiOperation({ summary: 'Get payroll records for a specific month and year' })
+  @ApiOperation({ summary: 'Get payroll records for a specific month and year (Paginated)' })
   @ApiResponse({ status: 200, description: 'Payroll records retrieved successfully.' })
   @ApiQuery({ name: 'month', required: true, type: Number })
   @ApiQuery({ name: 'year', required: true, type: Number })
   @ApiQuery({ name: 'employee_id', required: false, type: String })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 25, max: 100)' })
   async getPayrollRecords(
     @Req() req: any,
     @Query('month') month: number,
     @Query('year') year: number,
     @Query('employee_id') employeeId?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
     const tenantId = req.user.tenant_id;
+    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+    const limitNumber = Math.min(100, Math.max(1, parseInt(limit || '25', 10) || 25));
     return await this.payrollRecordService.getPayrollRecords(
       tenantId,
       Number(month),
       Number(year),
       employeeId,
+      pageNumber,
+      limitNumber,
     );
   }
 
   @Get('employee/:employeeId/history')
   @Roles('admin', 'system-admin', 'hr-admin', 'employee', 'manager')
-  @ApiOperation({ summary: 'Get payroll history for an employee' })
+  @ApiOperation({ summary: 'Get payroll history for an employee (Paginated)' })
   @ApiResponse({ status: 200, description: 'Payroll history retrieved successfully.' })
-  async getEmployeePayrollHistory(@Req() req: any, @Param('employeeId') employeeId: string) {
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 25, max: 100)' })
+  async getEmployeePayrollHistory(
+    @Req() req: any,
+    @Param('employeeId') employeeId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
     const tenantId = req.user.tenant_id;
     const userRole = req.user.role;
     const userId = req.user.id;
+    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+    const limitNumber = Math.min(100, Math.max(1, parseInt(limit || '25', 10) || 25));
 
-    // Employees can only view their own payroll history
+    
     if (userRole === 'employee') {
-      // Check if employeeId matches user's employee record
-      // This would require checking employee table - for now, allow but verify in service
-      // In production, you'd want to verify employee.user_id === userId
+     
     }
 
-    return await this.payrollRecordService.getEmployeePayrollHistory(employeeId, tenantId);
+    return await this.payrollRecordService.getEmployeePayrollHistory(employeeId, tenantId, pageNumber, limitNumber);
   }
 
   @Put(':id/status')
@@ -127,12 +142,13 @@ export class PayrollRecordController {
 
   @Get('statistics')
   @Roles('admin', 'system-admin', 'hr-admin')
-  @ApiOperation({ summary: 'Get payroll statistics and trends' })
-  @ApiResponse({ status: 200, description: 'Payroll statistics retrieved successfully.' })
+  @ApiOperation({ summary: 'Get payroll statistics and trends. System-admin gets all tenants data with tenantId, others get their tenant data' })
+  @ApiResponse({ status: 200, description: 'Payroll statistics retrieved successfully with tenantId for each entry' })
   @ApiQuery({ name: 'startDate', required: false, type: String })
   @ApiQuery({ name: 'endDate', required: false, type: String })
   async getPayrollStatistics(@Req() req: any, @Query() query: PayrollStatisticsQueryDto) {
-    const tenantId = req.user.tenant_id;
+
+    const tenantId = req.user.role === 'system-admin' ? undefined : req.user.tenant_id;
     const startDate = query.startDate ? new Date(query.startDate) : undefined;
     const endDate = query.endDate ? new Date(query.endDate) : undefined;
     return await this.payrollRecordService.getPayrollStatistics(tenantId, startDate, endDate);

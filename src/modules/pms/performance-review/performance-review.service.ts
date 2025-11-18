@@ -10,6 +10,7 @@ import { EmployeeKpi } from "src/entities/employee-kpi.entity";
 import { CreatePerformanceReviewDto } from "../dtos/performance-review/create-performance-review.dto";
 import { Tenant } from "src/entities/tenant.entity";
 import { Employee } from "src/entities/employee.entity";
+import { PaginationResponse } from "src/common/interfaces/pagination.interface";
 
 @Injectable()
 export class PerformanceReviewService {
@@ -72,7 +73,8 @@ export class PerformanceReviewService {
   /**
    * Get all reviews (optionally filter by cycle)
    */
-  async findAll(tenantId: string, cycle?: string) {
+  async findAll(tenantId: string, cycle?: string, page: number = 1, limit: number = 25): Promise<PaginationResponse<PerformanceReview>> {
+    const skip = (page - 1) * limit;
     const query = this.reviewRepo
       .createQueryBuilder("review")
       .where("review.tenant_id = :tenantId", { tenantId })
@@ -81,7 +83,20 @@ export class PerformanceReviewService {
 
     if (cycle) query.andWhere("review.cycle = :cycle", { cycle });
 
-    return query.getMany();
+    const [items, total] = await query
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages,
+    };
   }
 
   /**

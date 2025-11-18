@@ -18,6 +18,7 @@ import {
   ApiBearerAuth,
   ApiParam,
   ApiBody,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
@@ -38,19 +39,12 @@ export class TenantController {
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles('system-admin')
   @Permissions('manage_tenants')
-  @ApiOperation({ summary: 'Get all tenants (Admin only)' })
+  @ApiOperation({ summary: 'Get all tenants (Admin only) - Paginated' })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 25, max: 100)' })
   @ApiResponse({
     status: 200,
     description: 'List of tenants retrieved successfully.',
-    schema: {
-      example: [
-        {
-          id: '550e8400-e29b-41d4-a716-446655440000',
-          name: 'Default Company',
-          createdAt: '2024-01-01T00:00:00.000Z',
-        },
-      ],
-    },
   })
   @ApiResponse({
     status: 401,
@@ -60,13 +54,15 @@ export class TenantController {
     status: 403,
     description: 'Forbidden - Insufficient permissions',
   })
-  async getTenants() {
+  async getTenants(@Query('page') page?: string, @Query('limit') limit?: string) {
     try {
-      const tenants = await this.tenantService.findAll();
+      const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+      const limitNumber = Math.min(100, Math.max(1, parseInt(limit || '25', 10) || 25));
+      const result = await this.tenantService.findAll(pageNumber, limitNumber);
       return {
         statusCode: 200,
         message: 'List of tenants retrieved successfully.',
-        data: tenants,
+        ...result,
       };
     } catch (err) {
       throw new BadRequestException('Failed to fetch tenants');

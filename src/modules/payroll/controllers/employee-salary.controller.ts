@@ -8,8 +8,9 @@ import {
   Req,
   UseGuards,
   ForbiddenException,
+  Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiQuery } from '@nestjs/swagger';
 import { EmployeeSalaryService } from '../services/employee-salary.service';
 import { CreateEmployeeSalaryDto, UpdateEmployeeSalaryDto } from '../dto/employee-salary.dto';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
@@ -48,11 +49,15 @@ export class EmployeeSalaryController {
 
   @Get()
   @Roles('admin', 'system-admin', 'hr-admin')
-  @ApiOperation({ summary: 'Get salary structure of all employees' })
+  @ApiOperation({ summary: 'Get salary structure of all employees (Paginated)' })
   @ApiResponse({ status: 200, description: 'Salary structures retrieved successfully.' })
-  async getAll(@Req() req: any) {
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 25, max: 100)' })
+  async getAll(@Req() req: any, @Query('page') page?: string, @Query('limit') limit?: string) {
     const tenantId = req.user.tenant_id;
-    return await this.employeeSalaryService.getAllEmployeeSalaries(tenantId);
+    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+    const limitNumber = Math.min(100, Math.max(1, parseInt(limit || '25', 10) || 25));
+    return await this.employeeSalaryService.getAllEmployeeSalaries(tenantId, pageNumber, limitNumber);
   }
 
   @Get(':employeeId')
@@ -65,7 +70,7 @@ export class EmployeeSalaryController {
     const userRole = req.user.role;
     const userId = req.user.id;
 
-    // Employees can only view their own salary
+    
     if (userRole === 'employee') {
       const employee = await this.employeeRepo.findOne({
         where: { id: employeeId },
@@ -87,7 +92,7 @@ export class EmployeeSalaryController {
     const userRole = req.user.role;
     const userId = req.user.id;
 
-    // Employees can only view their own salary history
+    
     if (userRole === 'employee') {
       const employee = await this.employeeRepo.findOne({
         where: { id: employeeId },

@@ -10,6 +10,7 @@ import { CreatePromotionDto } from "../dtos/promotion/create-promotion.dto";
 import { ApprovePromotionDto } from "../dtos/promotion/approve-promotion.dto";
 import { Tenant } from "src/entities/tenant.entity";
 import { Employee } from "src/entities/employee.entity";
+import { PaginationResponse } from "src/common/interfaces/pagination.interface";
 
 @Injectable()
 export class PromotionService {
@@ -64,7 +65,8 @@ export class PromotionService {
   /**
    * Get all promotions (filtered by tenant, optionally by employee)
    */
-  async findAll(tenantId: string, employeeId?: string) {
+  async findAll(tenantId: string, employeeId?: string, page: number = 1, limit: number = 25): Promise<PaginationResponse<Promotion>> {
+    const skip = (page - 1) * limit;
     const query = this.promotionRepo
       .createQueryBuilder("promotion")
       .where("promotion.tenant_id = :tenantId", { tenantId })
@@ -74,7 +76,20 @@ export class PromotionService {
     if (employeeId)
       query.andWhere("promotion.employee_id = :employeeId", { employeeId });
 
-    return query.getMany();
+    const [items, total] = await query
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages,
+    };
   }
 
   /**
