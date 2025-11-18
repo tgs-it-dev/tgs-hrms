@@ -35,18 +35,16 @@ export class AssetRequestController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Fetch requests (filter by requester or tenant, paginated). Employees see their own, Managers see team members, Admins see all' })
+  @ApiOperation({ summary: 'Fetch requests (paginated). Users see only their own requests based on token' })
   findAll(
     @Request() req: any,
-    @Query('requestedBy') requestedBy?: string,
     @Query('page') page?: string,
   ) {
     const parsedPage = page ? parseInt(page, 10) : 1;
     return this.service.findAll(
       req.user.tenant_id, 
-      requestedBy, 
       parsedPage,
-      req.user.id || req.user.sub,
+      req.user.id,
       req.user.role
     );
   }

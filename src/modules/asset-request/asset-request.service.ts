@@ -34,7 +34,7 @@ export class AssetRequestService {
     return this.reqRepo.save(entity);
   }
 
-  async findAll(tenantId: string, requestedBy?: string, page = 1, userId?: string, userRole?: string) {
+  async findAll(tenantId: string, page = 1, userId: string, userRole?: string) {
     const limit = 25;
     const skip = (page - 1) * limit;
 
@@ -47,51 +47,13 @@ export class AssetRequestService {
       .where('r.tenant_id = :tenantId', { tenantId })
       .orderBy('r.created_at', 'DESC');
 
-    // Role-based filtering for items list
-    if (userId && userRole) {
-      const roleLower = userRole.toLowerCase();
-      
-      // Employee: only their own requests
-      if (roleLower === 'employee' || roleLower === 'user') {
-        qb.andWhere('r.requested_by = :userId', { userId });
-      }
-      // Manager: requests from their team members
-      else if (roleLower === 'manager') {
-        // Get team IDs where this user is the manager
-        const teams = await this.teamRepo.find({
-          where: { manager_id: userId },
-          select: ['id'],
-        });
-        const teamIds = teams.map(t => t.id);
-        
-        if (teamIds.length > 0) {
-          // Get employee user IDs in manager's teams
-          const teamEmployees = await this.employeeRepo
-            .createQueryBuilder('e')
-            .select('e.user_id', 'userId')
-            .where('e.team_id IN (:...teamIds)', { teamIds })
-            .getRawMany();
-          
-          const employeeUserIds = teamEmployees.map(emp => emp.userId);
-          
-          if (employeeUserIds.length > 0) {
-            qb.andWhere('r.requested_by IN (:...employeeUserIds)', { 
-              employeeUserIds 
-            });
-          } else {
-            // Manager has teams but no employees, so no requests
-            qb.andWhere('1 = 0'); // Always false condition
-          }
-        } else {
-          // Manager has no teams, so no requests
-          qb.andWhere('1 = 0'); // Always false condition
-        }
-      }
-      // Admin/HR roles: show all requests (no additional filter)
-      // system-admin, network-admin, hr-admin, admin - all see everything
-    } else if (requestedBy) {
-      // Fallback to old behavior if userId/role not provided
-      qb.andWhere('r.requested_by = :requestedBy', { requestedBy });
+    // Always enforce filtering by current user ID from token
+    // All roles (including Manager) see only their own requests
+    if (userId) {
+      qb.andWhere('r.requested_by = :userId', { userId });
+    } else {
+      // If no userId provided, return empty result
+      qb.andWhere('1 = 0'); // Always false condition
     }
 
     const [items, total] = await qb
@@ -101,54 +63,19 @@ export class AssetRequestService {
 
     const totalPages = Math.ceil(total / limit);
 
-    // Get counts for all statuses with same role-based filtering
+    // Get counts for all statuses with same filtering
     const statusCountsQuery = this.reqRepo
       .createQueryBuilder('r')
       .select('r.status', 'status')
       .addSelect('COUNT(*)', 'count')
       .where('r.tenant_id = :tenantId', { tenantId });
 
-    // Apply same role-based filtering to counts
-    if (userId && userRole) {
-      const roleLower = userRole.toLowerCase();
-      
-      // Employee: only their own requests
-      if (roleLower === 'employee' || roleLower === 'user') {
-        statusCountsQuery.andWhere('r.requested_by = :userId', { userId });
-      }
-      // Manager: requests from their team members
-      else if (roleLower === 'manager') {
-        // Get team IDs where this user is the manager
-        const teams = await this.teamRepo.find({
-          where: { manager_id: userId },
-          select: ['id'],
-        });
-        const teamIds = teams.map(t => t.id);
-        
-        if (teamIds.length > 0) {
-          // Get employee user IDs in manager's teams
-          const teamEmployees = await this.employeeRepo
-            .createQueryBuilder('e')
-            .select('e.user_id', 'userId')
-            .where('e.team_id IN (:...teamIds)', { teamIds })
-            .getRawMany();
-          
-          const employeeUserIds = teamEmployees.map(emp => emp.userId);
-          
-          if (employeeUserIds.length > 0) {
-            statusCountsQuery.andWhere('r.requested_by IN (:...employeeUserIds)', { 
-              employeeUserIds 
-            });
-          } else {
-            // Manager has teams but no employees, so no requests
-            statusCountsQuery.andWhere('1 = 0'); // Always false condition
-          }
-        } else {
-          // Manager has no teams, so no requests
-          statusCountsQuery.andWhere('1 = 0'); // Always false condition
-        }
-      }
-      // Admin/HR roles: show all requests (no additional filter)
+    // Apply same filtering to counts - only current user's requests
+    if (userId) {
+      statusCountsQuery.andWhere('r.requested_by = :userId', { userId });
+    } else {
+      // If no userId provided, return empty result
+      statusCountsQuery.andWhere('1 = 0'); // Always false condition
     }
 
     const statusCounts = await statusCountsQuery
