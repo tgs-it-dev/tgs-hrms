@@ -16,11 +16,18 @@ export class SystemAssetService {
     category?: string;
     tenantId?: string;
     assigned?: "assigned" | "unassigned";
+    page?: number;
   }) {
+    const page = filters?.page || 1;
+    const limit = 25;
+    const skip = (page - 1) * limit;
+
     const qb = this.assetRepo
       .createQueryBuilder("asset")
       .leftJoinAndSelect("asset.tenant", "tenant")
       .leftJoinAndSelect("asset.assignedToUser", "user")
+      .leftJoinAndSelect("asset.category", "category")
+      .leftJoinAndSelect("asset.subcategory", "subcategory")
       .orderBy("asset.created_at", "DESC");
 
     if (filters?.category) {
@@ -39,7 +46,20 @@ export class SystemAssetService {
       qb.andWhere("asset.assigned_to IS NULL");
     }
 
-    return await qb.getMany();
+    const [items, total] = await qb
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages,
+    };
   }
 
   async getAssetsSummary() {

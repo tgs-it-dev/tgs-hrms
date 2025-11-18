@@ -35,7 +35,7 @@ export class AssetRequestController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Fetch requests (paginated). Users see only their own requests based on token' })
+  @ApiOperation({ summary: 'Fetch requests (paginated). Regular users see only their own requests, Admin roles see all requests' })
   findAll(
     @Request() req: any,
     @Query('page') page?: string,

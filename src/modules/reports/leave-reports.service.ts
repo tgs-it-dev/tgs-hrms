@@ -188,13 +188,15 @@ export class LeaveReportsService {
     };
   }
 
-  async getAllLeaveReports(tenantId: string) {
+  async getAllLeaveReports(tenantId: string, page: number = 1) {
     const currentYear = new Date().getFullYear();
     const startOfYear = new Date(currentYear, 0, 1);
     const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+    const limit = 25;
+    const skip = (page - 1) * limit;
 
-    // Get all employees for the tenant
-    const employees = await this.employeeRepo
+    // Get all employees for the tenant (for organization stats)
+    const allEmployees = await this.employeeRepo
       .createQueryBuilder('employee')
       .leftJoinAndSelect('employee.user', 'user')
       .leftJoinAndSelect('employee.designation', 'designation')
@@ -202,20 +204,35 @@ export class LeaveReportsService {
       .where('user.tenant_id = :tenantId', { tenantId })
       .getMany();
 
+    // Get paginated employees for the current page
+    const employees = await this.employeeRepo
+      .createQueryBuilder('employee')
+      .leftJoinAndSelect('employee.user', 'user')
+      .leftJoinAndSelect('employee.designation', 'designation')
+      .leftJoinAndSelect('designation.department', 'department')
+      .where('user.tenant_id = :tenantId', { tenantId })
+      .skip(skip)
+      .take(limit)
+      .getMany();
+
     // Get all leave types for the tenant
     const leaveTypes = await this.leaveTypeRepo.find({
       where: { tenantId, status: 'active' },
     });
 
-    // Get all leaves for the current year
-    const employeeIds = employees.map(emp => emp.user_id);
-    const leaves = await this.leaveRepo
+    // Get all leaves for the current year (for all employees to calculate org stats)
+    const allEmployeeIds = allEmployees.map(emp => emp.user_id);
+    const allLeaves = await this.leaveRepo
       .createQueryBuilder('leave')
       .leftJoinAndSelect('leave.leaveType', 'leaveType')
       .leftJoinAndSelect('leave.employee', 'employee')
       .where('leave.startDate BETWEEN :startDate AND :endDate', { startDate: startOfYear, endDate: endOfYear })
-      .andWhere('leave.employeeId IN (:...employeeIds)', { employeeIds })
+      .andWhere('leave.employeeId IN (:...allEmployeeIds)', { allEmployeeIds })
       .getMany();
+
+    // Get leaves for paginated employees only
+    const employeeIds = employees.map(emp => emp.user_id);
+    const leaves = allLeaves.filter(leave => employeeIds.includes(leave.employeeId));
 
     // Group leaves by employee
     const leavesByEmployee = leaves.reduce((acc, leave) => {
@@ -301,17 +318,50 @@ export class LeaveReportsService {
       })
     );
 
-    // Calculate organization-wide statistics
+    // Calculate organization-wide statistics (using all employees, not just current page)
+    const allLeavesByEmployee = allLeaves.reduce((acc, leave) => {
+      if (!acc[leave.employeeId]) {
+        acc[leave.employeeId] = [];
+      }
+      acc[leave.employeeId].push(leave);
+      return acc;
+    }, {} as Record<string, Leave[]>);
+
+    const allEmployeeReports = await Promise.all(
+      allEmployees.map(async (employee) => {
+        const employeeLeaves = allLeavesByEmployee[employee.user_id] || [];
+        const totalLeaveDays = employeeLeaves.reduce((sum, leave) => sum + leave.totalDays, 0);
+        const approvedLeaveDays = employeeLeaves
+          .filter(leave => leave.status === LeaveStatus.APPROVED)
+          .reduce((sum, leave) => sum + leave.totalDays, 0);
+        const pendingLeaveDays = employeeLeaves
+          .filter(leave => leave.status === LeaveStatus.PENDING)
+          .reduce((sum, leave) => sum + leave.totalDays, 0);
+
+        return {
+          totalLeaveDays,
+          approvedLeaveDays,
+          pendingLeaveDays,
+          totalLeaveRequests: employeeLeaves.length,
+          approvedRequests: employeeLeaves.filter(leave => leave.status === LeaveStatus.APPROVED).length,
+          pendingRequests: employeeLeaves.filter(leave => leave.status === LeaveStatus.PENDING).length,
+          rejectedRequests: employeeLeaves.filter(leave => leave.status === LeaveStatus.REJECTED).length,
+        };
+      })
+    );
+
     const orgStats = {
-      totalEmployees: employees.length,
-      employeesOnLeave: employeeReports.filter(emp => emp.totals.approvedLeaveDays > 0).length,
-      totalLeaveDays: employeeReports.reduce((sum, emp) => sum + emp.totals.approvedLeaveDays, 0),
-      totalPendingDays: employeeReports.reduce((sum, emp) => sum + emp.totals.pendingLeaveDays, 0),
-      totalLeaveRequests: employeeReports.reduce((sum, emp) => sum + emp.totals.totalLeaveRequests, 0),
-      approvedRequests: employeeReports.reduce((sum, emp) => sum + emp.totals.approvedRequests, 0),
-      pendingRequests: employeeReports.reduce((sum, emp) => sum + emp.totals.pendingRequests, 0),
-      rejectedRequests: employeeReports.reduce((sum, emp) => sum + emp.totals.rejectedRequests, 0),
+      totalEmployees: allEmployees.length,
+      employeesOnLeave: allEmployeeReports.filter(emp => emp.approvedLeaveDays > 0).length,
+      totalLeaveDays: allEmployeeReports.reduce((sum, emp) => sum + emp.approvedLeaveDays, 0),
+      totalPendingDays: allEmployeeReports.reduce((sum, emp) => sum + emp.pendingLeaveDays, 0),
+      totalLeaveRequests: allEmployeeReports.reduce((sum, emp) => sum + emp.totalLeaveRequests, 0),
+      approvedRequests: allEmployeeReports.reduce((sum, emp) => sum + emp.approvedRequests, 0),
+      pendingRequests: allEmployeeReports.reduce((sum, emp) => sum + emp.pendingRequests, 0),
+      rejectedRequests: allEmployeeReports.reduce((sum, emp) => sum + emp.rejectedRequests, 0),
     };
+
+    const totalPages = Math.ceil(allEmployees.length / limit);
 
     return {
       period: {
@@ -320,7 +370,13 @@ export class LeaveReportsService {
         endDate: endOfYear,
       },
       organizationStats: orgStats,
-      employeeReports,
+      employeeReports: {
+        items: employeeReports,
+        total: allEmployees.length,
+        page,
+        limit,
+        totalPages,
+      },
       leaveTypes: leaveTypes.map(lt => ({
         id: lt.id,
         name: lt.name,

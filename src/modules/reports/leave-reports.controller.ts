@@ -183,12 +183,12 @@ export class LeaveReportsController {
   @Permissions('view_leave_reports')
   @ApiBearerAuth()
   @ApiOperation({ 
-    summary: 'Get comprehensive leave reports for all employees',
-    description: 'Returns detailed leave reports for the current year including employee summaries, leave records, and organization statistics. Accessible by admin, hr-admin, and system-admin roles. No parameters required.'
+    summary: 'Get comprehensive leave reports for all employees (paginated)',
+    description: 'Returns detailed leave reports for the current year including employee summaries, leave records, and organization statistics. Accessible by admin, hr-admin, and system-admin roles. Supports pagination via page query parameter.'
   })
   @ApiResponse({
     status: 200,
-    description: 'Returns comprehensive leave reports',
+    description: 'Returns comprehensive leave reports with pagination',
     schema: {
       example: {
         period: {
@@ -206,50 +206,56 @@ export class LeaveReportsController {
           pendingRequests: 8,
           rejectedRequests: 2
         },
-        employeeReports: [
-          {
-            employeeId: 'emp_123',
-            employeeName: 'John Doe',
-            email: 'john.doe@company.com',
-            department: 'Engineering',
-            designation: 'Senior Developer',
-            leaveSummary: [
-              {
-                leaveTypeId: 'lt_1',
-                leaveTypeName: 'Annual Leave',
-                totalDays: 10,
-                approvedDays: 8,
-                pendingDays: 2,
-                rejectedDays: 0,
-                maxDaysPerYear: 20,
-                remainingDays: 12
+        employeeReports: {
+          items: [
+            {
+              employeeId: 'emp_123',
+              employeeName: 'John Doe',
+              email: 'john.doe@company.com',
+              department: 'Engineering',
+              designation: 'Senior Developer',
+              leaveSummary: [
+                {
+                  leaveTypeId: 'lt_1',
+                  leaveTypeName: 'Annual Leave',
+                  totalDays: 10,
+                  approvedDays: 8,
+                  pendingDays: 2,
+                  rejectedDays: 0,
+                  maxDaysPerYear: 20,
+                  remainingDays: 12
+                }
+              ],
+              leaveRecords: [
+                {
+                  id: 'leave_123',
+                  leaveTypeName: 'Annual Leave',
+                  startDate: '2025-01-15',
+                  endDate: '2025-01-20',
+                  totalDays: 5,
+                  status: 'APPROVED',
+                  reason: 'Family vacation',
+                  appliedDate: '2025-01-10T09:00:00.000Z',
+                  approvedBy: 'manager_123',
+                  approvedDate: '2025-01-11T14:30:00.000Z'
+                }
+              ],
+              totals: {
+                totalLeaveDays: 10,
+                approvedLeaveDays: 8,
+                pendingLeaveDays: 2,
+                totalLeaveRequests: 3,
+                approvedRequests: 2,
+                pendingRequests: 1,
+                rejectedRequests: 0
               }
-            ],
-            leaveRecords: [
-              {
-                id: 'leave_123',
-                leaveTypeName: 'Annual Leave',
-                startDate: '2025-01-15',
-                endDate: '2025-01-20',
-                totalDays: 5,
-                status: 'APPROVED',
-                reason: 'Family vacation',
-                appliedDate: '2025-01-10T09:00:00.000Z',
-                approvedBy: 'manager_123',
-                approvedDate: '2025-01-11T14:30:00.000Z'
-              }
-            ],
-            totals: {
-              totalLeaveDays: 10,
-              approvedLeaveDays: 8,
-              pendingLeaveDays: 2,
-              totalLeaveRequests: 3,
-              approvedRequests: 2,
-              pendingRequests: 1,
-              rejectedRequests: 0
             }
-          }
-        ],
+          ],
+          total: 50,
+          page: 1,
+          limit: 25,
+          totalPages: 2
+        },
         leaveTypes: [
           {
             id: 'lt_1',
@@ -261,7 +267,11 @@ export class LeaveReportsController {
       }
     }
   })
-  async getAllLeaveReports(@Request() req: any) {
-    return this.leaveReportsService.getAllLeaveReports(req.user.tenant_id);
+  async getAllLeaveReports(
+    @Request() req: any,
+    @Query('page') page?: string,
+  ) {
+    const parsedPage = page ? parseInt(page, 10) : 1;
+    return this.leaveReportsService.getAllLeaveReports(req.user.tenant_id, parsedPage);
   }
 }

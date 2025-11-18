@@ -47,14 +47,20 @@ export class AssetRequestService {
       .where('r.tenant_id = :tenantId', { tenantId })
       .orderBy('r.created_at', 'DESC');
 
-    // Always enforce filtering by current user ID from token
-    // All roles (including Manager) see only their own requests
-    if (userId) {
-      qb.andWhere('r.requested_by = :userId', { userId });
-    } else {
-      // If no userId provided, return empty result
-      qb.andWhere('1 = 0'); // Always false condition
+    // Admin roles ko sab ki requests dikhani chahiye (approve/reject ke liye)
+    const adminRoles = ['network-admin', 'system-admin', 'admin', 'hr-admin'];
+    const isAdmin = userRole && adminRoles.includes(userRole.toLowerCase());
+    
+    if (!isAdmin) {
+      // Regular users (employee, manager, user): only their own requests
+      if (userId) {
+        qb.andWhere('r.requested_by = :userId', { userId });
+      } else {
+        // If no userId provided, return empty result
+        qb.andWhere('1 = 0'); // Always false condition
+      }
     }
+    // Admin roles: no additional filter, show all requests in tenant
 
     const [items, total] = await qb
       .skip(skip)
@@ -70,13 +76,17 @@ export class AssetRequestService {
       .addSelect('COUNT(*)', 'count')
       .where('r.tenant_id = :tenantId', { tenantId });
 
-    // Apply same filtering to counts - only current user's requests
-    if (userId) {
-      statusCountsQuery.andWhere('r.requested_by = :userId', { userId });
-    } else {
-      // If no userId provided, return empty result
-      statusCountsQuery.andWhere('1 = 0'); // Always false condition
+    // Apply same filtering to counts
+    if (!isAdmin) {
+      // Regular users: only their own requests
+      if (userId) {
+        statusCountsQuery.andWhere('r.requested_by = :userId', { userId });
+      } else {
+        // If no userId provided, return empty result
+        statusCountsQuery.andWhere('1 = 0'); // Always false condition
+      }
     }
+    // Admin roles: no additional filter, show all requests in tenant
 
     const statusCounts = await statusCountsQuery
       .groupBy('r.status')
