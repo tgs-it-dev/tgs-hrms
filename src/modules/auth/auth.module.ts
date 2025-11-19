@@ -4,6 +4,7 @@ import { AuthController } from './auth.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../../entities/user.entity';
 import { CompanyDetails } from '../../entities/company-details.entity';
+import { Role } from '../../entities/role.entity';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { JwtMiddleware, JwtAuthGuard, JwtTokenValidator } from '../../common/middleware/jwt.middleware';
@@ -13,7 +14,7 @@ import { Employee } from 'src/entities/employee.entity';
 import { SignupSession } from 'src/entities/signup-session.entity';
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, CompanyDetails, Employee, SignupSession]),
+    TypeOrmModule.forFeature([User, CompanyDetails, Employee, SignupSession, Role]),
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'default_secret',

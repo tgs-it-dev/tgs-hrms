@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
@@ -8,7 +8,7 @@ import { ReadStream } from 'fs';
 import { User } from 'src/entities/user.entity';
 import { Role } from 'src/entities/role.entity';
 import { CreateUserDto, UpdateUserDto } from '../dto/user.dto';
-import { UserGender } from '../../../common/constants/enums';
+import { UserGender, GLOBAL_SYSTEM_TENANT_ID } from '../../../common/constants/enums';
 import { PaginationResponse } from '../../../common/interfaces/pagination.interface';
 import { FileUploadService } from './file-upload.service';
 @Injectable()
@@ -34,10 +34,30 @@ export class UserService {
       where: { id: createUserDto.role_id },
     });
     if (!role) throw new NotFoundException('Role not found');
+    
+    // System-admin users always get the global system tenant ID
+    const finalTenantId = role.name === 'system-admin' ? GLOBAL_SYSTEM_TENANT_ID : tenantId;
+    
+    // Validation: Only one system admin is allowed in the entire HRMS
+    if (role.name === 'system-admin') {
+      const existingSystemAdmin = await this.userRepo.findOne({
+        where: {
+          role_id: createUserDto.role_id,
+          tenant_id: GLOBAL_SYSTEM_TENANT_ID,
+        },
+      });
+      
+      if (existingSystemAdmin) {
+        throw new BadRequestException(
+          'Only one system admin is allowed in the entire HRMS. A system admin already exists.'
+        );
+      }
+    }
+    
     const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
     const user = this.userRepo.create({
       password: hashedPassword,
-      tenant_id: tenantId,
+      tenant_id: finalTenantId,
       role_id: createUserDto.role_id,
       email: createUserDto.email,
       phone: createUserDto.phone,

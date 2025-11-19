@@ -1,3 +1,6 @@
+// Global System Tenant ID - Used for system-admin users across the entire HRMS
+export const GLOBAL_SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000000';
+
 // User and Role Enums
 export enum UserRole {
   ADMIN = 'admin',

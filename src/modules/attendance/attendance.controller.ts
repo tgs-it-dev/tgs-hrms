@@ -214,23 +214,48 @@ export class AttendanceController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string
   ) {
-    const { items } = await this.attendanceService.getAllAttendance(
-      req.user.tenant_id,
-      startDate,
-      endDate
-    );
+    // Fetch all records in batches to ensure we get everything
+    const allItems: any[] = [];
+    const batchSize = 1000;
+    let skip = 0;
+    let hasMore = true;
+    
+    while (hasMore) {
+      const batch = await this.attendanceService.getAllAttendanceBatch(
+        req.user.tenant_id,
+        startDate,
+        endDate,
+        skip,
+        batchSize
+      );
+      
+      if (batch.length > 0) {
+        allItems.push(...batch);
+        skip += batchSize;
+        hasMore = batch.length === batchSize;
+      } else {
+        hasMore = false;
+      }
+    }
     
     
     const groupedByUserAndDate: Record<string, Record<string, { checkIn?: any; checkOut?: any }>> = {};
     
+    // Store user info for later use
+    const userInfoMap: Record<string, any> = {};
     
     const userGroups: Record<string, any[]> = {};
-    for (const ev of items) {
+    for (const ev of allItems) {
       const userId = ev.user_id;
       if (!userGroups[userId]) {
         userGroups[userId] = [];
       }
       userGroups[userId].push(ev);
+      
+      // Store user info
+      if (ev.user && !userInfoMap[userId]) {
+        userInfoMap[userId] = ev.user;
+      }
     }
     
   
@@ -264,7 +289,7 @@ export class AttendanceController {
     
     const rows: any[] = [];
     for (const [userId, dateGroups] of Object.entries(groupedByUserAndDate)) {
-      const user = items.find(e => e.user_id === userId)?.user;
+      const user = userInfoMap[userId];
       const userName = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : '';
       
       for (const [date, { checkIn, checkOut }] of Object.entries(dateGroups)) {

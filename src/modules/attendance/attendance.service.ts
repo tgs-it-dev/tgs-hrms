@@ -243,6 +243,25 @@ export class AttendanceService {
     const items = await qb.getMany();
     return { items, total: items.length };
   }
+
+  async getAllAttendanceBatch(
+    tenantId: string,
+    startDate?: string,
+    endDate?: string,
+    skip: number = 0,
+    take: number = 1000
+  ) {
+    const qb = this.attendanceRepo
+      .createQueryBuilder('attendance')
+      .leftJoinAndSelect('attendance.user', 'user')
+      .where('user.tenant_id = :tenantId', { tenantId });
+    if (startDate) qb.andWhere('attendance.timestamp >= :start', { start: new Date(startDate) });
+    if (endDate) qb.andWhere('attendance.timestamp <= :end', { end: new Date(endDate + 'T23:59:59.999Z') });
+    qb.orderBy('attendance.timestamp', 'DESC')
+      .skip(skip)
+      .take(take);
+    return await qb.getMany();
+  }
   async findEvents(userId?: string, startDate?: string, endDate?: string) {
     const qb = this.attendanceRepo
       .createQueryBuilder('attendance')
