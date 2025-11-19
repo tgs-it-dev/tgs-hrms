@@ -175,8 +175,22 @@ export class SystemService {
       throw new NotFoundException("Tenant not found");
     }
 
-    // Generate all 12 months for the year
-    const months = Array.from({ length: 12 }, (_, i) => i + 1);
+    // Generate months up to current month only (exclude future months)
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1; // getMonth() returns 0-11
+    
+    let months: number[];
+    if (year === currentYear) {
+      // For current year, only include months up to current month
+      months = Array.from({ length: currentMonth }, (_, i) => i + 1);
+    } else if (year > currentYear) {
+      // Future year - return empty array
+      months = [];
+    } else {
+      // Past year - include all 12 months
+      months = Array.from({ length: 12 }, (_, i) => i + 1);
+    }
 
     // Get monthly new additions (non-cumulative) for each entity
     // Employees: New employees created per month
@@ -240,8 +254,17 @@ export class SystemService {
     let cumulativeDepartments = baselineDepartments;
     let cumulativeDesignations = baselineDesignations;
 
-    // Process each month and calculate cumulative totals
-    const growthData = months.map((month) => {
+    // Process each month sequentially to maintain correct cumulative totals
+    const growthData: Array<{
+      tenantId: string;
+      tenantName: string;
+      month: string;
+      monthName: string;
+      employees: number;
+      departments: number;
+      designations: number;
+    }> = [];
+    for (const month of months) {
       const monthKey = `${year}-${String(month).padStart(2, "0")}`;
       const monthName = new Date(year, month - 1).toLocaleString("default", {
         month: "short",
@@ -263,7 +286,7 @@ export class SystemService {
       cumulativeDepartments += parseInt(newDepartments, 10);
       cumulativeDesignations += parseInt(newDesignations, 10);
 
-      return {
+      growthData.push({
         tenantId: tenant.id,
         tenantName: tenant.name,
         month: monthKey,
@@ -271,8 +294,8 @@ export class SystemService {
         employees: cumulativeEmployees,
         departments: cumulativeDepartments,
         designations: cumulativeDesignations,
-      };
-    });
+      });
+    }
 
     return growthData;
   }
