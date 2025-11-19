@@ -325,8 +325,17 @@ export class AttendanceService {
       string,
       Record<string, { checkIn?: Attendance; checkOut?: Attendance }>
     > = {};
+    
+    // Initialize groupedAttendance for all userIds to ensure all team members are included
+    // Use string keys for consistent UUID comparison
     for (const userId of userIds) {
-      const userRecords = attendanceRecords.filter(r => r.user_id === userId);
+      groupedAttendance[String(userId)] = {};
+    }
+    
+    for (const userId of userIds) {
+      const userIdKey = String(userId);
+      // Ensure proper UUID comparison by converting to string
+      const userRecords = attendanceRecords.filter(r => String(r.user_id) === userIdKey);
       const checkIns = userRecords.filter(r => r.type === AttendanceType.CHECK_IN);
       const checkOuts = userRecords.filter(r => r.type === AttendanceType.CHECK_OUT);
       const sessions: Array<{ checkIn: Attendance; checkOut?: Attendance; startDate: string }> = [];
@@ -345,22 +354,21 @@ export class AttendanceService {
           checkOuts.splice(index, 1);
         }
       }
-      if (!groupedAttendance[userId]) {
-        groupedAttendance[userId] = {};
-      }
       for (const session of sessions) {
-        if (!groupedAttendance[userId][session.startDate]) {
-          groupedAttendance[userId][session.startDate] = {};
+        if (!groupedAttendance[userIdKey][session.startDate]) {
+          groupedAttendance[userIdKey][session.startDate] = {};
         }
-        if (!groupedAttendance[userId][session.startDate].checkIn || 
-            session.checkIn.timestamp > (groupedAttendance[userId][session.startDate].checkIn?.timestamp || new Date(0))) {
-          groupedAttendance[userId][session.startDate].checkIn = session.checkIn;
-          groupedAttendance[userId][session.startDate].checkOut = session.checkOut;
+        if (!groupedAttendance[userIdKey][session.startDate].checkIn || 
+            session.checkIn.timestamp > (groupedAttendance[userIdKey][session.startDate].checkIn?.timestamp || new Date(0))) {
+          groupedAttendance[userIdKey][session.startDate].checkIn = session.checkIn;
+          groupedAttendance[userIdKey][session.startDate].checkOut = session.checkOut;
         }
       }
     }
     const transformedMembers = teamMembers.map((member) => {
-      const userAttendance = groupedAttendance[member.user_id] || {};
+      // Ensure consistent UUID string comparison
+      const userIdKey = String(member.user_id);
+      const userAttendance = groupedAttendance[userIdKey] || {};
       const attendanceData = Object.entries(userAttendance).map(([date, { checkIn, checkOut }]) => {
         let workedHours = 0;
         if (checkIn && checkOut && new Date(checkOut.timestamp) > new Date(checkIn.timestamp)) {
