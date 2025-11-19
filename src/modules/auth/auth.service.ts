@@ -14,6 +14,8 @@ import { EmailService } from '../../common/utils/email';
 import { InviteStatusService } from '../invite-status/invite-status.service';
 import { Employee } from 'src/entities/employee.entity';
 import { SignupSession } from 'src/entities/signup-session.entity';
+import { GLOBAL_SYSTEM_TENANT_ID } from '../../common/constants/enums';
+import { Role } from '../../entities/role.entity';
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -27,6 +29,8 @@ export class AuthService {
     private employeeRepository: Repository<Employee>,
     @InjectRepository(SignupSession)
     private signupSessionRepository: Repository<SignupSession>,
+    @InjectRepository(Role)
+    private roleRepository: Repository<Role>,
     private jwtService: JwtService,
     private configService: ConfigService,
     private emailService: EmailService,
@@ -126,6 +130,30 @@ export class AuthService {
       });
     }
 
+    // Check if the role is system-admin to assign global tenant ID
+    const role = await this.roleRepository.findOne({
+      where: { id: dto.role_id },
+    });
+    
+    // System-admin users always get the global system tenant ID
+    const finalTenantId = role?.name === 'system-admin' ? GLOBAL_SYSTEM_TENANT_ID : dto.tenant_id;
+
+    // Validation: Only one system admin is allowed in the entire HRMS
+    if (role?.name === 'system-admin') {
+      const existingSystemAdmin = await this.userRepository.findOne({
+        where: {
+          role_id: dto.role_id,
+          tenant_id: GLOBAL_SYSTEM_TENANT_ID,
+        },
+      });
+      
+      if (existingSystemAdmin) {
+        throw new BadRequestException(
+          'Only one system admin is allowed in the entire HRMS. A system admin already exists.'
+        );
+      }
+    }
+
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
     const user = this.userRepository.create({
@@ -135,7 +163,7 @@ export class AuthService {
       last_name: dto.last_name,
       phone: dto.phone,
       role_id: dto.role_id,
-      tenant_id: dto.tenant_id,
+      tenant_id: finalTenantId,
     });
 
     await this.userRepository.save(user);
@@ -163,9 +191,12 @@ export class AuthService {
   
     
       const permissions = await this.getUserPermissions(user.id);
-  
+
+      // System-admin users always use the global system tenant ID
+      const tenantId = user.role.name === 'system-admin' ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
+
       this.logger.log(`Token validation successful for user: ${user.email}`);
-  
+
       return {
         valid: true,
         user: {
@@ -174,7 +205,7 @@ export class AuthService {
           first_name: user.first_name,
           last_name: user.last_name,
           role: user.role.name.toLowerCase(),
-          tenant_id: user.tenant_id,
+          tenant_id: tenantId,
           permissions,
         }
       };
@@ -227,7 +258,11 @@ export class AuthService {
     const permissions = await this.getUserPermissions(user.id);
 
     const employee = await this.employeeRepository.findOne({ where: { user_id: user.id } });
-    const companyDetails = await this.getCompanyDetails(user.tenant_id);
+    
+    // System-admin users always use the global system tenant ID
+    const tenantId = user.role.name === 'system-admin' ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
+    
+    const companyDetails = await this.getCompanyDetails(tenantId);
     const requiresPayment = companyDetails ? !companyDetails.is_paid : false;
 
     this.logger.log(`User ${user.email} has role: ${user.role.name}`);
@@ -237,7 +272,7 @@ export class AuthService {
       email: user.email,
       sub: user.id,
       role: user.role.name.toLowerCase(),
-      tenant_id: user.tenant_id,
+      tenant_id: tenantId,
       permissions,
     };
 
@@ -410,15 +445,18 @@ export class AuthService {
   
     
       const permissions = await this.getUserPermissions(user.id);
-  
+
+      // System-admin users always use the global system tenant ID
+      const tenantId = user.role.name === 'system-admin' ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
+
       this.logger.log(`Refresh: User ${user.email} has role: ${user.role.name}`);
       this.logger.log(`Refresh: User ${user.email} permissions: ${JSON.stringify(permissions)}`);
-  
+
       const newPayload = {
         email: user.email,
         sub: user.id,
         role: user.role.name.toLowerCase(),
-        tenant_id: user.tenant_id,
+        tenant_id: tenantId,
         permissions,
       };
   

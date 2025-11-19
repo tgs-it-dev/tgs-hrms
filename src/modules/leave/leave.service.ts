@@ -110,7 +110,7 @@ export class LeaveService {
     leavesLeft?: number;
     totalLeaves: number;
   }> {
-    const limit = 10;
+    const limit = 25;
     const skip = (page - 1) * limit;
     let query = this.leaveRepo.createQueryBuilder('leave');
     if (user_id) {
@@ -322,18 +322,18 @@ export class LeaveService {
     const limit = 10;
     const skip = (page - 1) * limit;
 
-
-    const teamMemberUserIds = await this.employeeRepo
+    // Fetch team members - same approach as attendance service
+    const teamMembers = await this.employeeRepo
       .createQueryBuilder('employee')
       .leftJoin('employee.user', 'user')
       .leftJoin('employee.team', 'team')
       .where('user.tenant_id = :tenantId', { tenantId })
       .andWhere('team.manager_id = :managerId', { managerId })
-      .andWhere('employee.user_id != :managerId', { managerId }) 
-      .select(['employee.user_id'])
-      .getRawMany();
+      .andWhere('employee.user_id != :managerId', { managerId })
+      .andWhere('employee.team_id IS NOT NULL')
+      .getMany();
 
-    const userIds = teamMemberUserIds.map((item) => item.employee_user_id);
+    const userIds = teamMembers.map((member) => member.user_id);
 
     if (userIds.length === 0) {
       return {
