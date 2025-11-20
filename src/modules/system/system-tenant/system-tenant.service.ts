@@ -21,6 +21,8 @@ import { Role } from "src/entities/role.entity";
 import { Department } from "src/entities/department.entity";
 import { PaginationResponse } from "src/common/interfaces/pagination.interface";
 import * as bcrypt from "bcrypt";
+import * as fs from "fs";
+import * as path from "path";
 import { EmailService } from "src/common/utils/email/email.service";
 import { CompanyDetails } from "src/entities/company-details.entity";
 import { SignupSession } from "src/entities/signup-session.entity";
@@ -48,7 +50,7 @@ export class SystemTenantService {
     private readonly emailService: EmailService,
   ) {}
 
-  async create(dto: CreateTenantDto) {
+  async create(dto: CreateTenantDto, file?: Express.Multer.File) {
     const tenantName = dto.name.trim();
     const domain = dto.domain.trim().toLowerCase();
     const adminName = dto.adminName.trim();
@@ -64,6 +66,29 @@ export class SystemTenantService {
 
     if (!adminName) {
       throw new BadRequestException("Admin name cannot be empty");
+    }
+
+    // Handle file upload if provided
+    let logoUrl: string | null = null;
+    if (file) {
+      // Save uploaded file to public/company-logos
+      const uploadsDir = path.join(process.cwd(), 'public', 'company-logos');
+      if (!fs.existsSync(uploadsDir)) {
+        await fs.promises.mkdir(uploadsDir, { recursive: true });
+      }
+
+      const timestamp = Date.now();
+      const randomNum = Math.floor(Math.random() * 1000000000);
+      const fileExtension = path.extname(file.originalname);
+      const fileName = `${timestamp}-${randomNum}${fileExtension}`;
+      const filePath = path.join(uploadsDir, fileName);
+
+      await fs.promises.writeFile(filePath, file.buffer);
+      logoUrl = `/company-logos/${fileName}`;
+      this.logger.log(`Logo file saved: ${fileName}`);
+    } else if (dto.logo?.trim()) {
+      // Use provided logo URL string if no file uploaded
+      logoUrl = dto.logo.trim();
     }
 
     // Check for existing tenant name (case-insensitive)
@@ -159,13 +184,13 @@ export class SystemTenantService {
             plan_id: this.defaultPlanId,
             is_paid: false,
             tenant_id: savedTenant.id,
-            logo_url: dto.logo?.trim() || null,
+            logo_url: logoUrl,
             signup_session_id: savedSession.id, // Link to the signup session
           });
         } else {
           companyDetails.company_name = tenantName;
           companyDetails.domain = domain;
-          companyDetails.logo_url = dto.logo?.trim() || null;
+          companyDetails.logo_url = logoUrl;
           companyDetails.signup_session_id = savedSession.id; // Link to the signup session
         }
 
@@ -453,7 +478,7 @@ export class SystemTenantService {
   /**
    * Update tenant company details (name, logo, domain)
    */
-  async update(dto: UpdateTenantDto) {
+  async update(dto: UpdateTenantDto, file?: Express.Multer.File) {
     const tenant = await this.findOne(dto.tenantId);
 
     if (!tenant) {
@@ -464,6 +489,48 @@ export class SystemTenantService {
     let companyDetails = await this.companyDetailsRepo.findOne({
       where: { tenant_id: tenant.id },
     });
+
+    // Handle file upload if provided
+    let logoUrl: string | null = null;
+    if (file) {
+      // Save uploaded file to public/company-logos
+      const uploadsDir = path.join(process.cwd(), 'public', 'company-logos');
+      if (!fs.existsSync(uploadsDir)) {
+        await fs.promises.mkdir(uploadsDir, { recursive: true });
+      }
+
+      // Delete old logo if it exists
+      if (companyDetails?.logo_url) {
+        const oldFileName = companyDetails.logo_url.split('/').pop()?.split('?')[0];
+        if (oldFileName) {
+          const oldFilePath = path.join(uploadsDir, oldFileName);
+          try {
+            if (fs.existsSync(oldFilePath)) {
+              await fs.promises.unlink(oldFilePath);
+              this.logger.log(`Deleted old logo: ${oldFileName}`);
+            }
+          } catch (err) {
+            this.logger.error(`Failed to delete old logo: ${String((err as Error)?.message || err)}`);
+          }
+        }
+      }
+
+      const timestamp = Date.now();
+      const randomNum = Math.floor(Math.random() * 1000000000);
+      const fileExtension = path.extname(file.originalname);
+      const fileName = `${timestamp}-${randomNum}${fileExtension}`;
+      const filePath = path.join(uploadsDir, fileName);
+
+      await fs.promises.writeFile(filePath, file.buffer);
+      logoUrl = `/company-logos/${fileName}`;
+      this.logger.log(`Logo file saved: ${fileName}`);
+    } else if (dto.logo !== undefined) {
+      // Use provided logo URL string if no file uploaded
+      logoUrl = dto.logo?.trim() || null;
+    } else if (companyDetails) {
+      // Keep existing logo if neither file nor logo URL is provided
+      logoUrl = companyDetails.logo_url;
+    }
 
     // Update tenant name if provided
     if (dto.companyName) {
@@ -497,7 +564,7 @@ export class SystemTenantService {
         domain: dto.domain?.trim().toLowerCase() || "",
         plan_id: this.defaultPlanId,
         is_paid: false,
-        logo_url: dto.logo?.trim() || null,
+        logo_url: logoUrl,
       });
     } else {
       if (dto.companyName) {
@@ -522,8 +589,8 @@ export class SystemTenantService {
 
         companyDetails.domain = trimmedDomain;
       }
-      if (dto.logo !== undefined) {
-        companyDetails.logo_url = dto.logo?.trim() || null;
+      if (logoUrl !== null) {
+        companyDetails.logo_url = logoUrl;
       }
     }
 

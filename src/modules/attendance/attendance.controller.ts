@@ -101,8 +101,12 @@ export class AttendanceController {
       },
     },
   })
-  async getTeamAttendance(@Req() req: any) {
-    return this.attendanceService.getTeamAttendance(req.user.id, req.user.tenant_id);
+  async getTeamAttendance(
+    @Req() req: any,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.attendanceService.getTeamAttendance(req.user.id, req.user.tenant_id, startDate, endDate);
   }
 
   
@@ -184,9 +188,11 @@ export class AttendanceController {
   @ApiOperation({ summary: 'Download team attendance as CSV (Manager only)' })
   async exportTeam(
     @Req() req: any,
-    @Res() res: Response
+    @Res() res: Response,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
   ) {
-    const { items } = await this.attendanceService.getTeamAttendance(req.user.id, req.user.tenant_id);
+    const { items } = await this.attendanceService.getTeamAttendance(req.user.id, req.user.tenant_id, startDate, endDate);
     const rows = (items || []).flatMap((member: any) => {
       const attendance = member.attendance || [];
       return attendance.map((a: any) => ({

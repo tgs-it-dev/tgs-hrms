@@ -278,6 +278,8 @@ export class AttendanceService {
   async getTeamAttendance(
     managerId: string,
     tenantId: string,
+    startDate?: string,
+    endDate?: string,
   ): Promise<{
     items: Array<{
       user_id: string;
@@ -316,9 +318,19 @@ export class AttendanceService {
         total: 0,
       };
     }
-    const attendanceRecords = await this.attendanceRepo
+    // Apply date filter if provided
+    const attendanceQuery = this.attendanceRepo
       .createQueryBuilder('attendance')
-      .where('attendance.user_id IN (:...userIds)', { userIds })
+      .where('attendance.user_id IN (:...userIds)', { userIds });
+    
+    if (startDate) {
+      attendanceQuery.andWhere('attendance.timestamp >= :start', { start: new Date(startDate) });
+    }
+    if (endDate) {
+      attendanceQuery.andWhere('attendance.timestamp <= :end', { end: new Date(endDate + 'T23:59:59.999Z') });
+    }
+    
+    const attendanceRecords = await attendanceQuery
       .orderBy('attendance.timestamp', 'ASC')
       .getMany();
     const groupedAttendance: Record<
@@ -400,9 +412,15 @@ export class AttendanceService {
         totalHoursWorked: Math.round(totalHoursWorked * 100) / 100,
       };
     });
+    
+    // Filter out employees with no attendance records
+    const filteredMembers = transformedMembers.filter(
+      (member) => member.attendance.length > 0 && (member.totalDaysWorked > 0 || member.totalHoursWorked > 0)
+    );
+    
     return {
-      items: transformedMembers,
-      total: teamMembers.length,
+      items: filteredMembers,
+      total: filteredMembers.length,
     };
   }
 }

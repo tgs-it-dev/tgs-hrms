@@ -10,6 +10,11 @@ import {
   Put,
   Query,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  ParseFilePipe,
+  MaxFileSizeValidator,
+  FileTypeValidator,
 } from "@nestjs/common";
 import {
   ApiTags,
@@ -18,7 +23,9 @@ import {
   ApiResponse,
   ApiQuery,
   ApiBody,
+  ApiConsumes,
 } from "@nestjs/swagger";
+import { FileInterceptor } from "@nestjs/platform-express";
 // import { CreateTenantDto } from "../dto/system-tenant/create-tenant.dto";
 import { JwtAuthGuard } from "src/common/guards/jwt-auth.guard";
 import { RolesGuard } from "src/common/guards/roles.guard";
@@ -39,22 +46,95 @@ export class SystemTenantController {
    * Create a new tenant
    */
   @Post()
+  @UseInterceptors(FileInterceptor('logo'))
+  @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: "Create a new tenant (System Admin only)" })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Tenant name',
+        },
+        domain: {
+          type: 'string',
+          description: 'Primary domain associated with the tenant',
+        },
+        logo: {
+          type: 'string',
+          format: 'binary',
+          description: 'Company logo file (jpg, jpeg, png, gif - max 5MB). Optional - can also provide logo URL as string.',
+        },
+        adminName: {
+          type: 'string',
+          description: 'Full name of the tenant administrator',
+        },
+        adminEmail: {
+          type: 'string',
+          description: 'Email for the tenant administrator login',
+        },
+      },
+      required: ['name', 'domain', 'adminName', 'adminEmail'],
+    },
+  })
   @ApiResponse({ status: 201, description: "Tenant created successfully." })
   @ApiResponse({
     status: 409,
     description: "Conflict: Tenant with this name already exists.",
   })
-  async create(@Body() dto: CreateTenantDto) {
-    return this.tenantService.create(dto);
+  @ApiResponse({ status: 400, description: "Invalid file type or size" })
+  async create(
+    @Body() dto: CreateTenantDto,
+    @UploadedFile(
+      new ParseFilePipe({
+        fileIsRequired: false,
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
+          new FileTypeValidator({ fileType: /^image\/(jpeg|jpg|png|gif)$/ }),
+        ],
+      }),
+    )
+    file?: Express.Multer.File,
+  ) {
+    return this.tenantService.create(dto, file);
   }
 
   /**
    * Update tenant company details (name, logo, domain)
    */
   @Put()
+  @UseInterceptors(FileInterceptor('logo'))
+  @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: "Update tenant company details (System Admin only)" })
-  @ApiBody({ type: UpdateTenantDto })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        tenantId: {
+          type: 'string',
+          description: 'Tenant ID to update',
+          example: '550e8400-e29b-41d4-a716-446655440000',
+        },
+        companyName: {
+          type: 'string',
+          description: 'Company/Tenant name',
+          example: 'Updated Company Name',
+        },
+        domain: {
+          type: 'string',
+          description: 'Primary domain associated with the tenant',
+          example: 'example.com',
+        },
+        logo: {
+          type: 'string',
+          format: 'binary',
+          description: 'Company logo file (jpg, jpeg, png, gif - max 5MB). Optional - can also provide logo URL as string.',
+        },
+      },
+      required: ['tenantId'],
+    },
+  })
   @ApiResponse({
     status: 200,
     description: "Tenant company details updated successfully.",
@@ -67,8 +147,21 @@ export class SystemTenantController {
     status: 409,
     description: "Conflict: Tenant name or domain already exists.",
   })
-  async update(@Body() dto: UpdateTenantDto) {
-    return this.tenantService.update(dto);
+  @ApiResponse({ status: 400, description: "Invalid file type or size" })
+  async update(
+    @Body() dto: UpdateTenantDto,
+    @UploadedFile(
+      new ParseFilePipe({
+        fileIsRequired: false,
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
+          new FileTypeValidator({ fileType: /^image\/(jpeg|jpg|png|gif)$/ }),
+        ],
+      }),
+    )
+    file?: Express.Multer.File,
+  ) {
+    return this.tenantService.update(dto, file);
   }
 
   /**
