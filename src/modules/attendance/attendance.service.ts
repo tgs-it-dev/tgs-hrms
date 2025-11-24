@@ -413,14 +413,10 @@ export class AttendanceService {
       };
     });
     
-    // Filter out employees with no attendance records
-    const filteredMembers = transformedMembers.filter(
-      (member) => member.attendance.length > 0 && (member.totalDaysWorked > 0 || member.totalHoursWorked > 0)
-    );
-    
+    // Return all team members, even if they have no attendance records in the date range
     return {
-      items: filteredMembers,
-      total: filteredMembers.length,
+      items: transformedMembers,
+      total: transformedMembers.length,
     };
   }
 }
