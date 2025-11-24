@@ -1,4 +1,3 @@
-
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -454,18 +453,89 @@ export class SignupService {
   async completeSignup(dto: CompleteSignupDto) {
     const session = await this.signupSessionRepo.findOne({ where: { id: dto.signupSessionId } });
     if (!session) throw new NotFoundException('Signup session not found');
+    
+    // If signup is already completed (e.g., system-admin created tenant), return existing data
+    if (session.status === 'completed') {
+      const company = await this.companyDetailsRepo.findOne({
+        where: { signup_session_id: session.id },
+      });
+      if (!company || !company.tenant_id) {
+        throw new BadRequestException('Signup completed but tenant not found');
+      }
+      
+      const user = await this.userRepo.findOne({ 
+        where: { email: session.email.toLowerCase() },
+        relations: ['role']
+      });
+      if (!user) {
+        throw new BadRequestException('Signup completed but user not found');
+      }
+
+      const adminRole = user.role;
+      if (!adminRole) {
+        throw new Error("User role not found.");
+      }
+
+      const permissionsRows = await this.userRepo.query(`
+        SELECT p.name
+        FROM permissions p
+        INNER JOIN role_permissions rp ON p.id = rp.permission_id
+        WHERE rp.role_id = $1
+      `, [adminRole.id]);
+      const permissions = permissionsRows.map((row: any) => String(row.name).toLowerCase());
+
+      const tokenPayload = {
+        sub: user.id,
+        email: user.email,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        role: adminRole.name.toLowerCase(),
+        tenant_id: user.tenant_id,
+        permissions,
+      } as const;
+
+      const accessToken = this.jwtService.sign(tokenPayload, {
+        secret: this.configService.get<string>('JWT_SECRET'),
+        expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '24h',
+      });
+      const refreshToken = this.jwtService.sign(tokenPayload, {
+        secret: this.configService.get<string>('JWT_SECRET'),
+        expiresIn: '7d',
+      });
+
+      user.refresh_token = refreshToken;
+      await this.userRepo.save(user);
+
+      return {
+        success: true,
+        tenantId: company.tenant_id,
+        accessToken,
+        refreshToken,
+        user,
+        permissions,
+        message: 'Signup already completed.',
+      };
+    }
+    
     const company = await this.companyDetailsRepo.findOne({
       where: { signup_session_id: session.id },
     });
     if (!company) throw new BadRequestException('Company details not found');
     if (!company.is_paid) throw new BadRequestException('Payment not completed');
 
-    const tenant = await this.tenantRepo.save(
-      this.tenantRepo.create({ name: company.company_name })
-    );
+    // Check if tenant already exists (system-admin created tenant)
+    let tenant = company.tenant_id 
+      ? await this.tenantRepo.findOne({ where: { id: company.tenant_id } })
+      : null;
 
-    company.tenant_id = tenant.id as unknown as any;
-    await this.companyDetailsRepo.save(company);
+    // Only create tenant if it doesn't exist (normal signup flow)
+    if (!tenant) {
+      tenant = await this.tenantRepo.save(
+        this.tenantRepo.create({ name: company.company_name })
+      );
+      company.tenant_id = tenant.id as unknown as any;
+      await this.companyDetailsRepo.save(company);
+    }
 
     const roles = await this.ensureDefaultRoles(tenant.id);
     
@@ -474,16 +544,24 @@ export class SignupService {
       throw new Error("'Admin' role not found in roles table. Please seed the roles table with the required roles.");
     }
 
-    const user = this.userRepo.create({
-      email: session.email,
-      password: session.password_hash,
-      first_name: session.first_name,
-      last_name: session.last_name,
-      phone: session.phone,
-      tenant_id: tenant.id,
-      role_id: adminRole.id,
+    // Check if user already exists (system-admin created user)
+    let user = await this.userRepo.findOne({ 
+      where: { email: session.email.toLowerCase() } 
     });
-    await this.userRepo.save(user);
+
+    // Only create user if it doesn't exist (normal signup flow)
+    if (!user) {
+      user = this.userRepo.create({
+        email: session.email,
+        password: session.password_hash,
+        first_name: session.first_name,
+        last_name: session.last_name,
+        phone: session.phone,
+        tenant_id: tenant.id,
+        role_id: adminRole.id,
+      });
+      await this.userRepo.save(user);
+    }
 
 
     session.status = 'completed';
