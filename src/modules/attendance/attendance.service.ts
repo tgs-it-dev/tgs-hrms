@@ -6,7 +6,8 @@ import { Attendance } from '../../entities/attendance.entity';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
 import { TimesheetService } from '../timesheet/timesheet.service'; 
-import { Employee } from '../../entities/employee.entity'; 
+import { Employee } from '../../entities/employee.entity';
+import { TeamService } from '../team/team.service';
 
 @Injectable()
 export class AttendanceService {
@@ -16,7 +17,8 @@ export class AttendanceService {
     private readonly attendanceRepo: Repository<Attendance>,
     @InjectRepository(Employee)
     private readonly employeeRepo: Repository<Employee>,
-    private readonly timesheetService: TimesheetService 
+    private readonly timesheetService: TimesheetService,
+    private readonly teamService: TeamService
   ) {}
 
   async create(userId: string, dto: CreateAttendanceDto) {
@@ -300,25 +302,31 @@ export class AttendanceService {
     }>;
     total: number;
   }> {
-    // fetch all employee records for the team
-    const teamMembers = await this.employeeRepo
-      .createQueryBuilder('employee')
-      .leftJoinAndSelect('employee.user', 'user')
-      .leftJoinAndSelect('employee.designation', 'designation')
-      .leftJoinAndSelect('designation.department', 'department')
-      .leftJoin('employee.team', 'team')
-      .where('user.tenant_id = :tenantId', { tenantId })
-      .andWhere('team.manager_id = :managerId', { managerId })
-      .andWhere('employee.user_id != :managerId', { managerId })
-      .getMany();
-    const userIds = teamMembers.map((member) => member.user_id);
-    if (userIds.length === 0) {
+    // Use TeamService.getAllMembersForManager() to get all team members
+    // This ensures all members are returned regardless of attendance
+    // We need to fetch all pages to get complete list
+    let allTeamMembers: any[] = [];
+    let page = 1;
+    let hasMore = true;
+    
+    while (hasMore) {
+      const result = await this.teamService.getAllMembersForManager(tenantId, managerId, page);
+      allTeamMembers = allTeamMembers.concat(result.items);
+      hasMore = result.items.length === result.limit && page < result.totalPages;
+      page++;
+    }
+    
+    if (allTeamMembers.length === 0) {
       return {
         items: [],
         total: 0,
       };
     }
-    // Apply date filter if provided
+    
+    // Extract user IDs from team members
+    const userIds = allTeamMembers.map((member) => member.user.id);
+    
+    // Apply date filter ONLY to attendance records, not to members
     const attendanceQuery = this.attendanceRepo
       .createQueryBuilder('attendance')
       .where('attendance.user_id IN (:...userIds)', { userIds });
@@ -333,6 +341,7 @@ export class AttendanceService {
     const attendanceRecords = await attendanceQuery
       .orderBy('attendance.timestamp', 'ASC')
       .getMany();
+    
     const groupedAttendance: Record<
       string,
       Record<string, { checkIn?: Attendance; checkOut?: Attendance }>
@@ -377,9 +386,11 @@ export class AttendanceService {
         }
       }
     }
-    const transformedMembers = teamMembers.map((member) => {
+    
+    // Transform team members from TeamService response to match Swagger response structure
+    const transformedMembers = allTeamMembers.map((member) => {
       // Ensure consistent UUID string comparison
-      const userIdKey = String(member.user_id);
+      const userIdKey = String(member.user.id);
       const userAttendance = groupedAttendance[userIdKey] || {};
       const attendanceData = Object.entries(userAttendance).map(([date, { checkIn, checkOut }]) => {
         let workedHours = 0;
@@ -400,13 +411,13 @@ export class AttendanceService {
       const totalDaysWorked = attendanceData.filter((day) => day.checkIn && day.checkOut).length;
       const totalHoursWorked = attendanceData.reduce((sum, day) => sum + day.workedHours, 0);
       return {
-        user_id: member.user_id,
+        user_id: member.user.id,
         first_name: member.user.first_name,
         last_name: member.user.last_name,
         email: member.user.email,
         profile_pic: member.user.profile_pic || undefined,
         designation: member.designation?.title || 'N/A',
-        department: member.designation?.department?.name || 'N/A',
+        department: member.department?.name || 'N/A',
         attendance: attendanceData,
         totalDaysWorked,
         totalHoursWorked: Math.round(totalHoursWorked * 100) / 100,
