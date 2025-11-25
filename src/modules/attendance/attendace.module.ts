@@ -6,9 +6,10 @@ import { AttendanceController } from './attendance.controller';
 import { TimesheetModule } from '../timesheet/timesheet.module';
 import { Employee } from 'src/entities/employee.entity';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
+import { TeamModule } from '../team/team.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Attendance, Employee]), TimesheetModule, SharedJwtModule],
+  imports: [TypeOrmModule.forFeature([Attendance, Employee]), TimesheetModule, SharedJwtModule, TeamModule],
   controllers: [AttendanceController],
   providers: [AttendanceService],
   exports: [AttendanceService],

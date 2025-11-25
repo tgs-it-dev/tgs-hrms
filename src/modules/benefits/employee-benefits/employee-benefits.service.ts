@@ -257,4 +257,70 @@ export class EmployeeBenefitsService {
         : 0,
     };
   }
+
+  // System Admin Methods - Can view all tenants or filter by tenant_id
+  async getSystemAdminSummary(tenant_id?: string) {
+    // Total Active Benefits
+    let totalActiveBenefitsQb = this.employeeBenefitRepo
+      .createQueryBuilder("eb")
+      .innerJoin("eb.benefit", "benefit")
+      .where("eb.status = :status", { status: "active" });
+
+    if (tenant_id) {
+      totalActiveBenefitsQb = totalActiveBenefitsQb.andWhere(
+        "eb.tenant_id = :tenant_id",
+        { tenant_id },
+      );
+    }
+
+    const totalActiveBenefits = await totalActiveBenefitsQb.getCount();
+
+    // Most Common Benefit Type
+    let mostCommonQb = this.employeeBenefitRepo
+      .createQueryBuilder("eb")
+      .innerJoin("eb.benefit", "benefit")
+      .where("eb.status = :status", { status: "active" });
+
+    if (tenant_id) {
+      mostCommonQb = mostCommonQb.andWhere("eb.tenant_id = :tenant_id", {
+        tenant_id,
+      });
+    }
+
+    const mostCommon: { benefitName: string } | null | undefined =
+      await mostCommonQb
+        .select("benefit.name", "benefitName")
+        .addSelect("COUNT(eb.id)", "count")
+        .groupBy("benefit.name")
+        .orderBy("count", "DESC")
+        .limit(1)
+        .getRawOne();
+
+    // Total Employees Covered
+    let totalEmployeesCoveredQb = this.employeeBenefitRepo
+      .createQueryBuilder("eb")
+      .where("eb.status = :status", { status: "active" });
+
+    if (tenant_id) {
+      totalEmployeesCoveredQb = totalEmployeesCoveredQb.andWhere(
+        "eb.tenant_id = :tenant_id",
+        { tenant_id },
+      );
+    }
+
+    const totalEmployeesCovered: { count: string } | null | undefined =
+      await totalEmployeesCoveredQb
+        .select("COUNT(DISTINCT eb.employee_id)", "count")
+        .getRawOne();
+
+    return {
+      tenant_id: tenant_id || "all",
+      totalActiveBenefits,
+      mostCommonBenefitType: mostCommon?.benefitName ?? null,
+      totalEmployeesCovered: totalEmployeesCovered
+        ? parseInt(totalEmployeesCovered.count, 10) || 0
+        : 0,
+    };
+  }
+
 }

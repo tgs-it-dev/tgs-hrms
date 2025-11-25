@@ -93,9 +93,9 @@ export class EmployeeBenefitsController {
   }
 
   @Get("employees")
-  @Roles("hr-admin","network-admin")
+  @Roles("hr-admin","network-admin","system-admin")
   @ApiOperation({
-    summary: "Get all employees with their assigned benefits (HR Admin view)",
+    summary: "Get all employees with their assigned benefits (HR Admin/System Admin view)",
   })
   @ApiOkResponse({
     type: [GetAllEmployeesWithBenefitsResponseDto],
@@ -112,9 +112,9 @@ export class EmployeeBenefitsController {
   }
 
   @Get("summary")
-  @Roles("network-admin")
+  @Roles("network-admin","system-admin")
   @ApiOperation({
-    summary: "Get summary for benefits coverage (Network Admin)",
+    summary: "Get summary for benefits coverage (Network Admin/System Admin)",
   })
   @ApiOkResponse({
     type: EmployeeBenefitSummaryDto,
@@ -122,5 +122,23 @@ export class EmployeeBenefitsController {
   })
   async getSummary(@TenantId() tenant_id: string) {
     return this.employeeBenefitsService.getSummary(tenant_id);
+  }
+
+  // System Admin Dedicated Endpoints
+  @Get("system-admin/summary")
+  @Roles("system-admin")
+  @ApiOperation({
+    summary: "Get benefits summary for System Admin (all tenants or specific tenant)",
+  })
+  @ApiQuery({
+    name: "tenant_id",
+    required: false,
+    description: "Optional tenant ID to filter by specific tenant",
+  })
+  @ApiOkResponse({
+    description: "Summary statistics of employee benefits coverage",
+  })
+  async getSystemAdminSummary(@Query("tenant_id") tenant_id?: string) {
+    return this.employeeBenefitsService.getSystemAdminSummary(tenant_id);
   }
 }
