@@ -54,11 +54,15 @@ export class EmployeeKpi {
 
   @ManyToOne(() => Employee, (employee) => employee.employeeKpis, {
     nullable: false,
+    onDelete: 'CASCADE' // When employee is deleted, employee KPIs should also be deleted
   })
   @JoinColumn({ name: "employee_id" })
   employee: Employee;
 
-  @ManyToOne(() => Tenant, (tenant) => tenant.employeeKpis, { nullable: false })
+  @ManyToOne(() => Tenant, (tenant) => tenant.employeeKpis, { 
+    nullable: false,
+    onDelete: 'RESTRICT' // Prevent hard delete, use soft delete instead
+  })
   @JoinColumn({ name: "tenant_id" })
   tenant: Tenant;
 }

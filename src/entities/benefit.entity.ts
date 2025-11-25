@@ -39,7 +39,10 @@ export class Benefit {
   @CreateDateColumn({ name: "created_at" })
   createdAt: Date;
 
-  @ManyToOne(() => Tenant, (tenant) => tenant.benefits, { nullable: false })
+  @ManyToOne(() => Tenant, (tenant) => tenant.benefits, { 
+    nullable: false,
+    onDelete: 'RESTRICT' // Prevent hard delete, use soft delete instead
+  })
   @JoinColumn({ name: "tenant_id" })
   tenant: Tenant;
 

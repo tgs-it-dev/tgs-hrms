@@ -52,17 +52,24 @@ export class Employee {
   @CreateDateColumn()
   created_at: Date;
   
-  @ManyToOne(() => User, (user) => user.employees, { nullable: false })
+  @ManyToOne(() => User, (user) => user.employees, { 
+    nullable: false,
+    onDelete: 'CASCADE' // When user is deleted, employee should also be deleted
+  })
   @JoinColumn({ name: "user_id" })
   user: User;
 
   @ManyToOne(() => Designation, (designation) => designation.employees, {
     nullable: false,
+    onDelete: 'RESTRICT' // Prevent deletion if employees exist
   })
   @JoinColumn({ name: "designation_id" })
   designation: Designation;
 
-  @ManyToOne(() => Team, (team) => team.teamMembers, { nullable: true })
+  @ManyToOne(() => Team, (team) => team.teamMembers, { 
+    nullable: true,
+    onDelete: 'SET NULL' // When team is deleted, set team_id to NULL
+  })
   @JoinColumn({ name: "team_id" })
   team: Team;
 
