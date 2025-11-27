@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards, Query } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { DesignationService } from './designation.service';
 import { CreateDesignationDto } from './dto/create-designation.dto';
 import { UpdateDesignationDto } from './dto/update-designation.dto';
@@ -60,6 +60,29 @@ export class DesignationController {
   }
 
   
+  @Get('all-tenants')
+  @Roles('system-admin')
+  @ApiOperation({ summary: 'Get all designations across all tenants with tenant filter (System Admin only)' })
+  @ApiQuery({
+    name: 'tenant_id',
+    required: false,
+    description: 'Optional tenant ID to filter by',
+    type: String,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns all designations grouped by tenant with department information',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - System admin access required',
+  })
+  async getAllDesignationsAcrossTenants(
+    @Query('tenant_id') tenantId?: string
+  ) {
+    return this.service.getAllDesignationsAcrossTenants(tenantId);
+  }
+
   @Get('department/:departmentId')
   @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('manage_designations')

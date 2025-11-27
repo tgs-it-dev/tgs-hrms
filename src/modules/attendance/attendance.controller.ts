@@ -1,5 +1,5 @@
 import { Controller, Post, Get, Body, Query, UseGuards, Req, Res } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { AttendanceService } from './attendance.service';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
@@ -48,14 +48,110 @@ export class AttendanceController {
       endDate
     );
   }
+
+  @Get('system/all')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('system-admin')
+  @Permissions('manage_attendance')
+  @ApiOperation({ 
+    summary: 'Get all attendance grouped by tenant (System-Admin only)',
+    description: 'Returns attendance data grouped by tenant. Can filter by specific tenant, start date, and end date.'
+  })
+  @ApiQuery({
+    name: 'tenantId',
+    required: false,
+    type: String,
+    description: 'Optional tenant ID to filter attendance for a specific tenant',
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    type: String,
+    description: 'Optional start date filter (ISO date string, e.g., 2024-01-01)',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    type: String,
+    description: 'Optional end date filter (ISO date string, e.g., 2024-01-31)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns attendance grouped by tenant with employee details',
+    schema: {
+      example: {
+        tenants: [
+          {
+            tenant_id: 'uuid-here',
+            tenant_name: 'Company ABC',
+            tenant_status: 'active',
+            employees: [
+              {
+                user_id: 'user-uuid',
+                first_name: 'John',
+                last_name: 'Doe',
+                email: 'john.doe@company.com',
+                profile_pic: 'url',
+                attendance: [
+                  {
+                    date: '2024-01-15',
+                    checkIn: '2024-01-15T09:00:00Z',
+                    checkOut: '2024-01-15T17:30:00Z',
+                    workedHours: 8.5,
+                  },
+                ],
+                totalDaysWorked: 20,
+                totalHoursWorked: 160.5,
+              },
+            ],
+            totalEmployees: 5,
+            totalAttendanceRecords: 100,
+          },
+        ],
+        totalTenants: 1,
+      },
+    },
+  })
+  async getAttendanceByTenant(
+    @Query('tenantId') tenantId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.attendanceService.getAttendanceByTenant(tenantId, startDate, endDate);
+  }
   @Get('events')
+  @UseGuards(RolesGuard)
+  @Roles('employee', 'manager', 'hr-admin', 'admin', 'system-admin', 'network-admin')
+  @ApiOperation({ summary: 'Get attendance events for a user' })
+  @ApiQuery({
+    name: 'userId',
+    required: false,
+    description: 'User ID to filter events. If not provided, uses logged-in user ID. System-admin can provide any user ID.',
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    description: 'Start date filter (ISO date string)',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    description: 'End date filter (ISO date string)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns attendance events for the specified user',
+  })
   async events(
     @Req() req: Request,
     @Query('userId') userId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string
   ) {
-    const id = userId || (req.user as any).id;
+    // For system-admin, allow them to query any userId
+    // For other roles, default to their own userId if not provided
+    const userRole = (req.user as any)?.role;
+    const id = userId || (userRole === 'system-admin' ? undefined : (req.user as any).id);
     return this.attendanceService.findEvents(id, startDate, endDate);
   }
 

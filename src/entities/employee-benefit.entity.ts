@@ -41,6 +41,7 @@ export class EmployeeBenefit {
 
   @ManyToOne(() => Employee, (employee) => employee.employeeBenefits, {
     nullable: false,
+    onDelete: 'CASCADE' // When employee is deleted, employee benefits should also be deleted
   })
   @JoinColumn({ name: "employee_id" })
   employee: Employee;
@@ -53,6 +54,7 @@ export class EmployeeBenefit {
 
   @ManyToOne(() => Tenant, (tenant) => tenant.employeeBenefits, {
     nullable: false,
+    onDelete: 'RESTRICT' // Prevent hard delete, use soft delete instead
   })
   @JoinColumn({ name: "tenant_id" })
   tenant: Tenant;

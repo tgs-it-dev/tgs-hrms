@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, QueryFailedError } from 'typeorm';
 import { Designation } from '../../entities/designation.entity';
 import { Department } from '../../entities/department.entity';
+import { Tenant } from '../../entities/tenant.entity';
 import { CreateDesignationDto } from './dto/create-designation.dto';
 import { UpdateDesignationDto } from './dto/update-designation.dto';
 import { PaginationResponse } from '../../common/interfaces/pagination.interface';
@@ -19,7 +20,10 @@ export class DesignationService {
     private readonly designationRepo: Repository<Designation>,
 
     @InjectRepository(Department)
-    private readonly departmentRepo: Repository<Department>
+    private readonly departmentRepo: Repository<Department>,
+
+    @InjectRepository(Tenant)
+    private readonly tenantRepo: Repository<Tenant>
   ) {}
 
  
@@ -179,4 +183,104 @@ async remove(id: string): Promise<{ deleted: true; id: string }> {
   }
 }
 
+  /**
+   * Get all designations across all tenants (for system admin)
+   * @param tenantId - Optional tenant ID to filter by
+   * @returns Designations grouped by tenant and department
+   */
+  async getAllDesignationsAcrossTenants(tenantId?: string): Promise<{
+    tenants: Array<{
+      tenant_id: string;
+      tenant_name: string;
+      tenant_status: string;
+      departments: Array<{
+        department_id: string;
+        department_name: string;
+        designations: Array<{
+          id: string;
+          title: string;
+          created_at: Date;
+        }>;
+      }>;
+    }>;
+  }> {
+    // Get tenants (filter by tenantId if provided)
+    const tenantWhere: any = { isDeleted: false };
+    if (tenantId) {
+      tenantWhere.id = tenantId;
+    }
+
+    const tenants = await this.tenantRepo.find({
+      where: tenantWhere,
+      order: { name: 'ASC' },
+    });
+
+    const result: Array<{
+      tenant_id: string;
+      tenant_name: string;
+      tenant_status: string;
+      departments: Array<{
+        department_id: string;
+        department_name: string;
+        designations: Array<{
+          id: string;
+          title: string;
+          created_at: Date;
+        }>;
+      }>;
+    }> = [];
+
+    for (const tenant of tenants) {
+      // Get all designations for this tenant (through departments)
+      const designations = await this.designationRepo
+        .createQueryBuilder('designation')
+        .leftJoinAndSelect('designation.department', 'department')
+        .where('department.tenant_id = :tenant_id', { tenant_id: tenant.id })
+        .orderBy('department.name', 'ASC')
+        .addOrderBy('designation.title', 'ASC')
+        .getMany();
+
+      // Group designations by department
+      const departmentMap = new Map<string, {
+        department_id: string;
+        department_name: string;
+        designations: Array<{
+          id: string;
+          title: string;
+          created_at: Date;
+        }>;
+      }>();
+
+      for (const desg of designations) {
+        const deptId = desg.department_id;
+        const deptName = desg.department?.name || '';
+
+        if (!departmentMap.has(deptId)) {
+          departmentMap.set(deptId, {
+            department_id: deptId,
+            department_name: deptName,
+            designations: [],
+          });
+        }
+
+        departmentMap.get(deptId)!.designations.push({
+          id: desg.id,
+          title: desg.title,
+          created_at: desg.created_at,
+        });
+      }
+
+      // Convert map to array
+      const departments = Array.from(departmentMap.values());
+
+      result.push({
+        tenant_id: tenant.id,
+        tenant_name: tenant.name,
+        tenant_status: tenant.status,
+        departments: departments,
+      });
+    }
+
+    return { tenants: result };
+  }
 }

@@ -192,6 +192,10 @@ export class TenantController {
     status: 404,
     description: 'Tenant not found',
   })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request - Tenant already deleted',
+  })
   async deleteTenant(@Param('id') id: string) {
     try {
       await this.tenantService.remove(id);
@@ -202,7 +206,45 @@ export class TenantController {
       };
     } catch (err) {
       if (err instanceof NotFoundException) throw err;
+      if (err instanceof BadRequestException) throw err; // Already deleted case
       throw new BadRequestException('Failed to delete tenant');
+    }
+  }
+
+  @Post(':id/restore')
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles('system-admin')
+  @Permissions('manage_tenants')
+  @ApiOperation({ summary: 'Restore a deleted tenant (Admin only)' })
+  @ApiParam({
+    name: 'id',
+    description: 'Tenant UUID',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Tenant restored successfully.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Tenant not found',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request - Tenant is not deleted',
+  })
+  async restoreTenant(@Param('id') id: string) {
+    try {
+      const tenant = await this.tenantService.restore(id);
+      return {
+        statusCode: 200,
+        message: 'Tenant restored successfully.',
+        data: tenant,
+      };
+    } catch (err) {
+      if (err instanceof NotFoundException) throw err;
+      if (err instanceof BadRequestException) throw err;
+      throw new BadRequestException('Failed to restore tenant');
     }
   }
 }

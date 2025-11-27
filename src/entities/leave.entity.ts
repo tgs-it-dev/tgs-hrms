@@ -73,8 +73,10 @@ export class Leave {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  @ManyToOne(() => Tenant
-  , (tenant) => tenant.leaves, { nullable: false })
+  @ManyToOne(() => Tenant, (tenant) => tenant.leaves, { 
+    nullable: false,
+    onDelete: 'RESTRICT' // Prevent hard delete, use soft delete instead
+  })
   @JoinColumn({ name: 'tenantId' })
   tenant: Tenant;
 }

@@ -24,7 +24,10 @@ export class Designation {
   @CreateDateColumn()
   created_at: Date;
 
-  @ManyToOne(() => Department, (department) => department.designations, { nullable: false })
+  @ManyToOne(() => Department, (department) => department.designations, { 
+    nullable: false,
+    onDelete: 'CASCADE' // When department is deleted, designations should also be deleted
+  })
   @JoinColumn({ name: 'department_id' })
   department: Department;
 

@@ -16,6 +16,7 @@ import { Employee } from 'src/entities/employee.entity';
 import { SignupSession } from 'src/entities/signup-session.entity';
 import { GLOBAL_SYSTEM_TENANT_ID } from '../../common/constants/enums';
 import { Role } from '../../entities/role.entity';
+import { Tenant } from '../../entities/tenant.entity';
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -31,6 +32,8 @@ export class AuthService {
     private signupSessionRepository: Repository<SignupSession>,
     @InjectRepository(Role)
     private roleRepository: Repository<Role>,
+    @InjectRepository(Tenant)
+    private tenantRepository: Repository<Tenant>,
     private jwtService: JwtService,
     private configService: ConfigService,
     private emailService: EmailService,
@@ -188,12 +191,23 @@ export class AuthService {
         this.logger.warn(`Token validation failed: user role missing for id: ${userId}`);
         throw new UnauthorizedException('User role not found');
       }
-  
-    
-      const permissions = await this.getUserPermissions(user.id);
 
       // System-admin users always use the global system tenant ID
       const tenantId = user.role.name === 'system-admin' ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
+      
+      // Check if tenant is deleted (for non-system-admin users)
+      if (user.role.name !== 'system-admin' && tenantId) {
+        const tenant = await this.tenantRepository.findOne({
+          where: { id: tenantId },
+        });
+        
+        if (!tenant || tenant.isDeleted) {
+          this.logger.warn(`Token validation failed: tenant is deleted for user: ${userId}`);
+          throw new UnauthorizedException('Your organization account has been deleted. Please contact support.');
+        }
+      }
+  
+      const permissions = await this.getUserPermissions(user.id);
 
       this.logger.log(`Token validation successful for user: ${user.email}`);
 
@@ -254,13 +268,24 @@ export class AuthService {
       throw new UnauthorizedException('User role not found');
     }
 
+    // System-admin users always use the global system tenant ID
+    const tenantId = user.role.name === 'system-admin' ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
+    
+    // Check if tenant is deleted (for non-system-admin users)
+    if (user.role.name !== 'system-admin' && tenantId) {
+      const tenant = await this.tenantRepository.findOne({
+        where: { id: tenantId },
+      });
+      
+      if (!tenant || tenant.isDeleted) {
+        this.logger.warn(`Login failed: tenant is deleted for email: ${normalizedEmail}`);
+        throw new UnauthorizedException('Your organization account has been deleted. Please contact support.');
+      }
+    }
   
     const permissions = await this.getUserPermissions(user.id);
 
     const employee = await this.employeeRepository.findOne({ where: { user_id: user.id } });
-    
-    // System-admin users always use the global system tenant ID
-    const tenantId = user.role.name === 'system-admin' ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
     
     const companyDetails = await this.getCompanyDetails(tenantId);
     const requiresPayment = companyDetails ? !companyDetails.is_paid : false;
@@ -436,18 +461,28 @@ export class AuthService {
         this.logger.warn(`Refresh token failed: user role missing for id: ${payload.sub}`);
         throw new UnauthorizedException('User role not found');
       }
-  
+
+      // System-admin users always use the global system tenant ID
+      const tenantId = user.role.name === 'system-admin' ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
+      
+      // Check if tenant is deleted (for non-system-admin users)
+      if (user.role.name !== 'system-admin' && tenantId) {
+        const tenant = await this.tenantRepository.findOne({
+          where: { id: tenantId },
+        });
+        
+        if (!tenant || tenant.isDeleted) {
+          this.logger.warn(`Refresh token failed: tenant is deleted for user: ${user.email}`);
+          throw new UnauthorizedException('Your organization account has been deleted. Please contact support.');
+        }
+      }
   
       if (user.refresh_token !== refreshToken) {
         this.logger.warn(`Refresh token failed: token mismatch for user: ${user.email}`);
         throw new UnauthorizedException('Invalid refresh token');
       }
-  
-    
-      const permissions = await this.getUserPermissions(user.id);
 
-      // System-admin users always use the global system tenant ID
-      const tenantId = user.role.name === 'system-admin' ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
+      const permissions = await this.getUserPermissions(user.id);
 
       this.logger.log(`Refresh: User ${user.email} has role: ${user.role.name}`);
       this.logger.log(`Refresh: User ${user.email} permissions: ${JSON.stringify(permissions)}`);

@@ -323,4 +323,134 @@ export class EmployeeBenefitsService {
     };
   }
 
+  /**
+   * Get all employees with benefits across all tenants (for system admin)
+   * @param tenantId - Optional tenant ID to filter by
+   * @returns Employees grouped by tenant with all their benefits
+   */
+  async getAllEmployeesWithBenefitsAcrossTenants(tenantId?: string): Promise<{
+    tenants: Array<{
+      tenant_id: string;
+      tenant_name: string;
+      tenant_status: string;
+      employees: Array<{
+        employeeId: string;
+        employeeName: string;
+        email: string;
+        profile_pic: string | null;
+        department: string | null;
+        designation: string | null;
+        benefits: Array<{
+          id: string;
+          name: string;
+          description: string | null;
+          type: string;
+          eligibilityCriteria: string | null;
+          status: string;
+          tenant_id: string;
+          createdBy: string;
+          createdAt: Date;
+          benefitAssignmentId: string;
+          statusOfAssignment: string;
+          startDate: Date;
+          endDate: Date | null;
+          assignedBy: string;
+          benefitCreatedAt: Date;
+        }>;
+      }>;
+    }>;
+  }> {
+    // Get tenants (filter by tenantId if provided)
+    const tenantWhere: any = { isDeleted: false };
+    if (tenantId) {
+      tenantWhere.id = tenantId;
+    }
+
+    const tenants = await this.tenantRepo.find({
+      where: tenantWhere,
+      order: { name: 'ASC' },
+    });
+
+    const result: Array<{
+      tenant_id: string;
+      tenant_name: string;
+      tenant_status: string;
+      employees: Array<{
+        employeeId: string;
+        employeeName: string;
+        email: string;
+        profile_pic: string | null;
+        department: string | null;
+        designation: string | null;
+        benefits: Array<{
+          id: string;
+          name: string;
+          description: string | null;
+          type: string;
+          eligibilityCriteria: string | null;
+          status: string;
+          tenant_id: string;
+          createdBy: string;
+          createdAt: Date;
+          benefitAssignmentId: string;
+          statusOfAssignment: string;
+          startDate: Date;
+          endDate: Date | null;
+          assignedBy: string;
+          benefitCreatedAt: Date;
+        }>;
+      }>;
+    }> = [];
+
+    for (const tenant of tenants) {
+      // Get all employees with their benefits for this tenant
+      const employees = await this.employeeRepo
+        .createQueryBuilder("employee")
+        .leftJoinAndSelect("employee.employeeBenefits", "eb")
+        .leftJoinAndSelect("eb.benefit", "benefit")
+        .innerJoinAndSelect("employee.user", "user")
+        .innerJoinAndSelect("employee.designation", "designation")
+        .leftJoinAndSelect("designation.department", "department")
+        .where("user.tenant_id = :tenant_id", { tenant_id: tenant.id })
+        .orderBy("employee.id", "ASC")
+        .getMany();
+
+      // Transform employees data
+      const transformedEmployees = employees.map((e) => ({
+        employeeId: e.id,
+        employeeName: `${e.user.first_name} ${e.user.last_name}`,
+        email: e.user.email,
+        profile_pic: e.user.profile_pic,
+        department: e.designation?.department?.name || null,
+        designation: e.designation?.title || null,
+        benefits: (e.employeeBenefits || []).map((b) => ({
+          id: b.benefit.id,
+          name: b.benefit.name,
+          description: b.benefit.description,
+          type: b.benefit.type,
+          eligibilityCriteria: b.benefit.eligibilityCriteria,
+          status: b.benefit.status,
+          tenant_id: b.benefit.tenant_id,
+          createdBy: b.benefit.createdBy,
+          createdAt: b.benefit.createdAt,
+          benefitAssignmentId: b.id,
+          statusOfAssignment: b.status,
+          startDate: b.startDate,
+          endDate: b.endDate,
+          assignedBy: b.assignedBy,
+          benefitCreatedAt: b.createdAt,
+        })),
+      }));
+
+      result.push({
+        tenant_id: tenant.id,
+        tenant_name: tenant.name,
+        tenant_status: tenant.status,
+        employees: transformedEmployees,
+      });
+    }
+
+    return { tenants: result };
+  }
+
 }
