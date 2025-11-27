@@ -371,7 +371,7 @@ export class AddCascadeOperationsAndSoftDelete1769000000001 implements Migration
         JOIN information_schema.key_column_usage kcu 
           ON tc.constraint_name = kcu.constraint_name
         WHERE tc.table_name = 'leaves' 
-          AND kcu.column_name = 'tenantId'
+          AND LOWER(kcu.column_name) = 'tenantid'
           AND tc.constraint_type = 'FOREIGN KEY'
         LIMIT 1;
         
