@@ -41,6 +41,29 @@ export class TeamController {
   constructor(private readonly teamService: TeamService) {}
 
 
+  @Get('all-tenants')
+  @Roles('system-admin')
+  @ApiOperation({ summary: 'Get all teams across all tenants with tenant filter (System Admin only)' })
+  @ApiQuery({
+    name: 'tenant_id',
+    required: false,
+    description: 'Optional tenant ID to filter by',
+    type: String,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns all teams grouped by tenant with their members',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - System admin access required',
+  })
+  async getAllTeamsAcrossTenants(
+    @Query('tenant_id') tenantId?: string
+  ) {
+    return this.teamService.getAllTeamsAcrossTenants(tenantId);
+  }
+
   @Get('export')
   @Roles('admin', 'system-admin')
   @ApiOperation({ summary: 'Download teams list with all members including employee pool as CSV (Admin only)' })

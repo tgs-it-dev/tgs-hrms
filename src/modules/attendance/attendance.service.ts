@@ -430,4 +430,291 @@ export class AttendanceService {
       total: transformedMembers.length,
     };
   }
+
+  /**
+   * Get attendance grouped by tenant for system-admin
+   * @param tenantId - Optional tenant ID to filter by specific tenant
+   * @param startDate - Optional start date filter
+   * @param endDate - Optional end date filter
+   * @returns Attendance grouped by tenant with user details
+   */
+  async getAttendanceByTenant(
+    tenantId?: string,
+    startDate?: string,
+    endDate?: string
+  ): Promise<{
+    tenants: Array<{
+      tenant_id: string;
+      tenant_name: string;
+      tenant_status: string;
+      employees: Array<{
+        user_id: string;
+        first_name: string;
+        last_name: string;
+        email: string;
+        profile_pic?: string;
+        attendance: {
+          date: string;
+          checkIn: Date | null;
+          checkOut: Date | null;
+          workedHours: number;
+        }[];
+        totalDaysWorked: number;
+        totalHoursWorked: number;
+      }>;
+      totalEmployees: number;
+      totalAttendanceRecords: number;
+    }>;
+    totalTenants: number;
+  }> {
+    // Build query to get attendance with user and tenant relations
+    const qb = this.attendanceRepo
+      .createQueryBuilder('attendance')
+      .leftJoinAndSelect('attendance.user', 'user')
+      .leftJoinAndSelect('user.tenant', 'tenant')
+      .orderBy('attendance.timestamp', 'ASC');
+
+    // Filter by tenant if provided
+    if (tenantId) {
+      qb.where('user.tenant_id = :tenantId', { tenantId });
+    }
+
+    // Apply date filters
+    if (startDate) {
+      if (tenantId) {
+        qb.andWhere('attendance.timestamp >= :start', { start: new Date(startDate) });
+      } else {
+        qb.where('attendance.timestamp >= :start', { start: new Date(startDate) });
+      }
+    }
+    if (endDate) {
+      qb.andWhere('attendance.timestamp <= :end', { end: new Date(endDate + 'T23:59:59.999Z') });
+    }
+
+    const attendanceRecords = await qb.getMany();
+
+    // Group attendance by tenant
+    const tenantMap: Record<
+      string,
+      {
+        tenant_id: string;
+        tenant_name: string;
+        tenant_status: string;
+        userAttendance: Record<
+          string,
+          Record<string, { checkIn?: Attendance; checkOut?: Attendance }>
+        >;
+      }
+    > = {};
+
+    // Process attendance records
+    for (const record of attendanceRecords) {
+      if (!record.user || !record.user.tenant) {
+        continue; // Skip records without user or tenant
+      }
+
+      const tenantIdKey = record.user.tenant.id;
+      const userId = record.user_id;
+
+      // Initialize tenant if not exists
+      if (!tenantMap[tenantIdKey]) {
+        tenantMap[tenantIdKey] = {
+          tenant_id: tenantIdKey,
+          tenant_name: record.user.tenant.name,
+          tenant_status: record.user.tenant.status,
+          userAttendance: {},
+        };
+      }
+
+      // Initialize user if not exists
+      if (!tenantMap[tenantIdKey].userAttendance[userId]) {
+        tenantMap[tenantIdKey].userAttendance[userId] = {};
+      }
+    }
+
+    // Group records by tenant and user first
+    const recordsByTenantAndUser: Record<string, Record<string, Attendance[]>> = {};
+    for (const record of attendanceRecords) {
+      if (!record.user || !record.user.tenant) continue;
+      
+      const tenantIdKey = record.user.tenant.id;
+      const userId = record.user_id;
+      
+      if (!recordsByTenantAndUser[tenantIdKey]) {
+        recordsByTenantAndUser[tenantIdKey] = {};
+      }
+      if (!recordsByTenantAndUser[tenantIdKey][userId]) {
+        recordsByTenantAndUser[tenantIdKey][userId] = [];
+      }
+      recordsByTenantAndUser[tenantIdKey][userId].push(record);
+    }
+
+    // Process each tenant-user combination to match check-ins with check-outs
+    for (const [tenantIdKey, usersMap] of Object.entries(recordsByTenantAndUser)) {
+      for (const [userId, userRecords] of Object.entries(usersMap)) {
+        const userAttendance = tenantMap[tenantIdKey].userAttendance[userId];
+        
+        // Separate check-ins and check-outs
+        const checkIns = userRecords.filter(r => r.type === AttendanceType.CHECK_IN);
+        const checkOuts = userRecords.filter(r => r.type === AttendanceType.CHECK_OUT);
+        
+        // Match check-ins with check-outs (similar to getTeamAttendance logic)
+        const sessions: Array<{ checkIn: Attendance; checkOut?: Attendance; startDate: string }> = [];
+        const remainingCheckOuts = [...checkOuts];
+        
+        for (const checkIn of checkIns) {
+          const startDate = checkIn.timestamp.toISOString().split('T')[0];
+          const matchingCheckOut = remainingCheckOuts.find(
+            checkout => checkout.timestamp > checkIn.timestamp
+          );
+          sessions.push({
+            checkIn,
+            checkOut: matchingCheckOut,
+            startDate
+          });
+          if (matchingCheckOut) {
+            const index = remainingCheckOuts.indexOf(matchingCheckOut);
+            remainingCheckOuts.splice(index, 1);
+          }
+        }
+        
+        // Group sessions by date (using check-in date)
+        for (const session of sessions) {
+          if (!userAttendance[session.startDate]) {
+            userAttendance[session.startDate] = {};
+          }
+          // Keep the latest check-in and its matching check-out for each date
+          if (!userAttendance[session.startDate].checkIn || 
+              session.checkIn.timestamp > (userAttendance[session.startDate].checkIn?.timestamp || new Date(0))) {
+            userAttendance[session.startDate].checkIn = session.checkIn;
+            userAttendance[session.startDate].checkOut = session.checkOut;
+          }
+        }
+      }
+    }
+
+    // Build final response structure
+    const tenants: Array<{
+      tenant_id: string;
+      tenant_name: string;
+      tenant_status: string;
+      employees: Array<{
+        user_id: string;
+        first_name: string;
+        last_name: string;
+        email: string;
+        profile_pic?: string;
+        attendance: {
+          date: string;
+          checkIn: Date | null;
+          checkOut: Date | null;
+          workedHours: number;
+        }[];
+        totalDaysWorked: number;
+        totalHoursWorked: number;
+      }>;
+      totalEmployees: number;
+      totalAttendanceRecords: number;
+    }> = [];
+
+    // Create a map of user details
+    const userDetailsMap: Record<string, any> = {};
+    for (const record of attendanceRecords) {
+      if (!record.user) continue;
+      const userId = record.user_id;
+      if (!userDetailsMap[userId]) {
+        userDetailsMap[userId] = {
+          user_id: record.user.id,
+          first_name: record.user.first_name,
+          last_name: record.user.last_name,
+          email: record.user.email,
+          profile_pic: record.user.profile_pic,
+        };
+      }
+    }
+
+    // Build tenant-wise employee attendance
+    for (const [tenantIdKey, tenantData] of Object.entries(tenantMap)) {
+      const employees: Array<{
+        user_id: string;
+        first_name: string;
+        last_name: string;
+        email: string;
+        profile_pic?: string;
+        attendance: {
+          date: string;
+          checkIn: Date | null;
+          checkOut: Date | null;
+          workedHours: number;
+        }[];
+        totalDaysWorked: number;
+        totalHoursWorked: number;
+      }> = [];
+
+      for (const [userId, dateAttendance] of Object.entries(tenantData.userAttendance)) {
+        const userDetails = userDetailsMap[userId];
+        if (!userDetails) continue;
+
+        const attendanceData = Object.entries(dateAttendance).map(([date, { checkIn, checkOut }]) => {
+          let workedHours = 0;
+          if (checkIn && checkOut && new Date(checkOut.timestamp) > new Date(checkIn.timestamp)) {
+            const diffMs = new Date(checkOut.timestamp).getTime() - new Date(checkIn.timestamp).getTime();
+            workedHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
+          }
+          return {
+            date,
+            checkIn: checkIn?.timestamp || null,
+            checkOut:
+              checkOut && checkIn && new Date(checkOut.timestamp) > new Date(checkIn.timestamp)
+                ? checkOut.timestamp
+                : null,
+            workedHours,
+          };
+        });
+
+        const totalDaysWorked = attendanceData.filter((day) => day.checkIn && day.checkOut).length;
+        const totalHoursWorked = attendanceData.reduce((sum, day) => sum + day.workedHours, 0);
+
+        employees.push({
+          user_id: userDetails.user_id,
+          first_name: userDetails.first_name,
+          last_name: userDetails.last_name,
+          email: userDetails.email,
+          profile_pic: userDetails.profile_pic,
+          attendance: attendanceData,
+          totalDaysWorked,
+          totalHoursWorked: Math.round(totalHoursWorked * 100) / 100,
+        });
+      }
+
+      // Sort employees by name
+      employees.sort((a, b) => {
+        const nameA = `${a.first_name} ${a.last_name}`.toLowerCase();
+        const nameB = `${b.first_name} ${b.last_name}`.toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+
+      const totalAttendanceRecords = employees.reduce(
+        (sum, emp) => sum + emp.attendance.length,
+        0
+      );
+
+      tenants.push({
+        tenant_id: tenantData.tenant_id,
+        tenant_name: tenantData.tenant_name,
+        tenant_status: tenantData.tenant_status,
+        employees,
+        totalEmployees: employees.length,
+        totalAttendanceRecords,
+      });
+    }
+
+    // Sort tenants by name
+    tenants.sort((a, b) => a.tenant_name.localeCompare(b.tenant_name));
+
+    return {
+      tenants,
+      totalTenants: tenants.length,
+    };
+  }
 }

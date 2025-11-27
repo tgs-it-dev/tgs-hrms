@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, QueryFailedError } from 'typeorm';
 import { Department } from '../../entities/department.entity';
+import { Tenant } from '../../entities/tenant.entity';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
 import { PaginationResponse } from '../../common/interfaces/pagination.interface';
@@ -15,7 +16,9 @@ const GLOBAL = '00000000-0000-0000-0000-000000000000';
 export class DepartmentService {
   constructor(
     @InjectRepository(Department)
-    private repo: Repository<Department>
+    private repo: Repository<Department>,
+    @InjectRepository(Tenant)
+    private tenantRepo: Repository<Tenant>
   ) {}
 
   async create(tenant_id: string, dto: CreateDepartmentDto) {
@@ -166,5 +169,72 @@ export class DepartmentService {
       }
       throw err;
     }
+  }
+
+  /**
+   * Get all departments across all tenants (for system admin)
+   * @param tenantId - Optional tenant ID to filter by
+   * @returns Departments grouped by tenant
+   */
+  async getAllDepartmentsAcrossTenants(tenantId?: string): Promise<{
+    tenants: Array<{
+      tenant_id: string;
+      tenant_name: string;
+      tenant_status: string;
+      departments: Array<{
+        id: string;
+        name: string;
+        description: string | null;
+        created_at: Date;
+      }>;
+    }>;
+  }> {
+    // Get tenants (filter by tenantId if provided)
+    const tenantWhere: any = { isDeleted: false };
+    if (tenantId) {
+      tenantWhere.id = tenantId;
+    }
+
+    const tenants = await this.tenantRepo.find({
+      where: tenantWhere,
+      order: { name: 'ASC' },
+    });
+
+    const result: Array<{
+      tenant_id: string;
+      tenant_name: string;
+      tenant_status: string;
+      departments: Array<{
+        id: string;
+        name: string;
+        description: string | null;
+        created_at: Date;
+      }>;
+    }> = [];
+
+    for (const tenant of tenants) {
+      // Get all departments for this tenant
+      const departments = await this.repo.find({
+        where: { tenant_id: tenant.id },
+        order: { name: 'ASC' },
+      });
+
+      // Transform departments data
+      const transformedDepartments = departments.map((dept) => ({
+        id: dept.id,
+        name: dept.name,
+        description: dept.description,
+        created_at: dept.created_at,
+      }));
+
+      result.push({
+        tenant_id: tenant.id,
+        tenant_name: tenant.name,
+        tenant_status: tenant.status,
+        departments: transformedDepartments,
+      });
+    }
+
+    return { tenants: result };
   }
 }

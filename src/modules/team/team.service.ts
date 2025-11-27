@@ -9,6 +9,7 @@ import { Repository, Not, DataSource, IsNull } from 'typeorm';
 import { Team } from '../../entities/team.entity';
 import { Employee } from '../../entities/employee.entity';
 import { User } from '../../entities/user.entity';
+import { Tenant } from '../../entities/tenant.entity';
 import { CreateTeamDto } from './dto/create-team.dto';
 import { UpdateTeamDto } from './dto/update-team.dto';
 import { EmployeeStatus } from '../../common/constants/enums';
@@ -22,6 +23,8 @@ export class TeamService {
     private readonly employeeRepo: Repository<Employee>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    @InjectRepository(Tenant)
+    private readonly tenantRepo: Repository<Tenant>,
     private readonly dataSource: DataSource
   ) {}
 
@@ -723,5 +726,169 @@ export class TeamService {
       limit,
       totalPages,
     };
+  }
+
+  /**
+   * Get all teams across all tenants (for system admin)
+   * @param tenantId - Optional tenant ID to filter by
+   * @returns Teams grouped by tenant with all members
+   */
+  async getAllTeamsAcrossTenants(tenantId?: string): Promise<{
+    tenants: Array<{
+      tenant_id: string;
+      tenant_name: string;
+      tenant_status: string;
+      teams: Array<{
+        id: string;
+        name: string;
+        description: string | null;
+        manager: {
+          id: string;
+          name: string;
+          first_name: string;
+          last_name: string;
+          email: string;
+          profile_pic: string | null;
+          role: string | undefined;
+        } | null;
+        created_at: Date;
+        members: Array<{
+          id: string;
+          status: string;
+          user: {
+            id: string;
+            name: string;
+            email: string;
+            profile_pic: string | null;
+          } | null;
+          designation: {
+            id: string;
+            title: string;
+          } | null;
+          department: {
+            id: string;
+            name: string;
+          } | null;
+        }>;
+      }>;
+    }>;
+  }> {
+    // Get tenants (filter by tenantId if provided)
+    const tenantWhere: any = { isDeleted: false };
+    if (tenantId) {
+      tenantWhere.id = tenantId;
+    }
+
+    const tenants = await this.tenantRepo.find({
+      where: tenantWhere,
+      order: { name: 'ASC' },
+    });
+
+    const result: Array<{
+      tenant_id: string;
+      tenant_name: string;
+      tenant_status: string;
+      teams: Array<{
+        id: string;
+        name: string;
+        description: string | null;
+        manager: {
+          id: string;
+          name: string;
+          first_name: string;
+          last_name: string;
+          email: string;
+          profile_pic: string | null;
+          role: string | undefined;
+        } | null;
+        created_at: Date;
+        members: Array<{
+          id: string;
+          status: string;
+          user: {
+            id: string;
+            name: string;
+            email: string;
+            profile_pic: string | null;
+          } | null;
+          designation: {
+            id: string;
+            title: string;
+          } | null;
+          department: {
+            id: string;
+            name: string;
+          } | null;
+        }>;
+      }>;
+    }> = [];
+
+    for (const tenant of tenants) {
+      // Get all teams for this tenant
+      const teams = await this.teamRepo.find({
+        where: { manager: { tenant_id: tenant.id } },
+        relations: [
+          'manager',
+          'manager.role',
+          'teamMembers',
+          'teamMembers.user',
+          'teamMembers.designation',
+          'teamMembers.designation.department',
+        ],
+        order: { created_at: 'DESC' },
+      });
+
+      // Transform teams data
+      const transformedTeams = teams.map((t: any) => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        manager: t.manager
+          ? {
+              id: t.manager.id,
+              name: `${t.manager.first_name} ${t.manager.last_name}`,
+              first_name: t.manager.first_name,
+              last_name: t.manager.last_name,
+              email: t.manager.email,
+              profile_pic: t.manager.profile_pic,
+              role: t.manager.role ? t.manager.role.name : undefined,
+            }
+          : null,
+        created_at: t.created_at,
+        members: (t.teamMembers || []).map((m: any) => ({
+          id: m.id,
+          status: m.status,
+          user: m.user
+            ? {
+                id: m.user.id,
+                name: `${m.user.first_name} ${m.user.last_name}`,
+                email: m.user.email,
+                profile_pic: m.user.profile_pic,
+              }
+            : null,
+          designation: m.designation
+            ? {
+                id: m.designation.id,
+                title: m.designation.title,
+              }
+            : null,
+          department: m.designation && m.designation.department
+            ? {
+                id: m.designation.department.id,
+                name: m.designation.department.name,
+              }
+            : null,
+        })),
+      }));
+
+      result.push({
+        tenant_id: tenant.id,
+        tenant_name: tenant.name,
+        tenant_status: tenant.status,
+        teams: transformedTeams,
+      });
+    }
+
+    return { tenants: result };
   }
 }

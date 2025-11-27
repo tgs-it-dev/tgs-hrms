@@ -61,7 +61,7 @@ export class EmployeeBenefitsController {
   }
 
   @Get()
-  @Roles("hr-admin", "network-admin", "employee")
+  @Roles("hr-admin", "network-admin", "employee", 'manager')
   @ApiOperation({
     summary: "Get benefits assigned to a specific employee (by employeeId)",
   })
@@ -140,5 +140,25 @@ export class EmployeeBenefitsController {
   })
   async getSystemAdminSummary(@Query("tenant_id") tenant_id?: string) {
     return this.employeeBenefitsService.getSystemAdminSummary(tenant_id);
+  }
+
+  @Get("all-tenants")
+  @Roles("system-admin")
+  @ApiOperation({
+    summary: "Get all employees with benefits across all tenants with tenant filter (System Admin only)",
+  })
+  @ApiQuery({
+    name: "tenant_id",
+    required: false,
+    description: "Optional tenant ID to filter by",
+    type: String,
+  })
+  @ApiOkResponse({
+    description: "Returns all employees grouped by tenant with their benefits",
+  })
+  async getAllEmployeesWithBenefitsAcrossTenants(
+    @Query("tenant_id") tenantId?: string
+  ) {
+    return this.employeeBenefitsService.getAllEmployeesWithBenefitsAcrossTenants(tenantId);
   }
 }

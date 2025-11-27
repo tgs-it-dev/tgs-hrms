@@ -10,7 +10,7 @@ import {
   UseGuards,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiQuery } from '@nestjs/swagger';
 import { DepartmentService } from './department.service';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
@@ -70,6 +70,29 @@ export class DepartmentController {
   async update(@Req() req, @Param('id') id: string, @Body() dto: UpdateDepartmentDto) {
     const tenant_id = req.user.tenant_id;
     return await this.service.update(tenant_id, id, dto);
+  }
+
+  @Get('all-tenants')
+  @Roles('system-admin')
+  @ApiOperation({ summary: 'Get all departments across all tenants with tenant filter (System Admin only)' })
+  @ApiQuery({
+    name: 'tenant_id',
+    required: false,
+    description: 'Optional tenant ID to filter by',
+    type: String,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns all departments grouped by tenant',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - System admin access required',
+  })
+  async getAllDepartmentsAcrossTenants(
+    @Query('tenant_id') tenantId?: string
+  ) {
+    return this.service.getAllDepartmentsAcrossTenants(tenantId);
   }
 
   @Get()
