@@ -366,14 +366,26 @@ export class AddCascadeOperationsAndSoftDelete1769000000001 implements Migration
       DECLARE
         constraint_name_var TEXT;
       BEGIN
-        SELECT tc.constraint_name INTO constraint_name_var
-        FROM information_schema.table_constraints tc
-        JOIN information_schema.key_column_usage kcu 
-          ON tc.constraint_name = kcu.constraint_name
-        WHERE tc.table_name = 'leaves' 
-          AND LOWER(kcu.column_name) = 'tenantid'
-          AND tc.constraint_type = 'FOREIGN KEY'
+        -- First try to find by constraint name
+        SELECT constraint_name INTO constraint_name_var
+        FROM information_schema.table_constraints
+        WHERE table_name = 'leaves' 
+          AND constraint_name = 'FK_leaves_tenant'
+          AND constraint_type = 'FOREIGN KEY'
         LIMIT 1;
+        
+        -- If not found, try to find by column name
+        IF constraint_name_var IS NULL THEN
+          SELECT tc.constraint_name INTO constraint_name_var
+          FROM information_schema.table_constraints tc
+          JOIN information_schema.key_column_usage kcu 
+            ON tc.constraint_name = kcu.constraint_name
+            AND tc.table_schema = kcu.table_schema
+          WHERE tc.table_name = 'leaves' 
+            AND (kcu.column_name = 'tenantId' OR LOWER(kcu.column_name) = 'tenantid')
+            AND tc.constraint_type = 'FOREIGN KEY'
+          LIMIT 1;
+        END IF;
         
         IF constraint_name_var IS NOT NULL THEN
           EXECUTE format('ALTER TABLE "leaves" DROP CONSTRAINT IF EXISTS %I', constraint_name_var);
