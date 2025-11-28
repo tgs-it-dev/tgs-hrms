@@ -208,6 +208,18 @@ export class AttendanceController {
   
   @Get('export/self')
   @ApiOperation({ summary: 'Download your attendance events as CSV' })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    type: String,
+    description: 'Optional start date filter (ISO date string, e.g., 2024-01-01)',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    type: String,
+    description: 'Optional end date filter (ISO date string, e.g., 2024-01-31)',
+  })
   async exportSelf(
     @Req() req: Request,
     @Res() res: Response,
@@ -282,6 +294,18 @@ export class AttendanceController {
   @Roles('manager')
   @Permissions('manage_attendance')
   @ApiOperation({ summary: 'Download team attendance as CSV (Manager only)' })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    type: String,
+    description: 'Optional start date filter (ISO date string, e.g., 2024-01-01)',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    type: String,
+    description: 'Optional end date filter (ISO date string, e.g., 2024-01-31)',
+  })
   async exportTeam(
     @Req() req: any,
     @Res() res: Response,
@@ -310,6 +334,18 @@ export class AttendanceController {
   @Roles('hr-admin', 'admin', 'system-admin', 'network-admin')
   @Permissions('manage_attendance')
   @ApiOperation({ summary: 'Download all attendance for tenant as CSV (Admin only)' })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    type: String,
+    description: 'Optional start date filter (ISO date string, e.g., 2024-01-01)',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    type: String,
+    description: 'Optional end date filter (ISO date string, e.g., 2024-01-31)',
+  })
   async exportAll(
     @Req() req: any,
     @Res() res: Response,

@@ -2,8 +2,8 @@ import { MigrationInterface, QueryRunner } from "typeorm";
 import { v4 as uuidv4 } from "uuid";
 import * as bcrypt from "bcrypt";
 
-export class CreateSystemAdmin1769000000000 implements MigrationInterface {
-  name = "CreateSystemAdmin1769000000000";
+export class SystemAdmin1769000000000 implements MigrationInterface {
+  name = "SystemAdmin1769000000000";
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Global System Tenant ID
@@ -33,7 +33,9 @@ export class CreateSystemAdmin1769000000000 implements MigrationInterface {
     );
 
     if (existingUser && existingUser.length > 0) {
-      console.log(`User with email ${defaultEmail} already exists. Skipping creation.`);
+      console.log(
+        `User with email ${defaultEmail} already exists. Skipping creation.`
+      );
       return;
     }
 
@@ -81,7 +83,7 @@ export class CreateSystemAdmin1769000000000 implements MigrationInterface {
       `System admin created successfully with email: ${defaultEmail}`
     );
     console.log(
-      `⚠️  IMPORTANT: Default password is "${defaultPassword}" - Please change it after first login!`
+      `IMPORTANT: Default password is "${defaultPassword}" - Please change it after first login!`
     );
   }
 
@@ -104,4 +106,5 @@ export class CreateSystemAdmin1769000000000 implements MigrationInterface {
     }
   }
 }
+
 
