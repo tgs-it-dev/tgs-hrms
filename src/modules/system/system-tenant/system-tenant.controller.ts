@@ -168,19 +168,49 @@ export class SystemTenantController {
    * Get all tenants with pagination
    */
   @Get()
-  @ApiOperation({ summary: "List all tenants (System Admin only) - Paginated" })
+  @ApiOperation({
+    summary:
+      "List all tenants (System Admin only) - Paginated, or all when limit=all",
+  })
   @ApiResponse({ status: 200, description: "List of tenants." })
-  @ApiQuery({ name: "page", required: false, type: Number, description: "Page number (default: 1)" })
-  @ApiQuery({ name: "limit", required: false, type: Number, description: "Items per page (default: 25, max: 100)" })
-  @ApiQuery({ name: "includeDeleted", required: false, type: Boolean, description: "Include deleted tenants (default: true)" })
+  @ApiQuery({
+    name: "page",
+    required: false,
+    type: Number,
+    description: "Page number (default: 1, ignored when limit=all)",
+  })
+  @ApiQuery({
+    name: "limit",
+    required: false,
+    type: String,
+    description:
+      'Items per page (default: 25, max: 100). Use "all" to fetch all tenants.',
+  })
+  @ApiQuery({
+    name: "includeDeleted",
+    required: false,
+    type: Boolean,
+    description: "Include deleted tenants (default: true)",
+  })
   async findAll(
     @Query("page") page?: string,
     @Query("limit") limit?: string,
     @Query("includeDeleted") includeDeleted?: string,
   ) {
-    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-    const limitNumber = Math.min(100, Math.max(1, parseInt(limit || '25', 10) || 25));
-    const includeDeletedFlag = includeDeleted !== undefined ? includeDeleted === 'true' : true;
+    const includeDeletedFlag =
+      includeDeleted !== undefined ? includeDeleted === "true" : true;
+
+    // When limit=all, return all tenants without pagination
+    if (limit && limit.toLowerCase() === "all") {
+      return this.tenantService.findAll(undefined, undefined, includeDeletedFlag);
+    }
+
+    const pageNumber = Math.max(1, parseInt(page || "1", 10) || 1);
+    const limitNumber = Math.min(
+      100,
+      Math.max(1, parseInt(limit || "25", 10) || 25),
+    );
+
     return this.tenantService.findAll(pageNumber, limitNumber, includeDeletedFlag);
   }
 

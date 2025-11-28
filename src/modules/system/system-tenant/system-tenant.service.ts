@@ -341,13 +341,35 @@ export class SystemTenantService {
   }
 
   /**
-   * Get list of tenants with pagination
+   * Get list of tenants with pagination.
+   * If page or limit are not provided, returns all tenants without pagination.
    */
-  async findAll(page: number = 1, limit: number = 25, includeDeleted: boolean = false): Promise<PaginationResponse<Tenant>> {
-    const skip = (page - 1) * limit;
+  async findAll(
+    page?: number,
+    limit?: number,
+    includeDeleted: boolean = false,
+  ): Promise<PaginationResponse<Tenant>> {
     const where: FindOptionsWhere<Tenant> = includeDeleted
       ? {}
       : { isDeleted: false };
+
+    // If page or limit are not provided, return all tenants
+    if (!page || !limit) {
+      const [items, total] = await this.tenantRepo.findAndCount({
+        where,
+        order: { created_at: "DESC" },
+      });
+
+      return {
+        items,
+        total,
+        page: 1,
+        limit: total,
+        totalPages: 1,
+      };
+    }
+
+    const skip = (page - 1) * limit;
 
     const [items, total] = await this.tenantRepo.findAndCount({
       where,
