@@ -40,6 +40,19 @@ export class AuthService {
     private inviteStatusService: InviteStatusService
   ) {}
 
+  /**
+   * Normalizes and checks if a role name is system-admin.
+   * This makes the check case-insensitive and resilient to minor formatting differences
+   * between local and deployed databases (e.g. "System-Admin" vs "system-admin").
+   */
+  private isSystemAdminRole(roleName?: string | null): boolean {
+    if (!roleName) {
+      return false;
+    }
+
+    return roleName.trim().toLowerCase() === 'system-admin';
+  }
+
   private async getUserPermissions(userId: string): Promise<string[]> {
     try {
       this.logger.log(`Loading permissions for user ${userId}`);
@@ -193,10 +206,11 @@ export class AuthService {
       }
 
       // System-admin users always use the global system tenant ID
-      const tenantId = user.role.name === 'system-admin' ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
+      const isSystemAdmin = this.isSystemAdminRole(user.role.name);
+      const tenantId = isSystemAdmin ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
       
       // Check if tenant is deleted (for non-system-admin users)
-      if (user.role.name !== 'system-admin' && tenantId) {
+      if (!isSystemAdmin && tenantId) {
         const tenant = await this.tenantRepository.findOne({
           where: { id: tenantId },
         });
@@ -269,10 +283,11 @@ export class AuthService {
     }
 
     // System-admin users always use the global system tenant ID
-    const tenantId = user.role.name === 'system-admin' ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
+    const isSystemAdmin = this.isSystemAdminRole(user.role.name);
+    const tenantId = isSystemAdmin ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
     
     // Check if tenant is deleted (for non-system-admin users)
-    if (user.role.name !== 'system-admin' && tenantId) {
+    if (!isSystemAdmin && tenantId) {
       const tenant = await this.tenantRepository.findOne({
         where: { id: tenantId },
       });
@@ -463,10 +478,11 @@ export class AuthService {
       }
 
       // System-admin users always use the global system tenant ID
-      const tenantId = user.role.name === 'system-admin' ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
+      const isSystemAdmin = this.isSystemAdminRole(user.role.name);
+      const tenantId = isSystemAdmin ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
       
       // Check if tenant is deleted (for non-system-admin users)
-      if (user.role.name !== 'system-admin' && tenantId) {
+      if (!isSystemAdmin && tenantId) {
         const tenant = await this.tenantRepository.findOne({
           where: { id: tenantId },
         });
