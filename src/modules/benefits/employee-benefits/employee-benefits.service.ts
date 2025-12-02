@@ -368,6 +368,9 @@ export class EmployeeBenefitsService {
     limit: number;
     totalPages: number;
   }> {
+    const toLower = (value: string | null | undefined): string | null | undefined =>
+      typeof value === 'string' ? value.toLowerCase() : value;
+
     // Build tenant filter
     const tenantWhere: any = { isDeleted: false };
     if (tenantId) {
@@ -431,23 +434,23 @@ export class EmployeeBenefitsService {
       // Transform employees data
       const transformedEmployees = employees.map((e) => ({
         employeeId: e.id,
-        employeeName: `${e.user.first_name} ${e.user.last_name}`,
-        email: e.user.email,
+        employeeName: toLower(`${e.user.first_name} ${e.user.last_name}`),
+        email: toLower(e.user.email),
         profile_pic: e.user.profile_pic,
-        department: e.designation?.department?.name || null,
-        designation: e.designation?.title || null,
+        department: toLower(e.designation?.department?.name || null),
+        designation: toLower(e.designation?.title || null),
         benefits: (e.employeeBenefits || []).map((b) => ({
           id: b.benefit.id,
-          name: b.benefit.name,
-          description: b.benefit.description,
-          type: b.benefit.type,
-          eligibilityCriteria: b.benefit.eligibilityCriteria,
-          status: b.benefit.status,
+          name: toLower(b.benefit.name),
+          description: toLower(b.benefit.description),
+          type: toLower(b.benefit.type),
+          eligibilityCriteria: toLower(b.benefit.eligibilityCriteria),
+          status: toLower(b.benefit.status),
           tenant_id: b.benefit.tenant_id,
           createdBy: b.benefit.createdBy,
           createdAt: b.benefit.createdAt,
           benefitAssignmentId: b.id,
-          statusOfAssignment: b.status,
+          statusOfAssignment: toLower(b.status),
           startDate: b.startDate,
           endDate: b.endDate,
           assignedBy: b.assignedBy,
@@ -457,8 +460,8 @@ export class EmployeeBenefitsService {
 
       result.push({
         tenant_id: tenant.id,
-        tenant_name: tenant.name,
-        tenant_status: tenant.status,
+        tenant_name: toLower(tenant.name) as string,
+        tenant_status: toLower(tenant.status) as string,
         employees: transformedEmployees,
       });
     }

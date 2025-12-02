@@ -72,14 +72,26 @@ export class TeamController {
     @Res() res: Response,
     @Query('page') page?: string
   ) {
-    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-    const { items } = await this.teamService.findAll(tenantId, pageNumber);
+    // Fetch all pages of teams so CSV includes complete dataset (no pagination)
+    let pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
+    const allItems: any[] = [];
+
+    while (true) {
+      const { items, total, limit, totalPages } = await this.teamService.findAll(tenantId, pageNumber);
+      allItems.push(...(items || []));
+
+      if (!items.length || allItems.length >= total || pageNumber >= totalPages) {
+        break;
+      }
+
+      pageNumber += 1;
+    }
     
     // Flatten all team members including employee pool into rows
     const rows: any[] = [];
     let employeePoolProcessed = false;
     
-    for (const team of items) {
+    for (const team of allItems) {
       // Employee pool ko sirf ek baar process karo
       if (team.id === 'employee-pool') {
         if (employeePoolProcessed) {

@@ -159,7 +159,6 @@ export class SystemService {
   async exportSystemLogs(): Promise<string> {
     const logs = await this.systemLogRepo.find({
       order: { createdAt: "DESC" },
-      take: 1000,
     });
 
     if (!logs || logs.length === 0) {
