@@ -316,25 +316,51 @@ export class LeaveController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Download team leave requests as CSV (Manager only)' })
   async exportTeam(@Request() req: any, @Res() res: Response, @Query('page') page?: string) {
-    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-    const { items } = await this.leaveService.getTeamLeaves(req.user.id, req.user.tenant_id, pageNumber);
-    const rows = (items || []).map((l: any) => ({
-      id: l.id,
-      user_id: l.employeeId,
-      first_name: l.employee?.first_name || '',
-      last_name: l.employee?.last_name || '',
-      user_name: `${l.employee?.first_name || ''} ${l.employee?.last_name || ''}`.trim(),
-      leave_type: l.leaveType?.name || 'N/A',
-      start_date: l.startDate,
-      end_date: l.endDate,
-      total_days: l.totalDays,
-      status: l.status,
-      reason: l.reason,
-      applied_date: l.createdAt,
-      approved_by: l.approver?.first_name ? `${l.approver.first_name} ${l.approver.last_name}`.trim() : 'N/A',
-      approved_at: l.approvedAt || 'N/A',
-      remarks: l.remarks || 'N/A',
-    }));
+    // Fetch all pages of team leaves so CSV includes complete dataset (no pagination)
+    let currentPage = 1;
+    const rows: any[] = [];
+
+    while (true) {
+      const { items, total, limit } = await this.leaveService.getTeamLeaves(
+        req.user.id,
+        req.user.tenant_id,
+        currentPage
+      );
+
+      for (const l of items || []) {
+        rows.push({
+          id: l.id,
+          user_id: l.employeeId,
+          first_name: l.employee?.first_name || '',
+          last_name: l.employee?.last_name || '',
+          user_name: `${l.employee?.first_name || ''} ${l.employee?.last_name || ''}`.trim(),
+          leave_type: l.leaveType?.name || 'N/A',
+          start_date: l.startDate,
+          end_date: l.endDate,
+          total_days: l.totalDays,
+          status: l.status,
+          reason: l.reason,
+          applied_date: l.createdAt,
+          approved_by: l.approver?.first_name
+            ? `${l.approver.first_name} ${l.approver.last_name}`.trim()
+            : 'N/A',
+          approved_at: l.approvedAt || 'N/A',
+          remarks: l.remarks || 'N/A',
+        });
+      }
+
+      if (!items.length || rows.length >= total) {
+        break;
+      }
+
+      currentPage += 1;
+
+      // Safety: if last page returned fewer than limit, we are done
+      if (limit && items.length < limit) {
+        break;
+      }
+    }
+
     return sendCsvResponse(res, 'leaves-team.csv', rows);
   }
 

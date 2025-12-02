@@ -334,9 +334,27 @@ export class EmployeeController {
     @Query() query: EmployeeQueryDto,
     @Res() res: Response
   ) {
-    const pageNumber = 1;
-    const { items } = await this.service.findAll(tenant_id, query, pageNumber);
-    const rows = (items || []).map((e: any) => ({
+    // Fetch all pages of employees so CSV includes complete dataset (no pagination)
+    let pageNumber = 1;
+    const allItems: any[] = [];
+
+    while (true) {
+      const { items, total, limit } = await this.service.findAll(tenant_id, query, pageNumber);
+      allItems.push(...(items || []));
+
+      if (!items.length || allItems.length >= total) {
+        break;
+      }
+
+      pageNumber += 1;
+
+      // Safety: if last page returned fewer than limit, we are done
+      if (limit && items.length < limit) {
+        break;
+      }
+    }
+
+    const rows = (allItems || []).map((e: any) => ({
       id: e.id,
       user_id: e.user_id,
       first_name: e.user?.first_name,
