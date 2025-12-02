@@ -282,12 +282,14 @@ export class LeaveController {
     while (true) {
       const { items, total, limit } = await this.leaveService.getLeaves(req.user.id, page);
       for (const l of items) {
+        const empFirstName = l.employee?.first_name || req.user.first_name || '';
+        const empLastName = l.employee?.last_name || req.user.last_name || '';
         rows.push({
           id: l.id,
           user_id: req.user.id,
-          first_name: req.user.first_name || '',
-          last_name: req.user.last_name || '',
-          user_name: `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim(),
+          first_name: empFirstName,
+          last_name: empLastName,
+          user_name: `${empFirstName} ${empLastName}`.trim(),
           leave_type: l.leaveType?.name || 'N/A',
           start_date: l.startDate,
           end_date: l.endDate,

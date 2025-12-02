@@ -48,8 +48,34 @@ export class SystemController {
     example: 1,
     description: "Page number for pagination (default: 1)",
   })
-  async getSystemLogs(@Query("page") page: number = 1) {
-    return this.systemService.getSystemLogs(page);
+  @ApiQuery({
+    name: "userRole",
+    required: false,
+    type: String,
+    example: "admin",
+    description: "Filter logs by user role",
+  })
+  @ApiQuery({
+    name: "tenantId",
+    required: false,
+    type: String,
+    example: "uuid-of-tenant",
+    description: "Filter logs by tenant ID",
+  })
+  @ApiQuery({
+    name: "method",
+    required: false,
+    type: String,
+    example: "GET",
+    description: "Filter logs by HTTP method (GET, POST, PATCH, PUT, DELETE)",
+  })
+  async getSystemLogs(
+    @Query("page") page: number = 1,
+    @Query("userRole") userRole?: string,
+    @Query("tenantId") tenantId?: string,
+    @Query("method") method?: string,
+  ) {
+    return this.systemService.getSystemLogs(page, { userRole, tenantId, method });
   }
 
   @Get("logs/export")

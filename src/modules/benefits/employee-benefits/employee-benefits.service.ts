@@ -328,8 +328,12 @@ export class EmployeeBenefitsService {
    * @param tenantId - Optional tenant ID to filter by
    * @returns Employees grouped by tenant with all their benefits
    */
-  async getAllEmployeesWithBenefitsAcrossTenants(tenantId?: string): Promise<{
-    tenants: Array<{
+  async getAllEmployeesWithBenefitsAcrossTenants(
+    tenantId?: string,
+    page: number = 1,
+    limit: number = 25,
+  ): Promise<{
+    items: Array<{
       tenant_id: string;
       tenant_name: string;
       tenant_status: string;
@@ -359,16 +363,25 @@ export class EmployeeBenefitsService {
         }>;
       }>;
     }>;
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
   }> {
-    // Get tenants (filter by tenantId if provided)
+    // Build tenant filter
     const tenantWhere: any = { isDeleted: false };
     if (tenantId) {
       tenantWhere.id = tenantId;
     }
 
-    const tenants = await this.tenantRepo.find({
+    const skip = (page - 1) * limit;
+
+    // Paginate tenants
+    const [tenants, total] = await this.tenantRepo.findAndCount({
       where: tenantWhere,
       order: { name: 'ASC' },
+      skip,
+      take: limit,
     });
 
     const result: Array<{
@@ -450,7 +463,15 @@ export class EmployeeBenefitsService {
       });
     }
 
-    return { tenants: result };
+    const totalPages = Math.ceil(total / limit) || 1;
+
+    return {
+      items: result,
+      total,
+      page,
+      limit,
+      totalPages,
+    };
   }
 
 }
