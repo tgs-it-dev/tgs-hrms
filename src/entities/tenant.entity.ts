@@ -16,6 +16,7 @@ import { PerformanceReview } from "./performance-review.entity";
 import { Promotion } from "./promotion.entity";
 import { Asset } from "./asset.entity";
 import { Leave } from "./leave.entity";
+import { Designation } from "./designation.entity";
 
 @Entity("tenants")
 export class Tenant {
@@ -46,6 +47,9 @@ export class Tenant {
 
   @OneToMany(() => Department, (department) => department.tenant)
   departments: Department[];
+
+  @OneToMany(() => Designation, (designation) => designation.tenant)
+  designations: Designation[];
 
   @OneToMany(() => Benefit, (benefit) => benefit.tenant)
   benefits: Benefit[];

@@ -153,12 +153,33 @@ export class EmployeeBenefitsController {
     description: "Optional tenant ID to filter by",
     type: String,
   })
+  @ApiQuery({
+    name: "page",
+    required: false,
+    description: "Page number for pagination (default: 1)",
+    type: Number,
+  })
+  @ApiQuery({
+    name: "limit",
+    required: false,
+    description: "Items per page (default: 25, max: 100)",
+    type: Number,
+  })
   @ApiOkResponse({
-    description: "Returns all employees grouped by tenant with their benefits",
+    description: "Returns paginated employees grouped by tenant with their benefits",
   })
   async getAllEmployeesWithBenefitsAcrossTenants(
-    @Query("tenant_id") tenantId?: string
+    @Query("tenant_id") tenantId?: string,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string,
   ) {
-    return this.employeeBenefitsService.getAllEmployeesWithBenefitsAcrossTenants(tenantId);
+    const pageNumber = Math.max(1, parseInt(page || "1", 10) || 1);
+    const limitNumber = Math.min(100, Math.max(1, parseInt(limit || "25", 10) || 25));
+
+    return this.employeeBenefitsService.getAllEmployeesWithBenefitsAcrossTenants(
+      tenantId,
+      pageNumber,
+      limitNumber,
+    );
   }
 }

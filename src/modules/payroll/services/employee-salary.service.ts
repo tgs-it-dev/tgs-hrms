@@ -1,12 +1,14 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, In } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { EmployeeSalary } from '../../../entities/employee-salary.entity';
 import { Employee } from '../../../entities/employee.entity';
 import { Tenant } from '../../../entities/tenant.entity';
-import { CreateEmployeeSalaryDto, UpdateEmployeeSalaryDto } from '../dto/employee-salary.dto';
+import { CreateEmployeeSalaryDto, UpdateEmployeeSalaryDto, AllowanceItemDto, DeductionItemDto } from '../dto/employee-salary.dto';
 import { EmployeeStatus } from '../../../common/constants/enums';
 import { PaginationResponse } from '../../../common/interfaces/pagination.interface';
+import { PayrollConfigService } from './payroll-config.service';
+import { PayrollConfig } from '../../../entities/payroll-config.entity';
 
 @Injectable()
 export class EmployeeSalaryService {
@@ -17,10 +19,10 @@ export class EmployeeSalaryService {
     private readonly employeeRepo: Repository<Employee>,
     @InjectRepository(Tenant)
     private readonly tenantRepo: Repository<Tenant>,
+    private readonly payrollConfigService: PayrollConfigService,
   ) {}
 
   async create(tenantId: string, userId: string, dto: CreateEmployeeSalaryDto): Promise<EmployeeSalary> {
-
     const employee = await this.employeeRepo.findOne({
       where: { id: dto.employee_id },
       relations: ['user'],
@@ -38,7 +40,7 @@ export class EmployeeSalaryService {
       throw new BadRequestException('Can only assign salary to active employees');
     }
 
-  
+    // Close any existing active salary record for this employee
     const existingActiveSalary = await this.employeeSalaryRepo.findOne({
       where: {
         employee_id: dto.employee_id,
@@ -48,7 +50,6 @@ export class EmployeeSalaryService {
     });
 
     if (existingActiveSalary) {
-    
       existingActiveSalary.status = 'inactive';
       existingActiveSalary.endDate = new Date(dto.effectiveDate);
       existingActiveSalary.updated_by = userId;
@@ -71,7 +72,17 @@ export class EmployeeSalaryService {
     return await this.employeeSalaryRepo.save(salary);
   }
 
-  async getByEmployeeId(employeeId: string, tenantId: string): Promise<EmployeeSalary | null> {
+  async getByEmployeeId(
+    employeeId: string,
+    tenantId: string,
+  ): Promise<{
+    salary: EmployeeSalary | null;
+    defaults: {
+      baseSalary: number;
+      allowances: AllowanceItemDto[];
+      deductions: DeductionItemDto[];
+    };
+  }> {
     const salary = await this.employeeSalaryRepo.findOne({
       where: {
         employee_id: employeeId,
@@ -81,7 +92,9 @@ export class EmployeeSalaryService {
       relations: ['employee', 'employee.user'],
     });
 
-    return salary;
+    const defaults = await this.getSalaryTemplateForTenant(tenantId);
+
+    return { salary, defaults };
   }
 
   async getSalaryHistory(employeeId: string, tenantId: string): Promise<EmployeeSalary[]> {
@@ -227,5 +240,93 @@ export class EmployeeSalaryService {
       totalPages,
     };
   }
-}
 
+  /**
+   * Returns a default salary structure template for the tenant
+   * based on the tenant's payroll configuration. This is intended
+   * to be used by the UI to pre-fill employee salary structures.
+   *
+   * Behaviour:
+   * - All values are only defaults for the UI.
+   * - When creating/updating an employee salary, ONLY the allowances
+   *   and deductions actually sent in the DTO will be stored.
+   *   If some allowance/deduction exists in payroll config but is
+   *   not sent for a particular employee, it is treated as
+   *   "not applicable" for that employee.
+   */
+  async getSalaryTemplateForTenant(
+    tenantId: string,
+  ): Promise<{
+    baseSalary: number;
+    allowances: AllowanceItemDto[];
+    deductions: DeductionItemDto[];
+  }> {
+    let config: PayrollConfig | null = null;
+
+    try {
+      config = await this.payrollConfigService.getByTenantId(tenantId);
+    } catch {
+      // If tenant has no config yet, fall back to global defaults
+      const defaultConfig = await this.payrollConfigService.getDefaultConfig();
+      return {
+        baseSalary: defaultConfig.basePayComponents?.basic ?? 0,
+        allowances: (defaultConfig.allowances || []).map((a: any) => ({
+          type: a.type,
+          amount: a.amount,
+          percentage: a.percentage,
+          description: a.description,
+        })),
+        // coalesce to null to satisfy strict typing
+        deductions: this.mapConfigDeductionsToSalaryItems(defaultConfig.deductions || null),
+      };
+    }
+
+    return {
+      baseSalary: config.basePayComponents?.basic ?? 0,
+      allowances: (config.allowances || []).map((a: any) => ({
+        type: a.type,
+        amount: a.amount,
+        percentage: a.percentage,
+        description: a.description,
+      })),
+      // coalesce to null to satisfy strict typing
+      deductions: this.mapConfigDeductionsToSalaryItems(config.deductions || null),
+    };
+  }
+
+  /**
+   * Maps the payroll config's percentage-based deductions object
+   * to the per-employee salary deductions array structure.
+   * These are only defaults – HR can remove/override them per employee.
+   */
+  private mapConfigDeductionsToSalaryItems(
+    configDeductions: PayrollConfig['deductions'] | null,
+  ): DeductionItemDto[] {
+    if (!configDeductions) return [];
+
+    const items: DeductionItemDto[] = [];
+
+    if (configDeductions.taxPercentage !== undefined) {
+      items.push({
+        type: 'tax',
+        percentage: configDeductions.taxPercentage,
+      });
+    }
+
+    if (configDeductions.insurancePercentage !== undefined) {
+      items.push({
+        type: 'insurance',
+        percentage: configDeductions.insurancePercentage,
+      });
+    }
+
+    if (configDeductions.providentFundPercentage !== undefined) {
+      items.push({
+        type: 'provident_fund',
+        percentage: configDeductions.providentFundPercentage,
+      });
+    }
+
+    return items;
+  }
+}

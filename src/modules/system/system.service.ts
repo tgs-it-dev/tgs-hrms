@@ -101,16 +101,42 @@ export class SystemService {
   }
 
   /**
-   * Paginated system logs
+   * Paginated system logs with optional filters
+   * Filters:
+   * - userRole: filter by user role who triggered the log
+   * - tenantId: filter by tenant
+   * - method: HTTP method (GET, POST, PATCH, PUT, DELETE, etc.)
    */
-  async getSystemLogs(page: number = 1) {
-    const skip = (page - 1) * 25;
+  async getSystemLogs(
+    page: number = 1,
+    filters?: {
+      userRole?: string;
+      tenantId?: string;
+      method?: string;
+    },
+  ) {
+    const take = 25;
+    const skip = (page - 1) * take;
 
-    const logs = await this.systemLogRepo.find({
-      order: { createdAt: "DESC" },
-      skip,
-      take: 25,
-    });
+    const query = this.systemLogRepo
+      .createQueryBuilder("log")
+      .orderBy("log.createdAt", "DESC")
+      .skip(skip)
+      .take(take);
+
+    if (filters?.userRole) {
+      query.andWhere("log.userRole = :userRole", { userRole: filters.userRole });
+    }
+
+    if (filters?.tenantId) {
+      query.andWhere("log.tenantId = :tenantId", { tenantId: filters.tenantId });
+    }
+
+    if (filters?.method) {
+      query.andWhere("log.method = :method", { method: filters.method.toUpperCase() });
+    }
+
+    const logs = await query.getMany();
 
     return logs.map((log) => ({
       id: log.id,
@@ -218,14 +244,14 @@ export class SystemService {
       .orderBy("month", "ASC")
       .getRawMany();
 
-    // Designations: New designations created per month
+    // Designations: New designations created per month (tenant-based)
     const designationMonthlyAdditions = await this.designationRepo
       .createQueryBuilder("designation")
       .innerJoin("designation.department", "department")
       .select("TO_CHAR(designation.created_at, 'YYYY-MM')", "month")
       .addSelect("COUNT(designation.id)", "count")
       .where("EXTRACT(YEAR FROM designation.created_at) = :year", { year })
-      .andWhere("department.tenant_id = :tenant_id", { tenant_id })
+      .andWhere("designation.tenant_id = :tenant_id", { tenant_id })
       .groupBy("month")
       .orderBy("month", "ASC")
       .getRawMany();
@@ -248,7 +274,7 @@ export class SystemService {
       .createQueryBuilder("designation")
       .innerJoin("designation.department", "department")
       .where("EXTRACT(YEAR FROM designation.created_at) < :year", { year })
-      .andWhere("department.tenant_id = :tenant_id", { tenant_id })
+      .andWhere("designation.tenant_id = :tenant_id", { tenant_id })
       .getCount();
 
     // Initialize cumulative counters with baseline

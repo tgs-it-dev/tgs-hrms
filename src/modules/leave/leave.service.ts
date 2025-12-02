@@ -35,7 +35,35 @@ export class LeaveService {
     
     const startDate = new Date(dto.startDate);
     const endDate = new Date(dto.endDate);
-    const totalDays = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+    if (endDate < startDate) {
+      throw new ForbiddenException('End date cannot be before start date');
+    }
+
+    
+    const overlappingLeave = await this.leaveRepo
+      .createQueryBuilder('leave')
+      .where('leave.employeeId = :employeeId', { employeeId })
+      .andWhere('leave.tenantId = :tenantId', { tenantId })
+      .andWhere('leave.status IN (:...statuses)', {
+        statuses: [LeaveStatus.PENDING, LeaveStatus.APPROVED],
+      })
+      .andWhere('leave.startDate <= :endDate', { endDate })
+      .andWhere('leave.endDate >= :startDate', { startDate })
+      .getOne();
+
+    if (overlappingLeave) {
+      throw new ForbiddenException(
+        'You already have a leave request that overlaps with these dates',
+      );
+    }
+
+    // Calculate working days only (exclude weekends)
+    const totalDays = this.calculateWorkingDays(startDate, endDate);
+
+    if (totalDays <= 0) {
+      throw new ForbiddenException('Leave cannot be applied only for weekends');
+    }
 
     
     const usedDays = await this.getUsedLeaveDays(employeeId, dto.leaveTypeId);
@@ -112,16 +140,23 @@ export class LeaveService {
   }> {
     const limit = 25;
     const skip = (page - 1) * limit;
-    let query = this.leaveRepo.createQueryBuilder('leave');
+
+    let query = this.leaveRepo
+      .createQueryBuilder('leave')
+      .leftJoinAndSelect('leave.leaveType', 'leaveType')
+      .leftJoinAndSelect('leave.approver', 'approver')
+      .leftJoinAndSelect('leave.employee', 'employee');
+
     if (user_id) {
       query = query.where('leave.employeeId = :user_id', { user_id });
     }
+
     const [items, total] = await query
-      .leftJoinAndSelect('leave.leaveType', 'leaveType')
       .orderBy('leave.createdAt', 'DESC')
       .skip(skip)
       .take(limit)
       .getManyAndCount();
+
     const totalPages = Math.ceil(total / limit);
   
     let leavesLeft: number | undefined = undefined;
@@ -130,6 +165,7 @@ export class LeaveService {
       leavesLeft = 21 - taken;
       if (leavesLeft < 0) leavesLeft = 0;
     }
+
     return {
       items,
       total,
@@ -290,7 +326,29 @@ export class LeaveService {
     return { totalLeaves: leavesCount };
   }
 
-  
+  /**
+   * Calculates number of working days (Mon–Fri) between two dates inclusive.
+   * Weekends (Saturday, Sunday) are excluded from the count.
+   */
+  private calculateWorkingDays(startDate: Date, endDate: Date): number {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    // Normalize time to midnight to avoid timezone/time issues
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+
+    let workingDays = 0;
+    while (start <= end) {
+      const day = start.getDay(); // 0 = Sun, 6 = Sat
+      if (day !== 0 && day !== 6) {
+        workingDays++;
+      }
+      start.setDate(start.getDate() + 1);
+    }
+
+    return workingDays;
+  }
+
   private async getManagerTeamMemberUserIds(
     managerId: string,
     tenantId: string
