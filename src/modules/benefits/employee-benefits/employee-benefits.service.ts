@@ -368,8 +368,9 @@ export class EmployeeBenefitsService {
     limit: number;
     totalPages: number;
   }> {
-    const toLower = (value: string | null | undefined): string | null | undefined =>
-      typeof value === 'string' ? value.toLowerCase() : value;
+    const toLowerStrict = (value: string): string => value.toLowerCase();
+    const toLowerOrNull = (value: string | null | undefined): string | null =>
+      typeof value === 'string' ? value.toLowerCase() : null;
 
     // Build tenant filter
     const tenantWhere: any = { isDeleted: false };
@@ -434,23 +435,23 @@ export class EmployeeBenefitsService {
       // Transform employees data
       const transformedEmployees = employees.map((e) => ({
         employeeId: e.id,
-        employeeName: toLower(`${e.user.first_name} ${e.user.last_name}`),
-        email: toLower(e.user.email),
+        employeeName: toLowerStrict(`${e.user.first_name} ${e.user.last_name}`),
+        email: toLowerStrict(e.user.email),
         profile_pic: e.user.profile_pic,
-        department: toLower(e.designation?.department?.name || null),
-        designation: toLower(e.designation?.title || null),
+        department: toLowerOrNull(e.designation?.department?.name),
+        designation: toLowerOrNull(e.designation?.title),
         benefits: (e.employeeBenefits || []).map((b) => ({
           id: b.benefit.id,
-          name: toLower(b.benefit.name),
-          description: toLower(b.benefit.description),
-          type: toLower(b.benefit.type),
-          eligibilityCriteria: toLower(b.benefit.eligibilityCriteria),
-          status: toLower(b.benefit.status),
+          name: toLowerStrict(b.benefit.name),
+          description: toLowerOrNull(b.benefit.description),
+          type: toLowerStrict(b.benefit.type),
+          eligibilityCriteria: toLowerOrNull(b.benefit.eligibilityCriteria),
+          status: toLowerStrict(b.benefit.status),
           tenant_id: b.benefit.tenant_id,
           createdBy: b.benefit.createdBy,
           createdAt: b.benefit.createdAt,
           benefitAssignmentId: b.id,
-          statusOfAssignment: toLower(b.status),
+          statusOfAssignment: toLowerStrict(b.status),
           startDate: b.startDate,
           endDate: b.endDate,
           assignedBy: b.assignedBy,
@@ -460,8 +461,8 @@ export class EmployeeBenefitsService {
 
       result.push({
         tenant_id: tenant.id,
-        tenant_name: toLower(tenant.name) as string,
-        tenant_status: toLower(tenant.status) as string,
+        tenant_name: toLowerStrict(tenant.name),
+        tenant_status: toLowerStrict(tenant.status),
         employees: transformedEmployees,
       });
     }
