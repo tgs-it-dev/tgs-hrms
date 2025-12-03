@@ -337,6 +337,7 @@ export class PayrollRecordService {
     startDate: Date,
     endDate: Date,
   ): Promise<{ paidLeaves: number; unpaidLeaves: number }> {
+    // All approved leaves for this employee (we'll filter by year/day below)
     const leaves = await this.leaveRepo.find({
       where: {
         employeeId: userId,
@@ -346,28 +347,93 @@ export class PayrollRecordService {
       relations: ['leaveType'],
     });
 
+    // We enforce annual entitlement per calendar year
+    const targetYear = startDate.getFullYear();
+
+    type DayEntry = {
+      date: Date;
+      leaveTypeId: string;
+      leaveTypeName: string;
+      isPaidType: boolean;
+      maxDaysPerYear: number | null;
+    };
+
+    const dayEntries: DayEntry[] = [];
+
+    for (const leave of leaves) {
+      if (!leave.startDate) continue;
+      const leaveStart = new Date(leave.startDate);
+      const leaveEnd = new Date(leave.endDate || leave.startDate);
+      leaveStart.setHours(0, 0, 0, 0);
+      leaveEnd.setHours(0, 0, 0, 0);
+
+      for (
+        let d = new Date(leaveStart.getTime());
+        d <= leaveEnd;
+        d = new Date(d.getTime() + 24 * 60 * 60 * 1000)
+      ) {
+        if (d.getFullYear() !== targetYear) continue;
+
+        dayEntries.push({
+          date: new Date(d.getTime()),
+          leaveTypeId: leave.leaveTypeId,
+          leaveTypeName: leave.leaveType?.name || '',
+          isPaidType:
+            leave.leaveType?.isPaid === undefined ? true : !!leave.leaveType.isPaid,
+          maxDaysPerYear:
+            typeof leave.leaveType?.maxDaysPerYear === 'number'
+              ? leave.leaveType.maxDaysPerYear
+              : null,
+        });
+      }
+    }
+
+    if (!dayEntries.length) {
+      return { paidLeaves: 0, unpaidLeaves: 0 };
+    }
+
+    // Sort all leave days chronologically within the year
+    dayEntries.sort((a, b) => a.date.getTime() - b.date.getTime());
+
     let paidLeaves = 0;
     let unpaidLeaves = 0;
 
-    for (const leave of leaves) {
-      // Check if leave overlaps with the payroll period
-      const leaveStart = new Date(leave.startDate);
-      const leaveEnd = new Date(leave.endDate);
-      
-      // Check overlap: leave starts before/at period end AND leave ends after/at period start
-      if (leaveStart <= endDate && leaveEnd >= startDate) {
-        // Calculate days within the payroll period
-        const overlapStart = leaveStart > startDate ? leaveStart : startDate;
-        const overlapEnd = leaveEnd < endDate ? leaveEnd : endDate;
-        const overlapDays = Math.floor(
-          (overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24),
-        ) + 1;
+    // Track how many "annual" leave days have been used so far in the year per leave type
+    const annualUsedPerType: Record<string, number> = {};
 
-        const isPaidType = leave.leaveType?.isPaid === undefined ? true : !!leave.leaveType.isPaid;
-        if (isPaidType) {
-          paidLeaves += overlapDays;
+    for (const entry of dayEntries) {
+      const isAnnual =
+        entry.leaveTypeName.toLowerCase().includes('annual') ||
+        entry.leaveTypeName.toLowerCase().includes('annual leave');
+
+      let isPaidForThisDay = false;
+
+      if (!entry.isPaidType) {
+        // Explicitly unpaid leave type → always unpaid
+        isPaidForThisDay = false;
+      } else if (isAnnual && entry.maxDaysPerYear && entry.maxDaysPerYear > 0) {
+        // Annual leave: only up to maxDaysPerYear are paid, rest are unpaid
+        const key = entry.leaveTypeId || 'annual';
+        const usedSoFar = annualUsedPerType[key] || 0;
+        const nextCount = usedSoFar + 1;
+        annualUsedPerType[key] = nextCount;
+
+        if (nextCount <= entry.maxDaysPerYear) {
+          isPaidForThisDay = true;
         } else {
-          unpaidLeaves += overlapDays;
+          isPaidForThisDay = false;
+        }
+      } else {
+        // Other paid leave types remain fully paid regardless of count
+        isPaidForThisDay = entry.isPaidType;
+      }
+
+      // Only count days that fall within the current payroll period
+      if (entry.date >= startDate && entry.date <= endDate) {
+        if (isPaidForThisDay) {
+          paidLeaves += 1;
+        } else {
+          unpaidLeaves += 1;
         }
       }
     }

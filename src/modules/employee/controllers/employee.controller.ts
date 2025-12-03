@@ -368,6 +368,46 @@ export class EmployeeController {
     return sendCsvResponse(res, 'employees.csv', rows);
   }
 
+  @Get('system/export')
+  @Roles('system-admin')
+  @Permissions('manage_employees')
+  @ApiOperation({ summary: 'Download employees for all tenants as CSV (System-admin only)' })
+  @ApiQuery({
+    name: 'tenantId',
+    required: false,
+    description: 'Optional tenant ID to filter employees for a specific tenant',
+    example: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
+  })
+  async exportForSystemAdmin(
+    @Query('tenantId') tenantId: string | undefined,
+    @Res() res: Response,
+  ) {
+    const items = await this.service.getAllEmployeesForSystemAdmin(tenantId);
+
+    const rows = (items || []).map((e: any) => ({
+      tenant_id: e.user?.tenant?.id,
+      tenant_name: e.user?.tenant?.name,
+      tenant_status: e.user?.tenant?.status,
+      employee_id: e.id,
+      user_id: e.user_id,
+      first_name: e.user?.first_name,
+      last_name: e.user?.last_name,
+      email: e.user?.email,
+      phone: e.user?.phone,
+      designation: e.designation?.title,
+      department: e.designation?.department?.name,
+      team: e.team?.name,
+      status: e.status,
+      invite_status: e.invite_status,
+      created_at: e.created_at,
+    }));
+
+    const filename = tenantId
+      ? `employees-tenant-${tenantId}.csv`
+      : 'employees-all-tenants.csv';
+    return sendCsvResponse(res, filename, rows);
+  }
+
   @Get('joining-report')
   @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('view_reports', 'view_team_reports')

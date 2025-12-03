@@ -459,4 +459,79 @@ export class AttendanceController {
     
     return sendCsvResponse(res, 'attendance-all.csv', rows);
   }
+
+  @Get('export/system')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('system-admin')
+  @Permissions('manage_attendance')
+  @ApiOperation({
+    summary: 'Download attendance for all tenants as CSV (System-admin only)',
+  })
+  @ApiQuery({
+    name: 'tenantId',
+    required: false,
+    type: String,
+    description: 'Optional tenant ID to filter attendance for a specific tenant',
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    type: String,
+    description: 'Optional start date filter (ISO date string, e.g., 2024-01-01)',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    type: String,
+    description: 'Optional end date filter (ISO date string, e.g., 2024-01-31)',
+  })
+  async exportSystem(
+    @Res() res: Response,
+    @Query('tenantId') tenantId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    const { tenants } = await this.attendanceService.getAttendanceByTenant(
+      tenantId,
+      startDate,
+      endDate,
+    );
+
+    const rows: any[] = [];
+
+    for (const tenant of tenants || []) {
+      for (const employee of tenant.employees || []) {
+        const userName = `${employee.first_name || ''} ${employee.last_name || ''}`.trim();
+        for (const record of employee.attendance || []) {
+          rows.push({
+            tenant_id: tenant.tenant_id,
+            tenant_name: tenant.tenant_name,
+            tenant_status: tenant.tenant_status,
+            user_id: employee.user_id,
+            user_name: userName,
+            first_name: employee.first_name,
+            last_name: employee.last_name,
+            email: employee.email,
+            date: record.date,
+            check_in: record.checkIn,
+            check_out: record.checkOut,
+            worked_hours: record.workedHours,
+            total_days_worked: employee.totalDaysWorked,
+            total_hours_worked: employee.totalHoursWorked,
+          });
+        }
+      }
+    }
+
+    rows.sort((a, b) => {
+      const tenantCompare = (a.tenant_name || '').localeCompare(b.tenant_name || '');
+      if (tenantCompare !== 0) return tenantCompare;
+      const userCompare = (a.user_name || '').localeCompare(b.user_name || '');
+      if (userCompare !== 0) return userCompare;
+      return new Date(b.date).getTime() - new Date(a.date).getTime();
+    });
+
+    const filename = tenantId ? `attendance-tenant-${tenantId}.csv` : 'attendance-all-tenants.csv';
+    return sendCsvResponse(res, filename, rows);
+  }
 }

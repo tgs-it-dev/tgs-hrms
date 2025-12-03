@@ -19,7 +19,7 @@ export class DesignationController {
   constructor(private service: DesignationService) {}
 
   @Post()
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('manage_designations')
   @ApiOperation({ summary: 'Create designation' })
   @ApiResponse({ status: 201, description: 'Designation created.' })
@@ -39,7 +39,7 @@ export class DesignationController {
   }
 
   @Put(':id')
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin' , 'hr-admin')
   @Permissions('manage_designations')
   @ApiOperation({ summary: 'Update designation' })
   @ApiResponse({ status: 200, description: 'Designation updated.' })
