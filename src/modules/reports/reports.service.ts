@@ -182,34 +182,42 @@ export class ReportsService {
       informedLeaveDaysByUser[lv.employeeId] = (informedLeaveDaysByUser[lv.employeeId] || 0) + count;
     }
 
-    // Compute total business days in range
-    const businessDaysInRange = (() => {
+    // Helper to compute business days (Mon-Fri) between two dates, inclusive
+    const computeBusinessDays = (start: Date, end: Date): number => {
       let count = 0;
       const dayMs = 24 * 60 * 60 * 1000;
-      const s = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()));
-      const e = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()));
+      const s = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()));
+      const e = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate()));
       for (let d = s; d <= e; d = new Date(d.getTime() + dayMs)) {
         const dow = d.getUTCDay();
         if (dow !== 0 && dow !== 6) count++;
       }
       return count;
-    })();
+    };
 
-    // Build response
+    // Build response (respect employee joining date)
     const items = employees.map((emp) => {
       const uid = emp.user_id;
-      const workingDays = (workedDaysByUser[uid]?.size || 0);
+      const workedDays = (workedDaysByUser[uid]?.size || 0);
       const informedLeaves = informedLeaveDaysByUser[uid] || 0;
       const otherLeaves = otherLeaveDaysByUser[uid] || 0;
       const totalLeaves = informedLeaves + otherLeaves;
-      
+
+      // Start counting working days from the later of global startDate or employee joining date
+      const employeeStartDate =
+        emp.created_at && emp.created_at > startDate ? emp.created_at : startDate;
+      const businessDaysInRangeForEmployee = computeBusinessDays(employeeStartDate, endDate);
+
       // Absents are days with no check-in (excluding weekends)
-      const absentDays = Math.max(businessDaysInRange - workingDays - totalLeaves, 0);
-      
+      const absentDays = Math.max(
+        businessDaysInRangeForEmployee - workedDays - totalLeaves,
+        0,
+      );
+
       return {
         employeeName: `${emp.user?.first_name || ''} ${emp.user?.last_name || ''}`.trim(),
-        workingDays: businessDaysInRange, // Total working days in the period
-        presents: workingDays, // Days with check-in
+        workingDays: businessDaysInRangeForEmployee, // Total working days in the period (from joining date)
+        presents: workedDays, // Days with check-in
         absents: absentDays, // Days with no check-in (excluding weekends)
         informedLeaves: informedLeaves, // Informed leave days
         department: emp.designation?.department?.name || null,
@@ -303,27 +311,34 @@ export class ReportsService {
         }
         informedLeaveDaysByUser[lv.employeeId] = (informedLeaveDaysByUser[lv.employeeId] || 0) + count;
       }
-      // Business days in range
-      const businessDaysInRange = (() => {
+      // Helper to compute business days (Mon-Fri) between two dates, inclusive
+      const computeBusinessDays = (start: Date, end: Date): number => {
         let count = 0;
         const dayMs = 24 * 60 * 60 * 1000;
-        const s = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()));
-        const e = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()));
+        const s = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()));
+        const e = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate()));
         for (let d = s; d <= e; d = new Date(d.getTime() + dayMs)) {
           const dow = d.getUTCDay();
           if (dow !== 0 && dow !== 6) count++;
         }
         return count;
-      })();
-      // Build response
+      };
+
+      // Build response (respect employee joining date)
       return employees.map((emp) => {
         const uid = emp.user_id;
         const presents = (workedDaysByUser[uid]?.size || 0);
         const informedLeaves = informedLeaveDaysByUser[uid] || 0;
-        const absents = Math.max(businessDaysInRange - presents - informedLeaves, 0);
+
+        // Start counting working days from the later of range startDate or employee joining date
+        const employeeStartDate =
+          emp.created_at && emp.created_at > startDate ? emp.created_at : startDate;
+        const businessDaysInRangeForEmployee = computeBusinessDays(employeeStartDate, endDate);
+
+        const absents = Math.max(businessDaysInRangeForEmployee - presents - informedLeaves, 0);
         return {
           employeeName: `${emp.user?.first_name || ''} ${emp.user?.last_name || ''}`.trim(),
-          workingDays: businessDaysInRange,
+          workingDays: businessDaysInRangeForEmployee,
           presents,
           absents,
           informedLeaves,
@@ -406,18 +421,6 @@ export class ReportsService {
       }
       informedLeaveDaysByUser[lv.employeeId] = (informedLeaveDaysByUser[lv.employeeId] || 0) + count;
     }
-    // Business days in range
-    const businessDaysInRange = (() => {
-      let count = 0;
-      const dayMs = 24 * 60 * 60 * 1000;
-      const s = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()));
-      const e = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()));
-      for (let d = s; d <= e; d = new Date(d.getTime() + dayMs)) {
-        const dow = d.getUTCDay();
-        if (dow !== 0 && dow !== 6) count++;
-      }
-      return count;
-    })();
     // Build response
     const leaveDaysByUser: Record<string, Set<string>> = {};
     for (const lv of approvedLeaves) {
@@ -439,36 +442,51 @@ export class ReportsService {
         }
       }
     }
+    // Helper to compute business days (Mon-Fri) and their dates between two dates, inclusive
+    const computeBusinessDaysWithDates = (
+      start: Date,
+      end: Date,
+    ): { count: number; days: string[] } => {
+      let count = 0;
+      const days: string[] = [];
+      const dayMs = 24 * 60 * 60 * 1000;
+      const s = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()));
+      const e = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate()));
+      for (let d = s; d <= e; d = new Date(d.getTime() + dayMs)) {
+        const dow = d.getUTCDay();
+        if (dow !== 0 && dow !== 6) {
+          count++;
+          days.push(d.toISOString().split('T')[0]);
+        }
+      }
+      return { count, days };
+    };
+
     return employees.map((emp) => {
       const uid = emp.user_id;
       const presents = (workedDaysByUser[uid]?.size || 0);
       const informedLeaves = informedLeaveDaysByUser[uid] || 0;
-      const absents = Math.max(businessDaysInRange - presents - informedLeaves, 0);
 
-      // Calculate all business days dates in range
-      const businessDays: string[] = [];
-      const dayMs = 24 * 60 * 60 * 1000;
-      const s = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()));
-      const e = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()));
-      for (let d = s; d <= e; d = new Date(d.getTime() + dayMs)) {
-        const dow = d.getUTCDay();
-        if (dow !== 0 && dow !== 6) {
-          businessDays.push(d.toISOString().split('T')[0]);
-        }
-      }
+      // Start counting working days from the later of range startDate or employee joining date
+      const employeeStartDate =
+        emp.created_at && emp.created_at > startDate ? emp.created_at : startDate;
+      const { count: businessDaysInRangeForEmployee, days: businessDaysForEmployee } =
+        computeBusinessDaysWithDates(employeeStartDate, endDate);
+
+      const absents = Math.max(businessDaysInRangeForEmployee - presents - informedLeaves, 0);
 
       // Get present days
       const presentDays = workedDaysByUser[uid] || new Set<string>();
       // Get leave days
       const leaveDays = leaveDaysByUser[uid] || new Set<string>();
       // Absent = in businessDays but not in presentDays and not in leaveDays
-      const absentDates = businessDays.filter(
-        date => !presentDays.has(date) && !leaveDays.has(date)
+      const absentDates = businessDaysForEmployee.filter(
+        (date) => !presentDays.has(date) && !leaveDays.has(date),
       );
 
       return {
         employeeName: `${emp.user?.first_name || ''} ${emp.user?.last_name || ''}`.trim(),
-        workingDays: businessDaysInRange,
+        workingDays: businessDaysInRangeForEmployee,
         presents,
         absents,
         informedLeaves,
@@ -563,11 +581,11 @@ export class ReportsService {
           totalUsedThisMonth++;
         }
       }
-      // Remaining annual
+      // Remaining annual (can go negative if employee has used more than entitlement)
       const remaining: Record<string, number> = {};
       let totalRemaining = 0;
       for (const cat of CATEGORIES) {
-        remaining[cat] = Math.max(ANNUAL_ENTITLEMENT[cat] - used[cat], 0);
+        remaining[cat] = ANNUAL_ENTITLEMENT[cat] - used[cat];
         totalRemaining += remaining[cat];
       }
       // Compose response

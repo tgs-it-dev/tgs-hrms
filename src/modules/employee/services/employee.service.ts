@@ -901,5 +901,25 @@ export class EmployeeService implements OnModuleInit {
     return contentTypes[ext] || 'application/octet-stream';
   }
 
+  async getAllEmployeesForSystemAdmin(tenantId?: string) {
+    const qb = this.employeeRepo
+      .createQueryBuilder('employee')
+      .leftJoinAndSelect('employee.user', 'user')
+      .leftJoinAndSelect('user.tenant', 'tenant')
+      .leftJoinAndSelect('employee.designation', 'designation')
+      .leftJoinAndSelect('designation.department', 'department')
+      .leftJoinAndSelect('employee.team', 'team');
 
+    if (tenantId) {
+      qb.where('user.tenant_id = :tenantId', { tenantId });
+    }
+
+    const items = await qb
+      .orderBy('tenant.name', 'ASC')
+      .addOrderBy('user.first_name', 'ASC')
+      .addOrderBy('user.last_name', 'ASC')
+      .getMany();
+
+    return items;
+  }
 }

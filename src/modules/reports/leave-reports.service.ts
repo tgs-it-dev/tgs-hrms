@@ -52,7 +52,8 @@ export class LeaveReportsService {
           .getMany();
 
         const used = leaves.reduce((total, leave) => total + leave.totalDays, 0);
-        const remaining = Math.max(0, leaveType.maxDaysPerYear - used);
+        // Allow remaining to go negative if usage exceeds entitlement
+        const remaining = leaveType.maxDaysPerYear - used;
 
         return {
           type: leaveType.name,
@@ -68,6 +69,8 @@ export class LeaveReportsService {
       summary,
     };
   }
+
+  // Monthly usage is now handled via optional month/year filters in getLeaveBalance
 
   async getTeamLeaveSummary(managerId: string, month: number, year: number, tenantId: string) {
     // Verify manager exists and belongs to tenant
@@ -135,7 +138,12 @@ export class LeaveReportsService {
     };
   }
 
-  async getLeaveBalance(employeeId: string, tenantId: string) {
+  async getLeaveBalance(
+    employeeId: string,
+    tenantId: string,
+    year?: number,
+    month?: number,
+  ) {
     // Verify employee exists and belongs to tenant
     const employee = await this.userRepo.findOne({
       where: { id: employeeId, tenant_id: tenantId },
@@ -145,9 +153,21 @@ export class LeaveReportsService {
       throw new NotFoundException('Employee not found');
     }
 
-    const currentYear = new Date().getFullYear();
-    const startOfYear = new Date(currentYear, 0, 1, 0, 0, 0, 0);
-    const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+    const now = new Date();
+    const targetYear = year ?? now.getFullYear();
+
+    // Year range (always used for balance / remaining)
+    const startOfYear = new Date(targetYear, 0, 1, 0, 0, 0, 0);
+    const endOfYear = new Date(targetYear, 11, 31, 23, 59, 59, 999);
+
+    // Optional month range just for "usedThisMonth"
+    let monthStart: Date | undefined;
+    let monthEnd: Date | undefined;
+    const validMonth = month && month >= 1 && month <= 12;
+    if (validMonth) {
+      monthStart = new Date(targetYear, month! - 1, 1, 0, 0, 0, 0);
+      monthEnd = new Date(targetYear, month!, 0, 23, 59, 59, 999);
+    }
 
     // Get all leave types for the tenant
     const leaveTypes = await this.leaveTypeRepo.find({
@@ -157,8 +177,8 @@ export class LeaveReportsService {
     // Calculate balance for each leave type
     const balances = await Promise.all(
       leaveTypes.map(async (leaveType) => {
-        // Use QueryBuilder for more reliable date range queries
-        const leaves = await this.leaveRepo
+        // All approved leaves for this type in the whole year
+        const yearLeaves = await this.leaveRepo
           .createQueryBuilder('leave')
           .where('leave.employeeId = :employeeId', { employeeId })
           .andWhere('leave.leaveTypeId = :leaveTypeId', { leaveTypeId: leaveType.id })
@@ -167,14 +187,28 @@ export class LeaveReportsService {
           .andWhere('leave.startDate <= :endOfYear', { endOfYear })
           .getMany();
 
-        const used = leaves.reduce((total, leave) => total + leave.totalDays, 0);
-        const remaining = Math.max(0, leaveType.maxDaysPerYear - used);
+        const usedYear = yearLeaves.reduce((total, leave) => total + leave.totalDays, 0);
+
+        let usedThisMonth = 0;
+        if (validMonth && monthStart && monthEnd) {
+          usedThisMonth = yearLeaves
+            .filter(
+              (l) =>
+                l.startDate >= monthStart! &&
+                l.startDate <= monthEnd!,
+            )
+            .reduce((total, leave) => total + leave.totalDays, 0);
+        }
+
+        // Remaining is always based on annual usage
+        const remaining = leaveType.maxDaysPerYear - usedYear;
 
         return {
           leaveTypeId: leaveType.id,
           leaveTypeName: leaveType.name,
           maxDaysPerYear: leaveType.maxDaysPerYear,
-          used,
+          used: usedYear,
+          ...(validMonth ? { usedThisMonth } : {}),
           remaining,
           carryForward: leaveType.carryForward,
         };
@@ -183,15 +217,27 @@ export class LeaveReportsService {
 
     return {
       employeeId,
-      year: currentYear,
+      year: targetYear,
+      ...(validMonth ? { month } : {}),
       balances,
     };
   }
 
-  async getAllLeaveReports(tenantId: string, page: number = 1) {
+  async getAllLeaveReports(tenantId: string, page: number = 1, month?: number) {
     const currentYear = new Date().getFullYear();
-    const startOfYear = new Date(currentYear, 0, 1);
-    const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+
+    let startDate: Date;
+    let endDate: Date;
+
+    if (month && month >= 1 && month <= 12) {
+      // Specific month range within current year
+      startDate = new Date(currentYear, month - 1, 1);
+      endDate = new Date(currentYear, month, 0, 23, 59, 59, 999);
+    } else {
+      // Full year range
+      startDate = new Date(currentYear, 0, 1);
+      endDate = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+    }
     const limit = 25;
     const skip = (page - 1) * limit;
 
@@ -226,7 +272,7 @@ export class LeaveReportsService {
       .createQueryBuilder('leave')
       .leftJoinAndSelect('leave.leaveType', 'leaveType')
       .leftJoinAndSelect('leave.employee', 'employee')
-      .where('leave.startDate BETWEEN :startDate AND :endDate', { startDate: startOfYear, endDate: endOfYear })
+      .where('leave.startDate BETWEEN :startDate AND :endDate', { startDate, endDate })
       .andWhere('leave.employeeId IN (:...allEmployeeIds)', { allEmployeeIds })
       .getMany();
 
@@ -270,7 +316,8 @@ export class LeaveReportsService {
             pendingDays,
             rejectedDays,
             maxDaysPerYear: leaveType.maxDaysPerYear,
-            remainingDays: Math.max(0, leaveType.maxDaysPerYear - approvedDays),
+            // Allow negative remaining if approvedDays exceed entitlement
+            remainingDays: leaveType.maxDaysPerYear - approvedDays,
           };
         });
 
@@ -366,8 +413,16 @@ export class LeaveReportsService {
     return {
       period: {
         year: currentYear,
-        startDate: startOfYear,
-        endDate: endOfYear,
+        ...(month && month >= 1 && month <= 12
+          ? {
+              month,
+              startDate,
+              endDate,
+            }
+          : {
+              startDate,
+              endDate,
+            }),
       },
       organizationStats: orgStats,
       employeeReports: {

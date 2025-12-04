@@ -78,9 +78,18 @@ export class LeaveReportsController {
   })
   async getLeaveBalance(
     @Query('employeeId') employeeId: string,
+    @Query('year') year: string,
+    @Query('month') month: string,
     @Request() req: any
   ) {
-    return this.leaveReportsService.getLeaveBalance(employeeId, req.user.tenant_id);
+    const yearNumber = year ? parseInt(year, 10) : undefined;
+    const monthNumber = month ? parseInt(month, 10) : undefined;
+    return this.leaveReportsService.getLeaveBalance(
+      employeeId,
+      req.user.tenant_id,
+      yearNumber,
+      monthNumber,
+    );
   }
 
   // CSV Export: Yearly leave summary for employee
@@ -164,10 +173,19 @@ export class LeaveReportsController {
   @ApiOperation({ summary: 'Export leave balance as CSV' })
   async exportLeaveBalance(
     @Query('employeeId') employeeId: string,
+    @Query('year') year: string,
+    @Query('month') month: string,
     @Request() req: any,
     @Res() res: Response,
   ) {
-    const data = await this.leaveReportsService.getLeaveBalance(employeeId, req.user.tenant_id);
+    const yearNumber = year ? parseInt(year, 10) : undefined;
+    const monthNumber = month ? parseInt(month, 10) : undefined;
+    const data = await this.leaveReportsService.getLeaveBalance(
+      employeeId,
+      req.user.tenant_id,
+      yearNumber,
+      monthNumber,
+    );
     const rows = (data.balances || []).map(row => ({
       employeeId: data.employeeId,
       year: data.year,
@@ -270,8 +288,14 @@ export class LeaveReportsController {
   async getAllLeaveReports(
     @Request() req: any,
     @Query('page') page?: string,
+    @Query('month') month?: string,
   ) {
     const parsedPage = page ? parseInt(page, 10) : 1;
-    return this.leaveReportsService.getAllLeaveReports(req.user.tenant_id, parsedPage);
+    const parsedMonth = month ? parseInt(month, 10) : undefined;
+    return this.leaveReportsService.getAllLeaveReports(
+      req.user.tenant_id,
+      parsedPage,
+      parsedMonth,
+    );
   }
 }

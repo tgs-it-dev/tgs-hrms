@@ -65,13 +65,14 @@ export class LeaveService {
       throw new ForbiddenException('Leave cannot be applied only for weekends');
     }
 
-    
+    // NOTE:
+    // Previously we were blocking leave requests when requested days exceeded available balance:
+    //   if (totalDays > availableDays) throw ForbiddenException('Insufficient leave balance...');
+    // Business requirement changed: request should still be allowed/approved
+    // and any excess usage will simply be reflected as negative balance in reports.
     const usedDays = await this.getUsedLeaveDays(employeeId, dto.leaveTypeId);
     const availableDays = leaveType.maxDaysPerYear - usedDays;
-
-    if (totalDays > availableDays) {
-      throw new ForbiddenException(`Insufficient leave balance. Available: ${availableDays} days, Requested: ${totalDays} days`);
-    }
+    // We intentionally do NOT block when totalDays > availableDays anymore.
 
     const leave = this.leaveRepo.create({
       employeeId,
