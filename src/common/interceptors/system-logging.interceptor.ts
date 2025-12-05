@@ -48,8 +48,9 @@ export class SystemLoggingInterceptor implements NestInterceptor {
     });
 
     // Fire-and-forget: logging shouldn't block requests
-    this.logRepo.save(log).catch((err) => {
-      console.error("Failed to save system log:", err.message);
+    this.logRepo.save(log).catch((_err) => {
+      // Silently fail - logging failures shouldn't break the app
+      // Consider using a proper logger here if needed
     });
 
     return next.handle();

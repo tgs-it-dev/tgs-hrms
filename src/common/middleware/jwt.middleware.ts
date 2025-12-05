@@ -17,7 +17,7 @@ export class JwtMiddleware implements NestMiddleware {
     private readonly authService: AuthService,
   ) {}
 
-  async use(req: Request, res: Response, next: NextFunction) {
+  async use(req: Request, _res: Response, next: NextFunction) {
     try {
       // Extract token from Authorization header
       const authHeader = req.headers.authorization;

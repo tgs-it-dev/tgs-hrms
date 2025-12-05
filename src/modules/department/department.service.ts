@@ -10,7 +10,6 @@ import { Department } from '../../entities/department.entity';
 import { Tenant } from '../../entities/tenant.entity';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
-import { PaginationResponse } from '../../common/interfaces/pagination.interface';
 const GLOBAL = '00000000-0000-0000-0000-000000000000';
 @Injectable()
 export class DepartmentService {

@@ -3,8 +3,6 @@ import {
   Column,
   ManyToOne,
   JoinColumn,
-  CreateDateColumn,
-  UpdateDateColumn,
 } from 'typeorm';
 import { Tenant } from './tenant.entity';
 import { BaseEntity } from './base.entity';

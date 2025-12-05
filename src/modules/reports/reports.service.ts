@@ -5,8 +5,6 @@ import { Attendance } from '../../entities/attendance.entity';
 import { AttendanceType, EmployeeStatus, UserRole, LeaveStatus } from '../../common/constants/enums';
 import { Leave } from '../../entities/leave.entity';
 import { User } from '../../entities/user.entity';
-import { Department } from '../../entities/department.entity';
-import { Designation } from '../../entities/designation.entity';
 import { Employee } from '../../entities/employee.entity';
 
 @Injectable()
@@ -18,10 +16,6 @@ export class ReportsService {
     private readonly leaveRepo: Repository<Leave>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
-    @InjectRepository(Department)
-    private readonly departmentRepo: Repository<Department>,
-    @InjectRepository(Designation)
-    private readonly designationRepo: Repository<Designation>,
     @InjectRepository(Employee)
     private readonly employeeRepo: Repository<Employee>
   ) {}
@@ -33,8 +27,10 @@ export class ReportsService {
     let year = now.getFullYear();
     let monthIdx = now.getMonth(); // 0-based
     if (month) {
-      const [y, m] = month.split('-').map(Number);
-      if (!isNaN(y) && !isNaN(m)) {
+      const parts = month.split('-').map(Number);
+      const y = parts[0];
+      const m = parts[1];
+      if (y !== undefined && m !== undefined && !isNaN(y) && !isNaN(m)) {
         year = y;
         monthIdx = m - 1;
       }
@@ -69,6 +65,7 @@ export class ReportsService {
         // Convert UTC to Pakistan time (UTC+5)
         const pkDate = new Date(att.timestamp.getTime() + 5 * 60 * 60 * 1000);
         const dateStr = pkDate.toISOString().split('T')[0];
+        if (!dateStr) continue;
         if (!days[dateStr]) days[dateStr] = [];
         days[dateStr].push(att);
       }
@@ -437,8 +434,12 @@ export class ReportsService {
         const dow = d.getUTCDay();
         if (dow !== 0 && dow !== 6) {
           const dateStr = d.toISOString().split('T')[0];
+          if (!dateStr || !lv.employeeId) continue;
           if (!leaveDaysByUser[lv.employeeId]) leaveDaysByUser[lv.employeeId] = new Set<string>();
-          leaveDaysByUser[lv.employeeId].add(dateStr);
+          const userLeaveDays = leaveDaysByUser[lv.employeeId];
+          if (userLeaveDays) {
+            userLeaveDays.add(dateStr);
+          }
         }
       }
     }
@@ -456,7 +457,8 @@ export class ReportsService {
         const dow = d.getUTCDay();
         if (dow !== 0 && dow !== 6) {
           count++;
-          days.push(d.toISOString().split('T')[0]);
+          const dateStr = d.toISOString().split('T')[0];
+          if (dateStr) days.push(dateStr);
         }
       }
       return { count, days };
@@ -500,7 +502,7 @@ export class ReportsService {
   // 2. Leave Summary
   async getLeaveSummary(userId?: string, page: number = 1) {
     // Annual entitlement per category
-    const ANNUAL_ENTITLEMENT = {
+    const ANNUAL_ENTITLEMENT: Record<string, number> = {
       vacation: 4,
       casual: 4,
       sick: 3,
@@ -562,7 +564,7 @@ export class ReportsService {
       for (const cat of CATEGORIES) used[cat] = 0;
       for (const leave of leaves) {
         const leaveTypeName = leave.leaveType?.name?.toLowerCase() || 'other';
-        if (CATEGORIES.includes(leaveTypeName)) {
+        if (CATEGORIES.includes(leaveTypeName) && used[leaveTypeName] !== undefined) {
           used[leaveTypeName]++;
           totalUsed++;
         }
@@ -576,7 +578,7 @@ export class ReportsService {
       for (const cat of CATEGORIES) usedThisMonth[cat] = 0;
       for (const leave of leavesThisMonth) {
         const leaveTypeName = leave.leaveType?.name?.toLowerCase() || 'other';
-        if (CATEGORIES.includes(leaveTypeName)) {
+        if (CATEGORIES.includes(leaveTypeName) && usedThisMonth[leaveTypeName] !== undefined) {
           usedThisMonth[leaveTypeName]++;
           totalUsedThisMonth++;
         }
@@ -585,8 +587,12 @@ export class ReportsService {
       const remaining: Record<string, number> = {};
       let totalRemaining = 0;
       for (const cat of CATEGORIES) {
-        remaining[cat] = ANNUAL_ENTITLEMENT[cat] - used[cat];
-        totalRemaining += remaining[cat];
+        const entitlement = ANNUAL_ENTITLEMENT[cat];
+        const usedValue = used[cat];
+        if (entitlement !== undefined && usedValue !== undefined) {
+          remaining[cat] = entitlement - usedValue;
+          totalRemaining += remaining[cat];
+        }
       }
       // Compose response
       result[uid] = {

@@ -2,7 +2,7 @@
  * Environment validation schema and configuration
  */
 
-import { IsString, IsNumber, IsBoolean, IsOptional, IsArray, IsUrl, validateSync } from 'class-validator';
+import { IsString, IsNumber, IsBoolean, IsOptional, validateSync } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { Logger } from '@nestjs/common';
 

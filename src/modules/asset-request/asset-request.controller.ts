@@ -10,7 +10,7 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiBody } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -56,14 +56,14 @@ export class AssetRequestController {
   }
 
   @Put(':id/approve')
-  @Roles('network-admin')
+  @Roles('network-admin' , 'hr-admin', 'admin')
   @ApiOperation({ summary: 'Approve and assign asset' })
   approve(@Request() req: any, @Param('id') id: string) {
     return this.service.approve(id, req.user.id, req.user.tenant_id);
   }
 
   @Put(':id/reject')
-  @Roles('network-admin')
+  @Roles('network-admin', 'hr-admin', 'admin')
   @ApiOperation({ summary: 'Reject request' })
   @ApiResponse({ status: 200, description: 'Request rejected successfully' })
   @ApiResponse({ status: 400, description: 'Request already processed' })

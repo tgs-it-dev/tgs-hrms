@@ -10,6 +10,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { AuthenticatedRequest } from '../../common/types/request.types';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
@@ -35,7 +36,7 @@ export class PolicyController {
   @ApiResponse({ status: 201, description: 'Policy created.' })
   @ApiResponse({ status: 400, description: 'Validation error.' })
   @ApiResponse({ status: 409, description: 'A similar policy already exists.' })
-  async create(@Req() req, @Body() dto: CreatePolicyDto) {
+  async create(@Req() req: AuthenticatedRequest, @Body() dto: CreatePolicyDto) {
     const tenant_id = req.user.tenant_id;
     const created = await this.service.create(tenant_id, dto);
     return { message: 'Policy created successfully', data: created };
@@ -45,7 +46,7 @@ export class PolicyController {
   @Roles('admin', 'system-admin', 'hr', 'manager')
   @Permissions('manage_policies', 'view_reports')
   @ApiOperation({ summary: 'List all policies (tenant-scoped)' })
-  async findAll(@Req() req, @Query('page') page?: string) {
+  async findAll(@Req() req: AuthenticatedRequest, @Query('page') page?: string) {
     const tenant_id = req.user.tenant_id;
     const pageNum = Math.max(1, parseInt(page || '1', 10) || 1);
     return this.service.findAll(tenant_id, pageNum);
@@ -55,7 +56,7 @@ export class PolicyController {
   @Roles('admin', 'system-admin', 'hr')
   @Permissions('manage_policies')
   @ApiOperation({ summary: 'Edit existing policy' })
-  async update(@Req() req, @Param('id') id: string, @Body() dto: UpdatePolicyDto) {
+  async update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdatePolicyDto) {
     const tenant_id = req.user.tenant_id;
     const updated = await this.service.update(tenant_id, id, dto);
     return { message: 'Policy updated successfully', data: updated };
@@ -65,7 +66,7 @@ export class PolicyController {
   @Roles('admin', 'system-admin', 'hr')
   @Permissions('manage_policies')
   @ApiOperation({ summary: 'Soft delete a policy' })
-  async remove(@Req() req, @Param('id') id: string) {
+  async remove(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const tenant_id = req.user.tenant_id;
     return this.service.softDelete(tenant_id, id);
   }

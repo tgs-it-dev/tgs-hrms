@@ -3,7 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Employee } from '../../entities/employee.entity';
 import { InviteStatus } from '../../common/constants/enums';
-import { User } from '../../entities/user.entity';
 
 @Injectable()
 export class InviteStatusService {
@@ -12,8 +11,6 @@ export class InviteStatusService {
   constructor(
     @InjectRepository(Employee)
     private readonly employeeRepo: Repository<Employee>,
-    @InjectRepository(User)
-    private readonly userRepo: Repository<User>,
   ) {}
 
   async updateInviteStatusOnLogin(userId: string): Promise<void> {
@@ -35,7 +32,8 @@ export class InviteStatusService {
         this.logger.log(`Updated invite status to 'Joined' for employee: ${employee.id}`);
       }
     } catch (error) {
-      this.logger.error(`Failed to update invite status for user ${userId}: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to update invite status for user ${userId}: ${errorMessage}`);
     }
   }
 
@@ -72,7 +70,8 @@ export class InviteStatusService {
       this.logger.log(`Updated ${updateResult.affected} expired invites to 'Invite Expired'`);
       return updateResult.affected || 0;
     } catch (error) {
-      this.logger.error(`Failed to check and update expired invites: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to check and update expired invites: ${errorMessage}`);
       return 0;
     }
   }
@@ -102,7 +101,8 @@ export class InviteStatusService {
 
       return employee.invite_status;
     } catch (error) {
-      this.logger.error(`Failed to get invite status for employee ${employeeId}: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to get invite status for employee ${employeeId}: ${errorMessage}`);
       return null;
     }
   }
@@ -113,7 +113,8 @@ export class InviteStatusService {
       this.logger.log(`Manually set invite status to '${status}' for employee: ${employeeId}`);
       return (updateResult.affected || 0) > 0;
     } catch (error) {
-      this.logger.error(`Failed to set invite status for employee ${employeeId}: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to set invite status for employee ${employeeId}: ${errorMessage}`);
       return false;
     }
   }

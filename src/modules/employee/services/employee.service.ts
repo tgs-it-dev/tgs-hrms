@@ -6,14 +6,13 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, QueryFailedError } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Employee } from '../../../entities/employee.entity';
 import { User } from '../../../entities/user.entity';
 import { Designation } from '../../../entities/designation.entity';
 import { Role } from '../../../entities/role.entity';
 import { Team } from '../../../entities/team.entity';
 import { CreateEmployeeDto, UpdateEmployeeDto, EmployeeQueryDto } from '../dto/employee.dto';
-import { ConfigService } from '@nestjs/config';
 import { SendGridService } from '../../../common/utils/email';
 import { InviteStatusService } from '../../invite-status/invite-status.service';
 import { EmployeeFileUploadService } from './employee-file-upload.service';
@@ -21,12 +20,12 @@ import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 
 const GLOBAL = '00000000-0000-0000-0000-000000000000';
-import { PaginationResponse } from '../../../common/interfaces/pagination.interface';
 import { Logger } from '@nestjs/common';
 import { InviteStatus, UserGender, EmployeeStatus } from '../../../common/constants/enums';
 import { Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
+import { getPostgresErrorCode } from '../../../common/types/database.types';
 
 @Injectable()
 export class EmployeeService implements OnModuleInit {
@@ -42,7 +41,6 @@ export class EmployeeService implements OnModuleInit {
     private readonly roleRepo: Repository<Role>,
     @InjectRepository(Team)
     private readonly teamRepo: Repository<Team>,
-    private readonly configService: ConfigService,
     private readonly sendGridService: SendGridService,
     private readonly inviteStatusService: InviteStatusService,
     private readonly employeeFileUploadService: EmployeeFileUploadService
@@ -212,8 +210,9 @@ export class EmployeeService implements OnModuleInit {
 
       
       if (files) {
-        if (files.profile_picture && files.profile_picture.length > 0) {
-          const profilePictureUrl = await this.employeeFileUploadService.uploadProfilePicture(files.profile_picture[0], result.id);
+        const profileFile = files.profile_picture?.[0];
+        if (profileFile) {
+          const profilePictureUrl = await this.employeeFileUploadService.uploadProfilePicture(profileFile, result.id);
           result.profile_picture = profilePictureUrl;
           
           
@@ -224,13 +223,15 @@ export class EmployeeService implements OnModuleInit {
           }
         }
         
-        if (files.cnic_picture && files.cnic_picture.length > 0) {
-          const cnicPictureUrl = await this.employeeFileUploadService.uploadCnicPicture(files.cnic_picture[0], result.id);
+        const cnicFile = files.cnic_picture?.[0];
+        if (cnicFile) {
+          const cnicPictureUrl = await this.employeeFileUploadService.uploadCnicPicture(cnicFile, result.id);
           result.cnic_picture = cnicPictureUrl;
         }
         
-        if (files.cnic_back_picture && files.cnic_back_picture.length > 0) {
-          const cnicBackPictureUrl = await this.employeeFileUploadService.uploadCnicBackPicture(files.cnic_back_picture[0], result.id);
+        const cnicBackFile = files.cnic_back_picture?.[0];
+        if (cnicBackFile) {
+          const cnicBackPictureUrl = await this.employeeFileUploadService.uploadCnicBackPicture(cnicBackFile, result.id);
           result.cnic_back_picture = cnicBackPictureUrl;
         }
         
@@ -243,7 +244,8 @@ export class EmployeeService implements OnModuleInit {
 
       return result;
     } catch (err) {
-      if (err instanceof QueryFailedError && (err as any).code === '23505') {
+      const errorCode = getPostgresErrorCode(err);
+      if (errorCode === '23505') {
         throw new ConflictException('Manager already exists.');
       }
       throw err;
@@ -328,8 +330,9 @@ export class EmployeeService implements OnModuleInit {
 
 
       if (files) {
-        if (files.profile_picture && files.profile_picture.length > 0) {
-          const profilePictureUrl = await this.employeeFileUploadService.uploadProfilePicture(files.profile_picture[0], result.id);
+        const profileFile = files.profile_picture?.[0];
+        if (profileFile) {
+          const profilePictureUrl = await this.employeeFileUploadService.uploadProfilePicture(profileFile, result.id);
           result.profile_picture = profilePictureUrl;
           
           
@@ -340,13 +343,15 @@ export class EmployeeService implements OnModuleInit {
           }
         }
         
-        if (files.cnic_picture && files.cnic_picture.length > 0) {
-          const cnicPictureUrl = await this.employeeFileUploadService.uploadCnicPicture(files.cnic_picture[0], result.id);
+        const cnicFile = files.cnic_picture?.[0];
+        if (cnicFile) {
+          const cnicPictureUrl = await this.employeeFileUploadService.uploadCnicPicture(cnicFile, result.id);
           result.cnic_picture = cnicPictureUrl;
         }
         
-        if (files.cnic_back_picture && files.cnic_back_picture.length > 0) {
-          const cnicBackPictureUrl = await this.employeeFileUploadService.uploadCnicBackPicture(files.cnic_back_picture[0], result.id);
+        const cnicBackFile = files.cnic_back_picture?.[0];
+        if (cnicBackFile) {
+          const cnicBackPictureUrl = await this.employeeFileUploadService.uploadCnicBackPicture(cnicBackFile, result.id);
           result.cnic_back_picture = cnicBackPictureUrl;
         }
         
@@ -358,7 +363,8 @@ export class EmployeeService implements OnModuleInit {
 
       return result;
     } catch (err) {
-      if (err instanceof QueryFailedError && (err as any).code === '23505') {
+      const errorCode = getPostgresErrorCode(err);
+      if (errorCode === '23505') {
         throw new ConflictException('Employee already exists.');
       }
       throw err;
@@ -525,75 +531,78 @@ export class EmployeeService implements OnModuleInit {
   
     if (files) {
       if (files.profile_picture?.[0]) {
-      
         if (user.profile_pic) {
           try {
-            console.log('Deleting old profile picture:', user.profile_pic);
+            this.logger.log('Deleting old profile picture:', user.profile_pic);
             await this.employeeFileUploadService.deleteProfilePicture(user.profile_pic);
-            console.log('Old profile picture deleted successfully');
+            this.logger.log('Old profile picture deleted successfully');
           } catch (error) {
-            console.warn('Failed to delete old profile picture:', error);
+            this.logger.warn('Failed to delete old profile picture:', error);
           }
         }
-        
-      
+
         try {
-          console.log('Uploading new profile picture for employee:', employee.id);
-          const profilePictureUrl = await this.employeeFileUploadService.uploadProfilePicture(files.profile_picture[0], employee.id);
-          console.log('Profile picture uploaded successfully:', profilePictureUrl);
+          this.logger.log('Uploading new profile picture for employee:', employee.id);
+          const profilePictureUrl = await this.employeeFileUploadService.uploadProfilePicture(
+            files.profile_picture[0],
+            employee.id,
+          );
+          this.logger.log('Profile picture uploaded successfully:', profilePictureUrl);
           user.profile_pic = profilePictureUrl;
-          employee.profile_picture = profilePictureUrl; 
+          employee.profile_picture = profilePictureUrl;
           shouldSaveUser = true;
         } catch (error) {
-          console.error('Failed to upload profile picture:', error);
+          this.logger.error('Failed to upload profile picture:', error);
           throw new BadRequestException('Failed to upload profile picture');
         }
       }
-      
+
       if (files.cnic_picture?.[0]) {
-        
         if (employee.cnic_picture) {
           try {
-            console.log('Deleting old CNIC picture:', employee.cnic_picture);
+            this.logger.log('Deleting old CNIC picture:', employee.cnic_picture);
             await this.employeeFileUploadService.deleteCnicPicture(employee.cnic_picture);
-            console.log('Old CNIC picture deleted successfully');
+            this.logger.log('Old CNIC picture deleted successfully');
           } catch (error) {
-            console.warn('Failed to delete old CNIC picture:', error);
+            this.logger.warn('Failed to delete old CNIC picture:', error);
           }
         }
-        
-      
+
         try {
-          console.log('Uploading new CNIC picture for employee:', employee.id);
-          const cnicPictureUrl = await this.employeeFileUploadService.uploadCnicPicture(files.cnic_picture[0], employee.id);
-          console.log('CNIC picture uploaded successfully:', cnicPictureUrl);
+          this.logger.log('Uploading new CNIC picture for employee:', employee.id);
+          const cnicPictureUrl = await this.employeeFileUploadService.uploadCnicPicture(
+            files.cnic_picture[0],
+            employee.id,
+          );
+          this.logger.log('CNIC picture uploaded successfully:', cnicPictureUrl);
           employee.cnic_picture = cnicPictureUrl;
         } catch (error) {
-          console.error('Failed to upload CNIC picture:', error);
+          this.logger.error('Failed to upload CNIC picture:', error);
           throw new BadRequestException('Failed to upload CNIC picture');
         }
       }
-      
+
       if (files.cnic_back_picture?.[0]) {
-        
         if (employee.cnic_back_picture) {
           try {
-            console.log('Deleting old CNIC back picture:', employee.cnic_back_picture);
+            this.logger.log('Deleting old CNIC back picture:', employee.cnic_back_picture);
             await this.employeeFileUploadService.deleteCnicBackPicture(employee.cnic_back_picture);
-            console.log('Old CNIC back picture deleted successfully');
+            this.logger.log('Old CNIC back picture deleted successfully');
           } catch (error) {
-            console.warn('Failed to delete old CNIC back picture:', error);
+            this.logger.warn('Failed to delete old CNIC back picture:', error);
           }
         }
-        
-        
+
         try {
-          console.log('Uploading new CNIC back picture for employee:', employee.id);
-          const cnicBackPictureUrl = await this.employeeFileUploadService.uploadCnicBackPicture(files.cnic_back_picture[0], employee.id);
-          console.log('CNIC back picture uploaded successfully:', cnicBackPictureUrl);
+          this.logger.log('Uploading new CNIC back picture for employee:', employee.id);
+          const cnicBackPictureUrl = await this.employeeFileUploadService.uploadCnicBackPicture(
+            files.cnic_back_picture[0],
+            employee.id,
+          );
+          this.logger.log('CNIC back picture uploaded successfully:', cnicBackPictureUrl);
           employee.cnic_back_picture = cnicBackPictureUrl;
         } catch (error) {
-          console.error('Failed to upload CNIC back picture:', error);
+          this.logger.error('Failed to upload CNIC back picture:', error);
           throw new BadRequestException('Failed to upload CNIC back picture');
         }
       }
@@ -607,7 +616,8 @@ export class EmployeeService implements OnModuleInit {
         relations: ['user', 'designation', 'designation.department', 'team'],
       });
     } catch (err) {
-      if (err instanceof QueryFailedError && (err as any).code === '23505') {
+      const errorCode = getPostgresErrorCode(err);
+      if (errorCode === '23505') {
         throw new ConflictException('Employee already exists.');
       }
       throw err;

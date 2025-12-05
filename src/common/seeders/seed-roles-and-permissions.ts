@@ -203,7 +203,8 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
 
     logger.log('Successfully seeded roles and permissions!');
   } catch (error) {
-    logger.error(`Failed to seed roles and permissions: ${error.message}`);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error(`Failed to seed roles and permissions: ${errorMessage}`);
     throw error;
   }
 }

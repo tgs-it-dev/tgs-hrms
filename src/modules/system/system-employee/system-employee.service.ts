@@ -152,12 +152,45 @@ export class SystemEmployeeService {
   }
 
   /**
-   * GET /system/employees/:id/leaves → Leaves history
+   * GET /system/employees/leaves → Leaves history (with optional filters)
+   * GET /system/employees/:id/leaves → Leaves history by employee ID
    */
-  async getLeaves(id: string) {
+  async getLeaves(employeeId?: string, userId?: string) {
+    let targetUserId: string | undefined;
+
+    // If employeeId is provided, get user_id from employee
+    if (employeeId) {
+      const employee = await this.employeeRepo.findOne({
+        where: { id: employeeId },
+        relations: ['user'],
+      });
+
+      if (!employee) {
+        throw new NotFoundException('Employee not found');
+      }
+
+      targetUserId = employee.user_id;
+    }
+
+    // If userId is provided as query param, use it (overrides employeeId)
+    if (userId) {
+      targetUserId = userId;
+    }
+
+    // If neither employeeId nor userId is provided, return all leaves
+    if (!targetUserId) {
+      const leaves = await this.leaveRepo.find({
+        order: { createdAt: "DESC" },
+        relations: ['leaveType', 'approver'],
+      });
+      return leaves;
+    }
+
+    // Filter by user ID
     const leaves = await this.leaveRepo.find({
-      where: { employeeId: id },
+      where: { employeeId: targetUserId },
       order: { createdAt: "DESC" },
+      relations: ['leaveType', 'approver'],
     });
 
     return leaves;

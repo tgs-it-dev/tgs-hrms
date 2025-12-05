@@ -2,7 +2,6 @@
 import { PartialType } from '@nestjs/swagger';
 import { IsOptional, IsString, MaxLength, MinLength, Matches } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
 import { CreateDepartmentDto } from './create-department.dto';
 
 export class UpdateDepartmentDto extends PartialType(CreateDepartmentDto) {

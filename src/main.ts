@@ -4,9 +4,29 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe, BadRequestException } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { Request, Response, NextFunction } from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Correlation ID middleware is now handled by CorrelationIdMiddleware in AppModule
+
+  // Response time header middleware
+  app.use((_req: Request, res: Response, next: NextFunction) => {
+    const start = Date.now();
+
+    res.on('finish', () => {
+      const duration = Date.now() - start;
+      try {
+        res.setHeader('X-Response-Time', `${duration}ms`);
+      } catch {
+        // Ignore if headers are already sent
+      }
+    });
+
+    next();
+  });
 
   // Serve static files from project root /public (matches upload services)
   app.useStaticAssets(join(process.cwd(), 'public'), {
@@ -35,6 +55,9 @@ async function bootstrap() {
     })
   );
 
+  // Global HTTP exception filter
+  app.useGlobalFilters(new HttpExceptionFilter());
+
   // ✅ Allow only your frontend in production
   // app.enableCors({
   //   origin: process.env.FRONTEND_URL || '*',
@@ -42,10 +65,7 @@ async function bootstrap() {
   // });
 
   app.enableCors({
-    origin: [
-      'http://localhost:5173', // Local dev frontend
-      'https://snazzy-raindrop-644615.netlify.app', // Production frontend
-    ],
+    origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:5173'],
     credentials: true,
   });
 

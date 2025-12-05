@@ -68,6 +68,7 @@ export class CompanyController {
       res.setHeader('Access-Control-Allow-Methods', 'GET');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
       fileStream.pipe(res);
+      return;
     } catch (e) {
       return res.status(500).json({ message: 'Error serving company logo' });
     }

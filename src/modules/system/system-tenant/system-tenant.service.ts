@@ -38,14 +38,10 @@ export class SystemTenantService {
     private readonly tenantRepo: Repository<Tenant>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
-    @InjectRepository(Role)
-    private readonly roleRepo: Repository<Role>,
     @InjectRepository(Department)
     private readonly departmentRepo: Repository<Department>,
     @InjectRepository(CompanyDetails)
     private readonly companyDetailsRepo: Repository<CompanyDetails>,
-    @InjectRepository(SignupSession)
-    private readonly signupSessionRepo: Repository<SignupSession>,
     private readonly dataSource: DataSource,
     private readonly emailService: EmailService,
   ) {}

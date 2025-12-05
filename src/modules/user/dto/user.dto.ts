@@ -5,7 +5,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsEmail, IsOptional, IsUUID, IsEnum, MinLength, MaxLength } from 'class-validator';
 import { UserGender, UserStatus } from '../../../common/constants/enums';
-import { BaseQueryDto, ChangePasswordDto } from '../../../common/dto/common.dto';
+import { BaseQueryDto } from '../../../common/dto/common.dto';
 
 // Create User DTO
 export class CreateUserDto {

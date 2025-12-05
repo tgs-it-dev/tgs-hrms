@@ -161,10 +161,6 @@ export class SignupService {
       };
     }
 
-    
-    const randomSecret = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    
-
     const session = this.signupSessionRepo.create({
       email,
       password_hash:'',
@@ -182,6 +178,7 @@ export class SignupService {
       if (!domain) return '';
       const parts = domain.split('.');
       const base = parts.length >= 2 ? parts[parts.length - 2] : parts[0];
+      if (!base) return '';
       return base.charAt(0).toUpperCase() + base.slice(1);
     })();
 
@@ -609,7 +606,7 @@ export class SignupService {
     };
   }
 
-  private async ensureDefaultRoles(tenantId: string): Promise<Role[]> {
+  private async ensureDefaultRoles(_tenantId: string): Promise<Role[]> {
     
     const roleNames = ['Admin', 'Employee', 'Manager', 'User', 'System-Admin'];
     const roles: Role[] = [];
@@ -636,15 +633,4 @@ export class SignupService {
     return { nextStep: 'complete', companyDetailsCompleted, paymentCompleted };
   }
 
-  
-
-  private async calculateAmountCents(planId: string, seats: number): Promise<number> {
-    const basePerSeat: Record<string, number> = {
-      basic: 500,
-      pro: 1200,
-      enterprise: 2500,
-    };
-    const perSeat = basePerSeat[planId] ?? 1000;
-    return perSeat * seats;
-  }
 }

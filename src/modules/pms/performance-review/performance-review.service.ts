@@ -118,9 +118,10 @@ export class PerformanceReviewService {
       },
     });
 
-    review["kpis"] = kpis;
-
-    return review;
+    return {
+      ...review,
+      kpis,
+    };
   }
 
   /**

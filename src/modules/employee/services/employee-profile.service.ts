@@ -73,6 +73,7 @@ export class EmployeeProfileService {
 
     for (const record of records) {
       const date = record.timestamp.toISOString().split('T')[0];
+      if (!date) continue;
       if (!grouped[date]) {
         grouped[date] = { workedHours: 0 };
       }
@@ -83,10 +84,11 @@ export class EmployeeProfileService {
         grouped[date].checkOut = record.timestamp;
       }
 
-      if (grouped[date].checkIn && grouped[date].checkOut) {
+      const dayData = grouped[date];
+      if (dayData && dayData.checkIn && dayData.checkOut) {
         const diffMs =
-          new Date(grouped[date].checkOut!).getTime() - new Date(grouped[date].checkIn!).getTime();
-        grouped[date].workedHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
+          new Date(dayData.checkOut).getTime() - new Date(dayData.checkIn).getTime();
+        dayData.workedHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
       }
     }
 

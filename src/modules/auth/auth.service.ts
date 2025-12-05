@@ -57,7 +57,6 @@ export class AuthService {
     try {
       this.logger.log(`Loading permissions for user ${userId}`);
 
-    
       const user = await this.userRepository.findOne({
         where: { id: userId },
         relations: ['role'],
@@ -68,26 +67,30 @@ export class AuthService {
         return [];
       }
 
-    
-      const result = await this.userRepository.query(
-        `
-        SELECT p.name 
-        FROM permissions p 
-        JOIN role_permissions rp ON p.id = rp.permission_id 
-        WHERE rp.role_id = $1
-      `,
-        [user.role.id]
-      );
+      const permissions = await this.userRepository
+        .createQueryBuilder('user')
+        .leftJoin('user.role', 'role')
+        .leftJoin('role.rolePermissions', 'rp')
+        .leftJoin('rp.permission', 'permission')
+        .where('user.id = :userId', { userId: user.id })
+        .select('permission.name', 'name')
+        .getRawMany();
 
-      this.logger.log(`Raw permission query result: ${JSON.stringify(result)}`);
+      const permissionNames = permissions
+        .map((row: { name: string }) => row.name)
+        .filter((name) => !!name)
+        .map((name) => name.toLowerCase());
 
-      const permissions = result.map((row: any) => row.name.toLowerCase());
-      this.logger.log(`Processed permissions for user ${userId}: ${JSON.stringify(permissions)}`);
+      this.logger.log(`Processed permissions for user ${userId}: ${JSON.stringify(permissionNames)}`);
 
-      return permissions;
+      return permissionNames;
     } catch (error) {
-      this.logger.error(`Failed to load permissions for user ${userId}: ${error.message}`);
-      this.logger.error(`Error stack: ${error.stack}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Failed to load permissions for user ${userId}: ${errorMessage}`);
+      if (errorStack) {
+        this.logger.error(`Error stack: ${errorStack}`);
+      }
       return [];
     }
   }
@@ -129,7 +132,8 @@ export class AuthService {
         stripe_payment_intent_id: company.stripe_payment_intent_id ?? null,
       };
     } catch (error) {
-      this.logger.error(`Failed to load company details for tenant ${tenantId}: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to load company details for tenant ${tenantId}: ${errorMessage}`);
       return null;
     }
   }
@@ -241,7 +245,8 @@ export class AuthService {
       if (error instanceof UnauthorizedException) {
         throw error;
       }
-      this.logger.error(`Token validation error for user ${userId}: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Token validation error for user ${userId}: ${errorMessage}`);
       throw new UnauthorizedException('Token validation failed');
     }
   }
@@ -524,7 +529,8 @@ export class AuthService {
       if (error instanceof UnauthorizedException || error instanceof BadRequestException) {
         throw error;
       }
-      this.logger.warn(`Refresh token failed: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Refresh token failed: ${errorMessage}`);
       throw new UnauthorizedException('Invalid refresh token');
     }
   }

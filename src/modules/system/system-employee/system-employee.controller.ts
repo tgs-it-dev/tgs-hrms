@@ -2,6 +2,7 @@ import { Controller, Get, Param, Query, UseGuards } from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiOperation,
+  ApiParam,
   ApiQuery,
   ApiTags,
 } from "@nestjs/swagger";
@@ -45,6 +46,32 @@ export class SystemEmployeeController {
     return data;
   }
 
+  @Get("leaves")
+  @ApiOperation({
+    summary: "Get employee leave history (System Admin) - Both employeeId and userId are optional",
+  })
+  @ApiQuery({
+    name: "employeeId",
+    required: false,
+    description: "Employee ID (UUID) - Optional filter",
+    type: String,
+    example: "123e4567-e89b-12d3-a456-426614174000",
+  })
+  @ApiQuery({
+    name: "userId",
+    required: false,
+    description: "User ID (UUID) - Optional filter",
+    type: String,
+    example: "123e4567-e89b-12d3-a456-426614174000",
+  })
+  async getLeaves(
+    @Query("employeeId") employeeId?: string,
+    @Query("userId") userId?: string,
+  ) {
+    const data = await this.systemEmployeeService.getLeaves(employeeId, userId);
+    return data;
+  }
+
   @Get(":id")
   @ApiOperation({
     summary: "Get full employee profile (System Admin)",
@@ -56,10 +83,26 @@ export class SystemEmployeeController {
 
   @Get(":id/leaves")
   @ApiOperation({
-    summary: "Get employee leave history (System Admin)",
+    summary: "Get employee leave history by employee ID (System Admin) - Legacy route",
   })
-  async getLeaves(@Param("id") id: string) {
-    const data = await this.systemEmployeeService.getLeaves(id);
+  @ApiParam({
+    name: "id",
+    description: "Employee ID (UUID)",
+    type: String,
+    example: "123e4567-e89b-12d3-a456-426614174000",
+  })
+  @ApiQuery({
+    name: "userId",
+    required: false,
+    description: "User ID (UUID) - Optional filter",
+    type: String,
+    example: "123e4567-e89b-12d3-a456-426614174000",
+  })
+  async getLeavesByEmployeeId(
+    @Param("id") id: string,
+    @Query("userId") userId?: string,
+  ) {
+    const data = await this.systemEmployeeService.getLeaves(id, userId);
     return data;
   }
 

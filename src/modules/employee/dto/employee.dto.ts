@@ -3,7 +3,7 @@
  */
 
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsEmail, IsOptional, IsEnum, IsUUID, ValidateIf } from 'class-validator';
+import { IsString, IsEmail, IsOptional, IsEnum, IsUUID } from 'class-validator';
 import { EmployeeStatus, UserGender } from '../../../common/constants/enums';
 import { BaseQueryDto } from '../../../common/dto/common.dto';
 

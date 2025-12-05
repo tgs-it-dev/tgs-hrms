@@ -15,31 +15,31 @@ import { AssetStatus } from '../common/constants/enums';
 @Entity('assets')
 export class Asset {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column({ type: 'varchar' })
-  name: string;
+  name!: string;
 
   @Column({ type: 'uuid', nullable: true })
-  category_id: string | null;
+  category_id!: string | null;
 
   @Column({ type: 'uuid', nullable: true })
-  subcategory_id: string | null;
+  subcategory_id!: string | null;
 
   @Column({ type: 'varchar', length: 30, default: AssetStatus.AVAILABLE })
-  status: AssetStatus;
+  status!: AssetStatus;
 
   @Column({ type: 'uuid', nullable: true })
-  assigned_to: string | null;
+  assigned_to!: string | null;
 
   @Column({ type: 'date', nullable: true })
-  purchase_date: string | null;
+  purchase_date!: string | null;
 
   @Column({ type: 'uuid' })
-  tenant_id: string;
+  tenant_id!: string;
 
   @CreateDateColumn()
-  created_at: Date;
+  created_at!: Date;
 
   @ManyToOne(() => User, (user) => user.id, { nullable: true })
   @JoinColumn({ name: 'assigned_to' })

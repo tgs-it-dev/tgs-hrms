@@ -8,7 +8,6 @@ import {
   Put,
   Param,
   UseGuards,
-  ForbiddenException,
   BadRequestException,
 } from "@nestjs/common";
 import { EmployeeBenefitsService } from "./employee-benefits.service";
@@ -77,7 +76,6 @@ export class EmployeeBenefitsController {
   })
   async findAll(
     @TenantId() tenant_id: string,
-    @Req() req: any,
     @Query("employeeId") employeeId: string,
     @Query("page") page: number = 1,
   ) {

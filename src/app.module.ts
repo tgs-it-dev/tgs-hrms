@@ -1,6 +1,7 @@
 
 import { Module, Logger, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { typeOrmConfig } from './config/typeorm.config';
 import { ThrottlerModule } from '@nestjs/throttler';
@@ -48,9 +49,6 @@ import { SystemLog } from './entities/system-log.entity';
     ConfigModule.forRoot({ isGlobal: true }),
     MiddlewareConfigModule,
     EmailModule,
-
-    // Schedule module for cron jobs
-    ScheduleModule.forRoot(),
 
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
@@ -171,4 +169,10 @@ import { SystemLog } from './entities/system-log.entity';
     },
   ]
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(CorrelationIdMiddleware)
+      .forRoutes('*');
+  }
+}

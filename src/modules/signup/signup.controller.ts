@@ -1,4 +1,4 @@
-import { Body, Controller, Headers, Post, Query, BadRequestException, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { Body, Controller, Post, Query, BadRequestException, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { ApiTags, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { SignupService } from './signup.service';
 import { PersonalDetailsDto } from './dto/personal-details.dto';
@@ -69,13 +69,13 @@ export class SignupController {
   @UseInterceptors(FileInterceptor('file', {
     storage: diskStorage({
       destination: './public/company-logos',
-      filename: (req, file, cb) => {
+      filename: (_req, file, cb) => {
         const ext = path.extname(file.originalname);
         const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
         cb(null, `${unique}${ext}`);
       },
     }),
-    fileFilter: (req, file, cb) => {
+    fileFilter: (_req, file, cb) => {
       if (!file.mimetype.startsWith('image/')) {
         return cb(new Error('Only image files are allowed!'), false);
       }

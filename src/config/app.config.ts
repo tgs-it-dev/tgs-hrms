@@ -3,7 +3,7 @@
  */
 
 import { ConfigService } from '@nestjs/config';
-import { validateEnvironment, EnvironmentVariables } from './env.validation';
+import { validateEnvironment } from './env.validation';
 
 export interface AppConfig {
   port: number;
@@ -50,7 +50,7 @@ export interface AppConfig {
   };
 }
 
-export const getAppConfig = (configService: ConfigService): AppConfig => {
+export const getAppConfig = (_configService: ConfigService): AppConfig => {
   // Validate environment variables
   const envVars = validateEnvironment(process.env);
   

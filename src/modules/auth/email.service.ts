@@ -1,5 +1,4 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import { SendGridService } from "./sendgrid.service";
 
 @Injectable()
@@ -7,7 +6,6 @@ export class EmailService {
   private readonly logger = new Logger(EmailService.name);
 
   constructor(
-    private readonly configService: ConfigService,
     private readonly sendGridService: SendGridService,
   ) {}
 
