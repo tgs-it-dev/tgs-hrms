@@ -58,15 +58,41 @@ async function bootstrap() {
   // Global HTTP exception filter
   app.useGlobalFilters(new HttpExceptionFilter());
 
-  // ✅ Allow only your frontend in production
-  // app.enableCors({
-  //   origin: process.env.FRONTEND_URL || '*',
-  //   credentials: true,
-  // });
+  // ✅ CORS Configuration - Allow frontend and localhost for development
+  const allowedOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
+    : [
+        'https://snazzy-raindrop-644615.netlify.app',
+        'http://localhost:5173',
+        'http://localhost:3000',
+      ];
 
   app.enableCors({
-    origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:5173'],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, Postman, etc.)
+      if (!origin) {
+        return callback(null, true);
+      }
+      
+      if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Correlation-ID',
+      'Accept',
+      'Origin',
+      'X-Requested-With',
+    ],
+    exposedHeaders: ['X-Correlation-ID', 'X-Response-Time'],
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
   });
 
   // Swagger docs
