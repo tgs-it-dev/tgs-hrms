@@ -21,7 +21,7 @@
     "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js",
     "migration:generate": "npm run typeorm -- migration:generate -d data-source.ts",
     "migration:run": "npm run typeorm -- migration:run -d data-source.ts",
-     "migration:revert": "npm run typeorm -- migration:revert -d data-source.ts",
+    "migration:revert": "npm run typeorm -- migration:revert -d data-source.ts",
     "seed": "ts-node -r tsconfig-paths/register seed-database.ts"
   },
   "dependencies": {
@@ -76,6 +76,7 @@
     "@types/node": "^22.10.7",
     "@types/passport-jwt": "^4.0.1",
     "@types/supertest": "^6.0.2",
+    "@types/uuid": "^10.0.0",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",
