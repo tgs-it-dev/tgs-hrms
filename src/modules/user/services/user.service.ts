@@ -4,11 +4,10 @@ import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ReadStream } from 'fs';
 import { User } from 'src/entities/user.entity';
 import { Role } from 'src/entities/role.entity';
 import { CreateUserDto, UpdateUserDto } from '../dto/user.dto';
-import { UserGender, GLOBAL_SYSTEM_TENANT_ID } from '../../../common/constants/enums';
+import { GLOBAL_SYSTEM_TENANT_ID } from '../../../common/constants/enums';
 import { PaginationResponse } from '../../../common/interfaces/pagination.interface';
 import { FileUploadService } from './file-upload.service';
 @Injectable()
