@@ -2,7 +2,6 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, DataSource, IsNull } from 'typeorm';
@@ -406,7 +405,7 @@ export class TeamService {
   }
 
   async addMemberToTeam(tenantId: string, teamId: string, employeeId: string): Promise<void> {
-    const team = await this.findOne(tenantId, teamId);
+    await this.findOne(tenantId, teamId);
 
     const employee = await this.employeeRepo.findOne({
       where: {
@@ -428,7 +427,7 @@ export class TeamService {
   }
 
   async removeMemberFromTeam(tenantId: string, teamId: string, employeeId: string): Promise<void> {
-    const team = await this.findOne(tenantId, teamId);
+    await this.findOne(tenantId, teamId);
 
     const employee = await this.employeeRepo.findOne({
       where: {

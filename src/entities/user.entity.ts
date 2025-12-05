@@ -7,6 +7,7 @@ import {
   ManyToOne,
   JoinColumn,
   OneToMany,
+  Index,
 } from 'typeorm';
 import { Tenant } from './tenant.entity';
 import { Role } from './role.entity';
@@ -25,6 +26,9 @@ export enum UserRole {
   HR_ADMIN = 'hr-admin',
 }
 
+@Index(['tenant_id'])
+@Index(['email'])
+@Index(['tenant_id', 'email'])
 @Entity("users")
 export class User {
   @PrimaryGeneratedColumn("uuid")

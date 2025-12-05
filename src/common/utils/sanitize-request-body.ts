@@ -2,7 +2,7 @@
 export function sanitizeRequestBody(body: object) {
   if (!body || typeof body !== "object") return body;
 
-  const clone = { ...body };
+  const clone: Record<string, any> = { ...body };
   const sensitiveKeys = ["password", "token"];
 
   for (const key of Object.keys(clone)) {

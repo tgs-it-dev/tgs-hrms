@@ -5,7 +5,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { UserRole } from '../../common/constants/enums';
 
 export interface RoleConfig {
   name: string;
@@ -214,6 +213,9 @@ export class RolesPermissionsService {
     }
 
     const [resource, action] = parts;
+    if (!resource || !action) {
+      return false;
+    }
     const resourcePermissions = this.getPermission(resource);
     
     return Boolean(resourcePermissions && resourcePermissions[action] !== undefined);
@@ -226,9 +228,12 @@ export class RolesPermissionsService {
     const permissions: string[] = [];
     
     Object.keys(this.config.permissions).forEach(resource => {
-      Object.keys(this.config.permissions[resource]).forEach(action => {
-        permissions.push(`${resource}.${action}`);
-      });
+      const resourcePerms = this.config.permissions[resource];
+      if (resourcePerms) {
+        Object.keys(resourcePerms).forEach(action => {
+          permissions.push(`${resource}.${action}`);
+        });
+      }
     });
 
     return permissions;

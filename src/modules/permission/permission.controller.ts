@@ -101,7 +101,7 @@ export class PermissionController {
     status: 400,
     description: 'Bad Request - Invalid permission data',
   })
-  createPermission(@Body() createPermissionDto: CreatePermissionDto) {
+  createPermission(@Body() _createPermissionDto: CreatePermissionDto) {
     return { message: 'Create permission - Implementation pending' };
   }
 
@@ -124,7 +124,7 @@ export class PermissionController {
     status: 404,
     description: 'Permission not found',
   })
-  updatePermission(@Param('id') id: string, @Body() updatePermissionDto: UpdatePermissionDto) {
+  updatePermission(@Param('id') id: string, @Body() _updatePermissionDto: UpdatePermissionDto) {
     return { message: `Update permission: ${id} - Implementation pending` };
   }
 

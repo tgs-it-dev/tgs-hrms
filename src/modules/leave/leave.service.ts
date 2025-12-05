@@ -6,7 +6,6 @@ import { Leave } from 'src/entities/leave.entity';
 import { LeaveType } from 'src/entities/leave-type.entity';
 import { CreateLeaveDto } from './dto/create-leave.dto';
 import { User } from '../../entities/user.entity';
-import { PaginationResponse } from '../../common/interfaces/pagination.interface';
 import { Employee } from 'src/entities/employee.entity';
 
 @Injectable()
@@ -70,8 +69,8 @@ export class LeaveService {
     //   if (totalDays > availableDays) throw ForbiddenException('Insufficient leave balance...');
     // Business requirement changed: request should still be allowed/approved
     // and any excess usage will simply be reflected as negative balance in reports.
-    const usedDays = await this.getUsedLeaveDays(employeeId, dto.leaveTypeId);
-    const availableDays = leaveType.maxDaysPerYear - usedDays;
+    // const usedDays = await this.getUsedLeaveDays(employeeId, dto.leaveTypeId); // Not used - business requirement changed
+    // const availableDays = leaveType.maxDaysPerYear - usedDays; // Not used - business requirement changed
     // We intentionally do NOT block when totalDays > availableDays anymore.
 
     const leave = this.leaveRepo.create({
@@ -87,23 +86,6 @@ export class LeaveService {
     return await this.leaveRepo.save(leave);
   }
 
-  private async getUsedLeaveDays(employeeId: string, leaveTypeId: string): Promise<number> {
-    const currentYear = new Date().getFullYear();
-    const startOfYear = new Date(currentYear, 0, 1, 0, 0, 0, 0);
-    const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59, 999);
-
-    
-    const leaves = await this.leaveRepo
-      .createQueryBuilder('leave')
-      .where('leave.employeeId = :employeeId', { employeeId })
-      .andWhere('leave.leaveTypeId = :leaveTypeId', { leaveTypeId })
-      .andWhere('leave.status IN (:...statuses)', { statuses: [LeaveStatus.APPROVED, LeaveStatus.PENDING] })
-      .andWhere('leave.startDate >= :startOfYear', { startOfYear })
-      .andWhere('leave.startDate <= :endOfYear', { endOfYear })
-      .getMany();
-
-    return leaves.reduce((total, leave) => total + leave.totalDays, 0);
-  }
 
 
   async getLeavesTakenInLast12Months(user_id: string): Promise<number> {
@@ -350,22 +332,6 @@ export class LeaveService {
     return workingDays;
   }
 
-  private async getManagerTeamMemberUserIds(
-    managerId: string,
-    tenantId: string
-  ): Promise<string[]> {
-    const employees = await this.employeeRepo
-      .createQueryBuilder('e')
-      .leftJoin('e.user', 'u')
-      .leftJoin('e.team', 't')
-      .where('u.tenant_id = :tenantId', { tenantId })
-      .andWhere('t.manager_id = :managerId', { managerId })
-      .andWhere('e.user_id != :managerId', { managerId }) 
-      .select(['e.user_id'])
-      .getMany();
-
-    return employees.map((e) => e.user_id);
-  }
 
   async getTeamLeaves(
     managerId: string,

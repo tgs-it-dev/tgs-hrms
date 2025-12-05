@@ -3,8 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Asset } from '../../entities/asset.entity';
 import { AssetRequest } from '../../entities/asset-request.entity';
-import { Employee } from '../../entities/employee.entity';
-import { Team } from '../../entities/team.entity';
 import { CreateAssetRequestDto } from './dto/create-asset-request.dto';
 import { AssetRequestStatus, AssetStatus } from '../../common/constants/enums';
 
@@ -15,10 +13,6 @@ export class AssetRequestService {
     private readonly reqRepo: Repository<AssetRequest>,
     @InjectRepository(Asset)
     private readonly assetRepo: Repository<Asset>,
-    @InjectRepository(Employee)
-    private readonly employeeRepo: Repository<Employee>,
-    @InjectRepository(Team)
-    private readonly teamRepo: Repository<Team>,
   ) {}
 
   async create(dto: CreateAssetRequestDto, userId: string, tenantId: string) {

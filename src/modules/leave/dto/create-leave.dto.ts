@@ -1,6 +1,5 @@
 import { IsString, IsDateString, IsNotEmpty, IsUUID } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
 
 export class CreateLeaveDto {
   @ApiProperty({ description: 'Leave type ID', example: 'leaveType_001' })

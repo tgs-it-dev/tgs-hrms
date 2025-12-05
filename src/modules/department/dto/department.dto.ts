@@ -3,7 +3,7 @@
  */
 
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsUUID, IsEnum, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsUUID, MaxLength } from 'class-validator';
 import { BaseQueryDto } from '../../../common/dto/common.dto';
 
 // Create Department DTO

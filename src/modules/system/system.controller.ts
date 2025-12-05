@@ -16,7 +16,6 @@ import {
 import { JwtAuthGuard } from "src/common/guards/jwt-auth.guard";
 import { RolesGuard } from "src/common/guards/roles.guard";
 import { Roles } from "src/common/decorators/roles.decorator";
-import { TenantId } from "src/common/decorators/company.deorator";
 import { SystemService } from "./system.service";
 import { Response } from "express";
 

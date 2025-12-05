@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, In } from 'typeorm';
 import { PayrollRecord } from '../../../entities/payroll-record.entity';
@@ -8,7 +8,6 @@ import { Employee } from '../../../entities/employee.entity';
 import { Attendance } from '../../../entities/attendance.entity';
 import { Leave } from '../../../entities/leave.entity';
 import { EmployeeKpi } from '../../../entities/employee-kpi.entity';
-import { User } from '../../../entities/user.entity';
 import { Tenant } from '../../../entities/tenant.entity';
 import { GeneratePayrollDto, UpdatePayrollStatusDto } from '../dto/payroll-record.dto';
 import { PayrollConfigService } from './payroll-config.service';
@@ -18,13 +17,11 @@ import { PaginationResponse } from '../../../common/interfaces/pagination.interf
 
 @Injectable()
 export class PayrollRecordService {
+  private readonly logger = new Logger(PayrollRecordService.name);
+
   constructor(
     @InjectRepository(PayrollRecord)
     private readonly payrollRecordRepo: Repository<PayrollRecord>,
-    @InjectRepository(PayrollConfig)
-    private readonly payrollConfigRepo: Repository<PayrollConfig>,
-    @InjectRepository(EmployeeSalary)
-    private readonly employeeSalaryRepo: Repository<EmployeeSalary>,
     @InjectRepository(Employee)
     private readonly employeeRepo: Repository<Employee>,
     @InjectRepository(Attendance)
@@ -33,8 +30,6 @@ export class PayrollRecordService {
     private readonly leaveRepo: Repository<Leave>,
     @InjectRepository(EmployeeKpi)
     private readonly employeeKpiRepo: Repository<EmployeeKpi>,
-    @InjectRepository(User)
-    private readonly userRepo: Repository<User>,
     @InjectRepository(Tenant)
     private readonly tenantRepo: Repository<Tenant>,
     private readonly payrollConfigService: PayrollConfigService,
@@ -107,7 +102,10 @@ export class PayrollRecordService {
           payrollRecords.push(record);
         } catch (error) {
           // Log error but continue with other employees
-          console.error(`Error generating payroll for employee ${employee.id}:`, error.message);
+          this.logger.error(
+            `Error generating payroll for employee ${employee.id}:`,
+            error instanceof Error ? error.message : String(error),
+          );
         }
       }
 
@@ -264,6 +262,7 @@ export class PayrollRecordService {
 
     for (const checkIn of checkIns) {
       const date = checkIn.timestamp.toISOString().split('T')[0];
+      if (!date) continue;
       if (!dailyAttendance[date]) {
         dailyAttendance[date] = {};
       }
@@ -272,6 +271,7 @@ export class PayrollRecordService {
 
     for (const checkOut of checkOuts) {
       const date = checkOut.timestamp.toISOString().split('T')[0];
+      if (!date) continue;
       if (!dailyAttendance[date]) {
         dailyAttendance[date] = {};
       }
@@ -480,11 +480,11 @@ export class PayrollRecordService {
 
   private async calculateGrossSalary(
     salary: EmployeeSalary,
-    payrollConfig: PayrollConfig,
+    _payrollConfig: PayrollConfig,
     workingDays: number,
     daysPresent: number,
     paidLeaves: number,
-    unpaidLeaves: number,
+    _unpaidLeaves: number,
   ): Promise<number> {
     const baseSalary = Number(salary.baseSalary);
     const dailySalary = baseSalary / workingDays;
@@ -893,19 +893,23 @@ export class PayrollRecordService {
 
     // Convert to array format with tenantId
     const tenantStatistics = Object.keys(tenantMonthlyData).map((tId) => {
-      const monthlyTrend = Object.values(tenantMonthlyData[tId]).sort((a: any, b: any) => {
+      const monthlyData = tenantMonthlyData[tId];
+      const deptStats = tenantDepartmentStats[tId];
+      if (!monthlyData || !deptStats) return null;
+      
+      const monthlyTrend = Object.values(monthlyData).sort((a: any, b: any) => {
         if (a.year !== b.year) return a.year - b.year;
         return a.month - b.month;
       });
 
-      const departmentComparison = Object.values(tenantDepartmentStats[tId]);
+      const departmentComparison = Object.values(deptStats);
 
       return {
         tenantId: tId,
         monthlyTrend,
         departmentComparison,
       };
-    });
+    }).filter((stat): stat is NonNullable<typeof stat> => stat !== null);
 
     return {
       statistics: tenantStatistics,

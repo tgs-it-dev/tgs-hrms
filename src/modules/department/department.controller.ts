@@ -10,6 +10,7 @@ import {
   UseGuards,
   Query,
 } from '@nestjs/common';
+import { AuthenticatedRequest } from '../../common/types/request.types';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiQuery } from '@nestjs/swagger';
 import { DepartmentService } from './department.service';
 import { CreateDepartmentDto } from './dto/create-department.dto';
@@ -45,7 +46,7 @@ export class DepartmentController {
     },
   })
   @ApiResponse({ status: 400, description: 'Validation error.' })
-  async create(@Req() req, @Body() dto: CreateDepartmentDto) {
+  async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateDepartmentDto) {
     const tenant_id = req.user.tenant_id;
     return await this.service.create(tenant_id, dto);
   }
@@ -67,7 +68,7 @@ export class DepartmentController {
     },
   })
   @ApiResponse({ status: 404, description: 'Department not found.' })
-  async update(@Req() req, @Param('id') id: string, @Body() dto: UpdateDepartmentDto) {
+  async update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateDepartmentDto) {
     const tenant_id = req.user.tenant_id;
     return await this.service.update(tenant_id, id, dto);
   }
@@ -100,7 +101,7 @@ export class DepartmentController {
   @Permissions('manage_departments')
   @ApiOperation({ summary: 'List all departments for tenant' })
   @ApiResponse({ status: 200, description: 'List of departments returned.' })
-  async findAll(@Req() req) {
+  async findAll(@Req() req: AuthenticatedRequest) {
     const tenant_id = req.user.tenant_id;
     return await this.service.findAll(tenant_id);
   }
@@ -111,18 +112,18 @@ export class DepartmentController {
   @ApiOperation({ summary: 'Get department by ID' })
   @ApiResponse({ status: 200, description: 'Department found.' })
   @ApiResponse({ status: 404, description: 'Department not found.' })
-  async findOne(@Req() req, @Param('id') id: string) {
+  async findOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const tenant_id = req.user.tenant_id;
     return await this.service.findOne(tenant_id, id);
   }
 
   @Delete(':id')
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin', )
   @Permissions('manage_departments')
   @ApiOperation({ summary: 'Delete department' })
   @ApiResponse({ status: 200, description: 'Department deleted successfully.' })
   @ApiResponse({ status: 404, description: 'Department not found.' })
-  async remove(@Req() req, @Param('id') id: string) {
+  async remove(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const tenant_id = req.user.tenant_id;
     return await this.service.remove(tenant_id, id);
   }

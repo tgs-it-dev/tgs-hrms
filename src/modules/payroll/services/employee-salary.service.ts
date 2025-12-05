@@ -3,7 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { EmployeeSalary } from '../../../entities/employee-salary.entity';
 import { Employee } from '../../../entities/employee.entity';
-import { Tenant } from '../../../entities/tenant.entity';
 import { CreateEmployeeSalaryDto, UpdateEmployeeSalaryDto, AllowanceItemDto, DeductionItemDto } from '../dto/employee-salary.dto';
 import { EmployeeStatus } from '../../../common/constants/enums';
 import { PaginationResponse } from '../../../common/interfaces/pagination.interface';
@@ -17,8 +16,6 @@ export class EmployeeSalaryService {
     private readonly employeeSalaryRepo: Repository<EmployeeSalary>,
     @InjectRepository(Employee)
     private readonly employeeRepo: Repository<Employee>,
-    @InjectRepository(Tenant)
-    private readonly tenantRepo: Repository<Tenant>,
     private readonly payrollConfigService: PayrollConfigService,
   ) {}
 

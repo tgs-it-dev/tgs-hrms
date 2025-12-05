@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { AttendanceType } from '../../common/constants/enums';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -6,17 +6,13 @@ import { Attendance } from '../../entities/attendance.entity';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
 import { TimesheetService } from '../timesheet/timesheet.service'; 
-import { Employee } from '../../entities/employee.entity';
 import { TeamService } from '../team/team.service';
 
 @Injectable()
 export class AttendanceService {
-  private readonly logger = new Logger(AttendanceService.name);
   constructor(
     @InjectRepository(Attendance)
     private readonly attendanceRepo: Repository<Attendance>,
-    @InjectRepository(Employee)
-    private readonly employeeRepo: Repository<Employee>,
     private readonly timesheetService: TimesheetService,
     private readonly teamService: TeamService
   ) {}
@@ -100,7 +96,7 @@ export class AttendanceService {
       }
     }
     for (const checkIn of checkIns) {
-      const startDate = checkIn.timestamp.toISOString().split('T')[0];
+      const startDate = checkIn.timestamp.toISOString().split('T')[0] || '';
       const matchingCheckOut = checkOuts.find(
         checkout => checkout.timestamp > checkIn.timestamp
       );
@@ -116,13 +112,15 @@ export class AttendanceService {
     }
     const groupedByDate: Record<string, { checkIn?: Attendance; checkOut?: Attendance }> = {};
     for (const session of sessions) {
-      if (!groupedByDate[session.startDate]) {
-        groupedByDate[session.startDate] = {};
+      const dateKey = session.startDate;
+      if (!dateKey) continue;
+      if (!groupedByDate[dateKey]) {
+        groupedByDate[dateKey] = {};
       }
-      if (!groupedByDate[session.startDate].checkIn || 
-          session.checkIn.timestamp > (groupedByDate[session.startDate].checkIn?.timestamp || new Date(0))) {
-        groupedByDate[session.startDate].checkIn = session.checkIn;
-        groupedByDate[session.startDate].checkOut = session.checkOut;
+      if (!groupedByDate[dateKey].checkIn || 
+          session.checkIn.timestamp > (groupedByDate[dateKey].checkIn?.timestamp || new Date(0))) {
+        groupedByDate[dateKey].checkIn = session.checkIn;
+        groupedByDate[dateKey].checkOut = session.checkOut;
       }
     }
     const items = Object.entries(groupedByDate).map(([date, { checkIn, checkOut }]) => {
@@ -361,7 +359,7 @@ export class AttendanceService {
       const checkOuts = userRecords.filter(r => r.type === AttendanceType.CHECK_OUT);
       const sessions: Array<{ checkIn: Attendance; checkOut?: Attendance; startDate: string }> = [];
       for (const checkIn of checkIns) {
-        const startDate = checkIn.timestamp.toISOString().split('T')[0];
+        const startDate = checkIn.timestamp.toISOString().split('T')[0] || '';
         const matchingCheckOut = checkOuts.find(
           checkout => checkout.timestamp > checkIn.timestamp
         );
@@ -376,13 +374,17 @@ export class AttendanceService {
         }
       }
       for (const session of sessions) {
-        if (!groupedAttendance[userIdKey][session.startDate]) {
-          groupedAttendance[userIdKey][session.startDate] = {};
+        const dateKey = session.startDate;
+        if (!dateKey) continue;
+        const userGroup = groupedAttendance[userIdKey];
+        if (!userGroup) continue;
+        if (!userGroup[dateKey]) {
+          userGroup[dateKey] = {};
         }
-        if (!groupedAttendance[userIdKey][session.startDate].checkIn || 
-            session.checkIn.timestamp > (groupedAttendance[userIdKey][session.startDate].checkIn?.timestamp || new Date(0))) {
-          groupedAttendance[userIdKey][session.startDate].checkIn = session.checkIn;
-          groupedAttendance[userIdKey][session.startDate].checkOut = session.checkOut;
+        if (!userGroup[dateKey].checkIn || 
+            session.checkIn.timestamp > (userGroup[dateKey].checkIn?.timestamp || new Date(0))) {
+          userGroup[dateKey].checkIn = session.checkIn;
+          userGroup[dateKey].checkOut = session.checkOut;
         }
       }
     }
@@ -551,8 +553,12 @@ export class AttendanceService {
 
     // Process each tenant-user combination to match check-ins with check-outs
     for (const [tenantIdKey, usersMap] of Object.entries(recordsByTenantAndUser)) {
+      const tenantData = tenantMap[tenantIdKey];
+      if (!tenantData) continue;
+      
       for (const [userId, userRecords] of Object.entries(usersMap)) {
-        const userAttendance = tenantMap[tenantIdKey].userAttendance[userId];
+        const userAttendance = tenantData.userAttendance[userId];
+        if (!userAttendance) continue;
         
         // Separate check-ins and check-outs
         const checkIns = userRecords.filter(r => r.type === AttendanceType.CHECK_IN);
@@ -563,7 +569,7 @@ export class AttendanceService {
         const remainingCheckOuts = [...checkOuts];
         
         for (const checkIn of checkIns) {
-          const startDate = checkIn.timestamp.toISOString().split('T')[0];
+          const startDate = checkIn.timestamp.toISOString().split('T')[0] || '';
           const matchingCheckOut = remainingCheckOuts.find(
             checkout => checkout.timestamp > checkIn.timestamp
           );
@@ -580,14 +586,16 @@ export class AttendanceService {
         
         // Group sessions by date (using check-in date)
         for (const session of sessions) {
-          if (!userAttendance[session.startDate]) {
-            userAttendance[session.startDate] = {};
+          const dateKey = session.startDate;
+          if (!dateKey) continue;
+          if (!userAttendance[dateKey]) {
+            userAttendance[dateKey] = {};
           }
           // Keep the latest check-in and its matching check-out for each date
-          if (!userAttendance[session.startDate].checkIn || 
-              session.checkIn.timestamp > (userAttendance[session.startDate].checkIn?.timestamp || new Date(0))) {
-            userAttendance[session.startDate].checkIn = session.checkIn;
-            userAttendance[session.startDate].checkOut = session.checkOut;
+          if (!userAttendance[dateKey].checkIn || 
+              session.checkIn.timestamp > (userAttendance[dateKey].checkIn?.timestamp || new Date(0))) {
+            userAttendance[dateKey].checkIn = session.checkIn;
+            userAttendance[dateKey].checkOut = session.checkOut;
           }
         }
       }
@@ -634,7 +642,7 @@ export class AttendanceService {
     }
 
     // Build tenant-wise employee attendance
-    for (const [tenantIdKey, tenantData] of Object.entries(tenantMap)) {
+    for (const [, tenantData] of Object.entries(tenantMap)) {
       const employees: Array<{
         user_id: string;
         first_name: string;

@@ -107,7 +107,7 @@ export class DesignationController {
   }
 
   @Delete(':id')
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('manage_designations')
   @ApiOperation({ summary: 'Delete a designation' })
   @ApiResponse({ status: 200, description: 'Designation deleted.' })

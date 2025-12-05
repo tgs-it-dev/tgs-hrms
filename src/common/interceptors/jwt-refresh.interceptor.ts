@@ -8,13 +8,11 @@ import {
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class JwtRefreshInterceptor implements NestInterceptor {
   constructor(
     private jwtService: JwtService,
-    private configService: ConfigService
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {

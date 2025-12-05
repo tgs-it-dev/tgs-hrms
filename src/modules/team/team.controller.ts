@@ -77,7 +77,7 @@ export class TeamController {
     const allItems: any[] = [];
 
     while (true) {
-      const { items, total, limit, totalPages } = await this.teamService.findAll(tenantId, pageNumber);
+      const { items, total, totalPages } = await this.teamService.findAll(tenantId, pageNumber);
       allItems.push(...(items || []));
 
       if (!items.length || allItems.length >= total || pageNumber >= totalPages) {

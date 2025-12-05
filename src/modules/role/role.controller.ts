@@ -100,7 +100,7 @@ export class RoleController {
     status: 400,
     description: 'Bad Request - Invalid role data',
   })
-  createRole(@Body() createRoleDto: CreateRoleDto) {
+  createRole(@Body() _createRoleDto: CreateRoleDto) {
     return { message: 'Create role - Implementation pending' };
   }
 
@@ -123,7 +123,7 @@ export class RoleController {
     status: 404,
     description: 'Role not found',
   })
-  updateRole(@Param('id') id: string, @Body() updateRoleDto: UpdateRoleDto) {
+  updateRole(@Param('id') id: string, @Body() _updateRoleDto: UpdateRoleDto) {
     return { message: `Update role: ${id} - Implementation pending` };
   }
 

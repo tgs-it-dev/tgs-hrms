@@ -163,7 +163,8 @@ export class CompanyService {
             this.logger.log(`Deleted old logo: ${oldFileName}`);
           }
         } catch (err) {
-          this.logger.error(`Failed to delete old logo: ${err.message}`);
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          this.logger.error(`Failed to delete old logo: ${errorMessage}`);
         }
       }
     }

@@ -17,6 +17,7 @@ import {
   Res,
 } from '@nestjs/common';
 import { Response } from 'express';
+import { AuthenticatedRequest } from '../../../common/types/request.types';
 import { UserService } from '../services/user.service';
 import { CreateUserDto, UpdateUserDto } from '../dto/user.dto';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
@@ -51,6 +52,7 @@ export class UserController {
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
       profilePictureData.fileStream.pipe(res);
+      return;
     } catch (error) {
       return res.status(500).json({ message: 'Error serving profile picture' });
     }
@@ -66,7 +68,8 @@ export class UserController {
       const user = await this.userService.create(dto, tenantId);
       return { message: 'User created successfully', user };
     } catch (error) {
-      throw new HttpException('Error creating user: ' + error.message, HttpStatus.BAD_REQUEST);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new HttpException('Error creating user: ' + errorMessage, HttpStatus.BAD_REQUEST);
     }
   }
 
@@ -75,17 +78,18 @@ export class UserController {
   @Get()
   @Roles('system-admin', 'admin', 'manager')
   @Permissions('manage_users', 'view_team_reports')
-  async findAll(@TenantId() tenantId: string, @Req() req, @Query('page') page?: string) {
+  async findAll(@TenantId() tenantId: string, @Req() req: AuthenticatedRequest, @Query('page') page?: string) {
     try {
       const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-      const users = await this.userService.findAll(tenantId, req.user.userId, pageNumber);
+      const users = await this.userService.findAll(tenantId, req.user.id, pageNumber);
       if (!users || users.items.length === 0) {
         throw new HttpException('No users found for this tenant', HttpStatus.NOT_FOUND);
       }
       return { message: 'Users fetched successfully', users };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       throw new HttpException(
-        'Error fetching users: ' + error.message,
+        'Error fetching users: ' + errorMessage,
         HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
@@ -96,13 +100,14 @@ export class UserController {
   @Get(':id')
   @Roles('system-admin', 'admin', 'manager')
   @Permissions('manage_users', 'view_team_reports')
-  async findOne(@Param('id') id: string, @TenantId() tenantId: string, @Req() req) {
+  async findOne(@Param('id') id: string, @TenantId() tenantId: string, @Req() req: AuthenticatedRequest) {
     try {
-      const user = await this.userService.findOne(id, tenantId, req.user.userId);
+      const user = await this.userService.findOne(id, tenantId, req.user.id);
       return { message: 'User fetched successfully', user };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       throw new HttpException(
-        'Error fetching user: ' + error.message,
+        'Error fetching user: ' + errorMessage,
         HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
@@ -117,14 +122,15 @@ export class UserController {
     @Param('id') id: string,
     @Body() dto: UpdateUserDto,
     @TenantId() tenantId: string,
-    @Req() req
+    @Req() req: AuthenticatedRequest
   ) {
     try {
-      const updatedUser = await this.userService.update(id, dto, tenantId, req.user.userId);
+      const updatedUser = await this.userService.update(id, dto, tenantId, req.user.id);
       return { message: 'User updated successfully', updatedUser };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       throw new HttpException(
-        'Error updating user: ' + error.message,
+        'Error updating user: ' + errorMessage,
         HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
@@ -135,9 +141,9 @@ export class UserController {
   @Delete(':id')
   @Roles('system-admin', 'admin')
   @Permissions('manage_users')
-  async remove(@Param('id') id: string, @TenantId() tenantId: string, @Req() req) {
+  async remove(@Param('id') id: string, @TenantId() tenantId: string, @Req() req: AuthenticatedRequest) {
     try {
-      const deleted = await this.userService.remove(id, tenantId, req.user.userId);
+      const deleted = await this.userService.remove(id, tenantId, req.user.id);
       if (!deleted) {
         throw new HttpException(
           `User with ID ${id} not found or deletion failed`,
@@ -146,8 +152,9 @@ export class UserController {
       }
       return { message: 'User has been deleted successfully.' };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       throw new HttpException(
-        'Error deleting user: ' + error.message,
+        'Error deleting user: ' + errorMessage,
         HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
@@ -169,10 +176,10 @@ export class UserController {
     )
     file: Express.Multer.File,
     @TenantId() tenantId: string,
-    @Req() req
+    @Req() req: AuthenticatedRequest
   ) {
     try {
-      const authenticatedUserId = req.user?.userId || req.user?.id || req.user?.sub;
+      const authenticatedUserId = req.user.id;
       if (id !== authenticatedUserId) {
         throw new HttpException(
           'You can only update your own profile picture',
@@ -182,8 +189,9 @@ export class UserController {
       const updatedUser = await this.userService.updateProfilePicture(id, file, tenantId);
       return { message: 'Profile picture updated successfully', user: updatedUser };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       throw new HttpException(
-        'Error updating profile picture: ' + error.message,
+        'Error updating profile picture: ' + errorMessage,
         HttpStatus.BAD_REQUEST
       );
     }
@@ -192,9 +200,9 @@ export class UserController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Delete(':id/profile-picture')
-  async removeProfilePicture(@Param('id') id: string, @TenantId() tenantId: string, @Req() req) {
+  async removeProfilePicture(@Param('id') id: string, @TenantId() tenantId: string, @Req() req: AuthenticatedRequest) {
     try {
-      const authenticatedUserId = req.user?.userId || req.user?.id || req.user?.sub;
+      const authenticatedUserId = req.user.id;
       if (id !== authenticatedUserId) {
         throw new HttpException(
           'You can only remove your own profile picture',
@@ -204,8 +212,9 @@ export class UserController {
       const updatedUser = await this.userService.removeProfilePicture(id, tenantId);
       return { message: 'Profile picture removed successfully', user: updatedUser };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       throw new HttpException(
-        'Error removing profile picture: ' + error.message,
+        'Error removing profile picture: ' + errorMessage,
         HttpStatus.BAD_REQUEST
       );
     }

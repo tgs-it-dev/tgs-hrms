@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsUUID, IsEnum, IsObject, IsArray, ValidateNested, IsNumber, IsBoolean, Min, Max } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsArray, ValidateNested, IsNumber, IsBoolean, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 import { SalaryCycle } from '../../../common/constants/enums';
 

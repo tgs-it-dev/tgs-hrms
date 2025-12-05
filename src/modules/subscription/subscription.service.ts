@@ -1,6 +1,6 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository } from 'typeorm';
 import { SubscriptionPlan } from '../../entities/subscription-plan.entity';
 import Stripe from 'stripe';
 import { ConfigService } from '@nestjs/config';

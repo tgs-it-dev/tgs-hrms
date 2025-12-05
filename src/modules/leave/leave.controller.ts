@@ -11,11 +11,11 @@ import {
   Request,
   Res,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiBody } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ForbiddenException } from '@nestjs/common';
 import { LeaveService } from './leave.service';
 import { CreateLeaveDto } from './dto/create-leave.dto';
-import { UpdateLeaveDto, ApproveLeaveDto, RejectLeaveDto } from './dto/update-leave.dto';
+import { ApproveLeaveDto, RejectLeaveDto } from './dto/update-leave.dto';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
@@ -315,7 +315,7 @@ export class LeaveController {
   @Permissions('manage_team_leaves')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Download team leave requests as CSV (Manager only)' })
-  async exportTeam(@Request() req: any, @Res() res: Response, @Query('page') page?: string) {
+  async exportTeam(@Request() req: any, @Res() res: Response, @Query('page') _page?: string) {
     // Fetch all pages of team leaves so CSV includes complete dataset (no pagination)
     let currentPage = 1;
     const rows: any[] = [];

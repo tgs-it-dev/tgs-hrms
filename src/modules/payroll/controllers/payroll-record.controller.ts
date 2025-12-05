@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiQuery } from '@nestjs/swagger';
 import { PayrollRecordService } from '../services/payroll-record.service';
-import { GeneratePayrollDto, UpdatePayrollStatusDto, PayrollSummaryQueryDto, PayrollStatisticsQueryDto } from '../dto/payroll-record.dto';
+import { GeneratePayrollDto, UpdatePayrollStatusDto, PayrollStatisticsQueryDto } from '../dto/payroll-record.dto';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { TenantGuard } from '../../../common/guards/tenant.guard';
@@ -86,7 +86,7 @@ export class PayrollRecordController {
   ) {
     const tenantId = req.user.tenant_id;
     const userRole = req.user.role;
-    const userId = req.user.id;
+    // const userId = req.user.id; // Not used currently
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
     const limitNumber = Math.min(100, Math.max(1, parseInt(limit || '25', 10) || 25));
 

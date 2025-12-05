@@ -5,7 +5,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsEmail, IsOptional, IsUUID, IsEnum, MinLength, MaxLength, IsNumber, Min, Max } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { UserGender, UserStatus, EmployeeStatus } from '../constants/enums';
+import { UserGender, UserStatus } from '../constants/enums';
 
 // Base Query DTO for pagination
 export class BaseQueryDto {

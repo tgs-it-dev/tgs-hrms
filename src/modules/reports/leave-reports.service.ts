@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import { Leave } from '../../entities/leave.entity';
@@ -282,10 +282,14 @@ export class LeaveReportsService {
 
     // Group leaves by employee
     const leavesByEmployee = leaves.reduce((acc, leave) => {
+      if (!leave.employeeId) return acc;
       if (!acc[leave.employeeId]) {
         acc[leave.employeeId] = [];
       }
-      acc[leave.employeeId].push(leave);
+      const employeeLeaves = acc[leave.employeeId];
+      if (employeeLeaves) {
+        employeeLeaves.push(leave);
+      }
       return acc;
     }, {} as Record<string, Leave[]>);
 
@@ -367,10 +371,14 @@ export class LeaveReportsService {
 
     // Calculate organization-wide statistics (using all employees, not just current page)
     const allLeavesByEmployee = allLeaves.reduce((acc, leave) => {
+      if (!leave.employeeId) return acc;
       if (!acc[leave.employeeId]) {
         acc[leave.employeeId] = [];
       }
-      acc[leave.employeeId].push(leave);
+      const employeeLeaves = acc[leave.employeeId];
+      if (employeeLeaves) {
+        employeeLeaves.push(leave);
+      }
       return acc;
     }, {} as Record<string, Leave[]>);
 

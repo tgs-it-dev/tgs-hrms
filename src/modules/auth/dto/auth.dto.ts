@@ -3,9 +3,7 @@
  */
 
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsEmail, IsOptional, IsUUID, IsEnum, MinLength, MaxLength } from 'class-validator';
-import { UserGender } from '../../../common/constants/enums';
-import { BaseQueryDto, LoginDto, RegisterDto, ForgotPasswordDto, ResetPasswordDto, ChangePasswordDto } from '../../../common/dto/common.dto';
+import { IsString, IsEmail, IsOptional } from 'class-validator';
 
 // Login Response DTO
 export class LoginResponseDto {

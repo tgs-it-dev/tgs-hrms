@@ -12,9 +12,6 @@ import {
   Res,
   UseInterceptors,
   UploadedFiles,
-  ParseFilePipe,
-  MaxFileSizeValidator,
-  FileTypeValidator,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -41,6 +38,7 @@ import { PermissionsGuard } from '../../../common/guards/permissions.guard';
 import { Response } from 'express';
 import { sendCsvResponse } from '../../../common/utils/csv.util';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import * as path from 'path';
 
 @ApiTags('Employees')
 @ApiBearerAuth()
@@ -55,19 +53,31 @@ export class EmployeeController {
 
   @Post('manager')
   @Roles('admin', 'system-admin')
-  @UseInterceptors(FileFieldsInterceptor([
-    { name: 'profile_picture', maxCount: 1 },
-    { name: 'cnic_picture', maxCount: 1 },
-    { name: 'cnic_back_picture', maxCount: 1 }
-  ], {
-    fileFilter: (req, file, cb) => {
-      if (!file.mimetype.startsWith('image/')) {
-        return cb(new Error('Only image files are allowed!'), false);
-      }
-      cb(null, true);
-    },
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-  }))
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [
+        { name: 'profile_picture', maxCount: 1 },
+        { name: 'cnic_picture', maxCount: 1 },
+        { name: 'cnic_back_picture', maxCount: 1 },
+      ],
+      {
+        fileFilter: (_req, file, cb) => {
+          if (!file.mimetype.startsWith('image/')) {
+            return cb(new Error('Only image files are allowed!'), false);
+          }
+
+          const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+          const ext = path.extname(file.originalname).toLowerCase();
+          if (!allowedExtensions.includes(ext)) {
+            return cb(new Error('Invalid file extension!'), false);
+          }
+
+          cb(null, true);
+        },
+        limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+      },
+    ),
+  )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Create a new manager employee with optional profile and CNIC pictures' })
   @ApiBody({
@@ -134,19 +144,31 @@ export class EmployeeController {
   @Post()
   @Roles('admin', 'system-admin')
   @Permissions('manage_employees')
-  @UseInterceptors(FileFieldsInterceptor([
-    { name: 'profile_picture', maxCount: 1 },
-    { name: 'cnic_picture', maxCount: 1 },
-    { name: 'cnic_back_picture', maxCount: 1 }
-  ], {
-    fileFilter: (req, file, cb) => {
-      if (!file.mimetype.startsWith('image/')) {
-        return cb(new Error('Only image files are allowed!'), false);
-      }
-      cb(null, true);
-    },
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-  }))
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [
+        { name: 'profile_picture', maxCount: 1 },
+        { name: 'cnic_picture', maxCount: 1 },
+        { name: 'cnic_back_picture', maxCount: 1 },
+      ],
+      {
+        fileFilter: (_req, file, cb) => {
+          if (!file.mimetype.startsWith('image/')) {
+            return cb(new Error('Only image files are allowed!'), false);
+          }
+
+          const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+          const ext = path.extname(file.originalname).toLowerCase();
+          if (!allowedExtensions.includes(ext)) {
+            return cb(new Error('Invalid file extension!'), false);
+          }
+
+          cb(null, true);
+        },
+        limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+      },
+    ),
+  )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Create employee with optional profile and CNIC pictures' })
   @ApiBody({
@@ -209,19 +231,31 @@ export class EmployeeController {
   @Put(':id')
   @Roles('admin', 'system-admin')
   @Permissions('manage_employees')
-  @UseInterceptors(FileFieldsInterceptor([
-    { name: 'profile_picture', maxCount: 1 },
-    { name: 'cnic_picture', maxCount: 1 },
-    { name: 'cnic_back_picture', maxCount: 1 }
-  ], {
-    fileFilter: (req, file, cb) => {
-      if (!file.mimetype.startsWith('image/')) {
-        return cb(new Error('Only image files are allowed!'), false);
-      }
-      cb(null, true);
-    },
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-  }))
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [
+        { name: 'profile_picture', maxCount: 1 },
+        { name: 'cnic_picture', maxCount: 1 },
+        { name: 'cnic_back_picture', maxCount: 1 },
+      ],
+      {
+        fileFilter: (_req, file, cb) => {
+          if (!file.mimetype.startsWith('image/')) {
+            return cb(new Error('Only image files are allowed!'), false);
+          }
+
+          const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+          const ext = path.extname(file.originalname).toLowerCase();
+          if (!allowedExtensions.includes(ext)) {
+            return cb(new Error('Invalid file extension!'), false);
+          }
+
+          cb(null, true);
+        },
+        limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+      },
+    ),
+  )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Update employee details including designation, role, and pictures (profile, CNIC front/back)' })
   @ApiBody({

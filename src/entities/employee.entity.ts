@@ -6,6 +6,7 @@ import {
   ManyToOne,
   JoinColumn,
   OneToMany,
+  Index,
 } from "typeorm";
 
 import { EmployeeBenefit } from "./employee-benefit.entity";
@@ -17,6 +18,9 @@ import { EmployeeKpi } from "./employee-kpi.entity";
 import { PerformanceReview } from "./performance-review.entity";
 import { Promotion } from "./promotion.entity";
 
+@Index(['user_id'])
+@Index(['designation_id'])
+@Index(['team_id'])
 @Entity("employees")
 export class Employee {
   @PrimaryGeneratedColumn("uuid")
