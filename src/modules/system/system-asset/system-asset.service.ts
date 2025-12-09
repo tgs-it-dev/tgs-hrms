@@ -24,7 +24,7 @@ export class SystemAssetService {
 
     const qb = this.assetRepo
       .createQueryBuilder("asset")
-      .innerJoinAndSelect("asset.tenant", "tenant", "tenant.status = :activeStatus AND tenant.isDeleted = :isDeleted", { activeStatus: "active", isDeleted: false })
+      .innerJoinAndSelect("asset.tenant", "tenant", "tenant.status = :activeStatus AND tenant.deleted_at IS NULL", { activeStatus: "active" })
       .leftJoinAndSelect("asset.assignedToUser", "user")
       .leftJoinAndSelect("asset.category", "category")
       .leftJoinAndSelect("asset.subcategory", "subcategory")
@@ -65,7 +65,7 @@ export class SystemAssetService {
   async getAssetsSummary() {
     const qb = this.assetRepo
       .createQueryBuilder("asset")
-      .innerJoin("asset.tenant", "tenant", "tenant.status = :activeStatus AND tenant.isDeleted = :isDeleted", { activeStatus: "active", isDeleted: false })
+      .innerJoin("asset.tenant", "tenant", "tenant.status = :activeStatus AND tenant.deleted_at IS NULL", { activeStatus: "active" })
       .select("tenant.id", "tenantId")
       .addSelect("tenant.name", "tenantName")
       .addSelect("COUNT(asset.id)", "totalAssets")

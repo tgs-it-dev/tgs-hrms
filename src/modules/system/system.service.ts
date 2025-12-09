@@ -63,7 +63,7 @@ export class SystemService {
   .addSelect("COUNT(employee.id)", "activeCount")
   .where("employee.status = :status", { status: "active" })
   .andWhere("tenant.status = :tenantStatus", { tenantStatus: "active" })
-  .andWhere("tenant.isDeleted = :isDeleted", { isDeleted: false })
+  .andWhere("tenant.deleted_at IS NULL")
   .groupBy("user.tenant_id")
   .addGroupBy("tenant.name")
   .orderBy("COUNT(employee.id)", "DESC")

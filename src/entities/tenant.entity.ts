@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
   OneToMany,
 } from "typeorm";
 import { User } from "./user.entity";
@@ -29,16 +30,13 @@ export class Tenant {
   @Column({ type: "varchar", default: "active" })
   status: "active" | "suspended";
 
-  @Column({ type: "boolean", default: false })
-  isDeleted: boolean;
-
   @CreateDateColumn()
   created_at: Date;
 
   @UpdateDateColumn()
   updated_at: Date;
 
-  @Column({ type: "timestamp", nullable: true })
+  @DeleteDateColumn({ type: "timestamptz", nullable: true })
   deleted_at: Date | null;
 
   // --- Relations ---

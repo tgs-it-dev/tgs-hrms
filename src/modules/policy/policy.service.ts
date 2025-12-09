@@ -27,7 +27,7 @@ export class PolicyService {
       );
     }
 
-    const policy = this.repo.create({ ...dto, tenant_id, tenant: { id: tenant_id } as any });
+    const policy = this.repo.create({ ...dto, tenant_id });
     return await this.repo.save(policy);
   }
 

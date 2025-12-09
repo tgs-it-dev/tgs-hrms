@@ -45,7 +45,6 @@ import { SystemLog } from './entities/system-log.entity';
 @Module({
   imports: [
     ScheduleModule.forRoot(),
-
     ConfigModule.forRoot({ isGlobal: true }),
     MiddlewareConfigModule,
     EmailModule,
@@ -58,7 +57,12 @@ import { SystemLog } from './entities/system-log.entity';
     TypeOrmModule.forFeature([SystemLog]),
 
     ThrottlerModule.forRoot({
-      throttlers: [{ ttl: 60_000, limit: 5 }],
+      throttlers: [
+        // Default: 100 requests per 15 minutes (less restrictive for normal operations)
+        { name: 'default', ttl: 900_000, limit: 100 },
+        // Short-term: 10 requests per minute (for burst protection)
+        { name: 'short', ttl: 60_000, limit: 10 },
+      ],
     }),
 
     

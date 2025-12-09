@@ -172,6 +172,8 @@ export class EmployeeService implements OnModuleInit {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const resetToken = crypto.randomBytes(32).toString('hex');
+    // Hash the token before storing (similar to passwords)
+    const hashedResetToken = await bcrypt.hash(resetToken, 10);
     const resetTokenExpiry = new Date();
     resetTokenExpiry.setHours(resetTokenExpiry.getHours() + 24);
 
@@ -184,7 +186,7 @@ export class EmployeeService implements OnModuleInit {
       gender: dto.gender ?? null,
       role_id: managerRole.id,
       tenant_id,
-      reset_token: resetToken,
+      reset_token: hashedResetToken,
       reset_token_expiry: resetTokenExpiry,
     });
 
@@ -292,6 +294,8 @@ export class EmployeeService implements OnModuleInit {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const resetToken = crypto.randomBytes(32).toString('hex');
+    // Hash the token before storing (similar to passwords)
+    const hashedResetToken = await bcrypt.hash(resetToken, 10);
     const resetTokenExpiry = new Date();
     resetTokenExpiry.setHours(resetTokenExpiry.getHours() + 24);
 
@@ -304,7 +308,7 @@ export class EmployeeService implements OnModuleInit {
       gender: dto.gender ?? null,
       role_id: employeeRole.id,
       tenant_id,
-      reset_token: resetToken,
+      reset_token: hashedResetToken,
       reset_token_expiry: resetTokenExpiry,
     });
 
@@ -755,9 +759,11 @@ export class EmployeeService implements OnModuleInit {
     }
     
     const resetToken = crypto.randomBytes(32).toString('hex');
+    // Hash the token before storing (similar to passwords)
+    const hashedResetToken = await bcrypt.hash(resetToken, 10);
     const resetTokenExpiry = new Date();
     resetTokenExpiry.setHours(resetTokenExpiry.getHours() + 24);
-    employee.user.reset_token = resetToken;
+    employee.user.reset_token = hashedResetToken;
     employee.user.reset_token_expiry = resetTokenExpiry;
     employee.invite_status = InviteStatus.INVITE_SENT;
     await this.userRepo.save(employee.user);

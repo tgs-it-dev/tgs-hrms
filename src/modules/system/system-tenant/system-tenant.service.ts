@@ -13,6 +13,7 @@ import {
   FindOptionsWhere,
   ILike,
   DataSource,
+  IsNull,
 } from "typeorm";
 import { CreateTenantDto } from "../dto/system-tenant/create-tenant.dto";
 import { UpdateTenantDto } from "../dto/system-tenant/update-tenant.dto";
@@ -91,7 +92,7 @@ export class SystemTenantService {
     const existing = await this.tenantRepo.findOne({
       where: {
         name: ILike(tenantName),
-        isDeleted: false,
+        deleted_at: IsNull(),
       },
     });
 
@@ -347,7 +348,7 @@ export class SystemTenantService {
   ): Promise<PaginationResponse<Tenant>> {
     const where: FindOptionsWhere<Tenant> = includeDeleted
       ? {}
-      : { isDeleted: false };
+      : { deleted_at: IsNull() };
 
     // If page or limit are not provided, return all tenants
     if (!page || !limit) {
@@ -390,7 +391,7 @@ export class SystemTenantService {
    */
   async findOne(id: string, relations: string[] = []) {
     const tenant = await this.tenantRepo.findOne({
-      where: { id, isDeleted: false },
+      where: { id, deleted_at: IsNull() },
       relations,
     });
 
@@ -469,7 +470,6 @@ export class SystemTenantService {
   async remove(id: string) {
     const tenant = await this.findOne(id);
 
-    tenant.isDeleted = true;
     tenant.deleted_at = new Date();
     await this.tenantRepo.save(tenant);
 
@@ -478,14 +478,18 @@ export class SystemTenantService {
 
   async restore(id: string) {
     const tenant = await this.tenantRepo.findOne({
-      where: { id, isDeleted: true },
+      where: { id },
+      withDeleted: true,
     });
+    
+    if (!tenant || !tenant.deleted_at) {
+      throw new NotFoundException("Tenant not found or not deleted.");
+    }
 
     if (!tenant) {
       throw new NotFoundException("Tenant not found or not deleted.");
     }
 
-    tenant.isDeleted = false;
     tenant.deleted_at = null;
 
     await this.tenantRepo.save(tenant);
@@ -561,7 +565,7 @@ export class SystemTenantService {
       const existing = await this.tenantRepo.findOne({
         where: {
           name: ILike(trimmedName),
-          isDeleted: false,
+          deleted_at: IsNull(),
         },
       });
 

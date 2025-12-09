@@ -5,11 +5,12 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, QueryFailedError } from 'typeorm';
+import { Repository, IsNull, FindOptionsWhere } from 'typeorm';
 import { Department } from '../../entities/department.entity';
 import { Tenant } from '../../entities/tenant.entity';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
+import { getPostgresErrorCode } from '../../common/types/database.types';
 const GLOBAL = '00000000-0000-0000-0000-000000000000';
 @Injectable()
 export class DepartmentService {
@@ -20,7 +21,7 @@ export class DepartmentService {
     private tenantRepo: Repository<Tenant>
   ) {}
 
-  async create(tenant_id: string, dto: CreateDepartmentDto) {
+  async create(tenant_id: string, dto: CreateDepartmentDto): Promise<Department> {
     const existing = await this.repo.findOne({
       where: { name: dto.name, tenant_id },
     });
@@ -34,22 +35,22 @@ export class DepartmentService {
         name: dto.name,
         description: dto.description || null, 
         tenant_id,
-        tenant: { id: tenant_id } as any, 
       });
 
       return await this.repo.save(department);
     } catch (err) {
-      if (err instanceof QueryFailedError && (err as any).code === '23505') {
+      const errorCode = getPostgresErrorCode(err);
+      if (errorCode === '23505') {
         throw new ConflictException('Department name must be unique within your company');
       }
-      if (err instanceof QueryFailedError && (err as any).code === '23502') {
+      if (errorCode === '23502') {
         throw new BadRequestException('Department name is required.');
       }
       throw err;
     }
   }
 
-  async update(tenant_id: string, id: string, dto: UpdateDepartmentDto) {
+  async update(tenant_id: string, id: string, dto: UpdateDepartmentDto): Promise<Department> {
     const department = await this.repo.findOne({ where: { id } });
 
     if (!department) {
@@ -91,7 +92,8 @@ export class DepartmentService {
     try {
       return await this.repo.save(department);
     } catch (err) {
-      if (err instanceof QueryFailedError && (err as any).code === '23505') {
+      const errorCode = getPostgresErrorCode(err);
+      if (errorCode === '23505') {
         throw new ConflictException('Department name must be unique within your company');
       }
       throw err;
@@ -99,7 +101,7 @@ export class DepartmentService {
   }
 
   
-  async findAll(tenant_id: string) {
+  async findAll(tenant_id: string): Promise<Department[]> {
     return this.repo.createQueryBuilder('dept')
       .where('dept.tenant_id IN (:...tenants)', { tenants: [GLOBAL, tenant_id] })
       .orderBy('dept.name', 'ASC')
@@ -107,7 +109,7 @@ export class DepartmentService {
   }
 
 
-  async findOne(tenant_id: string, id: string) {
+  async findOne(tenant_id: string, id: string): Promise<Department> {
     const dept = await this.repo.findOne({ where: { id } });
 
     if (!dept) {
@@ -158,13 +160,11 @@ export class DepartmentService {
       await this.repo.delete({ id, tenant_id });
       return { deleted: true, id };
     } catch (err) {
-      if (err instanceof QueryFailedError) {
-        const code = (err as any).code;
-        if (code === '23503') { 
-          throw new BadRequestException(
-            'Cannot delete department because it is still being referenced by other records. Please check for any remaining designations or employees.'
-          );
-        }
+      const errorCode = getPostgresErrorCode(err);
+      if (errorCode === '23503') { 
+        throw new BadRequestException(
+          'Cannot delete department because it is still being referenced by other records. Please check for any remaining designations or employees.'
+        );
       }
       throw err;
     }
@@ -189,7 +189,7 @@ export class DepartmentService {
     }>;
   }> {
     // Get tenants (filter by tenantId if provided)
-    const tenantWhere: any = { isDeleted: false };
+    const tenantWhere: FindOptionsWhere<Tenant> = { deleted_at: IsNull() };
     if (tenantId) {
       tenantWhere.id = tenantId;
     }

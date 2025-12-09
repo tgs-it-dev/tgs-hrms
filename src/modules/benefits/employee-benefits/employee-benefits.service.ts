@@ -9,7 +9,7 @@ import { Benefit } from "src/entities/benefit.entity";
 import { EmployeeBenefit } from "src/entities/employee-benefit.entity";
 import { Employee } from "src/entities/employee.entity";
 import { Tenant } from "src/entities/tenant.entity";
-import { Repository, QueryFailedError } from "typeorm";
+import { Repository, QueryFailedError, IsNull } from "typeorm";
 import { CreateEmployeeBenefitDto } from "../dto/employee-benefit/create-employee-benefit.dto";
 
 @Injectable()
@@ -373,7 +373,7 @@ export class EmployeeBenefitsService {
       typeof value === 'string' ? value.toLowerCase() : null;
 
     // Build tenant filter
-    const tenantWhere: any = { isDeleted: false };
+    const tenantWhere: any = { deleted_at: IsNull() };
     if (tenantId) {
       tenantWhere.id = tenantId;
     }

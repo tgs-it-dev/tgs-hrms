@@ -773,7 +773,7 @@ export class TeamService {
     }>;
   }> {
     // Get tenants (filter by tenantId if provided)
-    const tenantWhere: any = { isDeleted: false };
+    const tenantWhere: any = { deleted_at: IsNull() };
     if (tenantId) {
       tenantWhere.id = tenantId;
     }
