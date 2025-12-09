@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Leave } from '../../entities/leave.entity';
 import { LeaveType } from '../../entities/leave-type.entity';
 import { User } from '../../entities/user.entity';
@@ -42,13 +42,14 @@ export class LeaveReportsService {
     const summary = await Promise.all(
       leaveTypes.map(async (leaveType) => {
         // Use QueryBuilder for more reliable date range queries
+        // Check for overlap: leave overlaps with year if startDate <= endOfYear AND endDate >= startOfYear
         const leaves = await this.leaveRepo
           .createQueryBuilder('leave')
           .where('leave.employeeId = :employeeId', { employeeId })
           .andWhere('leave.leaveTypeId = :leaveTypeId', { leaveTypeId: leaveType.id })
           .andWhere('leave.status = :status', { status: LeaveStatus.APPROVED })
-          .andWhere('leave.startDate >= :startOfYear', { startOfYear })
           .andWhere('leave.startDate <= :endOfYear', { endOfYear })
+          .andWhere('leave.endDate >= :startOfYear', { startOfYear })
           .getMany();
 
         const used = leaves.reduce((total, leave) => total + leave.totalDays, 0);
@@ -98,16 +99,17 @@ export class LeaveReportsService {
     const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
 
     // Get leave data for team members
+    // Check for overlap: leave overlaps with month if startDate <= endOfMonth AND endDate >= startOfMonth
     const teamLeaveData = await Promise.all(
       teamMembers.map(async (member) => {
-        const leaves = await this.leaveRepo.find({
-          where: {
-            employeeId: member.user_id,
-            startDate: Between(startOfMonth, endOfMonth),
-            status: LeaveStatus.APPROVED,
-          },
-          relations: ['leaveType'],
-        });
+        const leaves = await this.leaveRepo
+          .createQueryBuilder('leave')
+          .where('leave.employeeId = :employeeId', { employeeId: member.user_id })
+          .andWhere('leave.status = :status', { status: LeaveStatus.APPROVED })
+          .andWhere('leave.startDate <= :endOfMonth', { endOfMonth })
+          .andWhere('leave.endDate >= :startOfMonth', { startOfMonth })
+          .leftJoinAndSelect('leave.leaveType', 'leaveType')
+          .getMany();
 
         const leaveSummary = leaves.map((leave) => ({
           type: leave.leaveType.name,
@@ -177,27 +179,45 @@ export class LeaveReportsService {
     // Calculate balance for each leave type
     const balances = await Promise.all(
       leaveTypes.map(async (leaveType) => {
-        // All approved leaves for this type in the whole year
+        // All approved leaves for this type that overlap with the year
+        // Check for overlap: leave overlaps with year if startDate <= endOfYear AND endDate >= startOfYear
         const yearLeaves = await this.leaveRepo
           .createQueryBuilder('leave')
           .where('leave.employeeId = :employeeId', { employeeId })
           .andWhere('leave.leaveTypeId = :leaveTypeId', { leaveTypeId: leaveType.id })
           .andWhere('leave.status = :status', { status: LeaveStatus.APPROVED })
-          .andWhere('leave.startDate >= :startOfYear', { startOfYear })
           .andWhere('leave.startDate <= :endOfYear', { endOfYear })
+          .andWhere('leave.endDate >= :startOfYear', { startOfYear })
           .getMany();
 
         const usedYear = yearLeaves.reduce((total, leave) => total + leave.totalDays, 0);
 
         let usedThisMonth = 0;
         if (validMonth && monthStart && monthEnd) {
+          // Calculate days used in the specific month (only count days that fall within the month)
           usedThisMonth = yearLeaves
             .filter(
               (l) =>
-                l.startDate >= monthStart! &&
-                l.startDate <= monthEnd!,
+                // Leave overlaps with month if startDate <= monthEnd AND endDate >= monthStart
+                l.startDate <= monthEnd! &&
+                l.endDate >= monthStart!,
             )
-            .reduce((total, leave) => total + leave.totalDays, 0);
+            .reduce((total, leave) => {
+              // Calculate actual days within the month range
+              const leaveStart = new Date(Math.max(leave.startDate.getTime(), monthStart!.getTime()));
+              const leaveEnd = new Date(Math.min(leave.endDate.getTime(), monthEnd!.getTime()));
+              // Count working days in the overlapping period
+              let daysInMonth = 0;
+              const current = new Date(leaveStart);
+              while (current <= leaveEnd) {
+                const day = current.getDay();
+                if (day !== 0 && day !== 6) { // Exclude weekends
+                  daysInMonth++;
+                }
+                current.setDate(current.getDate() + 1);
+              }
+              return total + daysInMonth;
+            }, 0);
         }
 
         // Remaining is always based on annual usage
@@ -223,20 +243,20 @@ export class LeaveReportsService {
     };
   }
 
-  async getAllLeaveReports(tenantId: string, page: number = 1, month?: number) {
-    const currentYear = new Date().getFullYear();
+  async getAllLeaveReports(tenantId: string, page: number = 1, month?: number, year?: number) {
+    const targetYear = year ?? new Date().getFullYear();
 
     let startDate: Date;
     let endDate: Date;
 
     if (month && month >= 1 && month <= 12) {
-      // Specific month range within current year
-      startDate = new Date(currentYear, month - 1, 1);
-      endDate = new Date(currentYear, month, 0, 23, 59, 59, 999);
+      // Specific month range within target year
+      startDate = new Date(targetYear, month - 1, 1);
+      endDate = new Date(targetYear, month, 0, 23, 59, 59, 999);
     } else {
       // Full year range
-      startDate = new Date(currentYear, 0, 1);
-      endDate = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+      startDate = new Date(targetYear, 0, 1);
+      endDate = new Date(targetYear, 11, 31, 23, 59, 59, 999);
     }
     const limit = 25;
     const skip = (page - 1) * limit;
@@ -266,13 +286,15 @@ export class LeaveReportsService {
       where: { tenantId, status: 'active' },
     });
 
-    // Get all leaves for the current year (for all employees to calculate org stats)
+    // Get all leaves that overlap with the period (for all employees to calculate org stats)
+    // Check for overlap: leave overlaps with period if startDate <= endDate AND endDate >= startDate
     const allEmployeeIds = allEmployees.map(emp => emp.user_id);
     const allLeaves = await this.leaveRepo
       .createQueryBuilder('leave')
       .leftJoinAndSelect('leave.leaveType', 'leaveType')
       .leftJoinAndSelect('leave.employee', 'employee')
-      .where('leave.startDate BETWEEN :startDate AND :endDate', { startDate, endDate })
+      .where('leave.startDate <= :endDate', { endDate })
+      .andWhere('leave.endDate >= :startDate', { startDate })
       .andWhere('leave.employeeId IN (:...allEmployeeIds)', { allEmployeeIds })
       .getMany();
 
@@ -420,7 +442,7 @@ export class LeaveReportsService {
 
     return {
       period: {
-        year: currentYear,
+        year: targetYear,
         ...(month && month >= 1 && month <= 12
           ? {
               month,

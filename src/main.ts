@@ -65,6 +65,7 @@ async function bootstrap() {
         'https://snazzy-raindrop-644615.netlify.app',
         'http://localhost:5173',
         'http://localhost:3000',
+        'http://localhost:3001',
       ];
 
   app.enableCors({
@@ -74,10 +75,13 @@ async function bootstrap() {
         return callback(null, true);
       }
       
-      if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
+      // Check if origin is in allowed list or if wildcard is enabled
+      if (allowedOrigins.includes('*') || allowedOrigins.indexOf(origin) !== -1) {
         callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS'));
+        // Log rejected origin for debugging
+        console.warn(`CORS: Rejected origin: ${origin}. Allowed origins: ${allowedOrigins.join(', ')}`);
+        callback(new Error(`Not allowed by CORS. Origin: ${origin}`));
       }
     },
     credentials: true,

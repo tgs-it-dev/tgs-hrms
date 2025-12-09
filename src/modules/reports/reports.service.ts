@@ -547,17 +547,18 @@ export class ReportsService {
       const isManager =
         user && user.role && user.role.name && user.role.name.toLowerCase() === UserRole.MANAGER;
       const monthlyCap = isManager ? MONTHLY_CAP_MANAGER : MONTHLY_CAP_EMPLOYEE;
-      // Get all approved leaves for the year
+      // Get all approved leaves that overlap with the year
+      // Check for overlap: leave overlaps with year if startDate <= endOfYear AND endDate >= startOfYear
       const startOfYear = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
       const endOfYear = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
-      const leaves = await this.leaveRepo.find({
-        where: {
-          employeeId: uid,
-          status: LeaveStatus.APPROVED,
-          startDate: Between(startOfYear, endOfYear),
-        },
-        relations: ['leaveType'],
-      });
+      const leaves = await this.leaveRepo
+        .createQueryBuilder('leave')
+        .where('leave.employeeId = :employeeId', { employeeId: uid })
+        .andWhere('leave.status = :status', { status: LeaveStatus.APPROVED })
+        .andWhere('leave.startDate <= :endOfYear', { endOfYear })
+        .andWhere('leave.endDate >= :startOfYear', { startOfYear })
+        .leftJoinAndSelect('leave.leaveType', 'leaveType')
+        .getMany();
       // Used annual
       const used: Record<string, number> = {};
       let totalUsed = 0;

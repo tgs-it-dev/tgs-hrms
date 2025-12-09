@@ -34,9 +34,28 @@ export class LeaveService {
     
     const startDate = new Date(dto.startDate);
     const endDate = new Date(dto.endDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Normalize to start of day
+
+    // Normalize dates to start of day for comparison
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(0, 0, 0, 0);
+
+    // Check if start date is in the past
+    if (startDate < today) {
+      throw new ForbiddenException('Leave cannot be applied for past dates');
+    }
 
     if (endDate < startDate) {
       throw new ForbiddenException('End date cannot be before start date');
+    }
+
+    // Allow leave application for next year (max 1 year ahead from today)
+    const maxFutureDate = new Date(today);
+    maxFutureDate.setFullYear(maxFutureDate.getFullYear() + 1);
+    
+    if (startDate > maxFutureDate) {
+      throw new ForbiddenException('Leave can only be applied up to 1 year in advance');
     }
 
     
