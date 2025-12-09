@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PERMISSIONS_KEY } from '../decorators/permissions.decorator';
+import { AuthenticatedRequest } from '../types/request.types';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
@@ -14,7 +15,7 @@ export class PermissionsGuard implements CanActivate {
 
   constructor(private readonly reflector: Reflector) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const required = this.reflector.getAllAndOverride<string[]>(PERMISSIONS_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -27,19 +28,19 @@ export class PermissionsGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest();
-    const user = request.user as { permissions?: string[] };
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const user = request.user;
 
-    this.logger.log(`PermissionsGuard: User object: ${JSON.stringify(user)}`);
-    this.logger.log(`PermissionsGuard: User permissions: ${JSON.stringify(user?.permissions)}`);
+    this.logger.debug(`PermissionsGuard: User object: ${JSON.stringify(user)}`);
+    this.logger.debug(`PermissionsGuard: User permissions: ${JSON.stringify(user?.permissions)}`);
 
     const userPermissions = (user?.permissions || []).map((p) => p.toLowerCase());
-    this.logger.log(
+    this.logger.debug(
       `PermissionsGuard: Normalized user permissions: ${JSON.stringify(userPermissions)}`
     );
 
     // Check if user is admin-equivalent (admin or system-admin) -> has all permissions
-    const role = ((request.user as any)?.role || '').toLowerCase();
+    const role = (user?.role || '').toLowerCase();
     const isAdminEquivalent = role === 'system-admin' || role === 'admin' || role === 'network-admin';
 
     let allowed = false;
@@ -57,12 +58,12 @@ export class PermissionsGuard implements CanActivate {
 
     if (!allowed) {
       this.logger.warn(
-        `PermissionsGuard: Access denied. Required: ${JSON.stringify(required)}, User has: ${JSON.stringify(userPermissions)}, Role: ${(request.user as any)?.role}`
+        `PermissionsGuard: Access denied. Required: ${JSON.stringify(required)}, User has: ${JSON.stringify(userPermissions)}, Role: ${user?.role}`
       );
       throw new ForbiddenException('You do not have the required permissions');
     }
 
-    this.logger.log(`PermissionsGuard: Access granted`);
+    this.logger.debug(`PermissionsGuard: Access granted`);
     return true;
   }
 }

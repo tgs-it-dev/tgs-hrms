@@ -3,7 +3,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiQuery } from '@ne
 import { AttendanceService } from './attendance.service';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
-import { Request } from 'express';
+import { AuthenticatedRequest } from 'src/common/types/request.types';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Permissions } from 'src/common/decorators/permissions.decorator';
@@ -21,8 +21,8 @@ export class AttendanceController {
 
   @Post()
   @ApiOperation({ summary: 'Create a check-in/check-out event' })
-  async createAttendance(@Body() createAttendanceDto: CreateAttendanceDto, @Req() req: Request) {
-    const userId = (req.user as any).id;
+  async createAttendance(@Body() createAttendanceDto: CreateAttendanceDto, @Req() req: AuthenticatedRequest) {
+    const userId = req.user.id;
     return this.attendanceService.create(userId, createAttendanceDto);
   }
 
@@ -143,22 +143,22 @@ export class AttendanceController {
     description: 'Returns attendance events for the specified user',
   })
   async events(
-    @Req() req: Request,
+    @Req() req: AuthenticatedRequest,
     @Query('userId') userId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string
   ) {
     // For system-admin, allow them to query any userId
     // For other roles, default to their own userId if not provided
-    const userRole = (req.user as any)?.role;
-    const id = userId || (userRole === 'system-admin' ? undefined : (req.user as any).id);
+    const userRole = req.user?.role;
+    const id = userId || (userRole === 'system-admin' ? undefined : req.user.id);
     return this.attendanceService.findEvents(id, startDate, endDate);
   }
 
   @Get('today')
   @ApiOperation({ summary: 'Get today latest check-in and its matching check-out' })
-  async today(@Req() req: Request, @Query('userId') userId?: string) {
-    const id = userId || (req.user as any).id;
+  async today(@Req() req: AuthenticatedRequest, @Query('userId') userId?: string) {
+    const id = userId || req.user.id;
     return this.attendanceService.getTodaySummary(id);
   }
 
@@ -221,13 +221,13 @@ export class AttendanceController {
     description: 'Optional end date filter (ISO date string, e.g., 2024-01-31)',
   })
   async exportSelf(
-    @Req() req: Request,
+    @Req() req: AuthenticatedRequest,
     @Res() res: Response,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string
   ) {
-    const userId = (req.user as any).id;
-    const userName = `${(req.user as any).first_name || ''} ${(req.user as any).last_name || ''}`.trim();
+    const userId = req.user.id;
+    const userName = `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim();
     const { items } = await this.attendanceService.findEvents(userId, startDate, endDate);
     
     // Group events by date and combine check-in/check-out

@@ -73,7 +73,7 @@ export class SystemEmployeeService {
 
     const data = results.map((e) => {
       // Check if tenant is deleted or suspended
-      const isTenantDeleted = e.user?.tenant?.isDeleted === true;
+      const isTenantDeleted = !!e.user?.tenant?.deleted_at;
       const isTenantSuspended = e.user?.tenant?.status === 'suspended';
       
       // If tenant is deleted or suspended, set employee status to INACTIVE
@@ -124,7 +124,7 @@ export class SystemEmployeeService {
     }
 
     // Check if tenant is deleted or suspended
-    const isTenantDeleted = employee.user?.tenant?.isDeleted === true;
+    const isTenantDeleted = !!employee.user?.tenant?.deleted_at;
     const isTenantSuspended = employee.user?.tenant?.status === 'suspended';
     
     // If tenant is deleted or suspended, set employee status to INACTIVE

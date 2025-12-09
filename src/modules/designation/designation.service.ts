@@ -5,13 +5,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, QueryFailedError } from 'typeorm';
+import { Repository, IsNull, FindOptionsWhere } from 'typeorm';
 import { Designation } from '../../entities/designation.entity';
 import { Department } from '../../entities/department.entity';
 import { Tenant } from '../../entities/tenant.entity';
 import { CreateDesignationDto } from './dto/create-designation.dto';
 import { UpdateDesignationDto } from './dto/update-designation.dto';
 import { PaginationResponse } from '../../common/interfaces/pagination.interface';
+import { getPostgresErrorCode } from '../../common/types/database.types';
 const GLOBAL = '00000000-0000-0000-0000-000000000000';
 
 @Injectable()
@@ -27,7 +28,7 @@ export class DesignationService {
     private readonly tenantRepo: Repository<Tenant>,
   ) {}
 
-  async create(tenant_id: string, dto: CreateDesignationDto) {
+  async create(tenant_id: string, dto: CreateDesignationDto): Promise<Designation> {
     const department = await this.departmentRepo.findOne({
       where: { id: dto.department_id },
     });
@@ -66,22 +67,20 @@ export class DesignationService {
       });
       return await this.designationRepo.save(designation);
     } catch (err) {
-      if (err instanceof QueryFailedError) {
-        const code = (err as any).code;
-        if (code === '23505') {
-          throw new ConflictException(
-            'Title must be unique within the department',
-          );
-        }
-        if (code === '23502') {
-          throw new BadRequestException('Missing required fields');
-        }
+      const errorCode = getPostgresErrorCode(err);
+      if (errorCode === '23505') {
+        throw new ConflictException(
+          'Title must be unique within the department',
+        );
+      }
+      if (errorCode === '23502') {
+        throw new BadRequestException('Missing required fields');
       }
       throw err;
     }
   }
 
-  async update(id: string, dto: UpdateDesignationDto) {
+  async update(id: string, dto: UpdateDesignationDto): Promise<Designation> {
     const designation = await this.designationRepo.findOne({
       where: { id },
       relations: ['department'],
@@ -118,7 +117,8 @@ export class DesignationService {
     try {
       return await this.designationRepo.save(designation);
     } catch (err) {
-      if (err instanceof QueryFailedError && (err as any).code === '23505') {
+      const errorCode = getPostgresErrorCode(err);
+      if (errorCode === '23505') {
         throw new ConflictException(
           'Title must be unique within the department',
         );
@@ -149,7 +149,7 @@ export class DesignationService {
     };
   }
 
-  async findOne(id: string) {
+  async findOne(id: string): Promise<Designation> {
     const designation = await this.designationRepo.findOne({
       where: { id },
       relations: ['department'],
@@ -188,13 +188,11 @@ export class DesignationService {
       await this.designationRepo.delete(id);
       return { deleted: true, id };
     } catch (err) {
-      if (err instanceof QueryFailedError) {
-        const code = (err as any).code;
-        if (code === '23503') {
-          throw new BadRequestException(
-            'Cannot delete designation because it is still being referenced by employees. Please reassign employees to other designations first.',
-          );
-        }
+      const errorCode = getPostgresErrorCode(err);
+      if (errorCode === '23503') {
+        throw new BadRequestException(
+          'Cannot delete designation because it is still being referenced by employees. Please reassign employees to other designations first.',
+        );
       }
       throw err;
     }
@@ -222,7 +220,7 @@ export class DesignationService {
     }>;
   }> {
     // Get tenants (filter by tenantId if provided)
-    const tenantWhere: any = { isDeleted: false };
+    const tenantWhere: FindOptionsWhere<Tenant> = { deleted_at: IsNull() };
     if (tenantId) {
       tenantWhere.id = tenantId;
     }

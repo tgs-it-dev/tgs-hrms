@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
 import { Tenant } from '../../entities/tenant.entity';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
@@ -22,18 +22,15 @@ export class TenantService {
    */
   async findAll(page: number = 1, limit: number = 25, includeDeleted: boolean = false): Promise<PaginationResponse<Tenant>> {
     const skip = (page - 1) * limit;
-    const where: any = {};
     
     // Filter out deleted tenants by default (professional practice)
-    if (!includeDeleted) {
-      where.isDeleted = false;
-    }
-    
+    // TypeORM's DeleteDateColumn automatically excludes deleted records unless withDeleted is true
     const [items, total] = await this.tenantRepo.findAndCount({
-      where,
+      where: includeDeleted ? {} : { deleted_at: IsNull() },
       order: { created_at: 'DESC' },
       skip,
       take: limit,
+      withDeleted: includeDeleted,
     });
 
     const totalPages = Math.ceil(total / limit);
@@ -55,21 +52,17 @@ export class TenantService {
    * @throws NotFoundException if tenant not found or is deleted
    */
   async findOne(id: string, includeDeleted: boolean = false): Promise<Tenant> {
-    const where: any = { id };
-    
-    // By default, exclude deleted tenants
-    if (!includeDeleted) {
-      where.isDeleted = false;
-    }
-    
-    const tenant = await this.tenantRepo.findOne({ where });
+    const tenant = await this.tenantRepo.findOne({ 
+      where: { id },
+      withDeleted: includeDeleted,
+    });
     
     if (!tenant) {
       throw new NotFoundException('Tenant not found');
     }
     
     // Additional check: if tenant is deleted and we're not including deleted
-    if (tenant.isDeleted && !includeDeleted) {
+    if (tenant.deleted_at && !includeDeleted) {
       throw new NotFoundException('Tenant has been deleted');
     }
     
@@ -93,7 +86,7 @@ export class TenantService {
     const tenant = await this.findOne(id);
     
     // Prevent updating deleted tenants
-    if (tenant.isDeleted) {
+    if (tenant.deleted_at) {
       throw new BadRequestException('Cannot update a deleted tenant. Please restore it first.');
     }
     
@@ -117,13 +110,12 @@ export class TenantService {
     }
     
     // Check if already deleted (professional error handling)
-    if (tenant.isDeleted) {
+    if (tenant.deleted_at) {
       throw new BadRequestException('Tenant is already deleted');
     }
     
     // Soft delete: Mark tenant as deleted instead of hard delete
     // This preserves employee data for import info while preventing login
-    tenant.isDeleted = true;
     tenant.deleted_at = new Date();
     tenant.status = 'suspended';
     
@@ -145,12 +137,11 @@ export class TenantService {
       throw new NotFoundException('Tenant not found');
     }
     
-    if (!tenant.isDeleted) {
+    if (!tenant.deleted_at) {
       throw new BadRequestException('Tenant is not deleted');
     }
     
     // Restore tenant
-    tenant.isDeleted = false;
     tenant.deleted_at = null;
     tenant.status = 'active';
     

@@ -2,7 +2,7 @@ import { Injectable, UnauthorizedException, BadRequestException, Logger } from '
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from '../../entities/user.entity';
 import { CompanyDetails } from '../../entities/company-details.entity';
-import { Repository } from 'typeorm';
+import { Repository, Not, IsNull, MoreThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { RegisterDto } from './dto/register.dto';
 import * as bcrypt from 'bcrypt';
@@ -219,7 +219,7 @@ export class AuthService {
           where: { id: tenantId },
         });
         
-        if (!tenant || tenant.isDeleted) {
+        if (!tenant || tenant.deleted_at) {
           this.logger.warn(`Token validation failed: tenant is deleted for user: ${userId}`);
           throw new UnauthorizedException('Your organization account has been deleted. Please contact support.');
         }
@@ -297,7 +297,7 @@ export class AuthService {
         where: { id: tenantId },
       });
       
-      if (!tenant || tenant.isDeleted) {
+      if (!tenant || tenant.deleted_at) {
         this.logger.warn(`Login failed: tenant is deleted for email: ${normalizedEmail}`);
         throw new UnauthorizedException('Your organization account has been deleted. Please contact support.');
       }
@@ -365,30 +365,33 @@ export class AuthService {
   }
 
   async forgotPassword(dto: ForgotPasswordDto) {
-    this.logger.log(`Forgot password request for email: ${dto.email}`);
+    // Sanitize email from logs
+    const emailHash = this.sanitizeEmailForLogging(dto.email);
+    this.logger.log(`Forgot password request for email: ${emailHash}`);
 
     const user = await this.userRepository.findOne({
       where: { email: dto.email.toLowerCase() },
     });
 
     if (!user) {
-      this.logger.warn(`Forgot password failed: user not found for email: ${dto.email}`);
+      this.logger.warn(`Forgot password failed: user not found for email: ${emailHash}`);
       throw new BadRequestException('In Valid email address');
     }
 
     const resetToken = this.generateSecureToken();
-
+    // Hash the token before storing (similar to passwords)
+    const hashedResetToken = await bcrypt.hash(resetToken, 10);
     const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
 
     await this.userRepository.update(user.id, {
-      reset_token: resetToken,
+      reset_token: hashedResetToken,
       reset_token_expiry: resetTokenExpiry,
     });
 
     const userName = `${user.first_name} ${user.last_name}`;
     await this.emailService.sendPasswordResetEmail(user.email, resetToken, userName);
 
-    this.logger.log(`Password reset email sent to: ${user.email}`);
+    this.logger.log(`Password reset email sent to: ${emailHash}`);
 
     return {
       message: 'Check your email for the password reset link.',
@@ -400,43 +403,71 @@ export class AuthService {
     return crypto.randomBytes(32).toString('hex');
   }
 
+  /**
+   * Sanitize email for logging to prevent PII exposure
+   * Shows only first 3 characters and domain
+   */
+  private sanitizeEmailForLogging(email: string): string {
+    if (!email || !email.includes('@')) {
+      return '***';
+    }
+    const parts = email.split('@');
+    if (parts.length !== 2) {
+      return '***';
+    }
+    const [localPart, domain] = parts;
+    if (!localPart || localPart.length <= 3) {
+      return '***@' + domain;
+    }
+    return localPart.substring(0, 3) + '***@' + domain;
+  }
+
   async verifyResetToken(token: string) {
     if (!token) {
       return { valid: false, message: 'Token is required' };
     }
 
-    const user = await this.userRepository.findOne({
-      where: { reset_token: token },
+    // Find all users with non-expired reset tokens and verify the token
+    const users = await this.userRepository.find({
+      where: {
+        reset_token: Not(IsNull()),
+        reset_token_expiry: MoreThan(new Date()),
+      },
     });
 
-    if (!user) {
-      return { valid: false, message: 'Invalid reset token' };
+    // Verify token against hashed tokens
+    for (const user of users) {
+      if (user.reset_token && await bcrypt.compare(token, user.reset_token)) {
+        return { valid: true, message: 'Token is valid' };
+      }
     }
 
-    if (user.reset_token_expiry && new Date() > user.reset_token_expiry) {
-      return { valid: false, message: 'Reset token has expired' };
-    }
-
-    return { valid: true, message: 'Token is valid' };
+    return { valid: false, message: 'Invalid or expired reset token' };
   }
 
   async resetPassword(dto: ResetPasswordDto) {
-    this.logger.log(`Reset password attempt with token: ${dto.token}`);
+    this.logger.log(`Reset password attempt with token (sanitized)`);
 
-    const user = await this.userRepository.findOne({
-      where: { reset_token: dto.token },
+    // Find all users with non-expired reset tokens and verify the token
+    const users = await this.userRepository.find({
+      where: {
+        reset_token: Not(IsNull()),
+        reset_token_expiry: MoreThan(new Date()),
+      },
     });
 
-    if (!user) {
-      this.logger.warn(`Reset password failed: invalid token`);
-      throw new BadRequestException('Invalid or expired reset token');
+    let user: User | null = null;
+    // Verify token against hashed tokens
+    for (const u of users) {
+      if (u.reset_token && await bcrypt.compare(dto.token, u.reset_token)) {
+        user = u;
+        break;
+      }
     }
 
-    if (user.reset_token_expiry && new Date() > user.reset_token_expiry) {
-      this.logger.warn(`Reset password failed: expired token for user: ${user.email}`);
-      throw new BadRequestException(
-        'Reset token has expired. Please request a new password reset.'
-      );
+    if (!user) {
+      this.logger.warn(`Reset password failed: invalid or expired token`);
+      throw new BadRequestException('Invalid or expired reset token');
     }
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
@@ -448,9 +479,10 @@ export class AuthService {
     });
 
     const userName = `${user.first_name} ${user.last_name}`;
+    const emailHash = this.sanitizeEmailForLogging(user.email);
     await this.emailService.sendPasswordResetSuccessEmail(user.email, userName);
 
-    this.logger.log(`Password reset successful for user: ${user.email}`);
+    this.logger.log(`Password reset successful for user: ${emailHash}`);
 
     return { message: 'Password reset successfully' };
   }
@@ -492,7 +524,7 @@ export class AuthService {
           where: { id: tenantId },
         });
         
-        if (!tenant || tenant.isDeleted) {
+        if (!tenant || tenant.deleted_at) {
           this.logger.warn(`Refresh token failed: tenant is deleted for user: ${user.email}`);
           throw new UnauthorizedException('Your organization account has been deleted. Please contact support.');
         }

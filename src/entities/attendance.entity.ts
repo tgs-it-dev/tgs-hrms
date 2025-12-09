@@ -5,10 +5,15 @@ import {
   CreateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { User } from './user.entity';
 import { AttendanceType } from '../common/constants/enums';
 
+@Index(['user_id'])
+@Index(['timestamp'])
+@Index(['user_id', 'timestamp'])
+@Index(['type'])
 @Entity('attendance')
 export class Attendance {
   @PrimaryGeneratedColumn('uuid')

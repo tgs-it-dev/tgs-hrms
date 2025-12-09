@@ -12,6 +12,8 @@ import { Tenant } from './tenant.entity';
 import { Designation } from './designation.entity';
 
 @Index(['tenant_id'])
+@Index(['name'])
+@Index(['tenant_id', 'name'])
 @Entity('departments')
 export class Department {
   @PrimaryGeneratedColumn('uuid')

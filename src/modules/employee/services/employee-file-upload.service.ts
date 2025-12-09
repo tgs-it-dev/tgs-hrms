@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
+import { validateImageFile } from '../../../common/utils/file-validation.util';
 
 @Injectable()
 export class EmployeeFileUploadService {
   async uploadProfilePicture(file: Express.Multer.File, employeeId: string): Promise<string> {
+    // Additional validation as a safety check
+    validateImageFile(file);
     const uploadDir = path.join(process.cwd(), 'public', 'profile-pictures');
 
     // Create directory if it doesn't exist
@@ -25,6 +28,8 @@ export class EmployeeFileUploadService {
   }
 
   async uploadCnicPicture(file: Express.Multer.File, employeeId: string): Promise<string> {
+    // Additional validation as a safety check
+    validateImageFile(file);
     const uploadDir = path.join(process.cwd(), 'public', 'cnic-pictures');
 
     // Create directory if it doesn't exist
@@ -45,6 +50,8 @@ export class EmployeeFileUploadService {
   }
 
   async uploadCnicBackPicture(file: Express.Multer.File, employeeId: string): Promise<string> {
+    // Additional validation as a safety check
+    validateImageFile(file);
     const uploadDir = path.join(process.cwd(), 'public', 'cnic-back-pictures');
 
     // Create directory if it doesn't exist

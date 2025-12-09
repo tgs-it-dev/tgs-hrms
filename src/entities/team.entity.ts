@@ -6,10 +6,12 @@ import {
   ManyToOne,
   JoinColumn,
   OneToMany,
+  Index,
 } from 'typeorm';
 import { User } from './user.entity';
 import { Employee } from './employee.entity';
 
+@Index(['manager_id'])
 @Entity('teams')
 export class Team {
   @PrimaryGeneratedColumn('uuid')
