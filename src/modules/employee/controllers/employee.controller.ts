@@ -63,6 +63,13 @@ export class EmployeeController {
       {
         fileFilter: (_req, file, cb) => {
           try {
+            // Skip validation if buffer is not available (empty optional file field)
+            if (!file.buffer || file.buffer.length === 0) {
+              // If buffer is empty, it might be an empty optional field, allow it
+              // The validation will happen later when the file is actually used
+              cb(null, true);
+              return;
+            }
             // Use comprehensive file validation with magic number checks
             validateImageFile(file);
             cb(null, true);
@@ -150,6 +157,13 @@ export class EmployeeController {
       {
         fileFilter: (_req, file, cb) => {
           try {
+            // Skip validation if buffer is not available (empty optional file field)
+            if (!file.buffer || file.buffer.length === 0) {
+              // If buffer is empty, it might be an empty optional field, allow it
+              // The validation will happen later when the file is actually used
+              cb(null, true);
+              return;
+            }
             // Use comprehensive file validation with magic number checks
             validateImageFile(file);
             cb(null, true);
@@ -233,6 +247,13 @@ export class EmployeeController {
       {
         fileFilter: (_req, file, cb) => {
           try {
+            // Skip validation if buffer is not available (empty optional file field)
+            if (!file.buffer || file.buffer.length === 0) {
+              // If buffer is empty, it might be an empty optional field, allow it
+              // The validation will happen later when the file is actually used
+              cb(null, true);
+              return;
+            }
             // Use comprehensive file validation with magic number checks
             validateImageFile(file);
             cb(null, true);
