@@ -213,7 +213,7 @@ export class EmployeeService implements OnModuleInit {
       
       if (files) {
         const profileFile = files.profile_picture?.[0];
-        if (profileFile) {
+        if (profileFile && profileFile.buffer && profileFile.buffer.length > 0) {
           const profilePictureUrl = await this.employeeFileUploadService.uploadProfilePicture(profileFile, result.id);
           result.profile_picture = profilePictureUrl;
           
@@ -226,13 +226,13 @@ export class EmployeeService implements OnModuleInit {
         }
         
         const cnicFile = files.cnic_picture?.[0];
-        if (cnicFile) {
+        if (cnicFile && cnicFile.buffer && cnicFile.buffer.length > 0) {
           const cnicPictureUrl = await this.employeeFileUploadService.uploadCnicPicture(cnicFile, result.id);
           result.cnic_picture = cnicPictureUrl;
         }
         
         const cnicBackFile = files.cnic_back_picture?.[0];
-        if (cnicBackFile) {
+        if (cnicBackFile && cnicBackFile.buffer && cnicBackFile.buffer.length > 0) {
           const cnicBackPictureUrl = await this.employeeFileUploadService.uploadCnicBackPicture(cnicBackFile, result.id);
           result.cnic_back_picture = cnicBackPictureUrl;
         }
@@ -335,7 +335,7 @@ export class EmployeeService implements OnModuleInit {
 
       if (files) {
         const profileFile = files.profile_picture?.[0];
-        if (profileFile) {
+        if (profileFile && profileFile.buffer && profileFile.buffer.length > 0) {
           const profilePictureUrl = await this.employeeFileUploadService.uploadProfilePicture(profileFile, result.id);
           result.profile_picture = profilePictureUrl;
           
@@ -348,13 +348,13 @@ export class EmployeeService implements OnModuleInit {
         }
         
         const cnicFile = files.cnic_picture?.[0];
-        if (cnicFile) {
+        if (cnicFile && cnicFile.buffer && cnicFile.buffer.length > 0) {
           const cnicPictureUrl = await this.employeeFileUploadService.uploadCnicPicture(cnicFile, result.id);
           result.cnic_picture = cnicPictureUrl;
         }
         
         const cnicBackFile = files.cnic_back_picture?.[0];
-        if (cnicBackFile) {
+        if (cnicBackFile && cnicBackFile.buffer && cnicBackFile.buffer.length > 0) {
           const cnicBackPictureUrl = await this.employeeFileUploadService.uploadCnicBackPicture(cnicBackFile, result.id);
           result.cnic_back_picture = cnicBackPictureUrl;
         }
@@ -534,7 +534,8 @@ export class EmployeeService implements OnModuleInit {
 
   
     if (files) {
-      if (files.profile_picture?.[0]) {
+      const profileFile = files.profile_picture?.[0];
+      if (profileFile && profileFile.buffer && profileFile.buffer.length > 0) {
         if (user.profile_pic) {
           try {
             this.logger.log('Deleting old profile picture:', user.profile_pic);
@@ -548,7 +549,7 @@ export class EmployeeService implements OnModuleInit {
         try {
           this.logger.log('Uploading new profile picture for employee:', employee.id);
           const profilePictureUrl = await this.employeeFileUploadService.uploadProfilePicture(
-            files.profile_picture[0],
+            profileFile,
             employee.id,
           );
           this.logger.log('Profile picture uploaded successfully:', profilePictureUrl);
@@ -561,7 +562,8 @@ export class EmployeeService implements OnModuleInit {
         }
       }
 
-      if (files.cnic_picture?.[0]) {
+      const cnicFile = files.cnic_picture?.[0];
+      if (cnicFile && cnicFile.buffer && cnicFile.buffer.length > 0) {
         if (employee.cnic_picture) {
           try {
             this.logger.log('Deleting old CNIC picture:', employee.cnic_picture);
@@ -575,7 +577,7 @@ export class EmployeeService implements OnModuleInit {
         try {
           this.logger.log('Uploading new CNIC picture for employee:', employee.id);
           const cnicPictureUrl = await this.employeeFileUploadService.uploadCnicPicture(
-            files.cnic_picture[0],
+            cnicFile,
             employee.id,
           );
           this.logger.log('CNIC picture uploaded successfully:', cnicPictureUrl);
@@ -586,7 +588,8 @@ export class EmployeeService implements OnModuleInit {
         }
       }
 
-      if (files.cnic_back_picture?.[0]) {
+      const cnicBackFile = files.cnic_back_picture?.[0];
+      if (cnicBackFile && cnicBackFile.buffer && cnicBackFile.buffer.length > 0) {
         if (employee.cnic_back_picture) {
           try {
             this.logger.log('Deleting old CNIC back picture:', employee.cnic_back_picture);
@@ -600,7 +603,7 @@ export class EmployeeService implements OnModuleInit {
         try {
           this.logger.log('Uploading new CNIC back picture for employee:', employee.id);
           const cnicBackPictureUrl = await this.employeeFileUploadService.uploadCnicBackPicture(
-            files.cnic_back_picture[0],
+            cnicBackFile,
             employee.id,
           );
           this.logger.log('CNIC back picture uploaded successfully:', cnicBackPictureUrl);
