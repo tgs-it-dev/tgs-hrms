@@ -20,9 +20,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
     // Handle CORS errors specifically - they should return 403, not 500
     if (exception instanceof Error && exception.message.includes('Not allowed by CORS')) {
       const correlationId = (request.headers['x-correlation-id'] as string) || 'unknown';
-      this.logger.warn(
-        `CORS rejection: ${exception.message} from origin: ${request.headers.origin || 'unknown'}`,
-      );
+      // Only log CORS errors in development, not in production to avoid clutter
+      if (process.env.NODE_ENV !== 'production') {
+        this.logger.warn(
+          `CORS rejection: ${exception.message} from origin: ${request.headers.origin || 'unknown'}`,
+        );
+      }
       response.status(HttpStatus.FORBIDDEN).json({
         statusCode: HttpStatus.FORBIDDEN,
         timestamp: new Date().toISOString(),

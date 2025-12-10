@@ -63,6 +63,7 @@ async function bootstrap() {
     ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
     : [
         'https://snazzy-raindrop-644615.netlify.app',
+        'https://tgs-hrms.onrender.com',
         'http://localhost:5173',
         'http://localhost:3000',
         'http://localhost:3001',
@@ -79,8 +80,10 @@ async function bootstrap() {
       if (allowedOrigins.includes('*') || allowedOrigins.indexOf(origin) !== -1) {
         callback(null, true);
       } else {
-        // Log rejected origin for debugging
-        console.warn(`CORS: Rejected origin: ${origin}. Allowed origins: ${allowedOrigins.join(', ')}`);
+        // Only log in development, not in production to avoid database clutter
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn(`CORS: Rejected origin: ${origin}. Allowed origins: ${allowedOrigins.join(', ')}`);
+        }
         callback(new Error(`Not allowed by CORS. Origin: ${origin}`));
       }
     },
