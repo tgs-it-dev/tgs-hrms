@@ -15,7 +15,7 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 import { ForbiddenException } from '@nestjs/common';
 import { LeaveService } from './leave.service';
 import { CreateLeaveDto } from './dto/create-leave.dto';
-import { ApproveLeaveDto, RejectLeaveDto, RecommendLeaveDto } from './dto/update-leave.dto';
+import { ApproveLeaveDto, RejectLeaveDto } from './dto/update-leave.dto';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
@@ -176,7 +176,7 @@ export class LeaveController {
   @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('approve_leaves', 'manage_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Approve a leave request (Admin/HR Admin only - Final approval after manager recommendation)' })
+  @ApiOperation({ summary: 'Approve a leave request (Admin/HR Admin only)' })
   @ApiResponse({
     status: 200,
     description: 'Leave request approved successfully',
@@ -190,7 +190,7 @@ export class LeaveController {
   @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('approve_leaves', 'manage_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Reject a leave request with remarks (Admin/HR Admin only - Final rejection after manager recommendation)' })
+  @ApiOperation({ summary: 'Reject a leave request with remarks (Admin/HR Admin only)' })
   @ApiResponse({
     status: 200,
     description: 'Leave request rejected successfully',
@@ -205,7 +205,7 @@ export class LeaveController {
   @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('approve_leaves', 'manage_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Approve a leave request (Admin/HR Admin only - Final approval after manager recommendation) [PUT alias]' })
+  @ApiOperation({ summary: 'Approve a leave request (Admin/HR Admin only) [PUT alias]' })
   @ApiResponse({ status: 200, description: 'Leave request approved successfully' })
   async approveLeavePut(@Param('id') id: string, @Body() dto: ApproveLeaveDto, @Request() req: any) {
     return this.leaveService.approveLeave(id, req.user.id, req.user.tenant_id, dto.remarks);
@@ -216,38 +216,38 @@ export class LeaveController {
   @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('approve_leaves', 'manage_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Reject a leave request with remarks (Admin/HR Admin only - Final rejection after manager recommendation) [PUT alias]' })
+  @ApiOperation({ summary: 'Reject a leave request with remarks (Admin/HR Admin only) [PUT alias]' })
   @ApiResponse({ status: 200, description: 'Leave request rejected successfully' })
   async rejectLeavePut(@Param('id') id: string, @Body() dto: RejectLeaveDto, @Request() req: any) {
     return this.leaveService.rejectLeave(id, req.user.id, req.user.tenant_id, dto.remarks);
   }
 
-  @Patch(':id/recommend-approve')
+  @Patch(':id/approve-manager')
   @UseGuards(RolesGuard, PermissionsGuard)
   @Roles('manager')
-  @Permissions('approve_leaves', 'manage_team_leaves')
+  @Permissions('approve_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Recommend approval of a leave request (Manager only - First stage)' })
+  @ApiOperation({ summary: 'Approve a leave request (Manager - Optional)' })
   @ApiResponse({
     status: 200,
-    description: 'Leave request recommended for approval by manager',
+    description: 'Leave request approved successfully by manager',
   })
-  async recommendApprove(@Param('id') id: string, @Body() dto: RecommendLeaveDto, @Request() req: any) {
-    return this.leaveService.recommendApprove(id, req.user.id, req.user.tenant_id, dto.managerRemarks);
+  async approveLeaveByManager(@Param('id') id: string, @Body() dto: ApproveLeaveDto, @Request() req: any) {
+    return this.leaveService.approveLeave(id, req.user.id, req.user.tenant_id, dto.remarks);
   }
 
-  @Patch(':id/recommend-reject')
+  @Patch(':id/reject-manager')
   @UseGuards(RolesGuard, PermissionsGuard)
   @Roles('manager')
-  @Permissions('approve_leaves', 'manage_team_leaves')
+  @Permissions('approve_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Recommend rejection of a leave request (Manager only - First stage)' })
+  @ApiOperation({ summary: 'Reject a leave request with remarks (Manager - Optional)' })
   @ApiResponse({
     status: 200,
-    description: 'Leave request recommended for rejection by manager',
+    description: 'Leave request rejected successfully by manager',
   })
-  async recommendReject(@Param('id') id: string, @Body() dto: RecommendLeaveDto, @Request() req: any) {
-    return this.leaveService.recommendReject(id, req.user.id, req.user.tenant_id, dto.managerRemarks);
+  async rejectLeaveByManager(@Param('id') id: string, @Body() dto: RejectLeaveDto, @Request() req: any) {
+    return this.leaveService.rejectLeave(id, req.user.id, req.user.tenant_id, dto.remarks);
   }
 
   @Patch(':id/cancel')
@@ -300,12 +300,6 @@ export class LeaveController {
           approved_by: l.approver?.first_name ? `${l.approver.first_name} ${l.approver.last_name}`.trim() : 'N/A',
           approved_at: l.approvedAt || 'N/A',
           remarks: l.remarks || 'N/A',
-          manager_recommendation: l.managerRecommendation || 'N/A',
-          recommended_by: l.recommender?.first_name
-            ? `${l.recommender.first_name} ${l.recommender.last_name}`.trim()
-            : 'N/A',
-          recommended_at: l.recommendedAt || 'N/A',
-          manager_remarks: l.managerRemarks || 'N/A',
         });
       }
       if (!items.length || rows.length >= total) break;
@@ -352,12 +346,6 @@ export class LeaveController {
             : 'N/A',
           approved_at: l.approvedAt || 'N/A',
           remarks: l.remarks || 'N/A',
-          manager_recommendation: l.managerRecommendation || 'N/A',
-          recommended_by: l.recommender?.first_name
-            ? `${l.recommender.first_name} ${l.recommender.last_name}`.trim()
-            : 'N/A',
-          recommended_at: l.recommendedAt || 'N/A',
-          manager_remarks: l.managerRemarks || 'N/A',
         });
       }
 
@@ -403,12 +391,6 @@ export class LeaveController {
           approved_by: l.approver?.first_name ? `${l.approver.first_name} ${l.approver.last_name}`.trim() : 'N/A',
           approved_at: l.approvedAt || 'N/A',
           remarks: l.remarks || 'N/A',
-          manager_recommendation: l.managerRecommendation || 'N/A',
-          recommended_by: l.recommender?.first_name
-            ? `${l.recommender.first_name} ${l.recommender.last_name}`.trim()
-            : 'N/A',
-          recommended_at: l.recommendedAt || 'N/A',
-          manager_remarks: l.managerRemarks || 'N/A',
         });
       }
       if (!items.length || rows.length >= total) break;

@@ -67,22 +67,6 @@ export class Leave {
   @Column({ type: 'text', nullable: true })
   remarks: string;
 
-  @Column({ type: 'varchar', length: 20, nullable: true })
-  managerRecommendation: 'approve' | 'reject' | null;
-
-  @Column({ type: 'uuid', nullable: true })
-  recommendedBy: string;
-
-  @ManyToOne(() => User, { nullable: true })
-  @JoinColumn({ name: 'recommendedBy' })
-  recommender: User;
-
-  @Column({ type: 'timestamp', nullable: true })
-  recommendedAt: Date;
-
-  @Column({ type: 'text', nullable: true })
-  managerRemarks: string;
-
   @CreateDateColumn()
   createdAt: Date;
 
