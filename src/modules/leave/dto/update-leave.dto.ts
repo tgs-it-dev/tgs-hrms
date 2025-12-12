@@ -31,13 +31,3 @@ export class RejectLeaveDto {
   @IsOptional()
   remarks?: string;
 }
-
-export class RecommendLeaveDto {
-  @ApiProperty({ 
-    description: 'Manager recommendation remarks', 
-    example: 'Team has sufficient coverage during this period' 
-  })
-  @IsString()
-  @IsOptional()
-  managerRemarks?: string;
-}

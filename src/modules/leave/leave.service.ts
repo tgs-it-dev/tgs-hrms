@@ -147,7 +147,6 @@ export class LeaveService {
       .createQueryBuilder('leave')
       .leftJoinAndSelect('leave.leaveType', 'leaveType')
       .leftJoinAndSelect('leave.approver', 'approver')
-      .leftJoinAndSelect('leave.recommender', 'recommender')
       .leftJoinAndSelect('leave.employee', 'employee');
 
     if (user_id) {
@@ -206,7 +205,7 @@ export class LeaveService {
 
     const [items, total] = await this.leaveRepo.findAndCount({
       where: whereConditions,
-      relations: ['employee', 'leaveType', 'approver', 'recommender'],
+      relations: ['employee', 'leaveType', 'approver'],
       order: { createdAt: 'DESC' },
       skip,
       take: limit,
@@ -224,7 +223,7 @@ export class LeaveService {
   async getLeaveById(id: string, employeeId: string, tenantId: string): Promise<Leave> {
     const leave = await this.leaveRepo.findOne({
       where: { id, tenantId },
-      relations: ['employee', 'leaveType', 'approver', 'recommender'],
+      relations: ['employee', 'leaveType', 'approver'],
     });
 
     if (!leave) {
@@ -243,86 +242,6 @@ export class LeaveService {
     return leave;
   }
 
-  async recommendApprove(
-    id: string,
-    managerId: string,
-    tenantId: string,
-    managerRemarks?: string,
-  ): Promise<Leave> {
-    const leave = await this.leaveRepo.findOne({
-      where: { id, tenantId },
-      relations: ['employee'],
-    });
-
-    if (!leave) {
-      throw new NotFoundException('Leave not found');
-    }
-
-    if (leave.status !== LeaveStatus.PENDING) {
-      throw new ForbiddenException('Only pending leaves can receive recommendations');
-    }
-
-    // Verify that the manager is the team manager of the employee
-    const employee = await this.employeeRepo
-      .createQueryBuilder('employee')
-      .leftJoin('employee.team', 'team')
-      .where('employee.user_id = :employeeId', { employeeId: leave.employeeId })
-      .andWhere('team.manager_id = :managerId', { managerId })
-      .andWhere('employee.team_id IS NOT NULL')
-      .getOne();
-
-    if (!employee) {
-      throw new ForbiddenException('You are not the manager of this employee or employee is not part of any team');
-    }
-
-    leave.managerRecommendation = 'approve';
-    leave.recommendedBy = managerId;
-    leave.recommendedAt = new Date();
-    leave.managerRemarks = managerRemarks || '';
-
-    return await this.leaveRepo.save(leave);
-  }
-
-  async recommendReject(
-    id: string,
-    managerId: string,
-    tenantId: string,
-    managerRemarks?: string,
-  ): Promise<Leave> {
-    const leave = await this.leaveRepo.findOne({
-      where: { id, tenantId },
-      relations: ['employee'],
-    });
-
-    if (!leave) {
-      throw new NotFoundException('Leave not found');
-    }
-
-    if (leave.status !== LeaveStatus.PENDING) {
-      throw new ForbiddenException('Only pending leaves can receive recommendations');
-    }
-
-    // Verify that the manager is the team manager of the employee
-    const employee = await this.employeeRepo
-      .createQueryBuilder('employee')
-      .leftJoin('employee.team', 'team')
-      .where('employee.user_id = :employeeId', { employeeId: leave.employeeId })
-      .andWhere('team.manager_id = :managerId', { managerId })
-      .andWhere('employee.team_id IS NOT NULL')
-      .getOne();
-
-    if (!employee) {
-      throw new ForbiddenException('You are not the manager of this employee or employee is not part of any team');
-    }
-
-    leave.managerRecommendation = 'reject';
-    leave.recommendedBy = managerId;
-    leave.recommendedAt = new Date();
-    leave.managerRemarks = managerRemarks || '';
-
-    return await this.leaveRepo.save(leave);
-  }
-
   async approveLeave(id: string, approverId: string, tenantId: string, remarks?: string): Promise<Leave> {
     const leave = await this.leaveRepo.findOne({
       where: { id, tenantId },
@@ -335,18 +254,6 @@ export class LeaveService {
 
     if (leave.status !== LeaveStatus.PENDING) {
       throw new ForbiddenException('Only pending leaves can be approved');
-    }
-
-    // Check if employee is part of a team - if yes, manager recommendation is required
-    const employee = await this.employeeRepo.findOne({
-      where: { user_id: leave.employeeId },
-    });
-
-    if (employee && employee.team_id) {
-      // Employee is part of a team, manager recommendation is required
-      if (!leave.managerRecommendation) {
-        throw new ForbiddenException('Manager recommendation is required before final approval for team members');
-      }
     }
 
     leave.status = LeaveStatus.APPROVED;
@@ -369,18 +276,6 @@ export class LeaveService {
 
     if (leave.status !== LeaveStatus.PENDING) {
       throw new ForbiddenException('Only pending leaves can be rejected');
-    }
-
-    // Check if employee is part of a team - if yes, manager recommendation is required
-    const employee = await this.employeeRepo.findOne({
-      where: { user_id: leave.employeeId },
-    });
-
-    if (employee && employee.team_id) {
-      // Employee is part of a team, manager recommendation is required
-      if (!leave.managerRecommendation) {
-        throw new ForbiddenException('Manager recommendation is required before final rejection for team members');
-      }
     }
 
     leave.status = LeaveStatus.REJECTED;
@@ -500,7 +395,7 @@ export class LeaveService {
         employeeId: In(userIds),
         status: In([LeaveStatus.PENDING, LeaveStatus.APPROVED, LeaveStatus.REJECTED]),
       },
-      relations: ['employee', 'leaveType', 'approver', 'recommender'],
+      relations: ['employee', 'leaveType', 'approver'],
       order: { createdAt: 'DESC' },
       skip,
       take: limit,
