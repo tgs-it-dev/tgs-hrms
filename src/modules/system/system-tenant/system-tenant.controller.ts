@@ -189,15 +189,16 @@ export class SystemTenantController {
     name: "includeDeleted",
     required: false,
     type: Boolean,
-    description: "Include deleted tenants (default: true)",
+    description: "Include deleted tenants (default: false)",
   })
   async findAll(
     @Query("page") page?: string,
     @Query("limit") limit?: string,
     @Query("includeDeleted") includeDeleted?: string,
   ) {
+    // By default, do NOT include deleted tenants unless explicitly requested
     const includeDeletedFlag =
-      includeDeleted !== undefined ? includeDeleted === "true" : true;
+      includeDeleted !== undefined ? includeDeleted === "true" : false;
 
     // When limit=all, return all tenants without pagination
     if (limit && limit.toLowerCase() === "all") {
