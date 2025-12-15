@@ -345,7 +345,7 @@ export class SystemTenantService {
     page?: number,
     limit?: number,
     includeDeleted: boolean = false,
-  ): Promise<PaginationResponse<Tenant>> {
+  ): Promise<PaginationResponse<any>> {
     const where: FindOptionsWhere<Tenant> = includeDeleted
       ? {}
       : { deleted_at: IsNull() };
@@ -355,10 +355,17 @@ export class SystemTenantService {
       const [items, total] = await this.tenantRepo.findAndCount({
         where,
         order: { created_at: "DESC" },
+        // When includeDeleted is true, also include soft-deleted tenants
+        withDeleted: includeDeleted,
       });
 
+      const mappedItems = items.map((tenant) => ({
+        ...tenant,
+        isDeleted: !!tenant.deleted_at,
+      }));
+
       return {
-        items,
+        items: mappedItems,
         total,
         page: 1,
         limit: total,
@@ -373,12 +380,19 @@ export class SystemTenantService {
       order: { created_at: "DESC" },
       skip,
       take: limit,
+      // When includeDeleted is true, also include soft-deleted tenants
+      withDeleted: includeDeleted,
     });
+
+    const mappedItems = items.map((tenant) => ({
+      ...tenant,
+      isDeleted: !!tenant.deleted_at,
+    }));
 
     const totalPages = Math.ceil(total / limit);
 
     return {
-      items,
+      items: mappedItems,
       total,
       page,
       limit,
@@ -406,7 +420,13 @@ export class SystemTenantService {
    * Get full tenant details with departments (including default/global departments), employee count
    */
   async getTenantDetails(id: string) {
-    const tenant = await this.findOne(id, ["departments", "users"]);
+    // Allow fetching even if the tenant is soft-deleted so that
+    // system admins can view details of deleted tenants in the UI
+    const tenant = await this.tenantRepo.findOne({
+      where: { id },
+      relations: ["departments", "users"],
+      withDeleted: true,
+    });
 
     if (!tenant) {
       throw new NotFoundException("Tenant not found.");
@@ -446,6 +466,7 @@ export class SystemTenantService {
       logo: company?.logo_url ?? null,
       status: tenant.status,
       created_at: tenant.created_at,
+      isDeleted: !!tenant.deleted_at,
       departmentCount,
       employeeCount,
       company: company
@@ -470,7 +491,9 @@ export class SystemTenantService {
   async remove(id: string) {
     const tenant = await this.findOne(id);
 
+    // Soft delete: mark as deleted and suspend the tenant
     tenant.deleted_at = new Date();
+    tenant.status = "suspended";
     await this.tenantRepo.save(tenant);
 
     return { deleted: true, id };
@@ -490,7 +513,9 @@ export class SystemTenantService {
       throw new NotFoundException("Tenant not found or not deleted.");
     }
 
+    // Restore: clear deleted_at and reactivate tenant
     tenant.deleted_at = null;
+    tenant.status = "active";
 
     await this.tenantRepo.save(tenant);
 

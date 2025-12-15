@@ -286,6 +286,51 @@ export class LeaveService {
     return await this.leaveRepo.save(leave);
   }
 
+  /**
+   * Allows a manager to add or update remarks on a team member's leave
+   * request without changing its approval status. Final approval is still
+   * handled by admin/HR as per existing business rules.
+   */
+  async addManagerRemarks(
+    id: string,
+    managerId: string,
+    tenantId: string,
+    remarks?: string
+  ): Promise<Leave> {
+    const leave = await this.leaveRepo.findOne({
+      where: { id, tenantId },
+      relations: ['employee'],
+    });
+
+    if (!leave) {
+      throw new NotFoundException('Leave not found');
+    }
+
+    // Only allow remarks while leave is pending
+    if (leave.status !== LeaveStatus.PENDING) {
+      throw new ForbiddenException('Manager can only add remarks on pending leave requests');
+    }
+
+    // Ensure the leave belongs to one of the manager's team members
+    const teamMember = await this.employeeRepo
+      .createQueryBuilder('employee')
+      .leftJoin('employee.user', 'user')
+      .leftJoin('employee.team', 'team')
+      .where('user.id = :employeeUserId', { employeeUserId: leave.employeeId })
+      .andWhere('user.tenant_id = :tenantId', { tenantId })
+      .andWhere('team.manager_id = :managerId', { managerId })
+      .andWhere('employee.team_id IS NOT NULL')
+      .getOne();
+
+    if (!teamMember) {
+      throw new ForbiddenException('You can only add remarks for your own team members\' leaves');
+    }
+
+    leave.managerRemarks = remarks || '';
+
+    return await this.leaveRepo.save(leave);
+  }
+
   async cancelLeave(id: string, employeeId: string): Promise<Leave> {
     const leave = await this.leaveRepo.findOne({
       where: { id },
