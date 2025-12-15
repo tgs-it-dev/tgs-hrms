@@ -31,3 +31,10 @@ export class RejectLeaveDto {
   @IsOptional()
   remarks?: string;
 }
+
+export class ManagerRemarksDto {
+  @ApiProperty({ description: 'Manager remarks on a team member\'s leave', example: 'Project delivery is near, please plan accordingly' })
+  @IsString()
+  @IsOptional()
+  remarks?: string;
+}

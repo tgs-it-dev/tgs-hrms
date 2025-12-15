@@ -67,6 +67,10 @@ export class Leave {
   @Column({ type: 'text', nullable: true })
   remarks: string;
 
+  // Manager-specific remarks added before final admin approval
+  @Column({ type: 'text', nullable: true })
+  managerRemarks: string;
+
   @CreateDateColumn()
   createdAt: Date;
 

@@ -15,7 +15,7 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 import { ForbiddenException } from '@nestjs/common';
 import { LeaveService } from './leave.service';
 import { CreateLeaveDto } from './dto/create-leave.dto';
-import { ApproveLeaveDto, RejectLeaveDto } from './dto/update-leave.dto';
+import { ApproveLeaveDto, RejectLeaveDto, ManagerRemarksDto } from './dto/update-leave.dto';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
@@ -220,6 +220,24 @@ export class LeaveController {
   @ApiResponse({ status: 200, description: 'Leave request rejected successfully' })
   async rejectLeavePut(@Param('id') id: string, @Body() dto: RejectLeaveDto, @Request() req: any) {
     return this.leaveService.rejectLeave(id, req.user.id, req.user.tenant_id, dto.remarks);
+  }
+
+  @Patch(':id/manager-remarks')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('manager')
+  @Permissions('manage_team_leaves')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Add or update manager remarks on a team member\'s leave (Manager only)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Manager remarks updated successfully',
+  })
+  async addManagerRemarks(
+    @Param('id') id: string,
+    @Body() dto: ManagerRemarksDto,
+    @Request() req: any,
+  ) {
+    return this.leaveService.addManagerRemarks(id, req.user.id, req.user.tenant_id, dto.remarks);
   }
 
   @Patch(':id/approve-manager')
