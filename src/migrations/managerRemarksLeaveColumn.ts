@@ -1,6 +1,5 @@
 import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
-
-export class AddManagerRemarksToLeave1768000000000 implements MigrationInterface {
+export class managerRemarksLeaveColumn1768000000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.addColumn(
       'leaves',
@@ -11,10 +10,7 @@ export class AddManagerRemarksToLeave1768000000000 implements MigrationInterface
       }),
     );
   }
-
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.dropColumn('leaves', 'managerRemarks');
   }
 }
-
-
