@@ -13,7 +13,10 @@ export const AppDataSource = new DataSource({
   password: process.env.DB_PASS,
   database: process.env.DB_NAME,
   entities: [__dirname + '/src/entities/*.entity{.ts,.js}'], // ✅ safer for both dev & prod
-  migrations: [__dirname + '/src/migrations/*{.ts,.js}'],
+  migrations: [
+    __dirname + '/src/migrations/*{.ts,.js}',
+    __dirname + '/**/migrations/*.js'
+  ],
   synchronize: false, // ✅ never true in prod
   logging: process.env.NODE_ENV !== 'production',
 });
