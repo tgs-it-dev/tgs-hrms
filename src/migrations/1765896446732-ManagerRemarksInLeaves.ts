@@ -1,5 +1,5 @@
 import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
-export class managerRemarksLeaveColumn1768000000000 implements MigrationInterface {
+export class ManagerRemarksInLeaves1765896446732 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.addColumn(
       'leaves',
