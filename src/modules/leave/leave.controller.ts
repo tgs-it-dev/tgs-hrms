@@ -76,8 +76,8 @@ export class LeaveController {
         ],
         total: 25,
         page: 1,
-        limit: 10,
-        totalPages: 3,
+        limit: 25,
+        totalPages: 1,
       },
     },
   })
@@ -216,10 +216,10 @@ export class LeaveController {
   @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('approve_leaves', 'manage_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Reject a leave request with remarks (Admin/HR Admin only) [PUT alias]' })
+  @ApiOperation({ summary: 'Reject a leave request (Admin/HR Admin only) [PUT alias]' })
   @ApiResponse({ status: 200, description: 'Leave request rejected successfully' })
-  async rejectLeavePut(@Param('id') id: string, @Body() dto: RejectLeaveDto, @Request() req: any) {
-    return this.leaveService.rejectLeave(id, req.user.id, req.user.tenant_id, dto.remarks);
+  async rejectLeavePut(@Param('id') id: string, @Request() req: any) {
+    return this.leaveService.rejectLeave(id, req.user.id, req.user.tenant_id);
   }
 
   @Patch(':id/manager-remarks')
