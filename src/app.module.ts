@@ -39,6 +39,7 @@ import { AssetSubcategoryModule } from './modules/asset-subcategory/asset-subcat
 import { BenefitsModule } from "./modules/benefits/benefits.module";
 import { PmsModule } from './modules/pms/pms.module';
 import { SystemModule } from './modules/system/system.module';
+import { SearchModule } from './modules/search/search.module';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { SystemLoggingInterceptor } from './common/interceptors/system-logging.interceptor';
 import { SystemLog } from './entities/system-log.entity';
@@ -165,6 +166,7 @@ import { SystemLog } from './entities/system-log.entity';
     PmsModule,
     SystemModule,
     PayrollModule,
+    SearchModule,
   ],
   providers: [
     {
