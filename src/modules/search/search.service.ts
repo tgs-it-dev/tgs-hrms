@@ -50,10 +50,12 @@ export class SearchService {
   ): Promise<GlobalSearchResponseDto> {
     this.logger.log(`Global search: query="${query}", tenantId="${tenantId}", role="${userRole}", module="${module}"`);
 
-    // System-admin can search across all tenants if tenantId is GLOBAL_SYSTEM_TENANT_ID
-    // Otherwise, filter by the provided tenantId (even for system admin)
+    // System-admin and network-admin can search across all tenants if tenantId is GLOBAL_SYSTEM_TENANT_ID
+    // Otherwise, filter by the provided tenantId (even for admin roles)
     const isSystemAdmin = userRole === 'system-admin';
-    const searchAllTenants = isSystemAdmin && tenantId === GLOBAL_SYSTEM_TENANT_ID;
+    const isNetworkAdmin = userRole === 'network-admin';
+    const isAdminRole = isSystemAdmin || isNetworkAdmin;
+    const searchAllTenants = isAdminRole && tenantId === GLOBAL_SYSTEM_TENANT_ID;
     const searchTerm = query ? `%${query}%` : '%';
 
     const results: GlobalSearchResponseDto['results'] = {};
