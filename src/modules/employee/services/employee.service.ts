@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Employee } from '../../../entities/employee.entity';
 import { User } from '../../../entities/user.entity';
 import { Designation } from '../../../entities/designation.entity';
@@ -16,6 +17,7 @@ import { CreateEmployeeDto, UpdateEmployeeDto, EmployeeQueryDto } from '../dto/e
 import { SendGridService } from '../../../common/utils/email';
 import { InviteStatusService } from '../../invite-status/invite-status.service';
 import { EmployeeFileUploadService } from './employee-file-upload.service';
+import { EmployeeCreatedEvent } from '../../billing/events/employee-created.event';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 
@@ -43,7 +45,8 @@ export class EmployeeService implements OnModuleInit {
     private readonly teamRepo: Repository<Team>,
     private readonly sendGridService: SendGridService,
     private readonly inviteStatusService: InviteStatusService,
-    private readonly employeeFileUploadService: EmployeeFileUploadService
+    private readonly employeeFileUploadService: EmployeeFileUploadService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   onModuleInit() {
@@ -213,7 +216,7 @@ export class EmployeeService implements OnModuleInit {
       
       if (files) {
         const profileFile = files.profile_picture?.[0];
-        if (profileFile && profileFile.buffer && profileFile.buffer.length > 0) {
+        if (profileFile) {
           const profilePictureUrl = await this.employeeFileUploadService.uploadProfilePicture(profileFile, result.id);
           result.profile_picture = profilePictureUrl;
           
@@ -226,13 +229,13 @@ export class EmployeeService implements OnModuleInit {
         }
         
         const cnicFile = files.cnic_picture?.[0];
-        if (cnicFile && cnicFile.buffer && cnicFile.buffer.length > 0) {
+        if (cnicFile) {
           const cnicPictureUrl = await this.employeeFileUploadService.uploadCnicPicture(cnicFile, result.id);
           result.cnic_picture = cnicPictureUrl;
         }
         
         const cnicBackFile = files.cnic_back_picture?.[0];
-        if (cnicBackFile && cnicBackFile.buffer && cnicBackFile.buffer.length > 0) {
+        if (cnicBackFile) {
           const cnicBackPictureUrl = await this.employeeFileUploadService.uploadCnicBackPicture(cnicBackFile, result.id);
           result.cnic_back_picture = cnicBackPictureUrl;
         }
@@ -335,7 +338,7 @@ export class EmployeeService implements OnModuleInit {
 
       if (files) {
         const profileFile = files.profile_picture?.[0];
-        if (profileFile && profileFile.buffer && profileFile.buffer.length > 0) {
+        if (profileFile) {
           const profilePictureUrl = await this.employeeFileUploadService.uploadProfilePicture(profileFile, result.id);
           result.profile_picture = profilePictureUrl;
           
@@ -348,13 +351,13 @@ export class EmployeeService implements OnModuleInit {
         }
         
         const cnicFile = files.cnic_picture?.[0];
-        if (cnicFile && cnicFile.buffer && cnicFile.buffer.length > 0) {
+        if (cnicFile) {
           const cnicPictureUrl = await this.employeeFileUploadService.uploadCnicPicture(cnicFile, result.id);
           result.cnic_picture = cnicPictureUrl;
         }
         
         const cnicBackFile = files.cnic_back_picture?.[0];
-        if (cnicBackFile && cnicBackFile.buffer && cnicBackFile.buffer.length > 0) {
+        if (cnicBackFile) {
           const cnicBackPictureUrl = await this.employeeFileUploadService.uploadCnicBackPicture(cnicBackFile, result.id);
           result.cnic_back_picture = cnicBackPictureUrl;
         }
@@ -364,6 +367,30 @@ export class EmployeeService implements OnModuleInit {
       }
       
       await this.sendPasswordResetEmail(dto.email, resetToken);
+
+      // Emit event for billing - decoupled from employee creation logic
+      // This is done asynchronously and won't block employee creation if billing fails
+      try {
+        const user = await this.userRepo.findOne({ where: { id: result.user_id } });
+        if (user) {
+          const employeeName = `${user.first_name} ${user.last_name}`.trim();
+          const event = new EmployeeCreatedEvent(
+            tenant_id,
+            result.id,
+            user.email,
+            employeeName,
+          );
+          this.eventEmitter.emit('employee.created', event);
+          this.logger.log(
+            `Emitted employee.created event for employee: ${result.id} (tenant: ${tenant_id})`,
+          );
+        }
+      } catch (eventError) {
+        // Log error but don't throw - event emission failures should not affect employee creation
+        this.logger.error(
+          `Failed to emit employee.created event: ${eventError instanceof Error ? eventError.message : String(eventError)}`,
+        );
+      }
 
       return result;
     } catch (err) {
@@ -534,8 +561,7 @@ export class EmployeeService implements OnModuleInit {
 
   
     if (files) {
-      const profileFile = files.profile_picture?.[0];
-      if (profileFile && profileFile.buffer && profileFile.buffer.length > 0) {
+      if (files.profile_picture?.[0]) {
         if (user.profile_pic) {
           try {
             this.logger.log('Deleting old profile picture:', user.profile_pic);
@@ -549,7 +575,7 @@ export class EmployeeService implements OnModuleInit {
         try {
           this.logger.log('Uploading new profile picture for employee:', employee.id);
           const profilePictureUrl = await this.employeeFileUploadService.uploadProfilePicture(
-            profileFile,
+            files.profile_picture[0],
             employee.id,
           );
           this.logger.log('Profile picture uploaded successfully:', profilePictureUrl);
@@ -562,8 +588,7 @@ export class EmployeeService implements OnModuleInit {
         }
       }
 
-      const cnicFile = files.cnic_picture?.[0];
-      if (cnicFile && cnicFile.buffer && cnicFile.buffer.length > 0) {
+      if (files.cnic_picture?.[0]) {
         if (employee.cnic_picture) {
           try {
             this.logger.log('Deleting old CNIC picture:', employee.cnic_picture);
@@ -577,7 +602,7 @@ export class EmployeeService implements OnModuleInit {
         try {
           this.logger.log('Uploading new CNIC picture for employee:', employee.id);
           const cnicPictureUrl = await this.employeeFileUploadService.uploadCnicPicture(
-            cnicFile,
+            files.cnic_picture[0],
             employee.id,
           );
           this.logger.log('CNIC picture uploaded successfully:', cnicPictureUrl);
@@ -588,8 +613,7 @@ export class EmployeeService implements OnModuleInit {
         }
       }
 
-      const cnicBackFile = files.cnic_back_picture?.[0];
-      if (cnicBackFile && cnicBackFile.buffer && cnicBackFile.buffer.length > 0) {
+      if (files.cnic_back_picture?.[0]) {
         if (employee.cnic_back_picture) {
           try {
             this.logger.log('Deleting old CNIC back picture:', employee.cnic_back_picture);
@@ -603,7 +627,7 @@ export class EmployeeService implements OnModuleInit {
         try {
           this.logger.log('Uploading new CNIC back picture for employee:', employee.id);
           const cnicBackPictureUrl = await this.employeeFileUploadService.uploadCnicBackPicture(
-            cnicBackFile,
+            files.cnic_back_picture[0],
             employee.id,
           );
           this.logger.log('CNIC back picture uploaded successfully:', cnicBackPictureUrl);

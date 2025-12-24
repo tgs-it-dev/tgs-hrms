@@ -9,6 +9,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { ScheduleModule } from '@nestjs/schedule';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { join } from 'path';
 import { MiddlewareConfigModule } from './common/middleware/middleware.config';
 import { EmailModule } from './common/utils/email/email.module';
@@ -40,12 +41,14 @@ import { BenefitsModule } from "./modules/benefits/benefits.module";
 import { PmsModule } from './modules/pms/pms.module';
 import { SystemModule } from './modules/system/system.module';
 import { SearchModule } from './modules/search/search.module';
+import { BillingModule } from './modules/billing/billing.module';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { SystemLoggingInterceptor } from './common/interceptors/system-logging.interceptor';
 import { SystemLog } from './entities/system-log.entity';
 @Module({
   imports: [
     ScheduleModule.forRoot(),
+    EventEmitterModule.forRoot(),
     ConfigModule.forRoot({ isGlobal: true }),
     MiddlewareConfigModule,
     EmailModule,
@@ -167,6 +170,7 @@ import { SystemLog } from './entities/system-log.entity';
     SystemModule,
     PayrollModule,
     SearchModule,
+    BillingModule,
   ],
   providers: [
     {
