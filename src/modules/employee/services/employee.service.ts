@@ -18,6 +18,7 @@ import { SendGridService } from '../../../common/utils/email';
 import { InviteStatusService } from '../../invite-status/invite-status.service';
 import { EmployeeFileUploadService } from './employee-file-upload.service';
 import { EmployeeCreatedEvent } from '../../billing/events/employee-created.event';
+import { BillingService } from '../../billing/services/billing.service';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 
@@ -47,6 +48,7 @@ export class EmployeeService implements OnModuleInit {
     private readonly inviteStatusService: InviteStatusService,
     private readonly employeeFileUploadService: EmployeeFileUploadService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly billingService: BillingService,
   ) {}
 
   onModuleInit() {
@@ -302,7 +304,7 @@ export class EmployeeService implements OnModuleInit {
     const resetTokenExpiry = new Date();
     resetTokenExpiry.setHours(resetTokenExpiry.getHours() + 24);
 
-    const user = this.userRepo.create({
+    const userData = {
       email: dto.email.toLowerCase(),
       phone: dto.phone,
       password: hashedPassword,
@@ -313,7 +315,7 @@ export class EmployeeService implements OnModuleInit {
       tenant_id,
       reset_token: hashedResetToken,
       reset_token_expiry: resetTokenExpiry,
-    });
+    };
 
     
     try {
@@ -321,6 +323,7 @@ export class EmployeeService implements OnModuleInit {
         const userRepo = manager.getRepository(User);
         const employeeRepo = manager.getRepository(Employee);
 
+        const user = userRepo.create(userData);
         const savedUser = await userRepo.save(user);
 
         const employee = employeeRepo.create({
@@ -366,31 +369,242 @@ export class EmployeeService implements OnModuleInit {
         await this.employeeRepo.save(result);
       }
       
+      // Process payment BEFORE sending invitation
+      // Payment must succeed before employee invitation is sent
+      const user = await this.userRepo.findOne({ where: { id: result.user_id } });
+      if (!user) {
+        throw new NotFoundException('User not found after employee creation');
+      }
+      
+      const employeeName = `${user.first_name} ${user.last_name}`.trim();
+      const event = new EmployeeCreatedEvent(
+        tenant_id,
+        result.id,
+        user.email,
+        employeeName,
+      );
+      
+      // Process payment synchronously - if payment fails, return checkout URL
+      try {
+        await this.billingService.handleEmployeeCreated(event);
+        this.logger.log(
+          `Payment processed successfully for employee: ${result.id} (tenant: ${tenant_id})`,
+        );
+      } catch (paymentError) {
+        const errorMessage = paymentError instanceof Error ? paymentError.message : String(paymentError);
+        this.logger.error(
+          `Payment failed for employee creation: ${result.id}. Error: ${errorMessage}`,
+        );
+        
+        // If payment method is required, create checkout session and return URL
+        if (errorMessage.includes('PAYMENT_METHOD_REQUIRED') || 
+            errorMessage.includes('Payment method') ||
+            errorMessage.includes('payment_intent_authentication_required')) {
+          
+          // Delete the employee since payment failed
+          await this.employeeRepo.remove(result);
+          await this.userRepo.remove(user);
+          
+          // Create checkout session for payment with full employee data
+          try {
+            const checkout = await this.billingService.createEmployeePaymentCheckout(
+              tenant_id,
+              {
+                email: dto.email,
+                phone: dto.phone,
+                first_name: dto.first_name,
+                last_name: dto.last_name,
+                designation_id: dto.designation_id,
+                team_id: dto.team_id,
+                role_id: dto.role_id,
+                role_name: dto.role_name,
+                gender: dto.gender,
+                cnic_number: dto.cnic_number,
+                password: dto.password,
+              },
+            );
+            
+            this.logger.log(
+              `Checkout session created: ${checkout.checkoutSessionId}, URL: ${checkout.checkoutUrl}`,
+            );
+            
+            // Return checkout URL instead of creating employee
+            throw new BadRequestException({
+              message: 'Payment method required. Please complete payment to create employee.',
+              checkoutUrl: checkout.checkoutUrl,
+              checkoutSessionId: checkout.checkoutSessionId,
+              requiresPayment: true,
+            });
+          } catch (checkoutError) {
+            const errorMessage = checkoutError instanceof Error ? checkoutError.message : String(checkoutError);
+            const errorStack = checkoutError instanceof Error ? checkoutError.stack : undefined;
+            this.logger.error(
+              `Failed to create checkout session: ${errorMessage}`,
+              errorStack,
+            );
+            
+            // If it's already a BadRequestException, re-throw it as is
+            if (checkoutError instanceof BadRequestException) {
+              throw checkoutError;
+            }
+            
+            // Otherwise, throw a new error with the actual error message
+            throw new BadRequestException({
+              message: `Payment method required but failed to create checkout session: ${errorMessage}`,
+              originalError: errorMessage,
+              requiresPayment: true,
+            });
+          }
+        }
+        
+        // For other payment errors, delete employee and throw error
+        await this.employeeRepo.remove(result);
+        await this.userRepo.remove(user);
+        
+        throw new BadRequestException(
+          `Payment processing failed: ${errorMessage}. Employee creation cannot be completed without successful payment.`,
+        );
+      }
+      
+      // Only send invitation if payment succeeds
       await this.sendPasswordResetEmail(dto.email, resetToken);
 
-      // Emit event for billing - decoupled from employee creation logic
-      // This is done asynchronously and won't block employee creation if billing fails
+      // Emit event for audit/logging purposes (payment already processed above)
       try {
-        const user = await this.userRepo.findOne({ where: { id: result.user_id } });
-        if (user) {
-          const employeeName = `${user.first_name} ${user.last_name}`.trim();
-          const event = new EmployeeCreatedEvent(
-            tenant_id,
-            result.id,
-            user.email,
-            employeeName,
-          );
-          this.eventEmitter.emit('employee.created', event);
-          this.logger.log(
-            `Emitted employee.created event for employee: ${result.id} (tenant: ${tenant_id})`,
-          );
-        }
+        this.eventEmitter.emit('employee.created', event);
+        this.logger.log(
+          `Emitted employee.created event for employee: ${result.id} (tenant: ${tenant_id})`,
+        );
       } catch (eventError) {
         // Log error but don't throw - event emission failures should not affect employee creation
         this.logger.error(
           `Failed to emit employee.created event: ${eventError instanceof Error ? eventError.message : String(eventError)}`,
         );
       }
+
+      return result;
+    } catch (err) {
+      const errorCode = getPostgresErrorCode(err);
+      if (errorCode === '23505') {
+        throw new ConflictException('Employee already exists.');
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Creates employee after payment confirmation
+   * This is called when payment is successful via checkout
+   */
+  async createAfterPayment(
+    tenant_id: string,
+    employeeData: {
+      email: string;
+      phone: string;
+      first_name: string;
+      last_name: string;
+      designation_id: string;
+      team_id?: string | null;
+      role_id?: string | null;
+      role_name?: string;
+      gender?: string;
+      cnic_number?: string;
+      password?: string;
+    },
+  ) {
+    // Convert to CreateEmployeeDto format
+    const dto: CreateEmployeeDto = {
+      email: employeeData.email,
+      phone: employeeData.phone,
+      first_name: employeeData.first_name,
+      last_name: employeeData.last_name,
+      designation_id: employeeData.designation_id,
+      team_id: employeeData.team_id,
+      role_id: employeeData.role_id,
+      role_name: employeeData.role_name,
+      gender: employeeData.gender as any,
+      cnic_number: employeeData.cnic_number,
+      password: employeeData.password,
+    };
+
+    // Create employee (payment already verified, so skip payment check)
+    await this.validateDesignation(dto.designation_id, tenant_id);
+
+    if (dto.team_id && dto.team_id !== null) {
+      this.validateUUID(dto.team_id, 'team_id');
+      await this.validateTeam(dto.team_id, tenant_id);
+    }
+
+    if (dto.role_id && dto.role_id !== null) {
+      this.validateUUID(dto.role_id, 'role_id');
+    }
+
+    const existingUser = await this.userRepo.findOne({ where: { email: dto.email, tenant_id } });
+    if (existingUser)
+      throw new ConflictException('User with this email already exists in the tenant.');
+
+    let employeeRole;
+    if (dto.role_name) {
+      employeeRole = await this.roleRepo.findOne({ where: { name: dto.role_name } });
+      if (!employeeRole) throw new NotFoundException(`Role with name '${dto.role_name}' not found.`);
+    } else if (dto.role_id) {
+      employeeRole = await this.roleRepo.findOne({ where: { id: dto.role_id } });
+      if (!employeeRole) throw new NotFoundException('Specified role not found.');
+    } else {
+      employeeRole = await this.roleRepo.findOne({ where: { name: 'Employee' } });
+      if (!employeeRole) throw new NotFoundException('Employee role not found.');
+    }
+
+    const password = dto.password || this.generateTemporaryPassword();
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const hashedResetToken = await bcrypt.hash(resetToken, 10);
+    const resetTokenExpiry = new Date();
+    resetTokenExpiry.setHours(resetTokenExpiry.getHours() + 24);
+
+    const userData = {
+      email: dto.email.toLowerCase(),
+      phone: dto.phone,
+      password: hashedPassword,
+      first_name: dto.first_name,
+      last_name: dto.last_name,
+      gender: dto.gender ?? null,
+      role_id: employeeRole.id,
+      tenant_id,
+      reset_token: hashedResetToken,
+      reset_token_expiry: resetTokenExpiry,
+    };
+
+    try {
+      const result = await this.userRepo.manager.transaction(async (manager) => {
+        const userRepo = manager.getRepository(User);
+        const employeeRepo = manager.getRepository(Employee);
+
+        const user = userRepo.create(userData);
+        const savedUser = await userRepo.save(user);
+
+        const employee = employeeRepo.create({
+          user_id: savedUser.id,
+          designation_id: dto.designation_id,
+          team_id: dto.team_id || null,
+          invite_status: InviteStatus.INVITE_SENT,
+          cnic_number: dto.cnic_number || null,
+        });
+
+        const savedEmployee = await employeeRepo.save(employee);
+        return savedEmployee;
+      });
+
+      // Send invitation email
+      await this.sendPasswordResetEmail(dto.email, resetToken);
+
+      // Note: Event is NOT emitted here because payment was already processed in confirmEmployeePayment
+      // This prevents duplicate billing transaction creation
+
+      this.logger.log(
+        `Employee created successfully after payment: ${result.id} (tenant: ${tenant_id})`,
+      );
 
       return result;
     } catch (err) {

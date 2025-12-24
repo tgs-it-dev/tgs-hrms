@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Employee } from '../../entities/employee.entity';
 import { User } from '../../entities/user.entity';
@@ -17,6 +17,7 @@ import { SendGridService } from '../../common/utils/email';
 import { InviteStatusModule } from '../invite-status/invite-status.module';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
 import { EmployeeFileUploadService } from './services/employee-file-upload.service';
+import { BillingModule } from '../billing/billing.module';
 
 @Module({
   imports: [
@@ -25,8 +26,10 @@ import { EmployeeFileUploadService } from './services/employee-file-upload.servi
     LeaveModule,
     InviteStatusModule,
     SharedJwtModule,
+    forwardRef(() => BillingModule),
   ],
   controllers: [EmployeeController, EmployeeProfileController],
   providers: [EmployeeService, EmployeeProfileService, SendGridService, EmployeeFileUploadService],
+  exports: [EmployeeService],
 })
 export class EmployeeModule {}
