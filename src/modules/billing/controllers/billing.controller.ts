@@ -1,11 +1,14 @@
 import {
   Controller,
   Get,
+  Post,
+  Body,
   Param,
   Query,
   UseGuards,
   ParseIntPipe,
   DefaultValuePipe,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
@@ -60,6 +63,26 @@ export class BillingController {
     }
 
     return transaction;
+  }
+
+  @Post('employees/confirm-payment')
+  @ApiOperation({ summary: 'Confirm employee payment after checkout success' })
+  @ApiResponse({
+    status: 200,
+    description: 'Payment confirmed, employee will be created',
+  })
+  async confirmEmployeePayment(
+    @TenantId() tenantId: string,
+    @Query('checkoutSessionId') checkoutSessionId: string,
+  ) {
+    if (!checkoutSessionId) {
+      throw new BadRequestException('checkoutSessionId is required as query parameter');
+    }
+
+    return this.billingService.confirmEmployeePayment(
+      checkoutSessionId,
+      tenantId,
+    );
   }
 }
 

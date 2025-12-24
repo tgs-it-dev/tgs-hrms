@@ -49,13 +49,31 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     const correlationId = (request.headers['x-correlation-id'] as string) || 'unknown';
 
+    // Extract message text and preserve additional properties
+    let messageText: string;
+    let additionalProps: Record<string, any> = {};
+    
+    if (typeof message === 'string') {
+      messageText = message;
+    } else if (typeof message === 'object' && message !== null) {
+      const msgObj = message as Record<string, any>;
+      messageText = msgObj.message || 'Internal server error';
+      // Extract all properties except 'message' to preserve additional data like checkoutUrl
+      const { message: _, ...rest } = msgObj;
+      additionalProps = rest;
+    } else {
+      messageText = 'Internal server error';
+    }
+
     const errorResponse = {
       statusCode: status,
       timestamp: new Date().toISOString(),
       path: request.url,
       method: request.method,
       correlationId,
-      message: typeof message === 'string' ? message : (message as { message?: string }).message || message,
+      message: messageText,
+      // Preserve additional properties from the exception response (like checkoutUrl, checkoutSessionId, etc.)
+      ...additionalProps,
     };
 
     if (status >= 500) {
