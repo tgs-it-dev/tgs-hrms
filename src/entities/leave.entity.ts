@@ -71,6 +71,10 @@ export class Leave {
   @Column({ type: 'text', nullable: true })
   managerRemarks: string;
 
+  // Array of document URLs (images) uploaded with leave application
+  @Column({ type: 'text', array: true, nullable: true, default: [] })
+  documents: string[];
+
   @CreateDateColumn()
   createdAt: Date;
 

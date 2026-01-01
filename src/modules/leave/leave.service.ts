@@ -5,8 +5,11 @@ import { LeaveStatus } from '../../common/constants/enums';
 import { Leave } from 'src/entities/leave.entity';
 import { LeaveType } from 'src/entities/leave-type.entity';
 import { CreateLeaveDto } from './dto/create-leave.dto';
+import { CreateLeaveForEmployeeDto } from './dto/create-leave-for-employee.dto';
+import { EditLeaveDto } from './dto/update-leave.dto';
 import { User } from '../../entities/user.entity';
 import { Employee } from 'src/entities/employee.entity';
+import { LeaveFileUploadService } from './services/leave-file-upload.service';
 
 @Injectable()
 export class LeaveService {
@@ -18,10 +21,16 @@ export class LeaveService {
     @InjectRepository(Employee)
     private readonly employeeRepo: Repository<Employee>,
     @InjectRepository(LeaveType)
-    private readonly leaveTypeRepo: Repository<LeaveType>
+    private readonly leaveTypeRepo: Repository<LeaveType>,
+    private readonly leaveFileUploadService: LeaveFileUploadService
   ) {}
 
-  async createLeave(employeeId: string, tenantId: string, dto: CreateLeaveDto): Promise<Leave> {
+  async createLeave(
+    employeeId: string,
+    tenantId: string,
+    dto: CreateLeaveDto,
+    files?: Express.Multer.File[],
+  ): Promise<Leave> {
     
     const leaveType = await this.leaveTypeRepo.findOne({
       where: { id: dto.leaveTypeId, tenantId, status: 'active' }
@@ -41,10 +50,8 @@ export class LeaveService {
     startDate.setHours(0, 0, 0, 0);
     endDate.setHours(0, 0, 0, 0);
 
-    // Check if start date is in the past
-    if (startDate < today) {
-      throw new ForbiddenException('Leave cannot be applied for past dates');
-    }
+    // Allow past dates - employees and admins can apply for leave with past dates
+    // Removed validation: if (startDate < today) - now allows past dates
 
     if (endDate < startDate) {
       throw new ForbiddenException('End date cannot be before start date');
@@ -100,12 +107,127 @@ export class LeaveService {
       totalDays,
       reason: dto.reason,
       tenantId,
+      documents: [],
     });
 
-    return await this.leaveRepo.save(leave);
+    const savedLeave = await this.leaveRepo.save(leave);
+
+    // Upload documents if provided (after saving to get the leave ID)
+    if (files && files.length > 0) {
+      const documentUrls = await this.leaveFileUploadService.uploadLeaveDocuments(
+        files,
+        savedLeave.id,
+      );
+      savedLeave.documents = documentUrls;
+      await this.leaveRepo.save(savedLeave);
+    }
+
+    return savedLeave;
   }
 
+  /**
+   * Create leave request for an employee (Admin/HR Admin only)
+   * Validates that the employee belongs to the same tenant
+   */
+  async createLeaveForEmployee(
+    requesterId: string,
+    tenantId: string,
+    dto: CreateLeaveForEmployeeDto,
+    files?: Express.Multer.File[],
+  ): Promise<Leave> {
+    // Validate that the employee exists and belongs to the same tenant
+    const employee = await this.userRepo.findOne({
+      where: { id: dto.employeeId, tenant_id: tenantId },
+    });
 
+    if (!employee) {
+      throw new NotFoundException(
+        'Employee not found or does not belong to your tenant',
+      );
+    }
+
+    // Use the existing createLeave logic but with the specified employeeId
+    // We'll reuse the validation and creation logic
+    const leaveType = await this.leaveTypeRepo.findOne({
+      where: { id: dto.leaveTypeId, tenantId, status: 'active' },
+    });
+
+    if (!leaveType) {
+      throw new NotFoundException('Leave type not found');
+    }
+
+    const startDate = new Date(dto.startDate);
+    const endDate = new Date(dto.endDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(0, 0, 0, 0);
+
+    // Allow past dates - admins can apply for leave with past dates on behalf of employees
+    
+    if (endDate < startDate) {
+      throw new ForbiddenException('End date cannot be before start date');
+    }
+
+    // Allow leave application for next year (max 1 year ahead from today)
+    const maxFutureDate = new Date(today);
+    maxFutureDate.setFullYear(maxFutureDate.getFullYear() + 1);
+
+    if (startDate > maxFutureDate) {
+      throw new ForbiddenException('Leave can only be applied up to 1 year in advance');
+    }
+
+    // Check for overlapping leaves
+    const overlappingLeave = await this.leaveRepo
+      .createQueryBuilder('leave')
+      .where('leave.employeeId = :employeeId', { employeeId: dto.employeeId })
+      .andWhere('leave.tenantId = :tenantId', { tenantId })
+      .andWhere('leave.status IN (:...statuses)', {
+        statuses: [LeaveStatus.PENDING, LeaveStatus.APPROVED],
+      })
+      .andWhere('leave.startDate <= :endDate', { endDate })
+      .andWhere('leave.endDate >= :startDate', { startDate })
+      .getOne();
+
+    if (overlappingLeave) {
+      throw new ForbiddenException(
+        'Employee already has a leave request that overlaps with these dates',
+      );
+    }
+
+    // Calculate working days only (exclude weekends)
+    const totalDays = this.calculateWorkingDays(startDate, endDate);
+
+    if (totalDays <= 0) {
+      throw new ForbiddenException('Leave cannot be applied only for weekends');
+    }
+
+    const leave = this.leaveRepo.create({
+      employeeId: dto.employeeId,
+      leaveTypeId: dto.leaveTypeId,
+      startDate: new Date(dto.startDate),
+      endDate: new Date(dto.endDate),
+      totalDays,
+      reason: dto.reason,
+      tenantId,
+      documents: [],
+    });
+
+    const savedLeave = await this.leaveRepo.save(leave);
+
+    // Upload documents if provided
+    if (files && files.length > 0) {
+      const documentUrls = await this.leaveFileUploadService.uploadLeaveDocuments(
+        files,
+        savedLeave.id,
+      );
+      savedLeave.documents = documentUrls;
+      await this.leaveRepo.save(savedLeave);
+    }
+
+    return savedLeave;
+  }
 
   async getLeavesTakenInLast12Months(user_id: string): Promise<number> {
     const twelveMonthsAgo = new Date();
@@ -182,7 +304,9 @@ export class LeaveService {
   async getAllLeaves(
     tenantId: string,
     page: number = 1,
-    status?: string
+    status?: string,
+    month?: number,
+    year?: number
   ): Promise<{
     items: Leave[];
     total: number;
@@ -193,23 +317,45 @@ export class LeaveService {
     const limit = 25;
     const skip = (page - 1) * limit;
     
-    const whereConditions: any = {
-      tenantId,
-    };
+    const queryBuilder = this.leaveRepo
+      .createQueryBuilder('leave')
+      .leftJoinAndSelect('leave.employee', 'employee')
+      .leftJoinAndSelect('leave.leaveType', 'leaveType')
+      .leftJoinAndSelect('leave.approver', 'approver')
+      .where('leave.tenantId = :tenantId', { tenantId });
 
     if (status) {
-      whereConditions.status = status;
+      queryBuilder.andWhere('leave.status = :status', { status });
     } else {
-      whereConditions.status = In([LeaveStatus.PENDING, LeaveStatus.APPROVED, LeaveStatus.REJECTED]);
+      queryBuilder.andWhere('leave.status IN (:...statuses)', {
+        statuses: [LeaveStatus.PENDING, LeaveStatus.APPROVED, LeaveStatus.REJECTED],
+      });
     }
 
-    const [items, total] = await this.leaveRepo.findAndCount({
-      where: whereConditions,
-      relations: ['employee', 'leaveType', 'approver'],
-      order: { createdAt: 'DESC' },
-      skip,
-      take: limit,
-    });
+    // Filter by month and year if provided
+    if (month && month >= 1 && month <= 12) {
+      const targetYear = year ?? new Date().getFullYear();
+      const startDate = new Date(targetYear, month - 1, 1);
+      const endDate = new Date(targetYear, month, 0, 23, 59, 59, 999);
+      
+      // Filter leaves where startDate falls within the specified month
+      queryBuilder.andWhere('leave.startDate >= :startDate', { startDate });
+      queryBuilder.andWhere('leave.startDate <= :endDate', { endDate });
+    } else if (year) {
+      // If only year is provided, filter by the entire year
+      const startDate = new Date(year, 0, 1);
+      const endDate = new Date(year, 11, 31, 23, 59, 59, 999);
+      
+      queryBuilder.andWhere('leave.startDate >= :startDate', { startDate });
+      queryBuilder.andWhere('leave.startDate <= :endDate', { endDate });
+    }
+
+    const [items, total] = await queryBuilder
+      .orderBy('leave.createdAt', 'DESC')
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+
     const totalPages = Math.ceil(total / limit);
     return {
       items,
@@ -331,24 +477,181 @@ export class LeaveService {
     return await this.leaveRepo.save(leave);
   }
 
-  async cancelLeave(id: string, employeeId: string): Promise<Leave> {
+  async cancelLeave(
+    id: string,
+    employeeId: string,
+    tenantId?: string,
+    requesterRole?: string,
+  ): Promise<Leave> {
     const leave = await this.leaveRepo.findOne({
-      where: { id },
+      where: tenantId ? { id, tenantId } : { id },
     });
 
     if (!leave) {
       throw new NotFoundException('Leave not found');
     }
 
-    if (leave.employeeId !== employeeId) {
+    // Check ownership - allow if employee owns it OR if requester is admin/hr-admin
+    const isAdminOrHrAdmin = requesterRole && ['admin', 'hr-admin', 'system-admin'].includes(requesterRole.toLowerCase());
+    
+    if (leave.employeeId !== employeeId && !isAdminOrHrAdmin) {
       throw new ForbiddenException('You can only cancel your own leave requests');
     }
 
+    // Admin/HR Admin can cancel pending leaves, employees can only cancel their own pending leaves
     if (leave.status !== LeaveStatus.PENDING) {
       throw new ForbiddenException('You can only cancel pending leave requests');
     }
 
     leave.status = LeaveStatus.CANCELLED;
+    return await this.leaveRepo.save(leave);
+  }
+
+  /**
+   * Edit a leave request with conditional restrictions:
+   * - If leave is not approved: can edit all fields
+   * - If leave is approved: can only edit/update documents
+   * - Admin/HR Admin can edit leaves for any employee in their tenant
+   */
+  async editLeave(
+    id: string,
+    employeeId: string,
+    tenantId: string,
+    dto: EditLeaveDto,
+    files?: Express.Multer.File[],
+    requesterRole?: string,
+  ): Promise<Leave> {
+    const leave = await this.leaveRepo.findOne({
+      where: { id, tenantId },
+      relations: ['leaveType'],
+    });
+
+    if (!leave) {
+      throw new NotFoundException('Leave not found');
+    }
+
+    // Check ownership - allow if employee owns it OR if requester is admin/hr-admin
+    const isAdminOrHrAdmin = requesterRole && ['admin', 'hr-admin', 'system-admin'].includes(requesterRole.toLowerCase());
+    
+    if (leave.employeeId !== employeeId && !isAdminOrHrAdmin) {
+      throw new ForbiddenException('You can only edit your own leave requests');
+    }
+
+    // If leave is approved, only allow document updates
+    if (leave.status === LeaveStatus.APPROVED) {
+      // Check if user is trying to edit non-document fields
+      if (dto.leaveTypeId || dto.startDate || dto.endDate || dto.reason) {
+        throw new ForbiddenException(
+          'Cannot edit leave details after approval. Only documents can be updated.',
+        );
+      }
+
+      // Only update documents if provided
+      if (files && files.length > 0) {
+        const newDocumentUrls = await this.leaveFileUploadService.uploadLeaveDocuments(
+          files,
+          leave.id,
+        );
+        // Append new documents to existing ones
+        leave.documents = [...(leave.documents || []), ...newDocumentUrls];
+      }
+
+      return await this.leaveRepo.save(leave);
+    }
+
+    // For non-approved leaves, allow editing all fields
+    // Validate leave type if being changed
+    if (dto.leaveTypeId && dto.leaveTypeId !== leave.leaveTypeId) {
+      const leaveType = await this.leaveTypeRepo.findOne({
+        where: { id: dto.leaveTypeId, tenantId, status: 'active' },
+      });
+
+      if (!leaveType) {
+        throw new NotFoundException('Leave type not found');
+      }
+
+      leave.leaveTypeId = dto.leaveTypeId;
+    }
+
+    // Update dates if provided (partial updates allowed - can update only startDate or only endDate)
+    if (dto.startDate !== undefined || dto.endDate !== undefined) {
+      // Use provided date or keep existing date
+      const startDate = dto.startDate ? new Date(dto.startDate) : new Date(leave.startDate);
+      const endDate = dto.endDate ? new Date(dto.endDate) : new Date(leave.endDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(0, 0, 0, 0);
+
+      // Allow past dates - employees and admins can edit leave with past dates
+      // Removed validation: if (startDate < today) - now allows past dates
+
+      // Validate that end date is not before start date
+      if (endDate < startDate) {
+        throw new ForbiddenException('End date cannot be before start date');
+      }
+
+      // Validate future date limit (only if startDate is being changed)
+      if (dto.startDate) {
+        const maxFutureDate = new Date(today);
+        maxFutureDate.setFullYear(maxFutureDate.getFullYear() + 1);
+
+        if (startDate > maxFutureDate) {
+          throw new ForbiddenException('Leave can only be applied up to 1 year in advance');
+        }
+      }
+
+      // Check for overlapping leaves (excluding current leave)
+      const overlappingLeave = await this.leaveRepo
+        .createQueryBuilder('leave')
+        .where('leave.employeeId = :employeeId', { employeeId })
+        .andWhere('leave.tenantId = :tenantId', { tenantId })
+        .andWhere('leave.id != :currentLeaveId', { currentLeaveId: id })
+        .andWhere('leave.status IN (:...statuses)', {
+          statuses: [LeaveStatus.PENDING, LeaveStatus.APPROVED],
+        })
+        .andWhere('leave.startDate <= :endDate', { endDate })
+        .andWhere('leave.endDate >= :startDate', { startDate })
+        .getOne();
+
+      if (overlappingLeave) {
+        throw new ForbiddenException(
+          'You already have a leave request that overlaps with these dates',
+        );
+      }
+
+      // Only update the fields that were provided
+      if (dto.startDate !== undefined) {
+        leave.startDate = startDate;
+      }
+      if (dto.endDate !== undefined) {
+        leave.endDate = endDate;
+      }
+      
+      // Recalculate total days with the final dates (after updates)
+      leave.totalDays = this.calculateWorkingDays(leave.startDate, leave.endDate);
+
+      if (leave.totalDays <= 0) {
+        throw new ForbiddenException('Leave cannot be applied only for weekends');
+      }
+    }
+
+    // Update reason if provided
+    if (dto.reason !== undefined) {
+      leave.reason = dto.reason;
+    }
+
+    // Handle document uploads
+    if (files && files.length > 0) {
+      const newDocumentUrls = await this.leaveFileUploadService.uploadLeaveDocuments(
+        files,
+        leave.id,
+      );
+      // Append new documents to existing ones
+      leave.documents = [...(leave.documents || []), ...newDocumentUrls];
+    }
+
     return await this.leaveRepo.save(leave);
   }
 

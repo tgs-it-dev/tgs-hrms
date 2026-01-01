@@ -10,12 +10,17 @@ import {
   UseGuards,
   Request,
   Res,
+  UseInterceptors,
+  UploadedFiles,
+  BadRequestException,
+  UsePipes,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { ForbiddenException } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { ForbiddenException, ValidationPipe } from '@nestjs/common';
 import { LeaveService } from './leave.service';
 import { CreateLeaveDto } from './dto/create-leave.dto';
-import { ApproveLeaveDto, RejectLeaveDto, ManagerRemarksDto } from './dto/update-leave.dto';
+import { CreateLeaveForEmployeeDto } from './dto/create-leave-for-employee.dto';
+import { ApproveLeaveDto, RejectLeaveDto, ManagerRemarksDto, EditLeaveDto } from './dto/update-leave.dto';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
@@ -23,6 +28,8 @@ import { Permissions } from 'src/common/decorators/permissions.decorator';
 import { PermissionsGuard } from 'src/common/guards/permissions.guard';
 import { Response } from 'express';
 import { sendCsvResponse } from 'src/common/utils/csv.util';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { validateImageFile } from 'src/common/utils/file-validation.util';
 
 @ApiTags('Leaves')
 @Controller('leaves')
@@ -32,13 +39,239 @@ export class LeaveController {
 
   @Post()
   @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Submit a new leave request' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        leaveTypeId: {
+          type: 'string',
+          format: 'uuid',
+          description: 'Leave type ID',
+        },
+        startDate: {
+          type: 'string',
+          format: 'date',
+          description: 'Start date of leave',
+        },
+        endDate: {
+          type: 'string',
+          format: 'date',
+          description: 'End date of leave',
+        },
+        reason: {
+          type: 'string',
+          description: 'Reason for leave',
+        },
+        documents: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+          description: 'Optional image documents (max 5MB each)',
+        },
+      },
+      required: ['leaveTypeId', 'startDate', 'endDate', 'reason'],
+    },
+  })
   @ApiResponse({
     status: 201,
     description: 'Leave request created successfully',
   })
-  async create(@Body() dto: CreateLeaveDto, @Request() req: any) {
-    return this.leaveService.createLeave(req.user.id, req.user.tenant_id, dto);
+  @UseInterceptors(
+    FilesInterceptor('documents', 10, {
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5MB per file
+      fileFilter: (_req, file, cb) => {
+        try {
+          // Check MIME type first
+          if (!file.mimetype || !file.mimetype.startsWith('image/')) {
+            return cb(
+              new BadRequestException(
+                `Invalid file type: ${file.mimetype || 'unknown'}. Only image files are allowed (JPG, JPEG, PNG, GIF, WebP)`,
+              ),
+              false,
+            );
+          }
+
+          // Check file extension
+          const fileExtension = file.originalname
+            .substring(file.originalname.lastIndexOf('.'))
+            .toLowerCase();
+          const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+          
+          if (!allowedExtensions.includes(fileExtension)) {
+            return cb(
+              new BadRequestException(
+                `Invalid file extension: ${fileExtension}. Allowed extensions: ${allowedExtensions.join(', ')}`,
+              ),
+              false,
+            );
+          }
+
+          cb(null, true);
+        } catch (error) {
+          cb(
+            error instanceof BadRequestException
+              ? error
+              : new BadRequestException('File validation failed. Please upload a valid image file'),
+            false,
+          );
+        }
+      },
+    }),
+  )
+  async create(
+    @Body() dto: CreateLeaveDto,
+    @Request() req: any,
+    @UploadedFiles() files?: Express.Multer.File[],
+  ) {
+    // Validate files if provided
+    if (files && files.length > 0) {
+      try {
+        files.forEach((file) => {
+          validateImageFile(file);
+        });
+      } catch (error) {
+        if (error instanceof BadRequestException) {
+          throw error;
+        }
+        throw new BadRequestException(
+          error instanceof Error ? error.message : 'File validation failed',
+        );
+      }
+    }
+    return this.leaveService.createLeave(req.user.id, req.user.tenant_id, dto, files);
+  }
+
+  @Post('for-employee')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('admin', 'hr-admin', 'system-admin')
+  @Permissions('manage_leaves')
+  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Apply for leave on behalf of an employee (Admin/HR Admin only)' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        employeeId: {
+          type: 'string',
+          format: 'uuid',
+          description: 'Employee ID (User ID) for whom leave is being applied',
+        },
+        leaveTypeId: {
+          type: 'string',
+          format: 'uuid',
+          description: 'Leave type ID',
+        },
+        startDate: {
+          type: 'string',
+          format: 'date',
+          description: 'Start date of leave',
+        },
+        endDate: {
+          type: 'string',
+          format: 'date',
+          description: 'End date of leave',
+        },
+        reason: {
+          type: 'string',
+          description: 'Reason for leave',
+        },
+        documents: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+          description: 'Optional image documents (max 5MB each)',
+        },
+      },
+      required: ['employeeId', 'leaveTypeId', 'startDate', 'endDate', 'reason'],
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Leave request created successfully for employee',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Admin/HR Admin access required',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Employee not found or does not belong to tenant',
+  })
+  @UseInterceptors(
+    FilesInterceptor('documents', 10, {
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5MB per file
+      fileFilter: (_req, file, cb) => {
+        try {
+          // Check MIME type first
+          if (!file.mimetype || !file.mimetype.startsWith('image/')) {
+            return cb(
+              new BadRequestException(
+                `Invalid file type: ${file.mimetype || 'unknown'}. Only image files are allowed (JPG, JPEG, PNG, GIF, WebP)`,
+              ),
+              false,
+            );
+          }
+
+          // Check file extension
+          const fileExtension = file.originalname
+            .substring(file.originalname.lastIndexOf('.'))
+            .toLowerCase();
+          const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+          
+          if (!allowedExtensions.includes(fileExtension)) {
+            return cb(
+              new BadRequestException(
+                `Invalid file extension: ${fileExtension}. Allowed extensions: ${allowedExtensions.join(', ')}`,
+              ),
+              false,
+            );
+          }
+
+          cb(null, true);
+        } catch (error) {
+          cb(
+            error instanceof BadRequestException
+              ? error
+              : new BadRequestException('File validation failed. Please upload a valid image file'),
+            false,
+          );
+        }
+      },
+    }),
+  )
+  async createLeaveForEmployee(
+    @Body() dto: CreateLeaveForEmployeeDto,
+    @Request() req: any,
+    @UploadedFiles() files?: Express.Multer.File[],
+  ) {
+    // Validate files if provided
+    if (files && files.length > 0) {
+      try {
+        files.forEach((file) => {
+          validateImageFile(file);
+        });
+      } catch (error) {
+        if (error instanceof BadRequestException) {
+          throw error;
+        }
+        throw new BadRequestException(
+          error instanceof Error ? error.message : 'File validation failed',
+        );
+      }
+    }
+    return this.leaveService.createLeaveForEmployee(
+      req.user.id,
+      req.user.tenant_id,
+      dto,
+      files,
+    );
   }
 
   @Get('team')
@@ -157,10 +390,22 @@ export class LeaveController {
   @Permissions('manage_leaves', 'view_leaves')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all leave requests (Admin/HR Admin/Network Admin only)' })
+  @ApiQuery({ name: 'page', required: false, description: 'Page number for pagination (default: 1)', type: String })
+  @ApiQuery({ name: 'status', required: false, description: 'Filter by leave status', type: String })
+  @ApiQuery({ name: 'month', required: false, description: 'Filter by month (1-12)', type: Number })
+  @ApiQuery({ name: 'year', required: false, description: 'Filter by year (defaults to current year if month is provided)', type: Number })
   @ApiResponse({ status: 200, description: 'Returns all leave requests' })
-  async findAllForAdmin(@Request() req: any, @Query('page') page?: string, @Query('status') status?: string) {
+  async findAllForAdmin(
+    @Request() req: any,
+    @Query('page') page?: string,
+    @Query('status') status?: string,
+    @Query('month') month?: string,
+    @Query('year') year?: string,
+  ) {
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-    return this.leaveService.getAllLeaves(req.user.tenant_id, pageNumber, status);
+    const monthNumber = month ? parseInt(month, 10) : undefined;
+    const yearNumber = year ? parseInt(year, 10) : undefined;
+    return this.leaveService.getAllLeaves(req.user.tenant_id, pageNumber, status, monthNumber, yearNumber);
   }
 
   @Get(':id')
@@ -272,7 +517,7 @@ export class LeaveController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Cancel a pending leave request',
+    summary: 'Cancel a pending leave request (Employee can cancel own, Admin/HR Admin can cancel any)',
   })
   @ApiResponse({
     status: 200,
@@ -280,14 +525,144 @@ export class LeaveController {
   })
   @ApiResponse({
     status: 403,
-    description: 'Forbidden - Can only cancel own pending leave requests',
+    description: 'Forbidden - Can only cancel own pending leave requests (or Admin/HR Admin can cancel any)',
   })
   @ApiResponse({
     status: 404,
     description: 'Leave request not found',
   })
   async cancelLeave(@Param('id') id: string, @Request() req: any) {
-    return this.leaveService.cancelLeave(id, req.user.id);
+    return this.leaveService.cancelLeave(id, req.user.id, req.user.tenant_id, req.user.role);
+  }
+
+  @Patch(':id')
+  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @UsePipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: false, // Allow documents field which is handled separately
+      transform: true,
+      transformOptions: {
+        enableImplicitConversion: true,
+        excludeExtraneousValues: false,
+      },
+      skipMissingProperties: true, // Skip validation for missing/undefined properties
+      skipNullProperties: true, // Skip validation for null properties
+      skipUndefinedProperties: true, // Skip validation for undefined properties
+    }),
+  )
+  @ApiOperation({ summary: 'Edit a leave request (Employee can edit own, Admin/HR Admin can edit any)' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        leaveTypeId: {
+          type: 'string',
+          format: 'uuid',
+          description: 'Leave type ID',
+        },
+        startDate: {
+          type: 'string',
+          format: 'date',
+          description: 'Start date of leave',
+        },
+        endDate: {
+          type: 'string',
+          format: 'date',
+          description: 'End date of leave',
+        },
+        reason: {
+          type: 'string',
+          description: 'Reason for leave',
+        },
+        documents: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+          description: 'Optional image documents (max 5MB each). If leave is approved, only documents can be updated.',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Leave request updated successfully',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Cannot edit approved leave fields (only documents allowed) OR not authorized to edit this leave',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Leave request not found',
+  })
+  @UseInterceptors(
+    FilesInterceptor('documents', 10, {
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5MB per file
+      fileFilter: (_req, file, cb) => {
+        try {
+          // Check MIME type first
+          if (!file.mimetype || !file.mimetype.startsWith('image/')) {
+            return cb(
+              new BadRequestException(
+                `Invalid file type: ${file.mimetype || 'unknown'}. Only image files are allowed (JPG, JPEG, PNG, GIF, WebP)`,
+              ),
+              false,
+            );
+          }
+
+          // Check file extension
+          const fileExtension = file.originalname
+            .substring(file.originalname.lastIndexOf('.'))
+            .toLowerCase();
+          const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+          
+          if (!allowedExtensions.includes(fileExtension)) {
+            return cb(
+              new BadRequestException(
+                `Invalid file extension: ${fileExtension}. Allowed extensions: ${allowedExtensions.join(', ')}`,
+              ),
+              false,
+            );
+          }
+
+          cb(null, true);
+        } catch (error) {
+          cb(
+            error instanceof BadRequestException
+              ? error
+              : new BadRequestException('File validation failed. Please upload a valid image file'),
+            false,
+          );
+        }
+      },
+    }),
+  )
+  async editLeave(
+    @Param('id') id: string,
+    @Body() dto: EditLeaveDto,
+    @Request() req: any,
+    @UploadedFiles() files?: Express.Multer.File[],
+  ) {
+    // Validate files if provided
+    if (files && files.length > 0) {
+      try {
+        files.forEach((file) => {
+          validateImageFile(file);
+        });
+      } catch (error) {
+        if (error instanceof BadRequestException) {
+          throw error;
+        }
+        throw new BadRequestException(
+          error instanceof Error ? error.message : 'File validation failed',
+        );
+      }
+    }
+    return this.leaveService.editLeave(id, req.user.id, req.user.tenant_id, dto, files, req.user.role);
   }
 
   
@@ -387,11 +762,26 @@ export class LeaveController {
   @Roles('admin', 'system-admin', 'hr-admin', 'network-admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Download all leave requests for tenant as CSV (Admin/HR Admin/Network Admin only)' })
-  async exportAll(@Request() req: any, @Res() res: Response) {
+  @ApiQuery({ name: 'month', required: false, description: 'Filter by month (1-12)', type: Number })
+  @ApiQuery({ name: 'year', required: false, description: 'Filter by year (defaults to current year if month is provided)', type: Number })
+  async exportAll(
+    @Request() req: any,
+    @Res() res: Response,
+    @Query('month') month?: string,
+    @Query('year') year?: string,
+  ) {
     let page = 1;
     const rows: any[] = [];
+    const monthNumber = month ? parseInt(month, 10) : undefined;
+    const yearNumber = year ? parseInt(year, 10) : undefined;
     while (true) {
-      const { items, total, limit } = await this.leaveService.getAllLeaves(req.user.tenant_id, page);
+      const { items, total, limit } = await this.leaveService.getAllLeaves(
+        req.user.tenant_id,
+        page,
+        undefined,
+        monthNumber,
+        yearNumber,
+      );
       for (const l of items) {
         rows.push({
           id: l.id,
