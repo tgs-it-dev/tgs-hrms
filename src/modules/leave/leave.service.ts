@@ -556,21 +556,36 @@ export class LeaveService {
         leave.documents = [...(leave.documents || []), ...newDocumentUrls];
       }
 
-      return await this.leaveRepo.save(leave);
+      const savedLeave = await this.leaveRepo.save(leave);
+      
+      // Reload with relations
+      const updatedLeave = await this.leaveRepo.findOne({
+        where: { id: savedLeave.id, tenantId },
+        relations: ['leaveType', 'employee', 'approver'],
+      });
+
+      return updatedLeave || savedLeave;
     }
 
     // For non-approved leaves, allow editing all fields
     // Validate leave type if being changed
-    if (dto.leaveTypeId && dto.leaveTypeId !== leave.leaveTypeId) {
+    if (dto.leaveTypeId !== undefined && dto.leaveTypeId !== null && dto.leaveTypeId !== '') {
+      // Trim and validate the leave type ID
+      const newLeaveTypeId = String(dto.leaveTypeId).trim();
+      
+      // Always validate the leave type exists
       const leaveType = await this.leaveTypeRepo.findOne({
-        where: { id: dto.leaveTypeId, tenantId, status: 'active' },
+        where: { id: newLeaveTypeId, tenantId, status: 'active' },
       });
 
       if (!leaveType) {
         throw new NotFoundException('Leave type not found');
       }
 
-      leave.leaveTypeId = dto.leaveTypeId;
+      // Update leaveTypeId - always update if provided (even if same, ensures it's saved)
+      leave.leaveTypeId = newLeaveTypeId;
+      // Clear the cached relation so it reloads with the new leaveType
+      leave.leaveType = null as any;
     }
 
     // Update dates if provided (partial updates allowed - can update only startDate or only endDate)
@@ -652,7 +667,21 @@ export class LeaveService {
       leave.documents = [...(leave.documents || []), ...newDocumentUrls];
     }
 
-    return await this.leaveRepo.save(leave);
+    // Save the leave
+    const savedLeave = await this.leaveRepo.save(leave);
+
+    // Reload the leave with all relations to get updated leaveType
+    const updatedLeave = await this.leaveRepo.findOne({
+      where: { id: savedLeave.id, tenantId },
+      relations: ['leaveType', 'employee', 'approver'],
+    });
+
+    if (!updatedLeave) {
+      // Fallback to saved leave if reload fails
+      return savedLeave;
+    }
+
+    return updatedLeave;
   }
 
 

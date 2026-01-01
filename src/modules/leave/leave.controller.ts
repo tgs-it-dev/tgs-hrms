@@ -541,7 +541,7 @@ export class LeaveController {
   @UsePipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: false, // Allow documents field which is handled separately
+      forbidNonWhitelisted: false, // Allow documents field which is handled separately via @UploadedFiles
       transform: true,
       transformOptions: {
         enableImplicitConversion: true,
@@ -550,6 +550,24 @@ export class LeaveController {
       skipMissingProperties: true, // Skip validation for missing/undefined properties
       skipNullProperties: true, // Skip validation for null properties
       skipUndefinedProperties: true, // Skip validation for undefined properties
+      validateCustomDecorators: true,
+      exceptionFactory: (errors) => {
+        // Filter out 'documents' field errors since it's handled separately via @UploadedFiles
+        const filteredErrors = errors.filter(
+          (error) => error.property !== 'documents',
+        );
+        if (filteredErrors.length === 0) {
+          return new BadRequestException('Validation failed');
+        }
+        const errorMessages = filteredErrors.map((error) => ({
+          field: error.property,
+          message: Object.values(error.constraints || {}).join(', '),
+        }));
+        return new BadRequestException({
+          message: 'Validation Error',
+          errors: errorMessages,
+        });
+      },
     }),
   )
   @ApiOperation({ summary: 'Edit a leave request (Employee can edit own, Admin/HR Admin can edit any)' })
@@ -585,6 +603,7 @@ export class LeaveController {
           description: 'Optional image documents (max 5MB each). If leave is approved, only documents can be updated.',
         },
       },
+      // All fields are optional - no required fields
     },
   })
   @ApiResponse({
@@ -662,6 +681,10 @@ export class LeaveController {
         );
       }
     }
+    
+    // Debug: Log the DTO to verify values are being received
+    // console.log('EditLeave DTO received:', JSON.stringify(dto, null, 2));
+    
     return this.leaveService.editLeave(id, req.user.id, req.user.tenant_id, dto, files, req.user.role);
   }
 
