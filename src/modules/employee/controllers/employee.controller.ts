@@ -328,7 +328,7 @@ export class EmployeeController {
   @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('manage_employees')
   @ApiOperation({
-    summary: 'List all employees for tenant with optional designation and department filters',
+    summary: 'List all employees for tenant with optional designation, department filters, and search',
   })
   @ApiQuery({
     name: 'designation_id',
@@ -341,6 +341,11 @@ export class EmployeeController {
     required: false,
     description: 'Filter employees by department ID',
     example: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Search term to filter employees by name, email, phone, CNIC, designation, department, or team',
   })
   @ApiQuery({
     name: 'page',
@@ -535,7 +540,7 @@ export class EmployeeController {
   }
 
   @Get(':id')
-  @Roles('admin', 'system-admin', 'hr-admin')
+  @Roles('admin', 'system-admin', 'hr-admin', 'manager')
   @Permissions('manage_employees', 'view_team_reports')
   @ApiOperation({ summary: 'Get single employee by ID' })
   @ApiResponse({ status: 200, description: 'Employee found.' })

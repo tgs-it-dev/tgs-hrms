@@ -640,6 +640,25 @@ export class EmployeeService implements OnModuleInit {
       });
     }
 
+    // Add search functionality
+    if (query.search && query.search.trim().length > 0) {
+      const searchTerm = `%${query.search.trim()}%`;
+      qb.andWhere(
+        `(
+          user.first_name ILIKE :searchTerm OR
+          user.last_name ILIKE :searchTerm OR
+          CONCAT(user.first_name, ' ', user.last_name) ILIKE :searchTerm OR
+          user.email ILIKE :searchTerm OR
+          user.phone ILIKE :searchTerm OR
+          employee.cnic_number ILIKE :searchTerm OR
+          designation.title ILIKE :searchTerm OR
+          department.name ILIKE :searchTerm OR
+          team.name ILIKE :searchTerm
+        )`,
+        { searchTerm },
+      );
+    }
+
     const [items, total] = await qb
       .orderBy('employee.created_at', 'DESC')
       .skip(skip)

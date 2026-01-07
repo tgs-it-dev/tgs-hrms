@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Employee } from '../../entities/employee.entity';
 import { Leave } from '../../entities/leave.entity';
 import { Asset } from '../../entities/asset.entity';
@@ -47,6 +47,9 @@ export class SearchService {
     userRole: string,
     module: SearchModule = SearchModule.ALL,
     limit: number = 10,
+    currentUserId?: string,
+    currentUserEmail?: string,
+    teamIds?: string[], // For manager role: filter by team IDs
   ): Promise<GlobalSearchResponseDto> {
     this.logger.log(`Global search: query="${query}", tenantId="${tenantId}", role="${userRole}", module="${module}"`);
 
@@ -77,6 +80,9 @@ export class SearchService {
         tenantId,
         searchAllTenants,
         limit,
+        currentUserId,
+        currentUserEmail,
+        teamIds,
       );
       results.employees = employeeResults.items;
       counts.employees = employeeResults.total;
@@ -89,6 +95,7 @@ export class SearchService {
         tenantId,
         searchAllTenants,
         limit,
+        teamIds,
       );
       results.leaves = leaveResults.items;
       counts.leaves = leaveResults.total;
@@ -113,6 +120,7 @@ export class SearchService {
         tenantId,
         searchAllTenants,
         limit,
+        teamIds,
       );
       results.assetRequests = assetRequestResults.items;
       counts.assetRequests = assetRequestResults.total;
@@ -137,6 +145,7 @@ export class SearchService {
         tenantId,
         searchAllTenants,
         limit,
+        teamIds,
       );
       results.attendance = attendanceResults.items;
       counts.attendance = attendanceResults.total;
@@ -149,6 +158,7 @@ export class SearchService {
         tenantId,
         searchAllTenants,
         limit,
+        teamIds,
       );
       results.benefits = benefitResults.items;
       counts.benefits = benefitResults.total;
@@ -161,6 +171,7 @@ export class SearchService {
         tenantId,
         searchAllTenants,
         limit,
+        teamIds,
       );
       results.payroll = payrollResults.items;
       counts.payroll = payrollResults.total;
@@ -184,6 +195,9 @@ export class SearchService {
     tenantId: string,
     searchAllTenants: boolean,
     limit: number,
+    currentUserId?: string,
+    currentUserEmail?: string,
+    teamIds?: string[],
   ): Promise<{ items: SearchResultItem[]; total: number }> {
     const queryBuilder = this.employeeRepository
       .createQueryBuilder('employee')
@@ -207,26 +221,129 @@ export class SearchService {
       queryBuilder.andWhere('user.tenant_id = :tenantId', { tenantId });
     }
 
+    // Apply team filter for manager role - only show employees in manager's team(s)
+    if (teamIds && teamIds.length > 0) {
+      queryBuilder.andWhere('employee.team_id IN (:...teamIds)', { teamIds });
+    }
+
     const [employees, total] = await queryBuilder
       .take(limit)
       .getManyAndCount();
 
-    const items: SearchResultItem[] = employees.map((emp) => ({
-      id: emp.id,
-      title: `${emp.user.first_name} ${emp.user.last_name}`,
-      description: `${emp.user.email} | ${emp.designation?.title || 'N/A'} | ${emp.team?.name || 'No Team'}`,
-      module: 'employees',
-      metadata: {
-        email: emp.user.email,
-        phone: emp.user.phone,
-        designation: emp.designation?.title,
-        team: emp.team?.name,
-        status: emp.status,
-        cnic: emp.cnic_number,
-      },
-    }));
+    // Ensure current user's data is included and prioritized if they match the search term
+    let finalEmployees = [...employees];
+    if (currentUserId && searchTerm !== '%') {
+      const searchLower = searchTerm.replace(/%/g, '').toLowerCase().trim();
+      const currentUserEmployee = await this.employeeRepository.findOne({
+        where: { user_id: currentUserId },
+        relations: ['user', 'designation', 'designation.department', 'team'],
+      });
 
-    return { items, total };
+      if (currentUserEmployee) {
+        const empUserEmail = currentUserEmployee.user.email.toLowerCase().trim();
+        const currentUserInResults = employees.some(emp => emp.user_id === currentUserId);
+        
+        // Check if search term matches current user's email exactly or partially
+        const isExactEmailMatch = currentUserEmail && searchLower === currentUserEmail.toLowerCase().trim();
+        const isPartialEmailMatch = currentUserEmail && currentUserEmail.toLowerCase().includes(searchLower);
+        const isEmployeeEmailMatch = empUserEmail === searchLower || empUserEmail.includes(searchLower);
+        
+        // Check if current user matches search term by other fields
+        const fullName = `${currentUserEmployee.user.first_name} ${currentUserEmployee.user.last_name}`.toLowerCase();
+        const matchesSearchTerm = 
+          isExactEmailMatch ||
+          isPartialEmailMatch ||
+          isEmployeeEmailMatch ||
+          currentUserEmployee.user.first_name.toLowerCase().includes(searchLower) ||
+          currentUserEmployee.user.last_name.toLowerCase().includes(searchLower) ||
+          fullName.includes(searchLower) ||
+          currentUserEmployee.user.phone?.toLowerCase().includes(searchLower) ||
+          currentUserEmployee.cnic_number?.toLowerCase().includes(searchLower);
+
+        // If current user matches search term (especially by email), ensure they're in results and prioritized
+        if (matchesSearchTerm) {
+          if (!currentUserInResults) {
+            // Add current user to results if they match but weren't found
+            // Always add at the top, especially for exact email matches
+            finalEmployees.unshift(currentUserEmployee);
+          } else {
+            // If current user is already in results, prioritize them by moving to top
+            // This ensures when HR admin searches by their own email, their data appears first
+            const currentUserIndex = finalEmployees.findIndex(emp => emp.user_id === currentUserId);
+            if (currentUserIndex >= 0 && currentUserIndex > 0) {
+              const [currentUserEmp] = finalEmployees.splice(currentUserIndex, 1);
+              finalEmployees.unshift(currentUserEmp);
+            } else if (isExactEmailMatch && currentUserIndex === 0) {
+              // Already at top, but ensure it stays there for exact matches
+              // No action needed
+            }
+          }
+        }
+      } else if (currentUserEmail && searchLower) {
+        // If employee record doesn't exist, check if user email matches search term
+        // This handles cases where HR admin might not have an employee record yet
+        const userEmailLower = currentUserEmail.toLowerCase().trim();
+        const isExactEmailMatch = userEmailLower === searchLower;
+        const isPartialEmailMatch = userEmailLower.includes(searchLower);
+        
+        if (isExactEmailMatch || isPartialEmailMatch) {
+          // Fetch user data to create a result
+          const currentUser = await this.userRepository.findOne({
+            where: { id: currentUserId },
+            relations: ['role'],
+          });
+          
+          if (currentUser) {
+            // Create a pseudo-employee object with user data so it can be processed like other employees
+            const pseudoEmployee = {
+              id: currentUser.id, // Use user ID as employee ID
+              user_id: currentUser.id,
+              user: currentUser,
+              designation: null,
+              team: null,
+              cnic_number: null,
+              profile_picture: null,
+              status: null,
+            } as any;
+            
+            // Add to results at the top
+            finalEmployees.unshift(pseudoEmployee);
+          }
+        }
+      }
+    }
+
+    const items: SearchResultItem[] = finalEmployees.map((emp) => {
+      // Handle case where user might not have employee record (e.g., HR admin without employee record)
+      const roleName = emp.user?.role?.name || 'N/A';
+      const designationTitle = emp.designation?.title || roleName;
+      const teamName = emp.team?.name || 'No Team';
+      
+      return {
+        id: emp.id,
+        title: `${emp.user.first_name} ${emp.user.last_name}`,
+        description: `${emp.user.email} | ${designationTitle} | ${teamName}`,
+        module: 'employees',
+        metadata: {
+          employeeId: emp.id,
+          userId: emp.user_id,
+          email: emp.user.email,
+          phone: emp.user.phone,
+          profilePic: emp.user.profile_pic || emp.profile_picture || null,
+          designation: designationTitle,
+          team: teamName !== 'No Team' ? teamName : null,
+          status: emp.status || 'active',
+          cnic: emp.cnic_number || null,
+        },
+      };
+    });
+
+    // Update total count if we added the current user to results
+    const adjustedTotal = finalEmployees.length > employees.length 
+      ? total + (finalEmployees.length - employees.length)
+      : total;
+
+    return { items, total: adjustedTotal };
   }
 
   /**
@@ -237,6 +354,7 @@ export class SearchService {
     tenantId: string,
     searchAllTenants: boolean,
     limit: number,
+    teamIds?: string[],
   ): Promise<{ items: SearchResultItem[]; total: number }> {
     const queryBuilder = this.leaveRepository
       .createQueryBuilder('leave')
@@ -262,27 +380,60 @@ export class SearchService {
       queryBuilder.andWhere('leave.tenantId = :tenantId', { tenantId });
     }
 
+    // Apply team filter for manager role - only show leaves of employees in manager's team(s)
+    if (teamIds && teamIds.length > 0) {
+      // Get user IDs of employees in the manager's team(s)
+      const teamEmployees = await this.employeeRepository.find({
+        where: { team_id: In(teamIds) },
+        select: ['user_id'],
+      });
+      
+      if (teamEmployees.length > 0) {
+        const userIds = teamEmployees.map(emp => emp.user_id);
+        queryBuilder.andWhere('leave.employeeId IN (:...userIds)', { userIds });
+      } else {
+        // If no employees in team, return no results
+        queryBuilder.andWhere('1 = 0');
+      }
+    }
+
     const [leaves, total] = await queryBuilder
       .orderBy('leave.createdAt', 'DESC')
       .take(limit)
       .getManyAndCount();
 
-    const items: SearchResultItem[] = leaves.map((leave) => ({
-      id: leave.id,
-      title: `${leave.employee.first_name} ${leave.employee.last_name} - ${leave.leaveType.name}`,
-      description: `${leave.reason.substring(0, 100)}${leave.reason.length > 100 ? '...' : ''} | Status: ${leave.status} | ${leave.totalDays} days`,
-      module: 'leaves',
-      metadata: {
-        employeeName: `${leave.employee.first_name} ${leave.employee.last_name}`,
-        leaveType: leave.leaveType.name,
-        startDate: leave.startDate,
-        endDate: leave.endDate,
-        totalDays: leave.totalDays,
-        status: leave.status,
-        reason: leave.reason,
-        approver: leave.approver ? `${leave.approver.first_name} ${leave.approver.last_name}` : null,
-      },
-    }));
+    // Get employee IDs for all leaves (employeeId in Leave is actually userId)
+    const userIds = [...new Set(leaves.map(l => l.employeeId))];
+    const employees = userIds.length > 0 
+      ? await this.employeeRepository.find({
+          where: userIds.map(userId => ({ user_id: userId })),
+          select: ['id', 'user_id'],
+        })
+      : [];
+    const userToEmployeeMap = new Map(employees.map(emp => [emp.user_id, emp.id]));
+
+    const items: SearchResultItem[] = leaves.map((leave) => {
+      const employeeId = userToEmployeeMap.get(leave.employeeId);
+      return {
+        id: leave.id,
+        title: `${leave.employee.first_name} ${leave.employee.last_name} - ${leave.leaveType.name}`,
+        description: `${leave.reason.substring(0, 100)}${leave.reason.length > 100 ? '...' : ''} | Status: ${leave.status} | ${leave.totalDays} days`,
+        module: 'leaves',
+        metadata: {
+          leaveId: leave.id,
+          employeeId: employeeId || null,
+          userId: leave.employeeId,
+          employeeName: `${leave.employee.first_name} ${leave.employee.last_name}`,
+          leaveType: leave.leaveType.name,
+          startDate: leave.startDate,
+          endDate: leave.endDate,
+          totalDays: leave.totalDays,
+          status: leave.status,
+          reason: leave.reason,
+          approver: leave.approver ? `${leave.approver.first_name} ${leave.approver.last_name}` : null,
+        },
+      };
+    });
 
     return { items, total };
   }
@@ -347,6 +498,7 @@ export class SearchService {
     tenantId: string,
     searchAllTenants: boolean,
     limit: number,
+    teamIds?: string[],
   ): Promise<{ items: SearchResultItem[]; total: number }> {
     const queryBuilder = this.assetRequestRepository
       .createQueryBuilder('assetRequest')
@@ -371,6 +523,23 @@ export class SearchService {
     // Apply tenant filter (skip if searching all tenants)
     if (!searchAllTenants) {
       queryBuilder.andWhere('assetRequest.tenant_id = :tenantId', { tenantId });
+    }
+
+    // Apply team filter for manager role - only show asset requests of employees in manager's team(s)
+    if (teamIds && teamIds.length > 0) {
+      // Get user IDs of employees in the manager's team(s)
+      const teamEmployees = await this.employeeRepository.find({
+        where: { team_id: In(teamIds) },
+        select: ['user_id'],
+      });
+      
+      if (teamEmployees.length > 0) {
+        const userIds = teamEmployees.map(emp => emp.user_id);
+        queryBuilder.andWhere('assetRequest.requested_by IN (:...userIds)', { userIds });
+      } else {
+        // If no employees in team, return no results
+        queryBuilder.andWhere('1 = 0');
+      }
     }
 
     const [assetRequests, total] = await queryBuilder
@@ -468,6 +637,7 @@ export class SearchService {
     tenantId: string,
     searchAllTenants: boolean,
     limit: number,
+    teamIds?: string[],
   ): Promise<{ items: SearchResultItem[]; total: number }> {
     const queryBuilder = this.attendanceRepository
       .createQueryBuilder('attendance')
@@ -486,6 +656,23 @@ export class SearchService {
     // Apply tenant filter via user's tenant_id (skip if searching all tenants)
     if (!searchAllTenants) {
       queryBuilder.andWhere('user.tenant_id = :tenantId', { tenantId });
+    }
+
+    // Apply team filter for manager role - only show attendance of employees in manager's team(s)
+    if (teamIds && teamIds.length > 0) {
+      // Get user IDs of employees in the manager's team(s)
+      const teamEmployees = await this.employeeRepository.find({
+        where: { team_id: In(teamIds) },
+        select: ['user_id'],
+      });
+      
+      if (teamEmployees.length > 0) {
+        const userIds = teamEmployees.map(emp => emp.user_id);
+        queryBuilder.andWhere('attendance.user_id IN (:...userIds)', { userIds });
+      } else {
+        // If no employees in team, return no results
+        queryBuilder.andWhere('1 = 0');
+      }
     }
 
     const [attendances, total] = await queryBuilder
@@ -518,6 +705,7 @@ export class SearchService {
     tenantId: string,
     searchAllTenants: boolean,
     limit: number,
+    teamIds?: string[],
   ): Promise<{ items: SearchResultItem[]; total: number }> {
     const queryBuilder = this.employeeBenefitRepository
       .createQueryBuilder('employeeBenefit')
@@ -543,6 +731,11 @@ export class SearchService {
       queryBuilder.andWhere('employeeBenefit.tenant_id = :tenantId', { tenantId });
     }
 
+    // Apply team filter for manager role - only show benefits of employees in manager's team(s)
+    if (teamIds && teamIds.length > 0) {
+      queryBuilder.andWhere('employee.team_id IN (:...teamIds)', { teamIds });
+    }
+
     const [employeeBenefits, total] = await queryBuilder
       .orderBy('employeeBenefit.createdAt', 'DESC')
       .take(limit)
@@ -564,8 +757,12 @@ export class SearchService {
         description: `${eb.benefit.type} | Status: ${eb.status} | Start: ${startDate}${endDate ? ` | End: ${endDate}` : ''}`,
         module: 'benefits',
         metadata: {
+          benefitAssignmentId: eb.id,
+          employeeId: eb.employee.id,
+          userId: eb.employee.user_id,
           employeeName: `${eb.employee.user.first_name} ${eb.employee.user.last_name}`,
           employeeEmail: eb.employee.user.email,
+          profilePic: eb.employee.user.profile_pic || eb.employee.profile_picture || null,
           benefitName: eb.benefit.name,
           benefitType: eb.benefit.type,
           status: eb.status,
@@ -586,6 +783,7 @@ export class SearchService {
     tenantId: string,
     searchAllTenants: boolean,
     limit: number,
+    teamIds?: string[],
   ): Promise<{ items: SearchResultItem[]; total: number }> {
     const queryBuilder = this.payrollRecordRepository
       .createQueryBuilder('payroll')
@@ -611,6 +809,11 @@ export class SearchService {
       queryBuilder.andWhere('payroll.tenant_id = :tenantId', { tenantId });
     }
 
+    // Apply team filter for manager role - only show payroll of employees in manager's team(s)
+    if (teamIds && teamIds.length > 0) {
+      queryBuilder.andWhere('employee.team_id IN (:...teamIds)', { teamIds });
+    }
+
     const [payrollRecords, total] = await queryBuilder
       .orderBy('payroll.year', 'DESC')
       .addOrderBy('payroll.month', 'DESC')
@@ -623,8 +826,12 @@ export class SearchService {
       description: `Net Salary: ${payroll.netSalary} | Gross: ${payroll.grossSalary} | Status: ${payroll.status} | Days Present: ${payroll.daysPresent || 'N/A'}`,
       module: 'payroll',
       metadata: {
+        payrollRecordId: payroll.id,
+        employeeId: payroll.employee.id,
+        userId: payroll.employee.user_id,
         employeeName: `${payroll.employee.user.first_name} ${payroll.employee.user.last_name}`,
         employeeEmail: payroll.employee.user.email,
+        profilePic: payroll.employee.user.profile_pic || payroll.employee.profile_picture || null,
         month: payroll.month,
         year: payroll.year,
         grossSalary: payroll.grossSalary,
