@@ -16,17 +16,23 @@ import { TenantId } from '../../common/decorators/company.deorator';
 import { SearchService } from './search.service';
 import { GlobalSearchDto, GlobalSearchResponseDto, SearchModule } from './dto/search.dto';
 import { GLOBAL_SYSTEM_TENANT_ID } from '../../common/constants/enums';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Team } from '../../entities/team.entity';
 
 @ApiTags('Global Search')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
 @Controller('search')
 export class SearchController {
-  constructor(private readonly searchService: SearchService) {}
+  constructor(
+    private readonly searchService: SearchService,
+    @InjectRepository(Team)
+    private readonly teamRepository: Repository<Team>,
+  ) {}
 
   @Get()
-  @Roles('admin', 'system-admin', 'hr-admin', 'manager', 'employee', 'user')
-  @Permissions('view_employees', 'view_leaves', 'view_assets', 'view_asset_requests')
+  @Roles('admin', 'system-admin', 'hr-admin', 'manager', 'employee', 'user', 'network-admin')
   @ApiOperation({
     summary: 'Global search across all HRMS modules',
     description: 'Search across employees, leaves, assets, asset requests, teams, attendance, benefits, and payroll with role-based and tenant-based filtering. System-admin can search across all tenants or filter by specific tenant using tenantId parameter.',
@@ -158,18 +164,21 @@ export class SearchController {
         ? GLOBAL_SYSTEM_TENANT_ID 
         : userTenantId;
 
+    const currentUserId = req.user?.id;
+    const currentUserEmail = req.user?.email;
     return this.searchService.globalSearch(
       dto.query,
       effectiveTenantId,
       userRole,
       module,
       limit,
+      currentUserId,
+      currentUserEmail,
     );
   }
 
   @Get('network-admin')
   @Roles('network-admin')
-  @Permissions('view_employees', 'view_leaves', 'view_assets', 'view_asset_requests')
   @ApiOperation({
     summary: 'Global search for Network Admin',
     description: 'Search across all HRMS modules for Network Admin role. Can search across all tenants or filter by specific tenant using tenantId parameter.',
@@ -228,7 +237,6 @@ export class SearchController {
 
   @Get('system-admin')
   @Roles('system-admin')
-  @Permissions('view_employees', 'view_leaves', 'view_assets', 'view_asset_requests')
   @ApiOperation({
     summary: 'Global search for System Admin',
     description: 'Search across all HRMS modules for System Admin role. Can search across all tenants or filter by specific tenant using tenantId parameter.',
@@ -287,7 +295,6 @@ export class SearchController {
 
   @Get('admin')
   @Roles('admin')
-  @Permissions('view_employees', 'view_leaves', 'view_assets', 'view_asset_requests')
   @ApiOperation({
     summary: 'Global search for Admin',
     description: 'Search across all HRMS modules for Admin role within their tenant.',
@@ -339,7 +346,6 @@ export class SearchController {
 
   @Get('manager')
   @Roles('manager')
-  @Permissions('view_employees', 'view_leaves', 'view_assets', 'view_asset_requests')
   @ApiOperation({
     summary: 'Global search for Manager',
     description: 'Search across all HRMS modules for Manager role within their tenant.',
@@ -386,12 +392,11 @@ export class SearchController {
     @TenantId() userTenantId: string,
     @Request() req: any,
   ): Promise<GlobalSearchResponseDto> {
-    return this.performSearch(dto, userTenantId, req, 'manager');
+    return this.performSearch(dto, userTenantId, req, 'manager', true);
   }
 
   @Get('employee')
-  @Roles('employee')
-  @Permissions('view_employees', 'view_leaves', 'view_assets', 'view_asset_requests')
+  @Roles('employee', 'admin', 'system-admin', 'hr-admin', 'manager')
   @ApiOperation({
     summary: 'Global search for Employee',
     description: 'Search across all HRMS modules for Employee role within their tenant.',
@@ -443,7 +448,6 @@ export class SearchController {
 
   @Get('hr-admin')
   @Roles('hr-admin')
-  @Permissions('view_employees', 'view_leaves', 'view_assets', 'view_asset_requests')
   @ApiOperation({
     summary: 'Global search for HR Admin',
     description: 'Search across all HRMS modules for HR Admin role within their tenant.',
@@ -496,11 +500,12 @@ export class SearchController {
   /**
    * Helper method to perform search with role-specific logic
    */
-  private performSearch(
+  private async performSearch(
     dto: GlobalSearchDto,
     userTenantId: string,
     req: any,
     role: string,
+    isManager: boolean = false,
   ): Promise<GlobalSearchResponseDto> {
     const isSystemAdmin = role === 'system-admin';
     const isNetworkAdmin = role === 'network-admin';
@@ -526,12 +531,56 @@ export class SearchController {
         ? GLOBAL_SYSTEM_TENANT_ID 
         : userTenantId;
 
+    const currentUserId = req.user?.id;
+    const currentUserEmail = req.user?.email;
+    
+    // For manager role, get team IDs that the manager manages
+    let teamIds: string[] | undefined;
+    if (isManager && currentUserId) {
+      const managedTeams = await this.teamRepository.find({
+        where: { manager_id: currentUserId },
+        select: ['id'],
+      });
+      teamIds = managedTeams.map(team => team.id);
+      
+      // If manager has no teams, return empty results
+      if (teamIds.length === 0) {
+        return {
+          query: dto.query || '',
+          totalResults: 0,
+          results: {
+            employees: [],
+            leaves: [],
+            assets: [],
+            assetRequests: [],
+            teams: [],
+            attendance: [],
+            benefits: [],
+            payroll: [],
+          },
+          counts: {
+            employees: 0,
+            leaves: 0,
+            assets: 0,
+            assetRequests: 0,
+            teams: 0,
+            attendance: 0,
+            benefits: 0,
+            payroll: 0,
+          },
+        };
+      }
+    }
+    
     return this.searchService.globalSearch(
       dto.query,
       effectiveTenantId,
       role,
       module,
       limit,
+      currentUserId,
+      currentUserEmail,
+      teamIds,
     );
   }
 }

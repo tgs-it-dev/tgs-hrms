@@ -1,6 +1,7 @@
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString, IsUUID, IsDateString, ValidateIf } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { LeaveStatus } from '../../../common/constants/enums';
+import { Transform } from 'class-transformer';
 
 export class UpdateLeaveDto {
   @ApiProperty({ 
@@ -37,4 +38,44 @@ export class ManagerRemarksDto {
   @IsString()
   @IsOptional()
   remarks?: string;
+}
+
+export class EditLeaveDto {
+  @ApiProperty({ description: 'Leave type ID', example: 'leaveType_001', required: false })
+  @Transform(({ value }) => {
+    if (value === '' || value === null || value === undefined) return undefined;
+    return String(value).trim();
+  })
+  @IsUUID('4', { message: 'leaveTypeId must be a valid UUID' })
+  @IsOptional()
+  leaveTypeId?: string;
+
+  @ApiProperty({ description: 'Start date of leave', example: '2025-10-10', required: false })
+  @Transform(({ value }) => {
+    if (value === '' || value === null || value === undefined) return undefined;
+    return value;
+  })
+  @ValidateIf((o) => o.startDate !== undefined && o.startDate !== null && o.startDate !== '')
+  @IsDateString()
+  @IsOptional()
+  startDate?: string;
+
+  @ApiProperty({ description: 'End date of leave', example: '2025-10-12', required: false })
+  @Transform(({ value }) => {
+    if (value === '' || value === null || value === undefined) return undefined;
+    return value;
+  })
+  @ValidateIf((o) => o.endDate !== undefined && o.endDate !== null && o.endDate !== '')
+  @IsDateString()
+  @IsOptional()
+  endDate?: string;
+
+  @ApiProperty({ description: 'Reason for leave', example: 'Family function', required: false })
+  @Transform(({ value }) => {
+    if (value === '' || value === null || value === undefined) return undefined;
+    return value;
+  })
+  @IsString()
+  @IsOptional()
+  reason?: string;
 }

@@ -37,6 +37,48 @@ export class HttpExceptionFilter implements ExceptionFilter {
       return;
     }
 
+    // Handle Multer file upload errors
+    if (exception instanceof Error) {
+      const errorMessage = exception.message.toLowerCase();
+      
+      // File size errors from Multer
+      if (
+        errorMessage.includes('file too large') ||
+        errorMessage.includes('limit exceeded') ||
+        errorMessage.includes('file size')
+      ) {
+        const correlationId = (request.headers['x-correlation-id'] as string) || 'unknown';
+        response.status(HttpStatus.BAD_REQUEST).json({
+          statusCode: HttpStatus.BAD_REQUEST,
+          timestamp: new Date().toISOString(),
+          path: request.url,
+          method: request.method,
+          correlationId,
+          message: 'File size exceeds the maximum allowed limit of 5MB',
+        });
+        return;
+      }
+
+      // File type/format errors
+      if (
+        errorMessage.includes('file type') ||
+        errorMessage.includes('mime type') ||
+        errorMessage.includes('invalid file') ||
+        (errorMessage.includes('image') && errorMessage.includes('not allowed'))
+      ) {
+        const correlationId = (request.headers['x-correlation-id'] as string) || 'unknown';
+        response.status(HttpStatus.BAD_REQUEST).json({
+          statusCode: HttpStatus.BAD_REQUEST,
+          timestamp: new Date().toISOString(),
+          path: request.url,
+          method: request.method,
+          correlationId,
+          message: 'Invalid file type. Only image files are allowed (JPG, JPEG, PNG, GIF, WebP)',
+        });
+        return;
+      }
+    }
+
     const status =
       exception instanceof HttpException
         ? exception.getStatus()
