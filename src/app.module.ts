@@ -42,6 +42,7 @@ import { PmsModule } from './modules/pms/pms.module';
 import { SystemModule } from './modules/system/system.module';
 import { SearchModule } from './modules/search/search.module';
 import { BillingModule } from './modules/billing/billing.module';
+import { TaskModule } from './modules/tasks/task.module';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { SystemLoggingInterceptor } from './common/interceptors/system-logging.interceptor';
 import { SystemLog } from './entities/system-log.entity';
@@ -171,6 +172,7 @@ import { SystemLog } from './entities/system-log.entity';
     PayrollModule,
     SearchModule,
     BillingModule,
+    TaskModule,
   ],
   providers: [
     {

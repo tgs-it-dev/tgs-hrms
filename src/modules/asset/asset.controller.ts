@@ -75,6 +75,7 @@ export class AssetController {
   remove(@Request() req: any, @Param('id') id: string) {
     return this.assetService.softDelete(req.user.tenant_id, id);
   }
+
 }
 
 

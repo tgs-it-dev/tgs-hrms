@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -10,6 +11,7 @@ import { EmployeeKpi } from "src/entities/employee-kpi.entity";
 import { Tenant } from "src/entities/tenant.entity";
 import { Employee } from "src/entities/employee.entity";
 import { Kpi } from "src/entities/kpi.entity";
+import { Team } from "src/entities/team.entity";
 import { CreateEmployeeKpiDto } from "../dtos/employee-kpi/create-employee-kpi.dto";
 import { UpdateEmployeeKpiDto } from "../dtos/employee-kpi/update-employee-kpi.dto";
 import { User } from "src/entities/user.entity";
@@ -31,9 +33,17 @@ export class EmployeeKpiService {
 
     @InjectRepository(Kpi)
     private readonly kpiRepo: Repository<Kpi>,
+
+    @InjectRepository(Team)
+    private readonly teamRepo: Repository<Team>,
   ) {}
 
-  async create(tenant_id: string, dto: CreateEmployeeKpiDto) {
+  async create(
+    tenant_id: string,
+    dto: CreateEmployeeKpiDto,
+    userId?: string,
+    userRole?: string,
+  ) {
     const tenant = await this.tenantRepo.findOne({ where: { id: tenant_id } });
 
     if (!tenant) throw new BadRequestException("Invalid tenant ID");
@@ -46,6 +56,27 @@ export class EmployeeKpiService {
       .getOne();
 
     if (!employee) throw new BadRequestException("Invalid employee ID");
+
+    // If user is manager, validate that employee belongs to their team
+    if (userRole && userRole.toLowerCase() === "manager" && userId) {
+      const managerTeams = await this.teamRepo.find({
+        where: { manager_id: userId },
+        select: ["id"],
+      });
+
+      if (managerTeams.length === 0) {
+        throw new ForbiddenException("You are not managing any teams");
+      }
+
+      const teamIds = managerTeams.map((t) => t.id);
+
+      // Check if employee belongs to manager's team
+      if (!employee.team_id || !teamIds.includes(employee.team_id)) {
+        throw new ForbiddenException(
+          "You can only assign KPIs to employees in your teams",
+        );
+      }
+    }
 
     if (dto.reviewedBy) {
       const manager = await this.userRepo
@@ -133,13 +164,50 @@ export class EmployeeKpiService {
   /**
    * Update Employee KPI
    */
-  async update(tenant_id: string, id: string, dto: UpdateEmployeeKpiDto) {
+  async update(
+    tenant_id: string,
+    id: string,
+    dto: UpdateEmployeeKpiDto,
+    userId?: string,
+    userRole?: string,
+  ) {
     const record = await this.employeeKpiRepo.findOne({
       where: { id, tenant_id },
+      relations: ["employee"],
     });
 
     if (!record) {
       throw new NotFoundException("Employee KPI record not found.");
+    }
+
+    // If user is manager, validate that employee belongs to their team
+    if (userRole && userRole.toLowerCase() === "manager" && userId) {
+      const managerTeams = await this.teamRepo.find({
+        where: { manager_id: userId },
+        select: ["id"],
+      });
+
+      if (managerTeams.length === 0) {
+        throw new ForbiddenException("You are not managing any teams");
+      }
+
+      const teamIds = managerTeams.map((t) => t.id);
+
+      // Get employee with team info
+      const employee = await this.employeeRepo.findOne({
+        where: { id: record.employee_id },
+      });
+
+      if (!employee) {
+        throw new NotFoundException("Employee not found");
+      }
+
+      // Check if employee belongs to manager's team
+      if (!employee.team_id || !teamIds.includes(employee.team_id)) {
+        throw new ForbiddenException(
+          "You can only update KPIs of employees in your teams",
+        );
+      }
     }
 
     if (dto.reviewedBy) {
@@ -179,17 +247,25 @@ export class EmployeeKpiService {
   /**
    * Calculate KPI summary (weighted performance score) for an employee and cycle
    */
-  async getSummary(tenantId: string, employeeId: string, cycle: string) {
-    const records = await this.employeeKpiRepo
+  async getSummary(tenantId: string, employeeId: string, cycle?: string) {
+    const queryBuilder = this.employeeKpiRepo
       .createQueryBuilder("ekpi")
       .leftJoinAndSelect("ekpi.kpi", "kpi")
       .where("ekpi.employee_id = :employeeId", { employeeId })
-      .andWhere("ekpi.reviewCycle = :cycle", { cycle })
-      .andWhere("ekpi.tenant_id = :tenantId", { tenantId })
-      .getMany();
+      .andWhere("ekpi.tenant_id = :tenantId", { tenantId });
+
+    if (cycle) {
+      queryBuilder.andWhere("ekpi.reviewCycle = :cycle", { cycle });
+    }
+
+    const records = await queryBuilder.getMany();
 
     if (!records.length) {
-      throw new NotFoundException("No KPI records found for this cycle.");
+      throw new NotFoundException(
+        cycle
+          ? "No KPI records found for this cycle."
+          : "No KPI records found for this employee.",
+      );
     }
 
     const totalScore = records.reduce((sum, r) => {
@@ -200,9 +276,173 @@ export class EmployeeKpiService {
 
     return {
       employeeId,
-      cycle,
+      cycle: cycle || null,
       totalScore: Number(totalScore.toFixed(2)),
       recordCount: records.length,
     };
+  }
+
+  /**
+   * Get KPIs for all team members (Manager only)
+   */
+  async getTeamEmployeeKpis(
+    managerId: string,
+    tenantId: string,
+    cycle?: string,
+  ) {
+    // Get manager's teams
+    const managerTeams = await this.teamRepo.find({
+      where: { manager_id: managerId },
+      select: ["id"],
+    });
+
+    if (managerTeams.length === 0) {
+      throw new ForbiddenException("You are not managing any teams");
+    }
+
+    const teamIds = managerTeams.map((t) => t.id);
+
+    // Get employee IDs in manager's teams
+    const teamEmployees = await this.employeeRepo
+      .createQueryBuilder("e")
+      .select("e.id", "id")
+      .where("e.team_id IN (:...teamIds)", { teamIds })
+      .getRawMany();
+
+    const employeeIds = teamEmployees.map((emp) => emp.id);
+
+    if (employeeIds.length === 0) {
+      return [];
+    }
+
+    // Build query for team members' KPIs
+    const qb = this.employeeKpiRepo
+      .createQueryBuilder("ekpi")
+      .leftJoinAndSelect("ekpi.kpi", "kpi")
+      .leftJoinAndSelect("ekpi.employee", "employee")
+      .leftJoinAndSelect("employee.user", "user")
+      .where("ekpi.tenant_id = :tenantId", { tenantId })
+      .andWhere("ekpi.employee_id IN (:...employeeIds)", { employeeIds })
+      .orderBy("ekpi.createdAt", "DESC");
+
+    if (cycle) {
+      qb.andWhere("ekpi.reviewCycle = :cycle", { cycle });
+    }
+
+    return await qb.getMany();
+  }
+
+  /**
+   * Get KPI summary for all team members (Manager only)
+   */
+  async getTeamEmployeeKpiSummary(
+    managerId: string,
+    tenantId: string,
+    cycle?: string,
+  ) {
+    // Get manager's teams
+    const managerTeams = await this.teamRepo.find({
+      where: { manager_id: managerId },
+      select: ["id"],
+    });
+
+    if (managerTeams.length === 0) {
+      throw new ForbiddenException("You are not managing any teams");
+    }
+
+    const teamIds = managerTeams.map((t) => t.id);
+
+    // Get employee IDs in manager's teams
+    const teamEmployees = await this.employeeRepo
+      .createQueryBuilder("e")
+      .select("e.id", "id")
+      .leftJoinAndSelect("e.user", "user")
+      .where("e.team_id IN (:...teamIds)", { teamIds })
+      .getRawMany();
+
+    const employeeIds = teamEmployees.map((emp) => emp.id);
+
+    if (employeeIds.length === 0) {
+      return [];
+    }
+
+    // Get all KPIs for team members (optionally filtered by cycle)
+    const queryBuilder = this.employeeKpiRepo
+      .createQueryBuilder("ekpi")
+      .leftJoinAndSelect("ekpi.kpi", "kpi")
+      .leftJoinAndSelect("ekpi.employee", "employee")
+      .leftJoinAndSelect("employee.user", "user")
+      .where("ekpi.tenant_id = :tenantId", { tenantId })
+      .andWhere("ekpi.employee_id IN (:...employeeIds)", { employeeIds });
+
+    if (cycle) {
+      queryBuilder.andWhere("ekpi.reviewCycle = :cycle", { cycle });
+    }
+
+    const records = await queryBuilder.getMany();
+
+    // Group by employee and cycle, then calculate summary
+    const employeeCycleSummaryMap = new Map<
+      string,
+      {
+        employeeId: string;
+        employeeName: string;
+        employeeEmail: string;
+        cycle: string | null;
+        totalScore: number;
+        recordCount: number;
+        kpis: any[];
+      }
+    >();
+
+    records.forEach((record) => {
+      // Use employee_id + cycle as key to group by both
+      const key = `${record.employee_id}_${record.reviewCycle || 'all'}`;
+      if (!employeeCycleSummaryMap.has(key)) {
+        const employee = record.employee;
+        const userName = employee?.user
+          ? `${employee.user.first_name || ""} ${employee.user.last_name || ""}`.trim()
+          : "Unknown";
+        const userEmail = employee?.user?.email || "";
+
+        employeeCycleSummaryMap.set(key, {
+          employeeId: record.employee_id,
+          employeeName: userName,
+          employeeEmail: userEmail,
+          cycle: record.reviewCycle || null,
+          totalScore: 0,
+          recordCount: 0,
+          kpis: [],
+        });
+      }
+
+      const summary = employeeCycleSummaryMap.get(key)!;
+      summary.recordCount++;
+
+      if (record.kpi && record.score !== null && record.score !== undefined) {
+        const weighted = record.score * (record.kpi.weight / 100);
+        summary.totalScore += weighted;
+        summary.kpis.push({
+          kpiId: record.kpi_id,
+          kpiTitle: record.kpi.title,
+          targetValue: record.targetValue,
+          achievedValue: record.achievedValue,
+          score: record.score,
+          weight: record.kpi.weight,
+          weightedScore: Number(weighted.toFixed(2)),
+        });
+      }
+    });
+
+    // Convert map to array and format
+    return Array.from(employeeCycleSummaryMap.values()).map((summary) => ({
+      employeeId: summary.employeeId,
+      employeeName: summary.employeeName,
+      employeeEmail: summary.employeeEmail,
+      cycle: summary.cycle,
+      totalScore: Number(summary.totalScore.toFixed(2)),
+      recordCount: summary.recordCount,
+      kpis: summary.kpis,
+    }));
   }
 }

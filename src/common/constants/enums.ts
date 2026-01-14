@@ -294,4 +294,12 @@ export enum SalaryStatus {
 //   VERY_LONG = 86400, // 24 hours
 // }
 
+// Task Enums
+export enum TaskStatus {
+  PENDING = 'pending',
+  IN_PROGRESS = 'in progress',
+  COMPLETED = 'completed',
+  CANCELLED = 'cancelled',
+}
+
 

@@ -5,11 +5,14 @@ import {
   CreateDateColumn,
   ManyToOne,
   JoinColumn,
+  OneToMany,
 } from 'typeorm';
 import { User } from './user.entity';
 import { Tenant } from './tenant.entity';
 import { AssetCategory } from './asset-category.entity';
 import { AssetSubcategory } from './asset-subcategory.entity';
+import { Asset } from './asset.entity';
+import { AssetComment } from './asset-comment.entity';
 import { AssetRequestStatus } from '../common/constants/enums';
 
 @Entity('asset_requests')
@@ -31,6 +34,13 @@ export class AssetRequest {
 
   @Column({ type: 'uuid', nullable: true })
   approved_by: string | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  asset_id: string | null;
+
+  @ManyToOne(() => Asset, { nullable: true })
+  @JoinColumn({ name: 'asset_id' })
+  asset?: Asset | null;
 
   @Column({ type: 'date' })
   requested_date: string;
@@ -71,4 +81,7 @@ export class AssetRequest {
   @ManyToOne(() => Tenant, (tenant) => tenant.id, { nullable: false })
   @JoinColumn({ name: 'tenant_id' })
   tenant?: Tenant;
+
+  @OneToMany(() => AssetComment, (comment) => comment.assetRequest)
+  comments: AssetComment[];
 }

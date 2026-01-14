@@ -545,6 +545,7 @@ export class TeamService {
     
     const transformedItems = items.map((employee) => ({
       id: employee.id,
+      employeeId: employee.id,
       user: {
         id: employee.user.id,
         first_name: employee.user.first_name,

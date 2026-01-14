@@ -16,8 +16,10 @@ import { EmployeeKpi } from "./employee-kpi.entity";
 import { PerformanceReview } from "./performance-review.entity";
 import { Promotion } from "./promotion.entity";
 import { Asset } from "./asset.entity";
+import { AssetComment } from "./asset-comment.entity";
 import { Leave } from "./leave.entity";
 import { Designation } from "./designation.entity";
+import { Task } from "./task.entity";
 
 @Entity("tenants")
 export class Tenant {
@@ -75,4 +77,10 @@ export class Tenant {
 
   @OneToMany(() => Leave, (leave) => leave.tenant)
   leaves: Leave[];
+
+  @OneToMany(() => Task, (task) => task.tenant)
+  tasks: Task[];
+
+  @OneToMany(() => AssetComment, (comment) => comment.tenant)
+  assetComments: AssetComment[];
 }

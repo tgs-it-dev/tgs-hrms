@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   ManyToOne,
   JoinColumn,
+  OneToMany,
 } from 'typeorm';
 import { User } from './user.entity';
 import { Tenant } from './tenant.entity';
@@ -56,4 +57,5 @@ export class Asset {
   @ManyToOne(() => Tenant, (tenant) => tenant.id, { nullable: false })
   @JoinColumn({ name: 'tenant_id' })
   tenant?: Tenant;
+
 }

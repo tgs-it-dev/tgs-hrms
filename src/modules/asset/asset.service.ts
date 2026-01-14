@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Asset } from '../../entities/asset.entity';
@@ -240,4 +240,5 @@ export class AssetService {
     asset.status = AssetStatus.RETIRED;
     return this.assetRepo.save(asset);
   }
+
 }

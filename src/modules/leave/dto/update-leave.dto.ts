@@ -78,4 +78,8 @@ export class EditLeaveDto {
   @IsString()
   @IsOptional()
   reason?: string;
+
+  @ApiProperty({ description: 'List of leave document URLs to remove', required: false, isArray: true, type: String })
+  @IsOptional()
+  documentsToRemove?: string[];
 }
