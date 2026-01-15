@@ -546,24 +546,34 @@ export class LeaveService {
         );
       }
 
-      // Only update documents if provided
+      // Handle document update/removal
+      if (dto.documentsToRemove && Array.isArray(dto.documentsToRemove) && dto.documentsToRemove.length > 0) {
+        leave.documents = (leave.documents || []).filter(doc => !dto.documentsToRemove!.includes(doc));
+        await this.leaveFileUploadService.deleteLeaveDocuments(dto.documentsToRemove);
+      }
+      // If provided, replace all documents (edit to keep only provided), instead of just adding new files
+      if (dto.documentsToRemove && leave.documents && leave.documents.length === 0 && !files?.length) {
+        // If all documents are removed, nothing else needed
+        const savedLeave = await this.leaveRepo.save(leave);
+        const updatedLeave = await this.leaveRepo.findOne({
+          where: { id: savedLeave.id, tenantId },
+          relations: ['leaveType', 'employee', 'approver'],
+        });
+        return updatedLeave || savedLeave;
+      }
+      // Add new documents
       if (files && files.length > 0) {
         const newDocumentUrls = await this.leaveFileUploadService.uploadLeaveDocuments(
           files,
           leave.id,
         );
-        // Append new documents to existing ones
         leave.documents = [...(leave.documents || []), ...newDocumentUrls];
       }
-
       const savedLeave = await this.leaveRepo.save(leave);
-      
-      // Reload with relations
       const updatedLeave = await this.leaveRepo.findOne({
         where: { id: savedLeave.id, tenantId },
         relations: ['leaveType', 'employee', 'approver'],
       });
-
       return updatedLeave || savedLeave;
     }
 
@@ -657,13 +667,30 @@ export class LeaveService {
       leave.reason = dto.reason;
     }
 
-    // Handle document uploads
+    // Remove documents if requested
+    if (dto.documentsToRemove && Array.isArray(dto.documentsToRemove) && dto.documentsToRemove.length > 0) {
+      leave.documents = (leave.documents || []).filter(doc => !dto.documentsToRemove!.includes(doc));
+      await this.leaveFileUploadService.deleteLeaveDocuments(dto.documentsToRemove);
+    }
+
+    // If user intends to only keep certain documents, support full replacement logic. If client sends an explicit new array, replace old with new.
+    // Here, also handle clearing all documents if both documentsToRemove requests removal of all, and no files are added.
+    if (dto.documentsToRemove && leave.documents && leave.documents.length === 0 && !files?.length) {
+      // All documents have been removed and no new ones to add; save state.
+      const savedLeave = await this.leaveRepo.save(leave);
+      const updatedLeave = await this.leaveRepo.findOne({
+        where: { id: savedLeave.id, tenantId },
+        relations: ['leaveType', 'employee', 'approver'],
+      });
+      return updatedLeave || savedLeave;
+    }
+
+    // Handle document uploads (add new ones)
     if (files && files.length > 0) {
       const newDocumentUrls = await this.leaveFileUploadService.uploadLeaveDocuments(
         files,
         leave.id,
       );
-      // Append new documents to existing ones
       leave.documents = [...(leave.documents || []), ...newDocumentUrls];
     }
 

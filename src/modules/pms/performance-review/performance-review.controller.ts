@@ -58,7 +58,7 @@ export class PerformanceReviewController {
    * Get list of performance reviews (filterable by cycle)
    */
   @Get()
-  @Roles("employee", "manager", "hr-admin")
+  @Roles("employee", "manager", "hr-admin", 'admin')
   @ApiOperation({
     summary:
       "Get all performance reviews (optionally filter by cycle). Employees can only view their own reviews. Managers can only view their own reviewed records. HR Admin can view all",
@@ -112,7 +112,7 @@ export class PerformanceReviewController {
    * Get a single performance review by ID
    */
   @Get(":id")
-  @Roles("employee", "manager", "hr-admin")
+  @Roles("employee", "manager", "hr-admin", 'admin')
   @ApiOperation({ summary: "Get a single performance review by ID" })
   @ApiResponse({
     status: 200,
@@ -145,7 +145,7 @@ export class PerformanceReviewController {
    * Approve a performance review (HR Admin only)
    */
   @Post(":id/approve")
-  @Roles("hr-admin")
+  @Roles("hr-admin", 'admin')
   @ApiOperation({ summary: "Approve and finalize a performance review" })
   @ApiResponse({
     status: 200,

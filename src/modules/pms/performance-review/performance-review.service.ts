@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { QueryFailedError, Repository } from "typeorm";
@@ -10,6 +11,7 @@ import { EmployeeKpi } from "src/entities/employee-kpi.entity";
 import { CreatePerformanceReviewDto } from "../dtos/performance-review/create-performance-review.dto";
 import { Tenant } from "src/entities/tenant.entity";
 import { Employee } from "src/entities/employee.entity";
+import { Team } from "src/entities/team.entity";
 import { PaginationResponse } from "src/common/interfaces/pagination.interface";
 
 @Injectable()
@@ -26,6 +28,9 @@ export class PerformanceReviewService {
 
     @InjectRepository(Employee)
     private readonly employeeRepo: Repository<Employee>,
+
+    @InjectRepository(Team)
+    private readonly teamRepo: Repository<Team>,
   ) {}
 
   /**
@@ -48,6 +53,25 @@ export class PerformanceReviewService {
       .getOne();
 
     if (!employee) throw new BadRequestException("Invalid employee ID");
+
+    // Validate that manager can only create reviews for their team members
+    const managerTeams = await this.teamRepo.find({
+      where: { manager_id: reviewedBy },
+      select: ["id"],
+    });
+
+    if (managerTeams.length === 0) {
+      throw new ForbiddenException("You are not managing any teams");
+    }
+
+    const teamIds = managerTeams.map((t) => t.id);
+
+    // Check if employee belongs to manager's team
+    if (!employee.team_id || !teamIds.includes(employee.team_id)) {
+      throw new ForbiddenException(
+        "You can only create performance reviews for employees in your teams",
+      );
+    }
 
     try {
       const review = this.reviewRepo.create({

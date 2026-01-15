@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   ForbiddenException,
@@ -39,7 +40,7 @@ export class EmployeeKpiController {
    */
   @Post()
   @Roles("manager", "hr-admin")
-  @ApiOperation({ summary: "Assign a KPI for an employee" })
+  @ApiOperation({ summary: "Assign a KPI for an employee. Managers can only assign to their team members." })
   @ApiResponse({
     status: 201,
     description: "Employee KPI created successfully.",
@@ -48,8 +49,22 @@ export class EmployeeKpiController {
     status: 400,
     description: "Invalid data or tenant ID.",
   })
-  create(@TenantId() tenantId: string, @Body() dto: CreateEmployeeKpiDto) {
-    return this.employeeKpiService.create(tenantId, dto);
+  @ApiResponse({
+    status: 403,
+    description: "Forbidden - Managers can only assign KPIs to employees in their teams.",
+  })
+  create(
+    @TenantId() tenantId: string,
+    @Body() dto: CreateEmployeeKpiDto,
+    @Req() req: any,
+  ) {
+    const user: JwtUserPayloadDto = (req as { user: JwtUserPayloadDto }).user;
+    return this.employeeKpiService.create(
+      tenantId,
+      dto,
+      user.id,
+      user.role,
+    );
   }
 
   /**
@@ -57,25 +72,37 @@ export class EmployeeKpiController {
    */
   @Put(":id")
   @Roles("manager", "hr-admin")
-  @ApiOperation({ summary: "Update an existing employee KPI" })
+  @ApiOperation({ summary: "Update an existing employee KPI. Managers can only update KPIs of their team members." })
   @ApiResponse({
     status: 200,
     description: "Employee KPI updated successfully.",
   })
   @ApiResponse({ status: 404, description: "Employee KPI not found." })
+  @ApiResponse({
+    status: 403,
+    description: "Forbidden - Managers can only update KPIs of employees in their teams.",
+  })
   async update(
     @TenantId() tenantId: string,
     @Param("id") id: string,
     @Body() dto: UpdateEmployeeKpiDto,
+    @Req() req: any,
   ) {
-    return this.employeeKpiService.update(tenantId, id, dto);
+    const user: JwtUserPayloadDto = (req as { user: JwtUserPayloadDto }).user;
+    return this.employeeKpiService.update(
+      tenantId,
+      id,
+      dto,
+      user.id,
+      user.role,
+    );
   }
 
   /**
    * Get list of employee KPIs (optionally filtered by employeeId and cycle)
    */
   @Get()
-  @Roles("employee", "manager", "hr-admin")
+  @Roles("employee", "manager", "hr-admin", "admin")
   @ApiOperation({
     summary:
       "Get all employee KPIs for a tenant (filterable by employeeId and reviewCycle)",
@@ -126,10 +153,16 @@ export class EmployeeKpiController {
    * Calculate KPI summary (weighted score) for a given employee and cycle
    */
   @Get("summary")
-  @Roles("employee", "manager", "hr-admin")
+  @Roles("employee", "manager", "hr-admin", "admin")
   @ApiOperation({
     summary:
       "Calculate total weighted performance score for an employee per cycle",
+  })
+  @ApiQuery({
+    name: "cycle",
+    type: String,
+    required: false,
+    description: "Review cycle (e.g., Q4-2025). If not provided, returns summary for all cycles.",
   })
   @ApiResponse({
     status: 200,
@@ -147,7 +180,7 @@ export class EmployeeKpiController {
     @Req() req: any,
     @TenantId() tenantId: string,
     @Query("employeeId") employeeId: string,
-    @Query("cycle") cycle: string,
+    @Query("cycle") cycle?: string,
   ) {
     const user: JwtUserPayloadDto = (req as { user: JwtUserPayloadDto }).user;
 
@@ -165,5 +198,99 @@ export class EmployeeKpiController {
       // HR Admin / Manager: can view any employee’s kpis (optionally filter by employeeId)
       return this.employeeKpiService.getSummary(tenantId, employeeId, cycle);
     }
+  }
+
+  /**
+   * Get KPIs for all team members (Manager only)
+   */
+  @Get("team")
+  @Roles("manager")
+  @ApiOperation({
+    summary: "Get all employee KPIs for manager's team members",
+  })
+  @ApiQuery({
+    name: "cycle",
+    type: String,
+    required: false,
+    description: "Filter by review cycle (e.g., Q4-2025)",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "List of employee KPIs for team members.",
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Forbidden - Manager role required or no teams assigned",
+  })
+  async getTeamEmployeeKpis(
+    @Req() req: any,
+    @TenantId() tenantId: string,
+    @Query("cycle") cycle?: string,
+  ) {
+    const user: JwtUserPayloadDto = (req as { user: JwtUserPayloadDto }).user;
+    return this.employeeKpiService.getTeamEmployeeKpis(
+      user.id,
+      tenantId,
+      cycle,
+    );
+  }
+
+  /**
+   * Get KPI summary for all team members (Manager only)
+   */
+  @Get("team/summary")
+  @Roles("manager")
+  @ApiOperation({
+    summary:
+      "Get KPI summary (weighted performance scores) for all team members per cycle",
+  })
+  @ApiQuery({
+    name: "cycle",
+    type: String,
+    required: false,
+    description: "Review cycle (e.g., Q4-2025). If not provided, returns summary for all cycles.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "KPI summaries for all team members.",
+    schema: {
+      example: [
+        {
+          employeeId: "employee-uuid",
+          employeeName: "John Doe",
+          employeeEmail: "john.doe@company.com",
+          cycle: "Q4-2025",
+          totalScore: 92.5,
+          recordCount: 4,
+          kpis: [
+            {
+              kpiId: "kpi-uuid",
+              kpiTitle: "Customer Satisfaction",
+              targetValue: 80,
+              achievedValue: 85,
+              score: 4.5,
+              weight: 30,
+              weightedScore: 1.35,
+            },
+          ],
+        },
+      ],
+    },
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Forbidden - Manager role required or no teams assigned",
+  })
+  async getTeamEmployeeKpiSummary(
+    @Req() req: any,
+    @TenantId() tenantId: string,
+    @Query("cycle") cycle?: string,
+  ) {
+    const user: JwtUserPayloadDto = (req as { user: JwtUserPayloadDto }).user;
+    return this.employeeKpiService.getTeamEmployeeKpiSummary(
+      user.id,
+      tenantId,
+      cycle,
+    );
   }
 }

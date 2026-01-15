@@ -57,6 +57,10 @@
         "team.read",
         "team.update",
         "team.delete",
+        "task.create",
+        "task.read",
+        "task.update",
+        "task.delete",
         "reports.read",
         "reports.export"
       ],
@@ -76,6 +80,10 @@
         "leave.reject",
         "team.read",
         "team.update",
+        "task.create",
+        "task.read",
+        "task.update",
+        "task.delete",
         "timesheet.read",
         "timesheet.approve",
         "timesheet.reject",
@@ -96,6 +104,8 @@
         "timesheet.create",
         "timesheet.read",
         "timesheet.update",
+        "task.read",
+        "task.update",
         "policy.read",
         "team.read"
       ],
@@ -221,6 +231,12 @@
       "read": "View permission information",
       "update": "Update permission information",
       "delete": "Delete permissions"
+    },
+    "task": {
+      "create": "Create new tasks",
+      "read": "View task information",
+      "update": "Update task information",
+      "delete": "Delete tasks"
     }
   },
   "defaultRoles": [
