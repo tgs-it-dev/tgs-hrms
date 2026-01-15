@@ -10,18 +10,38 @@ import { Tenant } from "src/entities/tenant.entity";
 import { Employee } from "src/entities/employee.entity";
 import { EmployeeBenefitsCronService } from "./employee-benefits/employee-benefits-cron.service";
 import { SharedJwtModule } from "../../common/modules/jwt.module";
+import { BenefitReimbursementRequest } from "../../entities/benefit-reimbursement-request.entity";
+import { ReimbursementService } from "./reimbursement/reimbursement.service";
+import { ReimbursementController } from "./reimbursement/reimbursement.controller";
+import { ReimbursementFileUploadService } from "./reimbursement/reimbursement-file-upload.service";
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Benefit, EmployeeBenefit, Employee, Tenant]),
+    TypeOrmModule.forFeature([
+      Benefit,
+      EmployeeBenefit,
+      Employee,
+      Tenant,
+      BenefitReimbursementRequest,
+    ]),
     SharedJwtModule,
   ],
   providers: [
     BenefitsService,
     EmployeeBenefitsService,
     EmployeeBenefitsCronService,
+    ReimbursementService,
+    ReimbursementFileUploadService,
   ],
-  controllers: [BenefitsController, EmployeeBenefitsController],
-  exports: [BenefitsService, EmployeeBenefitsService],
+  controllers: [
+    BenefitsController,
+    EmployeeBenefitsController,
+    ReimbursementController,
+  ],
+  exports: [
+    BenefitsService,
+    EmployeeBenefitsService,
+    ReimbursementService,
+  ],
 })
 export class BenefitsModule {}

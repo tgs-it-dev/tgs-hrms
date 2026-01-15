@@ -302,4 +302,12 @@ export enum TaskStatus {
   CANCELLED = 'cancelled',
 }
 
+// Benefit Reimbursement Enums
+export enum BenefitReimbursementStatus {
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+  CANCELLED = 'cancelled',
+}
+
 
