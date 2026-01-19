@@ -12,6 +12,7 @@ import {
   Res,
   UseInterceptors,
   UploadedFiles,
+  Req,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -109,6 +110,7 @@ export class EmployeeController {
     description: 'Manager created successfully with manager role assigned (or custom role if provided)',
   })
   async createManager(
+    @Req() req: any,
     @TenantId() tenant_id: string, 
     @Body() createEmployeeDto: CreateEmployeeDto,
     @UploadedFiles() files?: { 
@@ -117,7 +119,8 @@ export class EmployeeController {
       cnic_back_picture?: Express.Multer.File[] 
     }
   ) {
-    return this.service.createManager(tenant_id, createEmployeeDto, files);
+    const createdByUserId = req.user?.id;
+    return this.service.createManager(tenant_id, createdByUserId, createEmployeeDto, files);
   }
 
   @Patch(':id/promote-to-manager')
@@ -223,6 +226,7 @@ export class EmployeeController {
     },
   })
   async create(
+    @Req() req: any,
     @TenantId() tenant_id: string, 
     @Body() dto: CreateEmployeeDto,
     @UploadedFiles() files?: { 
@@ -231,7 +235,8 @@ export class EmployeeController {
       cnic_back_picture?: Express.Multer.File[] 
     }
   ) {
-    return this.service.create(tenant_id, dto, files);
+    const createdByUserId = req.user?.id;
+    return this.service.create(tenant_id, createdByUserId, dto, files);
   }
 
   @Put(':id')

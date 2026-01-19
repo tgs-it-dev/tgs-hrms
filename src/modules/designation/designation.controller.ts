@@ -97,7 +97,7 @@ export class DesignationController {
   }
 
   @Get(':id')
-  @Roles('admin', 'system-admin', 'hr-admin')
+  @Roles('admin', 'system-admin', 'hr-admin', 'manager')
   @Permissions('manage_designations')
   @ApiOperation({ summary: 'Get a single designation' })
   @ApiResponse({ status: 200, description: 'Designation found.' })

@@ -161,7 +161,7 @@ export class TeamController {
 
 
   @Get('all-members')
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin' , 'hr-admin')
   @ApiOperation({ summary: 'Get all team members across all teams (Admin only)' })
   @ApiQuery({
     name: 'page',
