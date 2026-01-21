@@ -1,7 +1,8 @@
-import { Controller, Post, Get, Body, Query, UseGuards, Req, Res } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import { Controller, Post, Get, Patch, Body, Query, UseGuards, Req, Res, Param } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiQuery, ApiParam } from '@nestjs/swagger';
 import { AttendanceService } from './attendance.service';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
+import { ApproveCheckInDto, BulkApproveCheckInDto } from './dto/approve-checkin.dto';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { AuthenticatedRequest } from 'src/common/types/request.types';
 import { RolesGuard } from 'src/common/guards/roles.guard';
@@ -21,9 +22,21 @@ export class AttendanceController {
 
   @Post()
   @ApiOperation({ summary: 'Create a check-in/check-out event' })
-  async createAttendance(@Body() createAttendanceDto: CreateAttendanceDto, @Req() req: AuthenticatedRequest) {
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - Location outside geofence or missing required fields',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Check-in/check-out created successfully',
+  })
+  async createAttendance(
+    @Body() createAttendanceDto: CreateAttendanceDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
     const userId = req.user.id;
-    return this.attendanceService.create(userId, createAttendanceDto);
+    const tenantId = req.user.tenant_id;
+    return this.attendanceService.create(userId, createAttendanceDto, tenantId);
   }
 
 
@@ -533,5 +546,166 @@ export class AttendanceController {
 
     const filename = tenantId ? `attendance-tenant-${tenantId}.csv` : 'attendance-all-tenants.csv';
     return sendCsvResponse(res, filename, rows);
+  }
+
+  @Get('team/today')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('manager')
+  @Permissions('manage_attendance')
+  @ApiOperation({ summary: 'Get today\'s check-ins for team members (Manager only)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns today\'s check-ins for team members',
+    schema: {
+      example: {
+        items: [
+          {
+            id: 'check-in-uuid',
+            user_id: 'user-uuid',
+            first_name: 'John',
+            last_name: 'Doe',
+            email: 'john.doe@company.com',
+            profile_pic: 'profile_pic_url',
+            designation: 'Software Developer',
+            department: 'Engineering',
+            check_in_time: '2024-01-15T09:00:00Z',
+            approval_status: 'pending',
+            approved_by: null,
+            approved_at: null,
+            approval_remarks: null,
+          },
+        ],
+        total: 5,
+      },
+    },
+  })
+  async getTodayTeamCheckIns(@Req() req: any) {
+    return this.attendanceService.getTodayTeamCheckIns(req.user.id, req.user.tenant_id);
+  }
+
+  @Patch('check-in/:id/approve')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('manager')
+  @Permissions('manage_attendance')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Approve a single check-in (Manager only)' })
+  @ApiParam({
+    name: 'id',
+    description: 'Check-in attendance record ID',
+    type: String,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Check-in approved successfully',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Only manager can approve their team members\' check-ins',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Check-in record not found',
+  })
+  async approveCheckIn(
+    @Param('id') id: string,
+    @Body() dto: ApproveCheckInDto,
+    @Req() req: any
+  ) {
+    return this.attendanceService.approveCheckIn(
+      id,
+      req.user.id,
+      req.user.tenant_id,
+      dto.remarks
+    );
+  }
+
+  @Patch('check-in/:id/disapprove')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('manager')
+  @Permissions('manage_attendance')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Disapprove a single check-in (Manager only)' })
+  @ApiParam({
+    name: 'id',
+    description: 'Check-in attendance record ID',
+    type: String,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Check-in disapproved successfully',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Only manager can disapprove their team members\' check-ins',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Check-in record not found',
+  })
+  async disapproveCheckIn(
+    @Param('id') id: string,
+    @Body() dto: ApproveCheckInDto,
+    @Req() req: any
+  ) {
+    return this.attendanceService.disapproveCheckIn(
+      id,
+      req.user.id,
+      req.user.tenant_id,
+      dto.remarks
+    );
+  }
+
+  @Patch('check-in/approve-all')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('manager')
+  @Permissions('manage_attendance')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Approve all today\'s check-ins for team members at once (Manager only)' })
+  @ApiResponse({
+    status: 200,
+    description: 'All check-ins approved successfully',
+    schema: {
+      example: {
+        approved: 10,
+        items: [],
+      },
+    },
+  })
+  async approveAllCheckIns(
+    @Body() dto: BulkApproveCheckInDto,
+    @Req() req: any
+  ) {
+    return this.attendanceService.approveAllCheckIns(
+      req.user.id,
+      req.user.tenant_id,
+      dto.remarks
+    );
+  }
+
+  @Patch('check-in/disapprove-all')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('manager')
+  @Permissions('manage_attendance')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Disapprove all today\'s check-ins for team members at once (Manager only)' })
+  @ApiResponse({
+    status: 200,
+    description: 'All check-ins disapproved successfully',
+    schema: {
+      example: {
+        disapproved: 10,
+        items: [],
+      },
+    },
+  })
+  async disapproveAllCheckIns(
+    @Body() dto: BulkApproveCheckInDto,
+    @Req() req: any
+  ) {
+    return this.attendanceService.disapproveAllCheckIns(
+      req.user.id,
+      req.user.tenant_id,
+      dto.remarks
+    );
   }
 }

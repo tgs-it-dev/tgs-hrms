@@ -20,6 +20,7 @@ import { AssetComment } from "./asset-comment.entity";
 import { Leave } from "./leave.entity";
 import { Designation } from "./designation.entity";
 import { Task } from "./task.entity";
+import { Geofence } from "./geofence.entity";
 
 @Entity("tenants")
 export class Tenant {
@@ -83,4 +84,7 @@ export class Tenant {
 
   @OneToMany(() => AssetComment, (comment) => comment.tenant)
   assetComments: AssetComment[];
+
+  @OneToMany(() => Geofence, (geofence) => geofence.tenant)
+  geofences: Geofence[];
 }

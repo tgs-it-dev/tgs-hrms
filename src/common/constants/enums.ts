@@ -48,6 +48,12 @@ export enum AttendanceType {
   BREAK_END = 'break-end',
 }
 
+export enum CheckInApprovalStatus {
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+}
+
 // export enum AttendanceStatus {
 //   PRESENT = 'present',
 //   ABSENT = 'absent',

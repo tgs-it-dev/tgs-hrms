@@ -41,6 +41,10 @@
         "designation.read",
         "designation.update",
         "designation.delete",
+        "geofence.create",
+        "geofence.read",
+        "geofence.update",
+        "geofence.delete",
         "attendance.read",
         "attendance.update",
         "leave.create",
@@ -148,6 +152,12 @@
       "read": "View designation information",
       "update": "Update designation information",
       "delete": "Delete designations"
+    },
+    "geofence": {
+      "create": "Create new geofences",
+      "read": "View geofence information",
+      "update": "Update geofences",
+      "delete": "Delete geofences"
     },
     "attendance": {
       "create": "Create attendance records",

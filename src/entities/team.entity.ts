@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { User } from './user.entity';
 import { Employee } from './employee.entity';
+import { Geofence } from './geofence.entity';
 
 @Index(['manager_id'])
 @Entity('teams')
@@ -36,4 +37,7 @@ export class Team {
 
   @OneToMany(() => Employee, (employee) => employee.team)
   teamMembers: Employee[];
+
+  @OneToMany(() => Geofence, (geofence) => geofence.team)
+  geofences: Geofence[];
 }

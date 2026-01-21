@@ -1,53 +1,169 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { AttendanceType } from '../../common/constants/enums';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
+import {
+  AttendanceType,
+  CheckInApprovalStatus,
+} from '../../common/constants/enums';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Attendance } from '../../entities/attendance.entity';
+import { Geofence, GeofenceStatus } from '../../entities/geofence.entity';
+import { Employee } from '../../entities/employee.entity';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
-import { TimesheetService } from '../timesheet/timesheet.service'; 
+import { TimesheetService } from '../timesheet/timesheet.service';
 import { TeamService } from '../team/team.service';
+import { isPointWithinGeofence } from '../../common/utils/geofence.util';
 
 @Injectable()
 export class AttendanceService {
   constructor(
     @InjectRepository(Attendance)
     private readonly attendanceRepo: Repository<Attendance>,
+    @InjectRepository(Geofence)
+    private readonly geofenceRepo: Repository<Geofence>,
+    @InjectRepository(Employee)
+    private readonly employeeRepo: Repository<Employee>,
     private readonly timesheetService: TimesheetService,
-    private readonly teamService: TeamService
+    private readonly teamService: TeamService,
   ) {}
 
-  async create(userId: string, dto: CreateAttendanceDto) {
+  async create(userId: string, dto: CreateAttendanceDto, tenantId?: string) {
     const now = new Date();
-    
 
     if (dto.type === AttendanceType.CHECK_IN) {
-    
+      // Validate location is provided for check-in
+      if (dto.latitude === undefined || dto.longitude === undefined) {
+        throw new BadRequestException(
+          'Latitude and longitude are required for check-in.',
+        );
+      }
+
+      // Validate location is within geofence boundary
+      if (tenantId) {
+        await this.validateCheckInLocation(
+          userId,
+          tenantId,
+          dto.latitude,
+          dto.longitude,
+        );
+      }
+
       const activeSession = await this.getActiveSession(userId);
       if (activeSession) {
-        throw new BadRequestException('You already have an active session. Please check out first.');
+        throw new BadRequestException(
+          'You already have an active session. Please check out first.',
+        );
       }
     } else if (dto.type === AttendanceType.CHECK_OUT) {
+      // Validate location is provided for check-out
+      if (dto.latitude === undefined || dto.longitude === undefined) {
+        throw new BadRequestException(
+          'Latitude and longitude are required for check-out.',
+        );
+      }
+
+      // Validate location is within geofence boundary
+      if (tenantId) {
+        await this.validateCheckInLocation(
+          userId,
+          tenantId,
+          dto.latitude,
+          dto.longitude,
+        );
+      }
 
       const activeSession = await this.getActiveSession(userId);
       if (!activeSession) {
-        throw new BadRequestException('No active session found. Please check in first.');
+        throw new BadRequestException(
+          'No active session found. Please check in first.',
+        );
       }
     }
-    
+
     const attendance = this.attendanceRepo.create({
       type: dto.type,
       user_id: userId,
       timestamp: now,
+      // Set approval_status to PENDING for check-ins, null for other types
+      approval_status:
+        dto.type === AttendanceType.CHECK_IN
+          ? CheckInApprovalStatus.PENDING
+          : null,
     });
     const saved = await this.attendanceRepo.save(attendance);
-    
-  
+
     if (dto.type === AttendanceType.CHECK_OUT) {
       await this.timesheetService.autoEndIfActive(userId);
     }
 
     return saved;
+  }
+
+  /**
+   * Validate check-in/check-out location against active geofences for employee's team
+   */
+  private async validateCheckInLocation(
+    userId: string,
+    tenantId: string,
+    latitude: number,
+    longitude: number,
+  ): Promise<void> {
+    // Get employee's team_id
+    const employee = await this.employeeRepo.findOne({
+      where: { user_id: userId },
+      relations: ['user'],
+    });
+
+    if (!employee) {
+      throw new NotFoundException('Employee not found.');
+    }
+
+    // If employee has no team, allow check-in (no geofence restriction)
+    if (!employee.team_id) {
+      return;
+    }
+
+    // Get active geofences for the employee's team
+    const activeGeofences = await this.geofenceRepo.find({
+      where: {
+        team_id: employee.team_id,
+        tenant_id: tenantId,
+        status: GeofenceStatus.ACTIVE,
+      },
+    });
+
+    if (activeGeofences.length === 0) {
+      throw new BadRequestException(
+        'No active geofence found for your team. Please contact your manager to set up a geofence.',
+      );
+    }
+
+    // Check if location is within any active geofence
+    let isWithinGeofence = false;
+    let validationDetails: string[] = [];
+
+    for (const geofence of activeGeofences) {
+      const isValid = isPointWithinGeofence(latitude, longitude, geofence);
+      validationDetails.push(
+        `Geofence "${geofence.name}" (type: ${geofence.type || 'legacy'}): ${isValid ? 'INSIDE' : 'OUTSIDE'}`,
+      );
+      if (isValid) {
+        isWithinGeofence = true;
+        break;
+      }
+    }
+
+    if (!isWithinGeofence) {
+      const detailsMessage = validationDetails.join('; ');
+      throw new BadRequestException(
+        `Check-in location (${latitude}, ${longitude}) is outside the allowed geofence boundary for your team. Validation details: ${detailsMessage}. Please check in from within the designated area.`,
+      );
+    }
   }
 
   
@@ -724,5 +840,317 @@ export class AttendanceService {
       tenants,
       totalTenants: tenants.length,
     };
+  }
+
+  /**
+   * Get today's check-ins for team members (Manager only)
+   * Returns check-ins that are pending approval for today's date
+   */
+  async getTodayTeamCheckIns(
+    managerId: string,
+    tenantId: string
+  ): Promise<{
+    items: Array<{
+      id: string;
+      user_id: string;
+      first_name: string;
+      last_name: string;
+      email: string;
+      profile_pic?: string;
+      designation: string;
+      department: string;
+      check_in_time: Date;
+      approval_status: CheckInApprovalStatus | null;
+      approved_by: string | null;
+      approved_at: Date | null;
+      approval_remarks: string | null;
+    }>;
+    total: number;
+  }> {
+    // Get all team members
+    let allTeamMembers: any[] = [];
+    let page = 1;
+    let hasMore = true;
+    
+    while (hasMore) {
+      const result = await this.teamService.getAllMembersForManager(tenantId, managerId, page);
+      allTeamMembers = allTeamMembers.concat(result.items);
+      hasMore = result.items.length === result.limit && page < result.totalPages;
+      page++;
+    }
+    
+    if (allTeamMembers.length === 0) {
+      return {
+        items: [],
+        total: 0,
+      };
+    }
+
+    const userIds = allTeamMembers.map((member) => member.user.id);
+
+    // Get today's date range
+    const now = new Date();
+    const startOfDay = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0)
+    );
+    const endOfDay = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0)
+    );
+
+    // Get today's check-ins for team members
+    const todayCheckIns = await this.attendanceRepo
+      .createQueryBuilder('attendance')
+      .leftJoinAndSelect('attendance.user', 'user')
+      .leftJoinAndSelect('attendance.approver', 'approver')
+      .where('attendance.user_id IN (:...userIds)', { userIds })
+      .andWhere('attendance.type = :type', { type: AttendanceType.CHECK_IN })
+      .andWhere('attendance.timestamp >= :startOfDay', { startOfDay })
+      .andWhere('attendance.timestamp < :endOfDay', { endOfDay })
+      .orderBy('attendance.timestamp', 'DESC')
+      .getMany();
+
+    // Group by user and get the latest check-in per user
+    const userCheckInMap = new Map<string, Attendance>();
+    for (const checkIn of todayCheckIns) {
+      const userId = checkIn.user_id;
+      if (!userCheckInMap.has(userId) || 
+          checkIn.timestamp > userCheckInMap.get(userId)!.timestamp) {
+        userCheckInMap.set(userId, checkIn);
+      }
+    }
+
+    // Transform to response format
+    const items = Array.from(userCheckInMap.values()).map((checkIn) => {
+      const member = allTeamMembers.find((m) => m.user.id === checkIn.user_id);
+      return {
+        id: checkIn.id,
+        user_id: checkIn.user_id,
+        first_name: checkIn.user.first_name,
+        last_name: checkIn.user.last_name,
+        email: checkIn.user.email,
+        profile_pic: checkIn.user.profile_pic || undefined,
+        designation: member?.designation?.title || 'N/A',
+        department: member?.department?.name || 'N/A',
+        check_in_time: checkIn.timestamp,
+        approval_status: checkIn.approval_status,
+        approved_by: checkIn.approved_by,
+        approved_at: checkIn.approved_at,
+        approval_remarks: checkIn.approval_remarks,
+      };
+    });
+
+    // Sort by check-in time (latest first)
+    items.sort((a, b) => 
+      new Date(b.check_in_time).getTime() - new Date(a.check_in_time).getTime()
+    );
+
+    return {
+      items,
+      total: items.length,
+    };
+  }
+
+  /**
+   * Approve a single check-in (Manager only)
+   */
+  async approveCheckIn(
+    checkInId: string,
+    managerId: string,
+    tenantId: string,
+    remarks?: string
+  ): Promise<Attendance> {
+    const checkIn = await this.attendanceRepo.findOne({
+      where: { id: checkInId },
+      relations: ['user'],
+    });
+
+    if (!checkIn) {
+      throw new NotFoundException('Check-in record not found');
+    }
+
+    if (checkIn.type !== AttendanceType.CHECK_IN) {
+      throw new BadRequestException('Only check-in records can be approved');
+    }
+
+    // Verify the employee is in the manager's team
+    const isTeamMember = await this.verifyTeamMember(
+      checkIn.user_id,
+      managerId,
+      tenantId
+    );
+
+    if (!isTeamMember) {
+      throw new ForbiddenException('You can only approve check-ins for your team members');
+    }
+
+    checkIn.approval_status = CheckInApprovalStatus.APPROVED;
+    checkIn.approved_by = managerId;
+    checkIn.approved_at = new Date();
+    checkIn.approval_remarks = remarks || null;
+
+    return await this.attendanceRepo.save(checkIn);
+  }
+
+  /**
+   * Disapprove a single check-in (Manager only)
+   */
+  async disapproveCheckIn(
+    checkInId: string,
+    managerId: string,
+    tenantId: string,
+    remarks?: string
+  ): Promise<Attendance> {
+    const checkIn = await this.attendanceRepo.findOne({
+      where: { id: checkInId },
+      relations: ['user'],
+    });
+
+    if (!checkIn) {
+      throw new NotFoundException('Check-in record not found');
+    }
+
+    if (checkIn.type !== AttendanceType.CHECK_IN) {
+      throw new BadRequestException('Only check-in records can be disapproved');
+    }
+
+    // Verify the employee is in the manager's team
+    const isTeamMember = await this.verifyTeamMember(
+      checkIn.user_id,
+      managerId,
+      tenantId
+    );
+
+    if (!isTeamMember) {
+      throw new ForbiddenException('You can only disapprove check-ins for your team members');
+    }
+
+    checkIn.approval_status = CheckInApprovalStatus.REJECTED;
+    checkIn.approved_by = managerId;
+    checkIn.approved_at = new Date();
+    checkIn.approval_remarks = remarks || null;
+
+    return await this.attendanceRepo.save(checkIn);
+  }
+
+  /**
+   * Approve all today's check-ins for team members at once (Manager only)
+   */
+  async approveAllCheckIns(
+    managerId: string,
+    tenantId: string,
+    remarks?: string
+  ): Promise<{ approved: number; items: Attendance[] }> {
+    // Get today's check-ins for team members
+    const { items } = await this.getTodayTeamCheckIns(managerId, tenantId);
+
+    // Filter out already approved/rejected check-ins
+    const pendingCheckIns = items.filter(
+      (item) => !item.approval_status || item.approval_status === CheckInApprovalStatus.PENDING
+    );
+
+    if (pendingCheckIns.length === 0) {
+      return { approved: 0, items: [] };
+    }
+
+    const checkInIds = pendingCheckIns.map((item) => item.id);
+    const now = new Date();
+
+    // Update all pending check-ins
+    await this.attendanceRepo
+      .createQueryBuilder()
+      .update(Attendance)
+      .set({
+        approval_status: CheckInApprovalStatus.APPROVED,
+        approved_by: managerId,
+        approved_at: now,
+        approval_remarks: remarks || null,
+      })
+      .where('id IN (:...ids)', { ids: checkInIds })
+      .andWhere('type = :type', { type: AttendanceType.CHECK_IN })
+      .execute();
+
+    // Fetch updated records
+    const updatedCheckIns = await this.attendanceRepo.find({
+      where: { id: In(checkInIds) },
+    });
+
+    return {
+      approved: updatedCheckIns.length,
+      items: updatedCheckIns,
+    };
+  }
+
+  /**
+   * Disapprove all today's check-ins for team members at once (Manager only)
+   */
+  async disapproveAllCheckIns(
+    managerId: string,
+    tenantId: string,
+    remarks?: string
+  ): Promise<{ disapproved: number; items: Attendance[] }> {
+    // Get today's check-ins for team members
+    const { items } = await this.getTodayTeamCheckIns(managerId, tenantId);
+
+    // Filter out already approved/rejected check-ins
+    const pendingCheckIns = items.filter(
+      (item) => !item.approval_status || item.approval_status === CheckInApprovalStatus.PENDING
+    );
+
+    if (pendingCheckIns.length === 0) {
+      return { disapproved: 0, items: [] };
+    }
+
+    const checkInIds = pendingCheckIns.map((item) => item.id);
+    const now = new Date();
+
+    // Update all pending check-ins
+    await this.attendanceRepo
+      .createQueryBuilder()
+      .update(Attendance)
+      .set({
+        approval_status: CheckInApprovalStatus.REJECTED,
+        approved_by: managerId,
+        approved_at: now,
+        approval_remarks: remarks || null,
+      })
+      .where('id IN (:...ids)', { ids: checkInIds })
+      .andWhere('type = :type', { type: AttendanceType.CHECK_IN })
+      .execute();
+
+    // Fetch updated records
+    const updatedCheckIns = await this.attendanceRepo.find({
+      where: { id: In(checkInIds) },
+    });
+
+    return {
+      disapproved: updatedCheckIns.length,
+      items: updatedCheckIns,
+    };
+  }
+
+  /**
+   * Helper method to verify if an employee is in the manager's team
+   */
+  private async verifyTeamMember(
+    employeeUserId: string,
+    managerId: string,
+    tenantId: string
+  ): Promise<boolean> {
+    let page = 1;
+    let hasMore = true;
+
+    while (hasMore) {
+      const result = await this.teamService.getAllMembersForManager(tenantId, managerId, page);
+      const isMember = result.items.some((member) => member.user.id === employeeUserId);
+      
+      if (isMember) {
+        return true;
+      }
+
+      hasMore = result.items.length === result.limit && page < result.totalPages;
+      page++;
+    }
+
+    return false;
   }
 }
