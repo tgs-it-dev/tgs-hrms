@@ -45,6 +45,7 @@ import { BillingModule } from './modules/billing/billing.module';
 import { TaskModule } from './modules/tasks/task.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { GeofenceModule } from './modules/geofence/geofence.module';
+import { NotificationModule } from './modules/notification/notification.module';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { SystemLoggingInterceptor } from './common/interceptors/system-logging.interceptor';
 import { SystemLog } from './entities/system-log.entity';
@@ -65,9 +66,9 @@ import { SystemLog } from './entities/system-log.entity';
 
     ThrottlerModule.forRoot({
       throttlers: [
-        // Default: 100 requests per 15 minutes (less restrictive for normal operations)
+      
         { name: 'default', ttl: 900_000, limit: 100 },
-        // Short-term: 10 requests per minute (for burst protection)
+        
         { name: 'short', ttl: 60_000, limit: 10 },
       ],
     }),
@@ -177,6 +178,7 @@ import { SystemLog } from './entities/system-log.entity';
     TaskModule,
     DashboardModule,
     GeofenceModule,
+    NotificationModule,
   ],
   providers: [
     {

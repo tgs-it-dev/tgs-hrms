@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
-import { LeaveStatus } from '../../common/constants/enums';
+import { LeaveStatus, NotificationType } from '../../common/constants/enums';
 import { Leave } from 'src/entities/leave.entity';
 import { LeaveType } from 'src/entities/leave-type.entity';
 import { CreateLeaveDto } from './dto/create-leave.dto';
@@ -10,6 +10,8 @@ import { EditLeaveDto } from './dto/update-leave.dto';
 import { User } from '../../entities/user.entity';
 import { Employee } from 'src/entities/employee.entity';
 import { LeaveFileUploadService } from './services/leave-file-upload.service';
+import { NotificationService } from '../notification/notification.service';
+import { Team } from '../../entities/team.entity';
 
 @Injectable()
 export class LeaveService {
@@ -22,7 +24,10 @@ export class LeaveService {
     private readonly employeeRepo: Repository<Employee>,
     @InjectRepository(LeaveType)
     private readonly leaveTypeRepo: Repository<LeaveType>,
-    private readonly leaveFileUploadService: LeaveFileUploadService
+    @InjectRepository(Team)
+    private readonly teamRepo: Repository<Team>,
+    private readonly leaveFileUploadService: LeaveFileUploadService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async createLeave(
@@ -120,6 +125,27 @@ export class LeaveService {
       );
       savedLeave.documents = documentUrls;
       await this.leaveRepo.save(savedLeave);
+    }
+
+    // Notify manager when employee applies for leave
+    try {
+      const employee = await this.employeeRepo.findOne({
+        where: { user_id: employeeId },
+        relations: ['team', 'user'],
+      });
+
+      if (employee?.team?.manager_id) {
+        const employeeName = `${employee.user?.first_name || ''} ${employee.user?.last_name || ''}`.trim();
+        await this.notificationService.create(
+          employee.team.manager_id,
+          tenantId,
+          `Leave request pending approval from ${employeeName || 'an employee'}`,
+          NotificationType.LEAVE,
+        );
+      }
+    } catch (error) {
+      // Don't fail leave creation if notification fails
+      console.error('Failed to create leave application notification:', error);
     }
 
     return savedLeave;
@@ -407,7 +433,22 @@ export class LeaveService {
     leave.approvedAt = new Date();
     leave.remarks = remarks || '';
 
-    return await this.leaveRepo.save(leave);
+    const saved = await this.leaveRepo.save(leave);
+
+    // Notify employee when leave is approved
+    try {
+      await this.notificationService.create(
+        leave.employeeId,
+        tenantId,
+        'Your leave request was approved',
+        NotificationType.LEAVE,
+      );
+    } catch (error) {
+      // Don't fail approval if notification fails
+      console.error('Failed to create leave approval notification:', error);
+    }
+
+    return saved;
   }
 
   async rejectLeave(id: string, approverId: string, tenantId: string, remarks?: string): Promise<Leave> {
@@ -429,7 +470,22 @@ export class LeaveService {
     leave.approvedAt = new Date();
     leave.remarks = remarks || '';
 
-    return await this.leaveRepo.save(leave);
+    const saved = await this.leaveRepo.save(leave);
+
+    // Notify employee when leave is rejected
+    try {
+      await this.notificationService.create(
+        leave.employeeId,
+        tenantId,
+        'Your leave request was rejected',
+        NotificationType.LEAVE,
+      );
+    } catch (error) {
+      // Don't fail rejection if notification fails
+      console.error('Failed to create leave rejection notification:', error);
+    }
+
+    return saved;
   }
 
   /**

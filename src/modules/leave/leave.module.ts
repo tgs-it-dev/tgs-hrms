@@ -8,9 +8,15 @@ import { LeaveController } from './leave.controller';
 import { Employee } from 'src/entities/employee.entity';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
 import { LeaveFileUploadService } from './services/leave-file-upload.service';
+import { NotificationModule } from '../notification/notification.module';
+import { Team } from '../../entities/team.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Leave, LeaveType, User, Employee]), SharedJwtModule],
+  imports: [
+    TypeOrmModule.forFeature([Leave, LeaveType, User, Employee, Team]),
+    SharedJwtModule,
+    NotificationModule,
+  ],
   providers: [LeaveService, LeaveFileUploadService],
   controllers: [LeaveController],
   exports: [LeaveService],

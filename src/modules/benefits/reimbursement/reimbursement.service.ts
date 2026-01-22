@@ -318,7 +318,7 @@ export class ReimbursementService {
   async review(
     tenant_id: string,
     id: string,
-    reviewerId: string,
+    reviewerId: string | null,
     dto: ReviewReimbursementRequestDto,
   ): Promise<BenefitReimbursementRequest> {
     const request = await this.reimbursementRepo.findOne({
@@ -333,23 +333,27 @@ export class ReimbursementService {
       throw new ConflictException('Request has already been processed');
     }
 
-    // Validate reviewer is an employee in the tenant
-    const reviewer = await this.employeeRepo
-      .createQueryBuilder('employee')
-      .innerJoin('employee.user', 'user')
-      .where('employee.id = :reviewerId', { reviewerId })
-      .andWhere('user.tenant_id = :tenantId', { tenantId: tenant_id })
-      .getOne();
+    // If reviewerId is provided (e.g. HR/Admin also has an employee profile),
+    // validate that the reviewer is an employee in the same tenant.
+    if (reviewerId) {
+      const reviewer = await this.employeeRepo
+        .createQueryBuilder('employee')
+        .innerJoin('employee.user', 'user')
+        .where('employee.id = :reviewerId', { reviewerId })
+        .andWhere('user.tenant_id = :tenantId', { tenantId: tenant_id })
+        .getOne();
 
-    if (!reviewer) {
-      throw new BadRequestException('Invalid reviewer');
+      if (!reviewer) {
+        throw new BadRequestException('Invalid reviewer');
+      }
     }
 
     request.status =
       dto.status === 'approved'
         ? BenefitReimbursementStatus.APPROVED
         : BenefitReimbursementStatus.REJECTED;
-    request.reviewedBy = reviewerId;
+    // For HR/Admin users without an employee record, reviewerId can be null.
+    request.reviewedBy = reviewerId ?? null;
     request.reviewedAt = new Date();
     request.reviewRemarks = dto.reviewRemarks || null;
 

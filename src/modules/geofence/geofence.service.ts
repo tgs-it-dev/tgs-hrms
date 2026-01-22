@@ -141,6 +141,8 @@ export class GeofenceService {
         latitude: String(latitude),
         longitude: String(longitude),
         status: dto.status ?? GeofenceStatus.ACTIVE,
+        threshold_distance: dto.threshold_distance !== undefined && dto.threshold_distance !== null ? String(dto.threshold_distance) : null,
+        threshold_enabled: dto.threshold_enabled ?? false,
       });
       return await this.repo.save(geofence);
     } catch (err) {
@@ -337,6 +339,14 @@ export class GeofenceService {
     }
 
     if (dto.status !== undefined) geofence.status = dto.status;
+
+    // Threshold fields
+    if (dto.threshold_distance !== undefined) {
+      geofence.threshold_distance = dto.threshold_distance === null ? null : String(dto.threshold_distance);
+    }
+    if (dto.threshold_enabled !== undefined) {
+      geofence.threshold_enabled = dto.threshold_enabled;
+    }
 
     try {
       return await this.repo.save(geofence);

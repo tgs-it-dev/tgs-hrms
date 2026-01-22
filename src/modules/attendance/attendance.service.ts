@@ -17,7 +17,9 @@ import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
 import { TimesheetService } from '../timesheet/timesheet.service';
 import { TeamService } from '../team/team.service';
-import { isPointWithinGeofence } from '../../common/utils/geofence.util';
+import { isPointWithinGeofence, checkPointWithinGeofence } from '../../common/utils/geofence.util';
+import { NotificationGateway } from '../notification/notification.gateway';
+import { NotificationType } from '../../common/constants/enums';
 
 @Injectable()
 export class AttendanceService {
@@ -30,10 +32,13 @@ export class AttendanceService {
     private readonly employeeRepo: Repository<Employee>,
     private readonly timesheetService: TimesheetService,
     private readonly teamService: TeamService,
+    private readonly notificationGateway: NotificationGateway,
   ) {}
 
   async create(userId: string, dto: CreateAttendanceDto, tenantId?: string) {
     const now = new Date();
+
+    let nearBoundary = false;
 
     if (dto.type === AttendanceType.CHECK_IN) {
       // Validate location is provided for check-in
@@ -45,12 +50,13 @@ export class AttendanceService {
 
       // Validate location is within geofence boundary
       if (tenantId) {
-        await this.validateCheckInLocation(
+        const validationResult = await this.validateCheckInLocationWithThreshold(
           userId,
           tenantId,
           dto.latitude,
           dto.longitude,
         );
+        nearBoundary = validationResult.nearBoundary;
       }
 
       const activeSession = await this.getActiveSession(userId);
@@ -69,12 +75,13 @@ export class AttendanceService {
 
       // Validate location is within geofence boundary
       if (tenantId) {
-        await this.validateCheckInLocation(
+        const validationResult = await this.validateCheckInLocationWithThreshold(
           userId,
           tenantId,
           dto.latitude,
           dto.longitude,
         );
+        nearBoundary = validationResult.nearBoundary;
       }
 
       const activeSession = await this.getActiveSession(userId);
@@ -85,6 +92,12 @@ export class AttendanceService {
       }
     }
 
+    // Get employee info for manager notification
+    const employee = await this.employeeRepo.findOne({
+      where: { user_id: userId },
+      relations: ['user', 'team'],
+    });
+
     const attendance = this.attendanceRepo.create({
       type: dto.type,
       user_id: userId,
@@ -94,8 +107,29 @@ export class AttendanceService {
         dto.type === AttendanceType.CHECK_IN
           ? CheckInApprovalStatus.PENDING
           : null,
+      near_boundary: nearBoundary,
     });
     const saved = await this.attendanceRepo.save(attendance);
+
+    // Send WebSocket notification to manager
+    if (employee && employee.team && employee.team.manager_id) {
+      const employeeName = `${employee.user.first_name} ${employee.user.last_name}`.trim();
+      const actionType = dto.type === AttendanceType.CHECK_IN ? 'checked in' : 'checked out';
+      const nearBoundaryText = saved.near_boundary ? ' (Near Boundary)' : '';
+      
+      this.notificationGateway.sendToUser(
+        employee.team.manager_id,
+        'attendance_event',
+        {
+          type: dto.type,
+          employee_id: userId,
+          employee_name: employeeName,
+          timestamp: saved.timestamp,
+          message: `${employeeName} ${actionType}${nearBoundaryText}`,
+          near_boundary: saved.near_boundary,
+        },
+      );
+    }
 
     if (dto.type === AttendanceType.CHECK_OUT) {
       await this.timesheetService.autoEndIfActive(userId);
@@ -106,13 +140,14 @@ export class AttendanceService {
 
   /**
    * Validate check-in/check-out location against active geofences for employee's team
+   * Returns both validation result and whether the location is near boundary
    */
-  private async validateCheckInLocation(
+  private async validateCheckInLocationWithThreshold(
     userId: string,
     tenantId: string,
     latitude: number,
     longitude: number,
-  ): Promise<void> {
+  ): Promise<{ nearBoundary: boolean }> {
     // Get employee's team_id
     const employee = await this.employeeRepo.findOne({
       where: { user_id: userId },
@@ -125,7 +160,7 @@ export class AttendanceService {
 
     // If employee has no team, allow check-in (no geofence restriction)
     if (!employee.team_id) {
-      return;
+      return { nearBoundary: false };
     }
 
     // Get active geofences for the employee's team
@@ -143,17 +178,32 @@ export class AttendanceService {
       );
     }
 
-    // Check if location is within any active geofence
+    // Check if location is within any active geofence (with threshold support)
     let isWithinGeofence = false;
+    let isNearBoundary = false;
     let validationDetails: string[] = [];
 
     for (const geofence of activeGeofences) {
-      const isValid = isPointWithinGeofence(latitude, longitude, geofence);
+      const result = checkPointWithinGeofence(latitude, longitude, geofence);
+      const thresholdInfo = geofence.threshold_enabled 
+        ? ` (threshold: ${geofence.threshold_distance}m, enabled: ${geofence.threshold_enabled})` 
+        : ' (threshold disabled)';
       validationDetails.push(
-        `Geofence "${geofence.name}" (type: ${geofence.type || 'legacy'}): ${isValid ? 'INSIDE' : 'OUTSIDE'}`,
+        `Geofence "${geofence.name}" (type: ${geofence.type || 'legacy'}${thresholdInfo}): ${result.isWithin ? 'INSIDE' : 'OUTSIDE'}${result.isNearBoundary ? ' (NEAR BOUNDARY)' : ''}`,
       );
-      if (isValid) {
+      
+      // Debug logging
+      console.log(`[Geofence Check] ${geofence.name}:`, {
+        threshold_enabled: geofence.threshold_enabled,
+        threshold_distance: geofence.threshold_distance,
+        isWithin: result.isWithin,
+        isNearBoundary: result.isNearBoundary,
+        location: `(${latitude}, ${longitude})`,
+      });
+      
+      if (result.isWithin) {
         isWithinGeofence = true;
+        isNearBoundary = result.isNearBoundary;
         break;
       }
     }
@@ -164,6 +214,21 @@ export class AttendanceService {
         `Check-in location (${latitude}, ${longitude}) is outside the allowed geofence boundary for your team. Validation details: ${detailsMessage}. Please check in from within the designated area.`,
       );
     }
+
+    return { nearBoundary: isNearBoundary };
+  }
+
+  /**
+   * Validate check-in/check-out location against active geofences for employee's team
+   * @deprecated Use validateCheckInLocationWithThreshold instead
+   */
+  private async validateCheckInLocation(
+    userId: string,
+    tenantId: string,
+    latitude: number,
+    longitude: number,
+  ): Promise<void> {
+    await this.validateCheckInLocationWithThreshold(userId, tenantId, latitude, longitude);
   }
 
   
@@ -408,8 +473,14 @@ export class AttendanceService {
       attendance: {
         date: string;
         checkIn: Date | null;
+        checkInId: string | null;
         checkOut: Date | null;
+        checkOutId: string | null;
         workedHours: number;
+        approvalStatus: CheckInApprovalStatus | null;
+        approvalRemarks: string | null;
+        approvedBy: string | null;
+        approvedAt: Date | null;
       }[];
       totalDaysWorked: number;
       totalHoursWorked: number;
@@ -519,11 +590,20 @@ export class AttendanceService {
         return {
           date,
           checkIn: checkIn?.timestamp || null,
+          checkInId: checkIn?.id || null,
           checkOut:
             checkOut && checkIn && new Date(checkOut.timestamp) > new Date(checkIn.timestamp)
               ? checkOut.timestamp
               : null,
+          checkOutId:
+            checkOut && checkIn && new Date(checkOut.timestamp) > new Date(checkIn.timestamp)
+              ? checkOut.id
+              : null,
           workedHours,
+          approvalStatus: checkIn?.approval_status || null,
+          approvalRemarks: checkIn?.approval_remarks || null,
+          approvedBy: checkIn?.approved_by || null,
+          approvedAt: checkIn?.approved_at || null,
         };
       });
       const totalDaysWorked = attendanceData.filter((day) => day.checkIn && day.checkOut).length;

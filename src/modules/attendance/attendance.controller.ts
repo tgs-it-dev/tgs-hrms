@@ -197,9 +197,15 @@ export class AttendanceController {
             attendance: [
               {
                 date: '2024-01-15',
+                checkInId: 'check-in-uuid',
                 checkIn: '2024-01-15T09:00:00Z',
+                checkOutId: 'check-out-uuid',
                 checkOut: '2024-01-15T17:30:00Z',
                 workedHours: 8.5,
+                approvalStatus: 'pending',
+                approvalRemarks: null,
+                approvedBy: null,
+                approvedAt: null,
               },
             ],
             totalDaysWorked: 20,
@@ -581,6 +587,61 @@ export class AttendanceController {
   })
   async getTodayTeamCheckIns(@Req() req: any) {
     return this.attendanceService.getTodayTeamCheckIns(req.user.id, req.user.tenant_id);
+  }
+
+  @Get('team/today/attendance')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('manager')
+  @Permissions('manage_attendance')
+  @ApiOperation({ summary: 'Get today\'s attendance (check-in/out) for team members who marked attendance today (Manager only)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns today\'s attendance for team members who have marked attendance today',
+    schema: {
+      example: {
+        items: [
+          {
+            user_id: 'user-uuid',
+            first_name: 'Jane',
+            last_name: 'Doe',
+            email: 'jane.doe@company.com',
+            profile_pic: 'profile_pic_url',
+            designation: 'Software Developer',
+            department: 'Engineering',
+            attendance: [
+              {
+                date: '2026-01-21',
+                checkIn: '2026-01-21T09:00:00Z',
+                checkOut: '2026-01-21T17:30:00Z',
+                workedHours: 8.5,
+              },
+            ],
+            totalDaysWorked: 1,
+            totalHoursWorked: 8.5,
+          },
+        ],
+        total: 3,
+      },
+    },
+  })
+  async getTodayTeamAttendance(@Req() req: any) {
+    const today = new Date().toISOString().split('T')[0];
+    const result = await this.attendanceService.getTeamAttendance(
+      req.user.id,
+      req.user.tenant_id,
+      today,
+      today,
+    );
+    
+    // Filter to only include team members who have marked attendance today (at least check-in)
+    const filteredItems = result.items.filter(member => 
+      member.attendance && member.attendance.length > 0 && member.attendance.some(a => a.checkIn !== null)
+    );
+    
+    return {
+      items: filteredItems,
+      total: filteredItems.length,
+    };
   }
 
   @Patch('check-in/:id/approve')

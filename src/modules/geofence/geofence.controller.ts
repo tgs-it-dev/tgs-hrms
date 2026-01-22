@@ -45,8 +45,7 @@ export class GeofenceController {
   }
 
   @Get()
-  @Roles('admin', 'system-admin', 'hr-admin', 'manager')
-  @Permissions('manage_geofences')
+  @UseGuards(JwtAuthGuard, TenantGuard)
   @ApiOperation({ summary: 'List geofences (optionally filtered by team)' })
   @ApiQuery({ name: 'team_id', required: false, description: 'Filter by team ID' })
   @ApiResponse({ status: 200, description: 'List of geofences returned.' })

@@ -8,13 +8,17 @@ import { Employee } from 'src/entities/employee.entity';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
 import { TeamModule } from '../team/team.module';
 import { Geofence } from '../../entities/geofence.entity';
+import { NotificationModule } from '../notification/notification.module';
+import { Team } from '../../entities/team.entity';
+import { User } from '../../entities/user.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Attendance, Employee, Geofence]),
+    TypeOrmModule.forFeature([Attendance, Employee, Geofence, Team, User]),
     TimesheetModule,
     SharedJwtModule,
     TeamModule,
+    NotificationModule,
   ],
   controllers: [AttendanceController],
   providers: [AttendanceService],
