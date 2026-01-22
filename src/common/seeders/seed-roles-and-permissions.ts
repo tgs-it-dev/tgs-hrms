@@ -156,6 +156,8 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
       ],
       manager: [
         'view_reports',
+        'manage_departments',
+        'manage_designations',
         'manage_attendance',
         'manage_leaves',
         'manage_timesheets',

@@ -52,7 +52,7 @@ export class PromotionController {
    * Get list of promotions (Employees see their own, Managers see all they created, HR-Admins see all)
    */
   @Get()
-  @Roles("employee", "manager", "hr-admin")
+  @Roles("employee", "manager", "hr-admin", 'admin')
   @ApiOperation({
     summary:
       "Get all promotions for a tenant (optionally filter by employeeId). Employees can only view their own records. Manager can view any promotions they created",
@@ -99,7 +99,7 @@ export class PromotionController {
    * Get a single promotion by ID
    */
   @Get(":id")
-  @Roles("employee", "manager", "hr-admin")
+  @Roles("employee", "manager", "hr-admin", 'admin')
   @ApiOperation({ summary: "Get a single promotion by ID" })
   @ApiResponse({
     status: 200,
@@ -127,7 +127,7 @@ export class PromotionController {
    * Approve or reject a promotion (HR Admin only)
    */
   @Put(":id/approve")
-  @Roles("hr-admin")
+  @Roles("hr-admin", 'admin')
   @ApiOperation({ summary: "Approve or reject a promotion request" })
   @ApiResponse({
     status: 200,
