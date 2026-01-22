@@ -3,17 +3,19 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
+  UpdateDateColumn,
   ManyToOne,
   JoinColumn,
   Index,
 } from 'typeorm';
 import { User } from './user.entity';
-import { AttendanceType } from '../common/constants/enums';
+import { AttendanceType, CheckInApprovalStatus } from '../common/constants/enums';
 
 @Index(['user_id'])
 @Index(['timestamp'])
 @Index(['user_id', 'timestamp'])
 @Index(['type'])
+@Index(['approval_status'])
 @Entity('attendance')
 export class Attendance {
   @PrimaryGeneratedColumn('uuid')
@@ -34,4 +36,29 @@ export class Attendance {
 
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
+
+  // Approval fields (only for CHECK_IN type)
+  @Column({ 
+    type: 'varchar', 
+    length: 20, 
+    nullable: true,
+    default: CheckInApprovalStatus.PENDING 
+  })
+  approval_status: CheckInApprovalStatus | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  approved_by: string | null;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'approved_by' })
+  approver: User;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  approved_at: Date | null;
+
+  @Column({ type: 'text', nullable: true })
+  approval_remarks: string | null;
+
+  @UpdateDateColumn({ type: 'timestamptz' })
+  updated_at: Date;
 }

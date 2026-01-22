@@ -7,9 +7,15 @@ import { TimesheetModule } from '../timesheet/timesheet.module';
 import { Employee } from 'src/entities/employee.entity';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
 import { TeamModule } from '../team/team.module';
+import { Geofence } from '../../entities/geofence.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Attendance, Employee]), TimesheetModule, SharedJwtModule, TeamModule],
+  imports: [
+    TypeOrmModule.forFeature([Attendance, Employee, Geofence]),
+    TimesheetModule,
+    SharedJwtModule,
+    TeamModule,
+  ],
   controllers: [AttendanceController],
   providers: [AttendanceService],
   exports: [AttendanceService],
