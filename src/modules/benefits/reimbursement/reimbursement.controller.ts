@@ -384,10 +384,15 @@ export class ReimbursementController {
       tenant_id,
       user.id,
     );
-    if (!employee) {
-      throw new BadRequestException('Employee not found');
-    }
+    // For HR/Admin users, there might not be a corresponding employee record.
+    // In that case, allow the review to proceed without linking to an employee.
+    const reviewerEmployeeId = employee ? employee.id : null;
 
-    return this.reimbursementService.review(tenant_id, id, employee.id, dto);
+    return this.reimbursementService.review(
+      tenant_id,
+      id,
+      reviewerEmployeeId,
+      dto,
+    );
   }
 }

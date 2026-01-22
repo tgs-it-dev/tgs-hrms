@@ -59,6 +59,13 @@ export class Attendance {
   @Column({ type: 'text', nullable: true })
   approval_remarks: string | null;
 
+  /**
+   * Indicates if the check-in/check-out was made within the threshold distance
+   * but outside the strict geofence boundary.
+   */
+  @Column({ type: 'boolean', default: false })
+  near_boundary: boolean;
+
   @UpdateDateColumn({ type: 'timestamptz' })
   updated_at: Date;
 }

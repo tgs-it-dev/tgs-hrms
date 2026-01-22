@@ -10,9 +10,7 @@ import { Request, Response, NextFunction } from 'express';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  // Correlation ID middleware is now handled by CorrelationIdMiddleware in AppModule
-
-  // Response time header middleware
+ 
   app.use((_req: Request, res: Response, next: NextFunction) => {
     const start = Date.now();
 
@@ -21,19 +19,19 @@ async function bootstrap() {
       try {
         res.setHeader('X-Response-Time', `${duration}ms`);
       } catch {
-        // Ignore if headers are already sent
+        
       }
     });
 
     next();
   });
 
-  // Serve static files from project root /public (matches upload services)
+  
   app.useStaticAssets(join(process.cwd(), 'public'), {
     prefix: '/',
   });
 
-  // Global validation pipe
+  
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -55,10 +53,10 @@ async function bootstrap() {
     })
   );
 
-  // Global HTTP exception filter
+
   app.useGlobalFilters(new HttpExceptionFilter());
 
-  // ✅ CORS Configuration - Allow frontend and localhost for development
+  
   const allowedOrigins = process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
     : [
@@ -67,21 +65,21 @@ async function bootstrap() {
         'http://localhost:5173',
         'http://localhost:3000',
         'http://localhost:3001',
-         'http://192.168.0.140:3001',
+         'http://192.168.0.109:3001',
       ];
 
   app.enableCors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, Postman, etc.)
+      
       if (!origin) {
         return callback(null, true);
       }
       
-      // Check if origin is in allowed list or if wildcard is enabled
+      
       if (allowedOrigins.includes('*') || allowedOrigins.indexOf(origin) !== -1) {
         callback(null, true);
       } else {
-        // Only log in development, not in production to avoid database clutter
+      
         if (process.env.NODE_ENV !== 'production') {
           console.warn(`CORS: Rejected origin: ${origin}. Allowed origins: ${allowedOrigins.join(', ')}`);
         }
@@ -103,7 +101,7 @@ async function bootstrap() {
     optionsSuccessStatus: 204,
   });
 
-  // Swagger docs
+  
   const config = new DocumentBuilder()
     .setTitle('HRMS Backend APIs')
     .setDescription('APIs for login, registration and tenant-based access for Department and Designation')
@@ -118,7 +116,7 @@ async function bootstrap() {
     }
   });
 
-  // ✅ Use Render-provided PORT or fallback to 3001
+  
   const port = parseInt(process.env.PORT || '3001', 10);
   await app.listen(port, '0.0.0.0');
 }

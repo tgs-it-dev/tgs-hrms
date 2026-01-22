@@ -217,21 +217,25 @@ export enum SalaryStatus {
 //   FAILED = 'failed',
 // }
 
-// // Notification Enums
-// export enum NotificationType {
-//   EMAIL = 'email',
-//   SMS = 'sms',
-//   PUSH = 'push',
-//   IN_APP = 'in_app',
-// }
+// Notification Enums
+export enum NotificationType {
+  EMAIL = 'email',
+  SMS = 'sms',
+  PUSH = 'push',
+  IN_APP = 'in_app',
+  LEAVE = 'leave',
+  ALERT = 'alert',
+  ATTENDANCE = 'attendance',
+}
 
-// export enum NotificationStatus {
-//   PENDING = 'pending',
-//   SENT = 'sent',
-//   DELIVERED = 'delivered',
-//   FAILED = 'failed',
-//   READ = 'read',
-// }
+export enum NotificationStatus {
+  PENDING = 'pending',
+  SENT = 'sent',
+  DELIVERED = 'delivered',
+  FAILED = 'failed',
+  READ = 'read',
+  UNREAD = 'unread',
+}
 
 // // Audit Enums
 // export enum AuditAction {

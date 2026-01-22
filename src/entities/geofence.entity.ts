@@ -81,6 +81,21 @@ export class Geofence {
   @Column({ type: 'varchar', length: 10, default: GeofenceStatus.ACTIVE })
   status: GeofenceStatus;
 
+  /**
+   * Threshold distance in meters (tolerance outside the boundary).
+   * Nullable. Only used when threshold_enabled is true.
+   */
+  @Column({ type: 'numeric', nullable: true })
+  threshold_distance: string | null;
+
+  /**
+   * Whether threshold distance is enabled.
+   * If enabled, employees within threshold can check in and action is marked as "Near Boundary".
+   * If disabled, employees must be strictly inside the geofence.
+   */
+  @Column({ type: 'boolean', default: false })
+  threshold_enabled: boolean;
+
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
 
