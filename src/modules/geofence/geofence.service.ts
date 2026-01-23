@@ -6,9 +6,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, Not } from 'typeorm';
 import { Geofence, GeofenceStatus, GeofenceType } from '../../entities/geofence.entity';
 import { Team } from '../../entities/team.entity';
+import { Employee } from '../../entities/employee.entity';
 import { CreateGeofenceDto } from './dto/create-geofence.dto';
 import { UpdateGeofenceDto } from './dto/update-geofence.dto';
 import { getPostgresErrorCode } from '../../common/types/database.types';
@@ -20,6 +21,8 @@ export class GeofenceService {
     private readonly repo: Repository<Geofence>,
     @InjectRepository(Team)
     private readonly teamRepo: Repository<Team>,
+    @InjectRepository(Employee)
+    private readonly employeeRepo: Repository<Employee>,
   ) {}
 
   private validateCoordinates(coordinates: unknown): asserts coordinates is number[][] {
@@ -130,6 +133,22 @@ export class GeofenceService {
         );
       }
 
+      // Business Logic: If new geofence is being created as ACTIVE, deactivate all existing ACTIVE geofences for this team
+      const newStatus = dto.status ?? GeofenceStatus.ACTIVE;
+      if (newStatus === GeofenceStatus.ACTIVE) {
+        // Deactivate all existing active geofences for this team
+        await this.repo.update(
+          {
+            tenant_id,
+            team_id: dto.team_id,
+            status: GeofenceStatus.ACTIVE,
+          },
+          {
+            status: GeofenceStatus.INACTIVE,
+          },
+        );
+      }
+
       const geofence = this.repo.create({
         tenant_id,
         team_id: dto.team_id,
@@ -140,7 +159,7 @@ export class GeofenceService {
         coordinates,
         latitude: String(latitude),
         longitude: String(longitude),
-        status: dto.status ?? GeofenceStatus.ACTIVE,
+        status: newStatus,
         threshold_distance: dto.threshold_distance !== undefined && dto.threshold_distance !== null ? String(dto.threshold_distance) : null,
         threshold_enabled: dto.threshold_enabled ?? false,
       });
@@ -197,14 +216,54 @@ export class GeofenceService {
       });
     }
 
-    // For admin/hr-admin, filter by team_id if provided
-    const where: any = { tenant_id };
-    if (team_id) {
-      where.team_id = team_id;
+    // If user is an employee, automatically filter by their team_id
+    if (user_role === 'employee' && user_id) {
+      const employee = await this.employeeRepo.findOne({
+        where: { user_id },
+      });
+
+      if (!employee) {
+        throw new NotFoundException('Employee not found.');
+      }
+
+      if (!employee.team_id) {
+        // Employee has no team, return empty array
+        return [];
+      }
+
+      // Override team_id with employee's team_id to ensure team isolation
+      const employeeTeamId = employee.team_id;
+
+      return this.repo.find({
+        where: { tenant_id, team_id: employeeTeamId },
+        relations: ['team', 'team.manager'],
+        order: { created_at: 'DESC' },
+      });
+    }
+
+    // For admin/hr-admin/system-admin, team_id is mandatory to ensure team isolation
+    if (!team_id) {
+      throw new BadRequestException(
+        'team_id is required. Geofences are team-specific and must be filtered by team_id to ensure proper team isolation.',
+      );
+    }
+
+    // Verify team belongs to tenant
+    const team = await this.teamRepo.findOne({
+      where: { id: team_id },
+      relations: ['manager'],
+    });
+
+    if (!team) {
+      throw new NotFoundException('Team not found.');
+    }
+
+    if (team.manager.tenant_id !== tenant_id) {
+      throw new BadRequestException('Team does not belong to your organization.');
     }
 
     return this.repo.find({
-      where,
+      where: { tenant_id, team_id },
       relations: ['team', 'team.manager'],
       order: { created_at: 'DESC' },
     });
@@ -286,6 +345,22 @@ export class GeofenceService {
         }
       }
 
+      // Business Logic: If geofence is ACTIVE and being moved to a new team, deactivate all ACTIVE geofences in the new team
+      const willBeActive = dto.status !== undefined ? dto.status === GeofenceStatus.ACTIVE : geofence.status === GeofenceStatus.ACTIVE;
+      if (willBeActive) {
+        await this.repo.update(
+          {
+            tenant_id,
+            team_id: dto.team_id,
+            status: GeofenceStatus.ACTIVE,
+            id: Not(geofence.id), // Exclude current geofence
+          },
+          {
+            status: GeofenceStatus.INACTIVE,
+          },
+        );
+      }
+
       geofence.team_id = dto.team_id;
     }
 
@@ -338,7 +413,24 @@ export class GeofenceService {
       }
     }
 
-    if (dto.status !== undefined) geofence.status = dto.status;
+    // Business Logic: If geofence status is being changed to ACTIVE, deactivate all other ACTIVE geofences for this team
+    if (dto.status !== undefined) {
+      if (dto.status === GeofenceStatus.ACTIVE && geofence.status !== GeofenceStatus.ACTIVE) {
+        // Deactivate all existing active geofences for this team (except the current one)
+        await this.repo.update(
+          {
+            tenant_id,
+            team_id: geofence.team_id,
+            status: GeofenceStatus.ACTIVE,
+            id: Not(geofence.id), // Exclude current geofence
+          },
+          {
+            status: GeofenceStatus.INACTIVE,
+          },
+        );
+      }
+      geofence.status = dto.status;
+    }
 
     // Threshold fields
     if (dto.threshold_distance !== undefined) {
