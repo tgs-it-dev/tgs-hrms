@@ -3,11 +3,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
 import { Geofence } from '../../entities/geofence.entity';
 import { Team } from '../../entities/team.entity';
+import { Employee } from '../../entities/employee.entity';
 import { GeofenceController } from './geofence.controller';
 import { GeofenceService } from './geofence.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Geofence, Team]), SharedJwtModule],
+  imports: [TypeOrmModule.forFeature([Geofence, Team, Employee]), SharedJwtModule],
   controllers: [GeofenceController],
   providers: [GeofenceService],
   exports: [GeofenceService],
