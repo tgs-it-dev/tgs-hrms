@@ -83,3 +83,9 @@ export class EditLeaveDto {
   @IsOptional()
   documentsToRemove?: string[];
 }
+
+export class RemoveLeaveDocumentDto {
+  @ApiProperty({ description: 'Document URL to remove (e.g. /leave-documents/xxx.png)', example: '/leave-documents/8afaf744-278d-4905-aecd-79bff53941f0-1769611361810.png' })
+  @IsString()
+  documentUrl: string;
+}
