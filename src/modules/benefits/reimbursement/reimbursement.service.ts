@@ -267,17 +267,20 @@ export class ReimbursementService {
       );
     }
 
-    // Handle new document uploads
+    // Handle new document uploads: purani sab remove karo, sirf nayi rakhna
     if (files && files.length > 0) {
+      if (request.proofDocuments && request.proofDocuments.length > 0) {
+        await this.fileUploadService.deleteReimbursementDocuments(
+          request.proofDocuments,
+        );
+        request.proofDocuments = [];
+      }
       const newDocuments =
         await this.fileUploadService.uploadReimbursementDocuments(
           files,
           request.id,
         );
-      request.proofDocuments = [
-        ...request.proofDocuments,
-        ...newDocuments,
-      ];
+      request.proofDocuments = newDocuments;
     }
 
     await this.reimbursementRepo.save(request);

@@ -563,6 +563,42 @@ export class LeaveService {
     return await this.leaveRepo.save(leave);
   }
 
+  async removeLeaveDocument(
+    leaveId: string,
+    documentUrl: string,
+    employeeId: string,
+    tenantId: string,
+    requesterRole?: string,
+  ): Promise<Leave> {
+    const leave = await this.leaveRepo.findOne({
+      where: { id: leaveId, tenantId },
+      relations: ['leaveType'],
+    });
+
+    if (!leave) {
+      throw new NotFoundException('Leave not found');
+    }
+
+    const isAdminOrHrAdmin = requesterRole && ['admin', 'hr-admin', 'system-admin'].includes(requesterRole.toLowerCase());
+    if (leave.employeeId !== employeeId && !isAdminOrHrAdmin) {
+      throw new ForbiddenException('You can only edit your own leave requests');
+    }
+
+    const docs = leave.documents || [];
+    if (!docs.includes(documentUrl)) {
+      throw new NotFoundException('Document not found on this leave');
+    }
+
+    leave.documents = docs.filter((d) => d !== documentUrl);
+    await this.leaveFileUploadService.deleteLeaveDocument(documentUrl);
+    const saved = await this.leaveRepo.save(leave);
+    const updated = await this.leaveRepo.findOne({
+      where: { id: leaveId, tenantId },
+      relations: ['leaveType', 'employee', 'approver'],
+    });
+    return updated ?? saved;
+  }
+
   /**
    * Edit a leave request with conditional restrictions:
    * - If leave is not approved: can edit all fields

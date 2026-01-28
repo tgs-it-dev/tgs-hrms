@@ -4,6 +4,7 @@ import {
   Post,
   Patch,
   Put,
+  Delete,
   Param,
   Body,
   Query,
@@ -20,7 +21,7 @@ import { ForbiddenException, ValidationPipe } from '@nestjs/common';
 import { LeaveService } from './leave.service';
 import { CreateLeaveDto } from './dto/create-leave.dto';
 import { CreateLeaveForEmployeeDto } from './dto/create-leave-for-employee.dto';
-import { ApproveLeaveDto, RejectLeaveDto, ManagerRemarksDto, EditLeaveDto } from './dto/update-leave.dto';
+import { ApproveLeaveDto, RejectLeaveDto, ManagerRemarksDto, EditLeaveDto, RemoveLeaveDocumentDto } from './dto/update-leave.dto';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
@@ -686,6 +687,39 @@ export class LeaveController {
     // console.log('EditLeave DTO received:', JSON.stringify(dto, null, 2));
     
     return this.leaveService.editLeave(id, req.user.id, req.user.tenant_id, dto, files, req.user.role);
+  }
+
+  @Delete(':id/documents')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Remove one document from leave (e.g. click on image to delete)' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['documentUrl'],
+      properties: {
+        documentUrl: {
+          type: 'string',
+          example: '/leave-documents/8afaf744-278d-4905-aecd-79bff53941f0-1769611361810.png',
+          description: 'URL of the document to remove',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Document removed successfully' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Leave or document not found' })
+  async removeLeaveDocument(
+    @Param('id') id: string,
+    @Body() dto: RemoveLeaveDocumentDto,
+    @Request() req: any,
+  ) {
+    return this.leaveService.removeLeaveDocument(
+      id,
+      dto.documentUrl,
+      req.user.id,
+      req.user.tenant_id,
+      req.user.role,
+    );
   }
 
   
