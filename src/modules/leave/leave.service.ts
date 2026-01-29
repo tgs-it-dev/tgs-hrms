@@ -129,24 +129,25 @@ export class LeaveService {
       await this.leaveRepo.save(savedLeave);
     }
 
-    // Notify manager when employee applies for leave (DB + real-time)
+    // Notify manager when employee applies for leave (DB + real-time). Skip when manager applied for their own leave.
     try {
       const employee = await this.employeeRepo.findOne({
         where: { user_id: employeeId },
         relations: ['team', 'user'],
       });
 
-      if (employee?.team?.manager_id) {
+      const managerId = employee?.team?.manager_id;
+      if (employee?.team && managerId && managerId !== employeeId) {
         const employeeName = `${employee.user?.first_name || ''} ${employee.user?.last_name || ''}`.trim();
         const message = `Leave request pending approval from ${employeeName || 'an employee'}`;
         const notification = await this.notificationService.create(
-          employee.team.manager_id,
+          managerId,
           tenantId,
           message,
           NotificationType.LEAVE,
           { relatedEntityType: 'leave', relatedEntityId: savedLeave.id },
         );
-        this.notificationGateway.sendToUser(employee.team.manager_id, 'new_notification', {
+        this.notificationGateway.sendToUser(managerId, 'new_notification', {
           id: notification.id,
           message: notification.message,
           type: notification.type,
