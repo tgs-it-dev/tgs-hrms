@@ -29,4 +29,22 @@ export class SendNotificationDto {
   @IsEnum(NotificationType)
   @IsNotEmpty()
   type: NotificationType;
+
+  @ApiProperty({
+    description: 'Related entity type for click redirect (e.g. leave, attendance)',
+    example: 'leave',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  related_entity_type?: string;
+
+  @ApiProperty({
+    description: 'Related entity ID for deep link',
+    example: 'uuid',
+    required: false,
+  })
+  @IsOptional()
+  @IsUUID(4)
+  related_entity_id?: string;
 }

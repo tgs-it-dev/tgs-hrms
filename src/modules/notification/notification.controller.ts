@@ -154,6 +154,9 @@ export class NotificationController {
       req.user.tenant_id,
       dto.message,
       dto.type,
+      dto.related_entity_type || dto.related_entity_id
+        ? { relatedEntityType: dto.related_entity_type, relatedEntityId: dto.related_entity_id }
+        : undefined,
     );
 
     return {
