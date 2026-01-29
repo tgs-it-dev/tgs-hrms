@@ -11,6 +11,7 @@ import { User } from '../../entities/user.entity';
 import { Employee } from 'src/entities/employee.entity';
 import { LeaveFileUploadService } from './services/leave-file-upload.service';
 import { NotificationService } from '../notification/notification.service';
+import { NotificationGateway } from '../notification/notification.gateway';
 import { Team } from '../../entities/team.entity';
 
 @Injectable()
@@ -28,6 +29,7 @@ export class LeaveService {
     private readonly teamRepo: Repository<Team>,
     private readonly leaveFileUploadService: LeaveFileUploadService,
     private readonly notificationService: NotificationService,
+    private readonly notificationGateway: NotificationGateway,
   ) {}
 
   async createLeave(
@@ -127,7 +129,7 @@ export class LeaveService {
       await this.leaveRepo.save(savedLeave);
     }
 
-    // Notify manager when employee applies for leave
+    // Notify manager when employee applies for leave (DB + real-time)
     try {
       const employee = await this.employeeRepo.findOne({
         where: { user_id: employeeId },
@@ -136,12 +138,22 @@ export class LeaveService {
 
       if (employee?.team?.manager_id) {
         const employeeName = `${employee.user?.first_name || ''} ${employee.user?.last_name || ''}`.trim();
-        await this.notificationService.create(
+        const message = `Leave request pending approval from ${employeeName || 'an employee'}`;
+        const notification = await this.notificationService.create(
           employee.team.manager_id,
           tenantId,
-          `Leave request pending approval from ${employeeName || 'an employee'}`,
+          message,
           NotificationType.LEAVE,
+          { relatedEntityType: 'leave', relatedEntityId: savedLeave.id },
         );
+        this.notificationGateway.sendToUser(employee.team.manager_id, 'new_notification', {
+          id: notification.id,
+          message: notification.message,
+          type: notification.type,
+          related_entity_type: 'leave',
+          related_entity_id: savedLeave.id,
+          created_at: notification.created_at,
+        });
       }
     } catch (error) {
       // Don't fail leave creation if notification fails
@@ -435,14 +447,23 @@ export class LeaveService {
 
     const saved = await this.leaveRepo.save(leave);
 
-    // Notify employee when leave is approved
+    // Notify employee when leave is approved (DB + real-time)
     try {
-      await this.notificationService.create(
+      const notification = await this.notificationService.create(
         leave.employeeId,
         tenantId,
         'Your leave request was approved',
         NotificationType.LEAVE,
+        { relatedEntityType: 'leave', relatedEntityId: saved.id },
       );
+      this.notificationGateway.sendToUser(leave.employeeId, 'new_notification', {
+        id: notification.id,
+        message: notification.message,
+        type: notification.type,
+        related_entity_type: 'leave',
+        related_entity_id: saved.id,
+        created_at: notification.created_at,
+      });
     } catch (error) {
       // Don't fail approval if notification fails
       console.error('Failed to create leave approval notification:', error);
@@ -472,14 +493,23 @@ export class LeaveService {
 
     const saved = await this.leaveRepo.save(leave);
 
-    // Notify employee when leave is rejected
+    // Notify employee when leave is rejected (DB + real-time)
     try {
-      await this.notificationService.create(
+      const notification = await this.notificationService.create(
         leave.employeeId,
         tenantId,
         'Your leave request was rejected',
         NotificationType.LEAVE,
+        { relatedEntityType: 'leave', relatedEntityId: saved.id },
       );
+      this.notificationGateway.sendToUser(leave.employeeId, 'new_notification', {
+        id: notification.id,
+        message: notification.message,
+        type: notification.type,
+        related_entity_type: 'leave',
+        related_entity_id: saved.id,
+        created_at: notification.created_at,
+      });
     } catch (error) {
       // Don't fail rejection if notification fails
       console.error('Failed to create leave rejection notification:', error);

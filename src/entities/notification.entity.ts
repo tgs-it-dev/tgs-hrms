@@ -45,6 +45,14 @@ export class Notification {
   @Column({ type: 'varchar', length: 20, default: NotificationStatus.UNREAD })
   status: NotificationStatus;
 
+  /** e.g. 'leave', 'attendance' - for click-to-redirect */
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  related_entity_type: string | null;
+
+  /** e.g. leave_id, attendance_id - for deep link */
+  @Column({ type: 'uuid', nullable: true })
+  related_entity_id: string | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
 

@@ -4,8 +4,6 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule } from '@nestjs/config';
 import { Notification } from '../../entities/notification.entity';
 import { User } from '../../entities/user.entity';
-import { Employee } from '../../entities/employee.entity';
-import { Team } from '../../entities/team.entity';
 import { NotificationController } from './notification.controller';
 import { NotificationService } from './notification.service';
 import { NotificationGateway } from './notification.gateway';
@@ -13,7 +11,7 @@ import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Notification, User, Employee, Team]),
+    TypeOrmModule.forFeature([Notification, User]),
     JwtModule,
     ConfigModule,
     AuthModule,

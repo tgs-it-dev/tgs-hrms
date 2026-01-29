@@ -19,6 +19,7 @@ import { TimesheetService } from '../timesheet/timesheet.service';
 import { TeamService } from '../team/team.service';
 import { isPointWithinGeofence, checkPointWithinGeofence } from '../../common/utils/geofence.util';
 import { NotificationGateway } from '../notification/notification.gateway';
+import { NotificationService } from '../notification/notification.service';
 import { NotificationType } from '../../common/constants/enums';
 
 @Injectable()
@@ -33,6 +34,7 @@ export class AttendanceService {
     private readonly timesheetService: TimesheetService,
     private readonly teamService: TeamService,
     private readonly notificationGateway: NotificationGateway,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async create(userId: string, dto: CreateAttendanceDto, tenantId?: string) {
@@ -111,24 +113,43 @@ export class AttendanceService {
     });
     const saved = await this.attendanceRepo.save(attendance);
 
-    // Send WebSocket notification to manager
-    if (employee && employee.team && employee.team.manager_id) {
+    // Notify manager: save in DB (record) + real-time WebSocket
+    if (employee && employee.team && employee.team.manager_id && tenantId) {
       const employeeName = `${employee.user.first_name} ${employee.user.last_name}`.trim();
       const actionType = dto.type === AttendanceType.CHECK_IN ? 'checked in' : 'checked out';
       const nearBoundaryText = saved.near_boundary ? ' (Near Boundary)' : '';
-      
-      this.notificationGateway.sendToUser(
-        employee.team.manager_id,
-        'attendance_event',
-        {
+      const message = `${employeeName} ${actionType}${nearBoundaryText}`;
+
+      try {
+        const notification = await this.notificationService.create(
+          employee.team.manager_id,
+          tenantId,
+          message,
+          NotificationType.ATTENDANCE,
+          { relatedEntityType: 'attendance', relatedEntityId: saved.id },
+        );
+        this.notificationGateway.sendToUser(employee.team.manager_id, 'new_notification', {
+          id: notification.id,
+          message: notification.message,
+          type: notification.type,
+          related_entity_type: 'attendance',
+          related_entity_id: saved.id,
+          created_at: notification.created_at,
+        });
+        this.notificationGateway.sendToUser(employee.team.manager_id, 'attendance_event', {
           type: dto.type,
           employee_id: userId,
           employee_name: employeeName,
           timestamp: saved.timestamp,
-          message: `${employeeName} ${actionType}${nearBoundaryText}`,
+          message,
           near_boundary: saved.near_boundary,
-        },
-      );
+          notification_id: notification.id,
+          related_entity_type: 'attendance',
+          related_entity_id: saved.id,
+        });
+      } catch (error) {
+        console.error('Failed to create attendance notification:', error);
+      }
     }
 
     if (dto.type === AttendanceType.CHECK_OUT) {
