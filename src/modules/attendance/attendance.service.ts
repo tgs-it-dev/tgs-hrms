@@ -113,8 +113,9 @@ export class AttendanceService {
     });
     const saved = await this.attendanceRepo.save(attendance);
 
-    // Notify manager: save in DB (record) + real-time WebSocket
-    if (employee && employee.team && employee.team.manager_id && tenantId) {
+    // Notify manager: save in DB (record) + real-time WebSocket. Skip when manager is notifying themselves (own attendance).
+    const managerId = employee?.team?.manager_id;
+    if (employee && managerId && tenantId && managerId !== userId) {
       const employeeName = `${employee.user.first_name} ${employee.user.last_name}`.trim();
       const actionType = dto.type === AttendanceType.CHECK_IN ? 'checked in' : 'checked out';
       const nearBoundaryText = saved.near_boundary ? ' (Near Boundary)' : '';
@@ -122,13 +123,13 @@ export class AttendanceService {
 
       try {
         const notification = await this.notificationService.create(
-          employee.team.manager_id,
+          managerId,
           tenantId,
           message,
           NotificationType.ATTENDANCE,
           { relatedEntityType: 'attendance', relatedEntityId: saved.id },
         );
-        this.notificationGateway.sendToUser(employee.team.manager_id, 'new_notification', {
+        this.notificationGateway.sendToUser(managerId, 'new_notification', {
           id: notification.id,
           message: notification.message,
           type: notification.type,
@@ -136,7 +137,7 @@ export class AttendanceService {
           related_entity_id: saved.id,
           created_at: notification.created_at,
         });
-        this.notificationGateway.sendToUser(employee.team.manager_id, 'attendance_event', {
+        this.notificationGateway.sendToUser(managerId, 'attendance_event', {
           type: dto.type,
           employee_id: userId,
           employee_name: employeeName,
