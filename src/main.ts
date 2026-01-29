@@ -6,7 +6,8 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { Request, Response, NextFunction } from 'express';
-import basicAuth from 'express-basic-auth';
+// Use require() so production build works (express-basic-auth is CommonJS, no default export)
+const basicAuth = require('express-basic-auth');
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
