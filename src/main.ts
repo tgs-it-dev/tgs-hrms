@@ -6,6 +6,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { Request, Response, NextFunction } from 'express';
+import basicAuth from 'express-basic-auth';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -102,6 +103,22 @@ async function bootstrap() {
   });
 
   
+  // Protect Swagger with Basic Auth when SWAGGER_PASSWORD is set (e.g. on Render/live)
+  const swaggerPassword = process.env.SWAGGER_PASSWORD;
+  const swaggerUser = process.env.SWAGGER_USER || 'admin';
+  if (swaggerPassword) {
+    app.use(
+      '/api',
+      basicAuth({
+        users: {
+          [swaggerUser]: swaggerPassword,
+        },
+        challenge: true,
+        realm: 'HRMS API Docs',
+      }),
+    );
+  }
+
   const config = new DocumentBuilder()
     .setTitle('HRMS Backend APIs')
     .setDescription('APIs for login, registration and tenant-based access for Department and Designation')
