@@ -11,10 +11,13 @@ import { TaskHistory } from '../../entities/task-history.entity';
 import { Employee } from '../../entities/employee.entity';
 import { Team } from '../../entities/team.entity';
 import { TaskStatus } from '../../common/constants/enums';
+import { NotificationType } from '../../common/constants/enums';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { AssignTaskDto } from './dto/assign-task.dto';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
+import { NotificationService } from '../notification/notification.service';
+import { NotificationGateway } from '../notification/notification.gateway';
 
 @Injectable()
 export class TaskService {
@@ -28,6 +31,8 @@ export class TaskService {
     @InjectRepository(Team)
     private teamRepo: Repository<Team>,
     private readonly dataSource: DataSource,
+    private readonly notificationService: NotificationService,
+    private readonly notificationGateway: NotificationGateway,
   ) { }
 
   /**
@@ -115,7 +120,40 @@ export class TaskService {
       tenant_id: tenantId,
     });
 
-    return await this.taskRepo.save(task);
+    const savedTask = await this.taskRepo.save(task);
+
+    // Notify only the assigned employee (not the manager/creator)
+    if (savedTask.assigned_to) {
+      try {
+        const assignedEmployee = await this.employeeRepo.findOne({
+          where: { id: savedTask.assigned_to },
+          relations: ['user'],
+        });
+        const assigneeUserId = assignedEmployee?.user_id ?? assignedEmployee?.user?.id;
+        if (assigneeUserId) {
+          const message = `You have been assigned a new task: ${savedTask.title}`;
+          const notification = await this.notificationService.create(
+            assigneeUserId,
+            tenantId,
+            message,
+            NotificationType.TASK,
+            { relatedEntityType: 'task', relatedEntityId: savedTask.id },
+          );
+          this.notificationGateway.sendToUser(assigneeUserId, 'new_notification', {
+            id: notification.id,
+            message: notification.message,
+            type: notification.type,
+            related_entity_type: 'task',
+            related_entity_id: savedTask.id,
+            created_at: notification.created_at,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to create task assignment notification:', error);
+      }
+    }
+
+    return savedTask;
   }
 
   /**
@@ -428,7 +466,40 @@ export class TaskService {
       }
     }
 
-    return await this.taskRepo.save(task);
+    const savedTask = await this.taskRepo.save(task);
+
+    // When assigning to an employee, notify only that employee (not the manager)
+    if (dto.assigned_to) {
+      try {
+        const assignedEmployee = await this.employeeRepo.findOne({
+          where: { id: dto.assigned_to },
+          relations: ['user'],
+        });
+        const assigneeUserId = assignedEmployee?.user_id ?? assignedEmployee?.user?.id;
+        if (assigneeUserId) {
+          const message = `You have been assigned a task: ${savedTask.title}`;
+          const notification = await this.notificationService.create(
+            assigneeUserId,
+            tenantId,
+            message,
+            NotificationType.TASK,
+            { relatedEntityType: 'task', relatedEntityId: savedTask.id },
+          );
+          this.notificationGateway.sendToUser(assigneeUserId, 'new_notification', {
+            id: notification.id,
+            message: notification.message,
+            type: notification.type,
+            related_entity_type: 'task',
+            related_entity_id: savedTask.id,
+            created_at: notification.created_at,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to create task assignment notification:', error);
+      }
+    }
+
+    return savedTask;
   }
 
   /**
@@ -486,6 +557,39 @@ export class TaskService {
       await queryRunner.manager.getRepository(Task).update(task.id, { status: newStatus });
 
       await queryRunner.commitTransaction();
+
+      // Notify only the manager (not the employee who updated)
+      try {
+        let managerId: string | null = task.team?.manager_id ?? null;
+        if (!managerId && task.created_by) {
+          const creator = await this.employeeRepo.findOne({
+            where: { id: task.created_by },
+            relations: ['team'],
+          });
+          managerId = creator?.team?.manager_id ?? null;
+        }
+        if (managerId && managerId !== userId) {
+          const message = `Task "${task.title}" status updated to ${newStatus}`;
+          const notification = await this.notificationService.create(
+            managerId,
+            tenantId,
+            message,
+            NotificationType.TASK,
+            { relatedEntityType: 'task', relatedEntityId: task.id },
+          );
+          this.notificationGateway.sendToUser(managerId, 'new_notification', {
+            id: notification.id,
+            message: notification.message,
+            type: notification.type,
+            related_entity_type: 'task',
+            related_entity_id: task.id,
+            created_at: notification.created_at,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to create task status update notification:', error);
+      }
+
       return task;
     } catch (err) {
       await queryRunner.rollbackTransaction();

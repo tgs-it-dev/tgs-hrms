@@ -7,11 +7,13 @@ import { Team } from '../../entities/team.entity';
 import { TaskService } from './task.service';
 import { TaskController } from './task.controller';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Task, TaskHistory, Employee, Team]),
     SharedJwtModule,
+    NotificationModule,
   ],
   controllers: [TaskController],
   providers: [TaskService],

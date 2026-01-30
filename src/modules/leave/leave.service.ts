@@ -78,7 +78,7 @@ export class LeaveService {
       .where('leave.employeeId = :employeeId', { employeeId })
       .andWhere('leave.tenantId = :tenantId', { tenantId })
       .andWhere('leave.status IN (:...statuses)', {
-        statuses: [LeaveStatus.PENDING, LeaveStatus.APPROVED],
+        statuses: [LeaveStatus.PENDING, LeaveStatus.PROCESSING, LeaveStatus.APPROVED],
       })
       .andWhere('leave.startDate <= :endDate', { endDate })
       .andWhere('leave.endDate >= :startDate', { startDate })
@@ -129,7 +129,7 @@ export class LeaveService {
       await this.leaveRepo.save(savedLeave);
     }
 
-    // Notify manager when employee applies for leave (DB + real-time). Skip when manager applied for their own leave.
+    // Notify only manager when employee applies (admin/hr get "pending" only when manager approves).
     try {
       const employee = await this.employeeRepo.findOne({
         where: { user_id: employeeId },
@@ -137,9 +137,14 @@ export class LeaveService {
       });
 
       const managerId = employee?.team?.manager_id;
+      const employeeName = `${employee?.user?.first_name || ''} ${employee?.user?.last_name || ''}`.trim();
+      const message = `Leave request pending approval from ${employeeName || 'an employee'}`;
+      const payload = {
+        related_entity_type: 'leave' as const,
+        related_entity_id: savedLeave.id,
+      };
+
       if (employee?.team && managerId && managerId !== employeeId) {
-        const employeeName = `${employee.user?.first_name || ''} ${employee.user?.last_name || ''}`.trim();
-        const message = `Leave request pending approval from ${employeeName || 'an employee'}`;
         const notification = await this.notificationService.create(
           managerId,
           tenantId,
@@ -151,17 +156,31 @@ export class LeaveService {
           id: notification.id,
           message: notification.message,
           type: notification.type,
-          related_entity_type: 'leave',
-          related_entity_id: savedLeave.id,
+          ...payload,
           created_at: notification.created_at,
         });
       }
     } catch (error) {
-      // Don't fail leave creation if notification fails
       console.error('Failed to create leave application notification:', error);
     }
 
     return savedLeave;
+  }
+
+  /**
+   * Get user IDs of tenant users with role admin, hr-admin, or system-admin (for pending leave notifications).
+   */
+  private async getTenantAdminAndHrAdminUserIds(tenantId: string): Promise<string[]> {
+    const users = await this.userRepo
+      .createQueryBuilder('user')
+      .innerJoin('user.role', 'role')
+      .where('user.tenant_id = :tenantId', { tenantId })
+      .andWhere('role.name IN (:...names)', {
+        names: ['admin', 'hr-admin', 'system-admin'],
+      })
+      .select('user.id')
+      .getRawMany<{ user_id: string }>();
+    return users.map((r) => r.user_id);
   }
 
   /**
@@ -223,7 +242,7 @@ export class LeaveService {
       .where('leave.employeeId = :employeeId', { employeeId: dto.employeeId })
       .andWhere('leave.tenantId = :tenantId', { tenantId })
       .andWhere('leave.status IN (:...statuses)', {
-        statuses: [LeaveStatus.PENDING, LeaveStatus.APPROVED],
+        statuses: [LeaveStatus.PENDING, LeaveStatus.PROCESSING, LeaveStatus.APPROVED],
       })
       .andWhere('leave.startDate <= :endDate', { endDate })
       .andWhere('leave.endDate >= :startDate', { startDate })
@@ -263,6 +282,40 @@ export class LeaveService {
       );
       savedLeave.documents = documentUrls;
       await this.leaveRepo.save(savedLeave);
+    }
+
+    // Notify only manager (admin/hr get "pending" only when manager approves).
+    try {
+      const employee = await this.employeeRepo.findOne({
+        where: { user_id: dto.employeeId },
+        relations: ['team', 'user'],
+      });
+      const managerId = employee?.team?.manager_id;
+      const employeeName = `${employee?.user?.first_name || ''} ${employee?.user?.last_name || ''}`.trim();
+      const message = `Leave request pending approval from ${employeeName || 'an employee'}`;
+      const payload = {
+        related_entity_type: 'leave' as const,
+        related_entity_id: savedLeave.id,
+      };
+
+      if (employee?.team && managerId && managerId !== dto.employeeId) {
+        const notification = await this.notificationService.create(
+          managerId,
+          tenantId,
+          message,
+          NotificationType.LEAVE,
+          { relatedEntityType: 'leave', relatedEntityId: savedLeave.id },
+        );
+        this.notificationGateway.sendToUser(managerId, 'new_notification', {
+          id: notification.id,
+          message: notification.message,
+          type: notification.type,
+          ...payload,
+          created_at: notification.created_at,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to create leave notification (createLeaveForEmployee):', error);
     }
 
     return savedLeave;
@@ -366,8 +419,9 @@ export class LeaveService {
     if (status) {
       queryBuilder.andWhere('leave.status = :status', { status });
     } else {
+      // Admin sees only PROCESSING (awaiting their approval), APPROVED, REJECTED — not PENDING (manager-only)
       queryBuilder.andWhere('leave.status IN (:...statuses)', {
-        statuses: [LeaveStatus.PENDING, LeaveStatus.APPROVED, LeaveStatus.REJECTED],
+        statuses: [LeaveStatus.PROCESSING, LeaveStatus.APPROVED, LeaveStatus.REJECTED],
       });
     }
 
@@ -437,40 +491,113 @@ export class LeaveService {
       throw new NotFoundException('Leave not found');
     }
 
-    if (leave.status !== LeaveStatus.PENDING) {
-      throw new ForbiddenException('Only pending leaves can be approved');
+    const isPending = leave.status === LeaveStatus.PENDING;
+    const isProcessing = leave.status === LeaveStatus.PROCESSING;
+    if (!isPending && !isProcessing) {
+      throw new ForbiddenException('Only pending or processing leaves can be approved');
     }
 
-    leave.status = LeaveStatus.APPROVED;
-    leave.approvedBy = approverId;
-    leave.approvedAt = new Date();
-    leave.remarks = remarks || '';
+    const employeeRecord = await this.employeeRepo.findOne({
+      where: { user_id: leave.employeeId },
+      relations: ['team'],
+    });
+    const managerId = employeeRecord?.team?.manager_id ?? null;
+    const isApproverManager = Boolean(managerId && approverId === managerId);
+    const isApproverAdminHr = await this.isUserAdminOrHrAdmin(approverId);
 
-    const saved = await this.leaveRepo.save(leave);
+    if (isPending && isApproverManager) {
+      // Manager approves: status → PROCESSING; notify employee + admin/hr (admin sees "Leave Processing")
+      leave.status = LeaveStatus.PROCESSING;
+      leave.approvedBy = approverId;
+      leave.approvedAt = new Date();
+      leave.remarks = remarks || '';
+      const saved = await this.leaveRepo.save(leave);
 
-    // Notify employee when leave is approved (DB + real-time)
-    try {
-      const notification = await this.notificationService.create(
-        leave.employeeId,
-        tenantId,
-        'Your leave request was approved',
-        NotificationType.LEAVE,
-        { relatedEntityType: 'leave', relatedEntityId: saved.id },
-      );
-      this.notificationGateway.sendToUser(leave.employeeId, 'new_notification', {
-        id: notification.id,
-        message: notification.message,
-        type: notification.type,
-        related_entity_type: 'leave',
-        related_entity_id: saved.id,
-        created_at: notification.created_at,
-      });
-    } catch (error) {
-      // Don't fail approval if notification fails
-      console.error('Failed to create leave approval notification:', error);
+      try {
+        const payload = { related_entity_type: 'leave' as const, related_entity_id: saved.id };
+        const empNotif = await this.notificationService.create(
+          leave.employeeId,
+          tenantId,
+          'Your leave has been approved by manager and is now in processing',
+          NotificationType.LEAVE,
+          { relatedEntityType: 'leave', relatedEntityId: saved.id },
+        );
+        this.notificationGateway.sendToUser(leave.employeeId, 'new_notification', {
+          id: empNotif.id,
+          message: empNotif.message,
+          type: empNotif.type,
+          ...payload,
+          created_at: empNotif.created_at,
+        });
+
+        const adminHrIds = await this.getTenantAdminAndHrAdminUserIds(tenantId);
+        const message = 'Leave Processing';
+        for (const uid of adminHrIds) {
+          const n = await this.notificationService.create(
+            uid,
+            tenantId,
+            message,
+            NotificationType.LEAVE,
+            { relatedEntityType: 'leave', relatedEntityId: saved.id },
+          );
+          this.notificationGateway.sendToUser(uid, 'new_notification', {
+            id: n.id,
+            message: n.message,
+            type: n.type,
+            ...payload,
+            created_at: n.created_at,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to create leave approval notifications:', error);
+      }
+      return saved;
     }
 
-    return saved;
+    if ((isPending && isApproverAdminHr) || (isProcessing && isApproverAdminHr)) {
+      // Admin/HR approves: status → APPROVED; notify only employee
+      leave.status = LeaveStatus.APPROVED;
+      leave.approvedBy = approverId;
+      leave.approvedAt = new Date();
+      leave.remarks = remarks || '';
+      const saved = await this.leaveRepo.save(leave);
+
+      try {
+        const message = 'Admin/HR has approved your leave';
+        const notification = await this.notificationService.create(
+          leave.employeeId,
+          tenantId,
+          message,
+          NotificationType.LEAVE,
+          { relatedEntityType: 'leave', relatedEntityId: saved.id },
+        );
+        this.notificationGateway.sendToUser(leave.employeeId, 'new_notification', {
+          id: notification.id,
+          message: notification.message,
+          type: notification.type,
+          related_entity_type: 'leave',
+          related_entity_id: saved.id,
+          created_at: notification.created_at,
+        });
+      } catch (error) {
+        console.error('Failed to create leave approval notification:', error);
+      }
+      return saved;
+    }
+
+    if (isProcessing && isApproverManager) {
+      throw new ForbiddenException('Leave is already in processing; pending admin/HR approval');
+    }
+    throw new ForbiddenException('You are not authorized to approve this leave');
+  }
+
+  private async isUserAdminOrHrAdmin(userId: string): Promise<boolean> {
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: ['role'],
+    });
+    const roleName = user?.role?.name?.toLowerCase();
+    return roleName === 'admin' || roleName === 'hr-admin' || roleName === 'system-admin';
   }
 
   async rejectLeave(id: string, approverId: string, tenantId: string, remarks?: string): Promise<Leave> {
@@ -483,8 +610,10 @@ export class LeaveService {
       throw new NotFoundException('Leave not found');
     }
 
-    if (leave.status !== LeaveStatus.PENDING) {
-      throw new ForbiddenException('Only pending leaves can be rejected');
+    const canReject =
+      leave.status === LeaveStatus.PENDING || leave.status === LeaveStatus.PROCESSING;
+    if (!canReject) {
+      throw new ForbiddenException('Only pending or processing leaves can be rejected');
     }
 
     leave.status = LeaveStatus.REJECTED;
@@ -757,7 +886,7 @@ export class LeaveService {
         .andWhere('leave.tenantId = :tenantId', { tenantId })
         .andWhere('leave.id != :currentLeaveId', { currentLeaveId: id })
         .andWhere('leave.status IN (:...statuses)', {
-          statuses: [LeaveStatus.PENDING, LeaveStatus.APPROVED],
+          statuses: [LeaveStatus.PENDING, LeaveStatus.PROCESSING, LeaveStatus.APPROVED],
         })
         .andWhere('leave.startDate <= :endDate', { endDate })
         .andWhere('leave.endDate >= :startDate', { startDate })
@@ -920,7 +1049,7 @@ export class LeaveService {
     const [items, total] = await this.leaveRepo.findAndCount({
       where: {
         employeeId: In(userIds),
-        status: In([LeaveStatus.PENDING, LeaveStatus.APPROVED, LeaveStatus.REJECTED]),
+        status: In([LeaveStatus.PENDING, LeaveStatus.PROCESSING, LeaveStatus.APPROVED, LeaveStatus.REJECTED]),
       },
       relations: ['employee', 'leaveType', 'approver'],
       order: { createdAt: 'DESC' },
@@ -986,7 +1115,7 @@ export class LeaveService {
     const leaveApplications = await this.leaveRepo
       .createQueryBuilder('leave')
       .where('leave.employeeId IN (:...userIds)', { userIds: teamMemberUserIds })
-      .andWhere('leave.status IN (:...statuses)', { statuses: [LeaveStatus.PENDING, LeaveStatus.APPROVED, LeaveStatus.REJECTED] })
+      .andWhere('leave.status IN (:...statuses)', { statuses: [LeaveStatus.PENDING, LeaveStatus.PROCESSING, LeaveStatus.APPROVED, LeaveStatus.REJECTED] })
       .select(['leave.employeeId', 'COUNT(leave.id) as totalApplications'])
       .groupBy('leave.employeeId')
       .getRawMany();
