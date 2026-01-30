@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Notification } from '../../entities/notification.entity';
 import { User } from '../../entities/user.entity';
 import { NotificationType, NotificationStatus } from '../../common/constants/enums';
@@ -38,22 +38,20 @@ export class NotificationService {
   }
 
   /**
-   * Get all notifications for a user based on their role
+   * Get all notifications for the requesting user only.
+   * Rule: each user sees ONLY notifications where user_id = their id (actor never sees their own action's notification as creator; recipient is single).
    */
   async getUserNotifications(
     userId: string,
     tenantId: string,
-    userRole: string,
+    _userRole: string,
     status?: NotificationStatus,
     type?: NotificationType,
     limit: number = 50,
   ): Promise<Notification[]> {
-    // Get user IDs based on role
-    const userIds = await this.getRelevantUserIds(userId, tenantId, userRole);
-    
     const query = this.notificationRepo
       .createQueryBuilder('notification')
-      .where('notification.user_id IN (:...userIds)', { userIds })
+      .where('notification.user_id = :userId', { userId })
       .andWhere('notification.tenant_id = :tenantId', { tenantId })
       .orderBy('notification.created_at', 'DESC')
       .limit(limit);
@@ -70,31 +68,16 @@ export class NotificationService {
   }
 
   /**
-   * Get relevant user IDs based on role for notification filtering.
-   * Professional approach: Each user sees ONLY notifications addressed to them (user_id = recipient).
-   * Notifications are created with a specific recipient; no role sees others' notifications.
-   */
-  private async getRelevantUserIds(
-    userId: string,
-    _tenantId: string,
-    _userRole: string,
-  ): Promise<string[]> {
-    return [userId];
-  }
-
-  /**
-   * Get unread count for a user based on their role
+   * Get unread count for the requesting user only (user_id = userId).
    */
   async getUnreadCount(
     userId: string,
     tenantId: string,
-    userRole: string,
+    _userRole: string,
   ): Promise<number> {
-    const userIds = await this.getRelevantUserIds(userId, tenantId, userRole);
-    
     return await this.notificationRepo.count({
       where: {
-        user_id: In(userIds),
+        user_id: userId,
         tenant_id: tenantId,
         status: NotificationStatus.UNREAD,
       },
@@ -102,21 +85,18 @@ export class NotificationService {
   }
 
   /**
-   * Mark notification as read
+   * Mark notification as read — only if it belongs to the requesting user (user_id = userId).
    */
   async markAsRead(
     notificationId: string,
     userId: string,
     tenantId: string,
-    userRole: string,
+    _userRole: string,
   ): Promise<Notification> {
-    // Get relevant user IDs based on role
-    const userIds = await this.getRelevantUserIds(userId, tenantId, userRole);
-    
     const notification = await this.notificationRepo.findOne({
       where: {
         id: notificationId,
-        user_id: In(userIds),
+        user_id: userId,
         tenant_id: tenantId,
       },
     });
@@ -162,18 +142,16 @@ export class NotificationService {
   }
 
   /**
-   * Mark all notifications as read for a user based on their role
+   * Mark all notifications as read for the requesting user only (user_id = userId).
    */
   async markAllAsRead(
     userId: string,
     tenantId: string,
-    userRole: string,
+    _userRole: string,
   ): Promise<void> {
-    const userIds = await this.getRelevantUserIds(userId, tenantId, userRole);
-    
     await this.notificationRepo.update(
       {
-        user_id: In(userIds),
+        user_id: userId,
         tenant_id: tenantId,
         status: NotificationStatus.UNREAD,
       },
