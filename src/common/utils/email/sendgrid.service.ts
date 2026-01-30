@@ -190,4 +190,47 @@ export class SendGridService {
       throw new Error('Failed to send bulk email');
     }
   }
+
+  /**
+   * Sends "New team member joined" email to existing tenant employees.
+   * Used when a new employee is created so all colleagues in the same tenant are notified.
+   */
+  async sendNewTeamMemberAnnouncementEmail(
+    recipientEmail: string,
+    newEmployeeName: string,
+    newEmployeeEmail: string,
+  ): Promise<void> {
+    const fromEmail = this.configService.get<string>('SENDGRID_FROM');
+
+    if (!fromEmail) {
+      this.logger.warn('SENDGRID_FROM not configured. Skipping new team member announcement email.');
+      return;
+    }
+
+    const msg = {
+      to: recipientEmail,
+      from: fromEmail,
+      subject: 'New Team Member Joined',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2>New Team Member Joined</h2>
+          <p>Hello,</p>
+          <p>A new team member has joined your organization.</p>
+          <p><strong>Name:</strong> ${newEmployeeName}</p>
+          <p><strong>Email:</strong> ${newEmployeeEmail}</p>
+          <p>Please welcome them to the team.</p>
+          <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
+          <p style="color: #666; font-size: 12px;">This is an automated message, please do not reply.</p>
+        </div>
+      `,
+    };
+
+    try {
+      await sgMail.send(msg);
+      this.logger.log(`New team member announcement sent to ${recipientEmail}`);
+    } catch (error) {
+      this.logger.error(`Failed to send new team member announcement to ${recipientEmail}:`, error);
+      throw new Error('Failed to send new team member announcement email');
+    }
+  }
 }
