@@ -253,6 +253,18 @@ export class EmployeeService implements OnModuleInit {
       
       await this.sendPasswordResetEmail(dto.email, resetToken);
 
+      // Notify all other employees in the same tenant (tenant isolation)
+      const newManagerUser = await this.userRepo.findOne({ where: { id: result.user_id }, select: ['id', 'email', 'first_name', 'last_name'] });
+      if (newManagerUser) {
+        const newManagerName = `${newManagerUser.first_name} ${newManagerUser.last_name}`.trim();
+        await this.sendNewEmployeeAnnouncementToTenant(
+          tenant_id,
+          newManagerUser.id,
+          newManagerName,
+          newManagerUser.email,
+        );
+      }
+
       // Automatically create default salary structure for the new manager
       try {
         const defaults = await this.employeeSalaryService.getSalaryTemplateForTenant(tenant_id);
@@ -497,6 +509,14 @@ export class EmployeeService implements OnModuleInit {
       // Only send invitation if payment succeeds
       await this.sendPasswordResetEmail(dto.email, resetToken);
 
+      // Notify all other employees in the same tenant (tenant isolation)
+      await this.sendNewEmployeeAnnouncementToTenant(
+        tenant_id,
+        user.id,
+        employeeName,
+        user.email,
+      );
+
       // Automatically create default salary structure for the new employee
       try {
         const defaults = await this.employeeSalaryService.getSalaryTemplateForTenant(tenant_id);
@@ -650,6 +670,15 @@ export class EmployeeService implements OnModuleInit {
 
       // Send invitation email
       await this.sendPasswordResetEmail(dto.email, resetToken);
+
+      // Notify all other employees in the same tenant (tenant isolation)
+      const newEmployeeName = `${dto.first_name} ${dto.last_name}`.trim();
+      await this.sendNewEmployeeAnnouncementToTenant(
+        tenant_id,
+        result.user_id,
+        newEmployeeName,
+        dto.email,
+      );
 
       // Automatically create default salary structure for the new employee (created after payment)
       try {
@@ -1001,6 +1030,51 @@ export class EmployeeService implements OnModuleInit {
       this.logger.error(`Failed to send welcome email to ${email}: ${String((error as any)?.message || error)}`);
   
       this.logger.warn('Email sending failed, but continuing with employee creation');
+    }
+  }
+
+  /**
+   * Sends "New team member joined" email to all other users in the same tenant.
+   * Tenant isolation: only users with tenant_id = tenant_id receive the email; the new employee is excluded.
+   */
+  private async sendNewEmployeeAnnouncementToTenant(
+    tenant_id: string,
+    excludeUserId: string,
+    newEmployeeName: string,
+    newEmployeeEmail: string,
+  ): Promise<void> {
+    try {
+      const tenantUsers = await this.userRepo.find({
+        where: { tenant_id },
+        select: ['id', 'email'],
+      });
+      const recipients = tenantUsers.filter((u) => u.id !== excludeUserId && u.email);
+      if (recipients.length === 0) {
+        this.logger.log(`No other tenant users to notify for new employee (tenant: ${tenant_id})`);
+        return;
+      }
+      for (const recipient of recipients) {
+        try {
+          await this.sendGridService.sendNewTeamMemberAnnouncementEmail(
+            recipient.email,
+            newEmployeeName,
+            newEmployeeEmail,
+          );
+        } catch (err) {
+          this.logger.error(
+            `Failed to send new employee announcement to ${recipient.email}: ${String((err as any)?.message || err)}`,
+          );
+          // Continue with other recipients; do not throw
+        }
+      }
+      this.logger.log(
+        `New employee announcement sent to ${recipients.length} tenant member(s) (tenant: ${tenant_id})`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to send new employee announcement to tenant ${tenant_id}: ${String((error as any)?.message || error)}`,
+      );
+      // Do not throw - announcement failure should not affect employee creation
     }
   }
 
