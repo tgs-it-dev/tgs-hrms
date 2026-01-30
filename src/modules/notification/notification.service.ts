@@ -130,6 +130,38 @@ export class NotificationService {
   }
 
   /**
+   * Build redirect path from notification type (dashboard routes, no entity ID).
+   * Manager: leave pending → /dashboard/leaves; attendance → /dashboard/AttendanceTable; task → /dashboard/manager-tasks.
+   * Admin/HR: leave approval → /dashboard/leaves.
+   */
+  buildRedirectPath(notificationType: NotificationType): string | null {
+    switch (notificationType) {
+      case NotificationType.LEAVE:
+        return '/dashboard/leaves';
+      case NotificationType.ATTENDANCE:
+        return '/dashboard/AttendanceTable';
+      case NotificationType.TASK:
+        return '/dashboard/manager-tasks';
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * Mark notification as read and return notification with redirect path for click-to-redirect.
+   */
+  async markAsReadAndGetRedirect(
+    notificationId: string,
+    userId: string,
+    tenantId: string,
+    userRole: string,
+  ): Promise<{ notification: Notification; redirect_path: string | null }> {
+    const notification = await this.markAsRead(notificationId, userId, tenantId, userRole);
+    const redirect_path = this.buildRedirectPath(notification.type);
+    return { notification, redirect_path };
+  }
+
+  /**
    * Mark all notifications as read for a user based on their role
    */
   async markAllAsRead(

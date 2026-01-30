@@ -80,8 +80,13 @@ export class NotificationController {
       userRole,
     );
 
+    const notificationsWithRedirect = notifications.map((n) => ({
+      ...n,
+      redirect_path: this.notificationService.buildRedirectPath(n.type),
+    }));
+
     return {
-      notifications,
+      notifications: notificationsWithRedirect,
       unreadCount,
     };
   }
@@ -105,6 +110,36 @@ export class NotificationController {
   async markAsRead(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
     const userRole = req.user.role || 'employee';
     return this.notificationService.markAsRead(
+      id,
+      req.user.id,
+      req.user.tenant_id,
+      userRole,
+    );
+  }
+
+  @Patch(':id/read-and-redirect')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Mark notification as read and get redirect path',
+    description:
+      'Marks the notification as read and returns redirect_path: leave → /dashboard/leaves, attendance → /dashboard/AttendanceTable, task → /dashboard/manager-tasks.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Notification ID',
+    type: String,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Notification marked as read; redirect_path returned for click-to-redirect',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Notification not found',
+  })
+  async markAsReadAndRedirect(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
+    const userRole = req.user.role || 'employee';
+    return this.notificationService.markAsReadAndGetRedirect(
       id,
       req.user.id,
       req.user.tenant_id,

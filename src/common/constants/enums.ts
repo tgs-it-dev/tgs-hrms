@@ -75,6 +75,7 @@ export enum CheckInApprovalStatus {
 
 export enum LeaveStatus {
   PENDING = 'pending',
+  PROCESSING = 'processing', // Manager approved; waiting for admin/hr approval
   APPROVED = 'approved',
   REJECTED = 'rejected',
   CANCELLED = 'withdrawn',
@@ -226,6 +227,7 @@ export enum NotificationType {
   LEAVE = 'leave',
   ALERT = 'alert',
   ATTENDANCE = 'attendance',
+  TASK = 'task',
 }
 
 export enum NotificationStatus {

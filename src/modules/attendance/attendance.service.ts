@@ -1090,7 +1090,30 @@ export class AttendanceService {
     checkIn.approved_at = new Date();
     checkIn.approval_remarks = remarks || null;
 
-    return await this.attendanceRepo.save(checkIn);
+    const saved = await this.attendanceRepo.save(checkIn);
+
+    // Notify employee: check-in approved (DB + real-time)
+    try {
+      const notification = await this.notificationService.create(
+        checkIn.user_id,
+        tenantId,
+        'Your check-in has been approved',
+        NotificationType.ATTENDANCE,
+        { relatedEntityType: 'attendance', relatedEntityId: saved.id },
+      );
+      this.notificationGateway.sendToUser(checkIn.user_id, 'new_notification', {
+        id: notification.id,
+        message: notification.message,
+        type: notification.type,
+        related_entity_type: 'attendance',
+        related_entity_id: saved.id,
+        created_at: notification.created_at,
+      });
+    } catch (error) {
+      console.error('Failed to create check-in approval notification:', error);
+    }
+
+    return saved;
   }
 
   /**
@@ -1131,7 +1154,30 @@ export class AttendanceService {
     checkIn.approved_at = new Date();
     checkIn.approval_remarks = remarks || null;
 
-    return await this.attendanceRepo.save(checkIn);
+    const saved = await this.attendanceRepo.save(checkIn);
+
+    // Notify employee: check-in rejected (DB + real-time)
+    try {
+      const notification = await this.notificationService.create(
+        checkIn.user_id,
+        tenantId,
+        'Your check-in was rejected',
+        NotificationType.ATTENDANCE,
+        { relatedEntityType: 'attendance', relatedEntityId: saved.id },
+      );
+      this.notificationGateway.sendToUser(checkIn.user_id, 'new_notification', {
+        id: notification.id,
+        message: notification.message,
+        type: notification.type,
+        related_entity_type: 'attendance',
+        related_entity_id: saved.id,
+        created_at: notification.created_at,
+      });
+    } catch (error) {
+      console.error('Failed to create check-in rejection notification:', error);
+    }
+
+    return saved;
   }
 
   /**
@@ -1175,6 +1221,29 @@ export class AttendanceService {
     const updatedCheckIns = await this.attendanceRepo.find({
       where: { id: In(checkInIds) },
     });
+
+    // Notify each employee: check-in approved (DB + real-time)
+    for (const checkIn of updatedCheckIns) {
+      try {
+        const notification = await this.notificationService.create(
+          checkIn.user_id,
+          tenantId,
+          'Your check-in has been approved',
+          NotificationType.ATTENDANCE,
+          { relatedEntityType: 'attendance', relatedEntityId: checkIn.id },
+        );
+        this.notificationGateway.sendToUser(checkIn.user_id, 'new_notification', {
+          id: notification.id,
+          message: notification.message,
+          type: notification.type,
+          related_entity_type: 'attendance',
+          related_entity_id: checkIn.id,
+          created_at: notification.created_at,
+        });
+      } catch (error) {
+        console.error(`Failed to notify employee ${checkIn.user_id} for check-in approval:`, error);
+      }
+    }
 
     return {
       approved: updatedCheckIns.length,
@@ -1223,6 +1292,29 @@ export class AttendanceService {
     const updatedCheckIns = await this.attendanceRepo.find({
       where: { id: In(checkInIds) },
     });
+
+    // Notify each employee: check-in rejected (DB + real-time)
+    for (const checkIn of updatedCheckIns) {
+      try {
+        const notification = await this.notificationService.create(
+          checkIn.user_id,
+          tenantId,
+          'Your check-in was rejected',
+          NotificationType.ATTENDANCE,
+          { relatedEntityType: 'attendance', relatedEntityId: checkIn.id },
+        );
+        this.notificationGateway.sendToUser(checkIn.user_id, 'new_notification', {
+          id: notification.id,
+          message: notification.message,
+          type: notification.type,
+          related_entity_type: 'attendance',
+          related_entity_id: checkIn.id,
+          created_at: notification.created_at,
+        });
+      } catch (error) {
+        console.error(`Failed to notify employee ${checkIn.user_id} for check-in rejection:`, error);
+      }
+    }
 
     return {
       disapproved: updatedCheckIns.length,
