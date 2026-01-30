@@ -129,6 +129,7 @@ export class LeaveService {
       await this.leaveRepo.save(savedLeave);
     }
 
+    // Notification rule: actor (who performs the action) never receives that action's notification; only the other party.
     // Notify only manager when employee applies (admin/hr get "pending" only when manager approves).
     try {
       const employee = await this.employeeRepo.findOne({
@@ -506,7 +507,7 @@ export class LeaveService {
     const isApproverAdminHr = await this.isUserAdminOrHrAdmin(approverId);
 
     if (isPending && isApproverManager) {
-      // Manager approves: status → PROCESSING; notify employee + admin/hr (admin sees "Leave Processing")
+      // Manager approves: status → PROCESSING; notify employee + admin/hr (exclude approver — actor never gets own action's notification)
       leave.status = LeaveStatus.PROCESSING;
       leave.approvedBy = approverId;
       leave.approvedAt = new Date();
@@ -533,6 +534,7 @@ export class LeaveService {
         const adminHrIds = await this.getTenantAdminAndHrAdminUserIds(tenantId);
         const message = 'Leave Processing';
         for (const uid of adminHrIds) {
+          if (uid === approverId) continue; // Actor never gets their own action's notification
           const n = await this.notificationService.create(
             uid,
             tenantId,
