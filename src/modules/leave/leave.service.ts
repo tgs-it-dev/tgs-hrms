@@ -129,8 +129,7 @@ export class LeaveService {
       await this.leaveRepo.save(savedLeave);
     }
 
-    // Notification rule: actor (who performs the action) never receives that action's notification; only the other party.
-    // Notify only manager when employee applies (admin/hr get "pending" only when manager approves).
+    // Manager-only: when employee applies, notify only manager (never employee or admin).
     try {
       const employee = await this.employeeRepo.findOne({
         where: { user_id: employeeId },
@@ -516,6 +515,7 @@ export class LeaveService {
 
       try {
         const payload = { related_entity_type: 'leave' as const, related_entity_id: saved.id };
+        // Employee-only: create and send only to leave.employeeId; never to manager or admin
         const empNotif = await this.notificationService.create(
           leave.employeeId,
           tenantId,
@@ -565,6 +565,7 @@ export class LeaveService {
       const saved = await this.leaveRepo.save(leave);
 
       try {
+        // Employee-only: create and send only to leave.employeeId; never to admin or manager
         const message = 'Admin/HR has approved your leave';
         const notification = await this.notificationService.create(
           leave.employeeId,
@@ -625,7 +626,7 @@ export class LeaveService {
 
     const saved = await this.leaveRepo.save(leave);
 
-    // Notify employee when leave is rejected (DB + real-time)
+    // Employee-only: notify only leave.employeeId; never to approver (manager/admin)
     try {
       const notification = await this.notificationService.create(
         leave.employeeId,
