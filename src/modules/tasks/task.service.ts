@@ -558,26 +558,52 @@ export class TaskService {
 
       await queryRunner.commitTransaction();
 
-      // Notify only the manager (not the employee who updated)
+      // Notify the manager/creator about status update (not the employee who updated)
       try {
-        let managerId: string | null = task.team?.manager_id ?? null;
-        if (!managerId && task.created_by) {
+        let notifyUserId: string | null = null;
+
+        // Priority 1: Task's team manager
+        if (task.team?.manager_id) {
+          notifyUserId = task.team.manager_id;
+          console.log(`[Task Notification] Found team manager: ${notifyUserId}`);
+        }
+
+        // Priority 2: Task creator (if different from current user)
+        if (!notifyUserId && task.created_by) {
           const creator = await this.employeeRepo.findOne({
             where: { id: task.created_by },
-            relations: ['team'],
+            relations: ['user', 'team'],
           });
-          managerId = creator?.team?.manager_id ?? null;
+
+          if (creator) {
+            // Try creator's team manager first
+            if (creator.team?.manager_id) {
+              notifyUserId = creator.team.manager_id;
+              console.log(`[Task Notification] Found creator's team manager: ${notifyUserId}`);
+            } else if (creator.user_id) {
+              // Fallback: notify the task creator directly
+              notifyUserId = creator.user_id;
+              console.log(`[Task Notification] Falling back to task creator: ${notifyUserId}`);
+            }
+          }
         }
-        if (managerId && managerId !== userId) {
+
+        // Send notification if we found someone to notify (and it's not the current user)
+        if (notifyUserId && notifyUserId !== userId) {
           const message = `Task "${task.title}" status updated to ${newStatus}`;
+          console.log(`[Task Notification] Creating notification for user: ${notifyUserId}, message: ${message}`);
+
           const notification = await this.notificationService.create(
-            managerId,
+            notifyUserId,
             tenantId,
             message,
             NotificationType.TASK,
             { relatedEntityType: 'task', relatedEntityId: task.id },
           );
-          this.notificationGateway.sendToUser(managerId, 'new_notification', {
+
+          console.log(`[Task Notification] Notification created: ${notification.id}`);
+
+          this.notificationGateway.sendToUser(notifyUserId, 'new_notification', {
             id: notification.id,
             message: notification.message,
             type: notification.type,
@@ -585,9 +611,13 @@ export class TaskService {
             related_entity_id: task.id,
             created_at: notification.created_at,
           });
+
+          console.log(`[Task Notification] WebSocket notification sent to: ${notifyUserId}`);
+        } else {
+          console.log(`[Task Notification] No one to notify. notifyUserId: ${notifyUserId}, currentUserId: ${userId}`);
         }
       } catch (error) {
-        console.error('Failed to create task status update notification:', error);
+        console.error('[Task Notification] Failed to create task status update notification:', error);
       }
 
       return task;
