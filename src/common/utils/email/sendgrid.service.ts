@@ -233,4 +233,87 @@ export class SendGridService {
       throw new Error('Failed to send new team member announcement email');
     }
   }
+
+  /**
+   * Sends announcement email to a user.
+   * Used for company-wide announcements (holidays, events, policies, etc.)
+   */
+  async sendAnnouncementEmail(
+    recipientEmail: string,
+    recipientName: string,
+    title: string,
+    content: string,
+    category: string,
+    priority: string,
+  ): Promise<void> {
+    const fromEmail = this.configService.get<string>('SENDGRID_FROM');
+
+    if (!fromEmail) {
+      this.logger.warn('SENDGRID_FROM not configured. Skipping announcement email.');
+      return;
+    }
+
+    // Priority-based styling
+    const priorityStyles: Record<string, { color: string; badge: string }> = {
+      low: { color: '#28a745', badge: 'Low Priority' },
+      medium: { color: '#ffc107', badge: 'Medium Priority' },
+      high: { color: '#dc3545', badge: 'High Priority' },
+    };
+
+    const categoryLabels: Record<string, string> = {
+      general: 'General Announcement',
+      holiday: 'Holiday Notice',
+      policy: 'Policy Update',
+      event: 'Event Announcement',
+      urgent: 'Urgent Notice',
+    };
+
+    const style = priorityStyles[priority] || priorityStyles.medium;
+    const categoryLabel = categoryLabels[category] || 'Announcement';
+
+    const msg = {
+      to: recipientEmail,
+      from: fromEmail,
+      subject: `${priority === 'high' ? '🔴 ' : ''}${categoryLabel}: ${title}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+          <!-- Header -->
+          <div style="background-color: ${style.color}; color: white; padding: 20px; text-align: center;">
+            <h1 style="margin: 0; font-size: 24px;">${title}</h1>
+            <p style="margin: 8px 0 0 0; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">
+              ${categoryLabel} | ${style.badge}
+            </p>
+          </div>
+          
+          <!-- Body -->
+          <div style="padding: 30px; background-color: #f9f9f9;">
+            <p style="margin-top: 0;">Hello ${recipientName},</p>
+            
+            <div style="background-color: white; padding: 20px; border-radius: 6px; border-left: 4px solid ${style.color}; margin: 20px 0;">
+              ${content.replace(/\n/g, '<br>')}
+            </div>
+            
+            <p style="color: #666; font-size: 14px; margin-bottom: 0;">
+              This is an official announcement from your organization. Please take note accordingly.
+            </p>
+          </div>
+          
+          <!-- Footer -->
+          <div style="background-color: #f0f0f0; padding: 15px; text-align: center; border-top: 1px solid #e0e0e0;">
+            <p style="margin: 0; color: #888; font-size: 12px;">
+              This is an automated message from your HRMS. Please do not reply to this email.
+            </p>
+          </div>
+        </div>
+      `,
+    };
+
+    try {
+      await sgMail.send(msg);
+      this.logger.log(`Announcement email sent to ${recipientEmail}: "${title}"`);
+    } catch (error) {
+      this.logger.error(`Failed to send announcement email to ${recipientEmail}:`, error);
+      throw new Error('Failed to send announcement email');
+    }
+  }
 }

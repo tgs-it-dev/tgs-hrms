@@ -46,6 +46,7 @@ import { TaskModule } from './modules/tasks/task.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { GeofenceModule } from './modules/geofence/geofence.module';
 import { NotificationModule } from './modules/notification/notification.module';
+import { AnnouncementModule } from './modules/announcement/announcement.module';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { SystemLoggingInterceptor } from './common/interceptors/system-logging.interceptor';
 import { SystemLog } from './entities/system-log.entity';
@@ -179,6 +180,7 @@ import { SystemLog } from './entities/system-log.entity';
     DashboardModule,
     GeofenceModule,
     NotificationModule,
+    AnnouncementModule,
   ],
   providers: [
     {
