@@ -322,4 +322,26 @@ export enum BenefitReimbursementStatus {
   CANCELLED = 'cancelled',
 }
 
+// Announcement Enums
+export enum AnnouncementCategory {
+  GENERAL = 'general',
+  HOLIDAY = 'holiday',
+  POLICY = 'policy',
+  EVENT = 'event',
+  URGENT = 'urgent',
+}
+
+export enum AnnouncementPriority {
+  LOW = 'low',
+  MEDIUM = 'medium',
+  HIGH = 'high',
+}
+
+export enum AnnouncementStatus {
+  DRAFT = 'draft',
+  SCHEDULED = 'scheduled',
+  SENT = 'sent',
+  CANCELLED = 'cancelled',
+}
+
 

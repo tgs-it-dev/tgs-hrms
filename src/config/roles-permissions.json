@@ -65,6 +65,11 @@
         "task.read",
         "task.update",
         "task.delete",
+        "announcement.create",
+        "announcement.read",
+        "announcement.update",
+        "announcement.delete",
+        "announcement.send",
         "reports.read",
         "reports.export"
       ],
@@ -91,6 +96,7 @@
         "timesheet.read",
         "timesheet.approve",
         "timesheet.reject",
+        "announcement.read",
         "reports.read"
       ],
       "isAdmin": false,
@@ -111,7 +117,8 @@
         "task.read",
         "task.update",
         "policy.read",
-        "team.read"
+        "team.read",
+        "announcement.read"
       ],
       "isAdmin": false,
       "priority": 6
@@ -247,6 +254,13 @@
       "read": "View task information",
       "update": "Update task information",
       "delete": "Delete tasks"
+    },
+    "announcement": {
+      "create": "Create announcements",
+      "read": "View announcements",
+      "update": "Update announcements",
+      "delete": "Delete announcements",
+      "send": "Send announcement emails to all employees"
     }
   },
   "defaultRoles": [
