@@ -50,7 +50,7 @@ export class EmployeeController {
     private readonly service: EmployeeService,
     private readonly attendanceService: AttendanceService,
     private readonly leaveService: LeaveService
-  ) {}
+  ) { }
 
   @Post('manager')
   @Roles('admin', 'system-admin')
@@ -64,18 +64,15 @@ export class EmployeeController {
       {
         fileFilter: (_req, file, cb) => {
           try {
-            // Skip validation if buffer is not available (empty optional file field)
-            if (!file.buffer || file.buffer.length === 0) {
-              // If buffer is empty, it might be an empty optional field, allow it
-              // The validation will happen later when the file is actually used
-              cb(null, true);
-              return;
-            }
-            // Use comprehensive file validation with magic number checks
+            // Even if buffer is not available yet, we MUST validate metadata (extension, mimetype)
+            // This prevents invalid files from passing through to the service layer
             validateImageFile(file);
             cb(null, true);
           } catch (error) {
-            cb(error instanceof Error ? error : new Error('File validation failed'), false);
+            cb(
+              error instanceof Error ? error : new Error("File validation failed"),
+              false,
+            );
           }
         },
         limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
@@ -111,12 +108,12 @@ export class EmployeeController {
   })
   async createManager(
     @Req() req: any,
-    @TenantId() tenant_id: string, 
+    @TenantId() tenant_id: string,
     @Body() createEmployeeDto: CreateEmployeeDto,
-    @UploadedFiles() files?: { 
-      profile_picture?: Express.Multer.File[], 
-      cnic_picture?: Express.Multer.File[], 
-      cnic_back_picture?: Express.Multer.File[] 
+    @UploadedFiles() files?: {
+      profile_picture?: Express.Multer.File[],
+      cnic_picture?: Express.Multer.File[],
+      cnic_back_picture?: Express.Multer.File[]
     }
   ) {
     const createdByUserId = req.user?.id;
@@ -160,18 +157,14 @@ export class EmployeeController {
       {
         fileFilter: (_req, file, cb) => {
           try {
-            // Skip validation if buffer is not available (empty optional file field)
-            if (!file.buffer || file.buffer.length === 0) {
-              // If buffer is empty, it might be an empty optional field, allow it
-              // The validation will happen later when the file is actually used
-              cb(null, true);
-              return;
-            }
-            // Use comprehensive file validation with magic number checks
+            // Even if buffer is not available yet, we MUST validate metadata (extension, mimetype)
             validateImageFile(file);
             cb(null, true);
           } catch (error) {
-            cb(error instanceof Error ? error : new Error('File validation failed'), false);
+            cb(
+              error instanceof Error ? error : new Error("File validation failed"),
+              false,
+            );
           }
         },
         limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
@@ -227,12 +220,12 @@ export class EmployeeController {
   })
   async create(
     @Req() req: any,
-    @TenantId() tenant_id: string, 
+    @TenantId() tenant_id: string,
     @Body() dto: CreateEmployeeDto,
-    @UploadedFiles() files?: { 
-      profile_picture?: Express.Multer.File[], 
-      cnic_picture?: Express.Multer.File[], 
-      cnic_back_picture?: Express.Multer.File[] 
+    @UploadedFiles() files?: {
+      profile_picture?: Express.Multer.File[],
+      cnic_picture?: Express.Multer.File[],
+      cnic_back_picture?: Express.Multer.File[]
     }
   ) {
     const createdByUserId = req.user?.id;
@@ -252,18 +245,14 @@ export class EmployeeController {
       {
         fileFilter: (_req, file, cb) => {
           try {
-            // Skip validation if buffer is not available (empty optional file field)
-            if (!file.buffer || file.buffer.length === 0) {
-              // If buffer is empty, it might be an empty optional field, allow it
-              // The validation will happen later when the file is actually used
-              cb(null, true);
-              return;
-            }
-            // Use comprehensive file validation with magic number checks
+            // Even if buffer is not available yet, we MUST validate metadata (extension, mimetype)
             validateImageFile(file);
             cb(null, true);
           } catch (error) {
-            cb(error instanceof Error ? error : new Error('File validation failed'), false);
+            cb(
+              error instanceof Error ? error : new Error("File validation failed"),
+              false,
+            );
           }
         },
         limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
@@ -320,10 +309,10 @@ export class EmployeeController {
     @TenantId() tenant_id: string,
     @Param('id') id: string,
     @Body() dto: UpdateEmployeeDto,
-    @UploadedFiles() files?: { 
-      profile_picture?: Express.Multer.File[], 
-      cnic_picture?: Express.Multer.File[], 
-      cnic_back_picture?: Express.Multer.File[] 
+    @UploadedFiles() files?: {
+      profile_picture?: Express.Multer.File[],
+      cnic_picture?: Express.Multer.File[],
+      cnic_back_picture?: Express.Multer.File[]
     }
   ) {
     return this.service.update(tenant_id, id, dto, files);
@@ -380,7 +369,7 @@ export class EmployeeController {
 
 
   @Get('export')
-  @Roles('admin', 'system-admin' ,'hr-admin')
+  @Roles('admin', 'system-admin', 'hr-admin')
   @ApiOperation({ summary: 'Download employees list as CSV (Admin only)' })
   async exportAll(
     @TenantId() tenant_id: string,
@@ -503,8 +492,8 @@ export class EmployeeController {
     description: 'Gender percentage retrieved successfully.',
     schema: {
       example: {
-        male: 60, 
-        female: 40, 
+        male: 60,
+        female: 40,
       },
     },
   })

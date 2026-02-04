@@ -76,13 +76,13 @@ function validateWebPSignature(buffer: Buffer): boolean {
   if (buffer.length < 12) {
     return false;
   }
-  
+
   const riffHeader = buffer.slice(0, 4);
   const webpHeader = buffer.slice(8, 12);
-  
+
   const isRiff = riffHeader.equals(Buffer.from([0x52, 0x49, 0x46, 0x46]));
   const isWebp = webpHeader.equals(Buffer.from([0x57, 0x45, 0x42, 0x50]));
-  
+
   return isRiff && isWebp;
 }
 
@@ -117,7 +117,7 @@ export function validateImageFile(
   const fileExtension = file.originalname
     .substring(file.originalname.lastIndexOf('.'))
     .toLowerCase();
-  
+
   if (!allowedExtensions.includes(fileExtension)) {
     throw new BadRequestException(
       `Invalid file extension. Allowed extensions: ${allowedExtensions.join(', ')}`
@@ -133,8 +133,9 @@ export function validateImageFile(
   }
 
   // Validate file signature (magic number) - most important security check
+  // Skip this check if buffer is empty/undefined (allowing metadata-only validation in controller filter)
   if (!file.buffer || file.buffer.length === 0) {
-    throw new BadRequestException('File buffer is empty');
+    return;
   }
 
   // Special handling for WebP
