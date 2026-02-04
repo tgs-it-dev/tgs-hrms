@@ -130,7 +130,7 @@ export class TaskService {
           relations: ['user'],
         });
         const assigneeUserId = assignedEmployee?.user_id ?? assignedEmployee?.user?.id;
-        if (assigneeUserId) {
+        if (assigneeUserId && assigneeUserId !== userId) {
           const message = `You have been assigned a new task: ${savedTask.title}`;
           const notification = await this.notificationService.create(
             assigneeUserId,
@@ -476,7 +476,7 @@ export class TaskService {
           relations: ['user'],
         });
         const assigneeUserId = assignedEmployee?.user_id ?? assignedEmployee?.user?.id;
-        if (assigneeUserId) {
+        if (assigneeUserId && assigneeUserId !== userId) {
           const message = `You have been assigned a task: ${savedTask.title}`;
           const notification = await this.notificationService.create(
             assigneeUserId,
