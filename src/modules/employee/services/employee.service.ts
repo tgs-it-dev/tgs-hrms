@@ -53,10 +53,10 @@ export class EmployeeService implements OnModuleInit {
     private readonly eventEmitter: EventEmitter2,
     private readonly billingService: BillingService,
     private readonly employeeSalaryService: EmployeeSalaryService,
-  ) {}
+  ) { }
 
   onModuleInit() {
-  
+
   }
 
   private async validateDesignation(
@@ -72,7 +72,7 @@ export class EmployeeService implements OnModuleInit {
       throw new BadRequestException('Invalid designation ID');
     }
 
-  
+
     if (
       designation.department.tenant_id !== tenant_id &&
       designation.department.tenant_id !== GLOBAL
@@ -146,14 +146,14 @@ export class EmployeeService implements OnModuleInit {
     }
   }
 
-  async createManager(tenant_id: string, createdByUserId: string, dto: CreateEmployeeDto, files?: { 
-    profile_picture?: Express.Multer.File[], 
-    cnic_picture?: Express.Multer.File[], 
-    cnic_back_picture?: Express.Multer.File[] 
+  async createManager(tenant_id: string, createdByUserId: string, dto: CreateEmployeeDto, files?: {
+    profile_picture?: Express.Multer.File[],
+    cnic_picture?: Express.Multer.File[],
+    cnic_back_picture?: Express.Multer.File[]
   }) {
     await this.validateDesignation(dto.designation_id, tenant_id);
 
-    
+
     if (dto.team_id && dto.team_id !== null) {
       this.validateUUID(dto.team_id, 'team_id');
       await this.validateTeam(dto.team_id, tenant_id);
@@ -219,38 +219,58 @@ export class EmployeeService implements OnModuleInit {
         return savedEmployee;
       });
 
-      
+
       if (files) {
-        const profileFile = files.profile_picture?.[0];
-        if (profileFile) {
-          const profilePictureUrl = await this.employeeFileUploadService.uploadProfilePicture(profileFile, result.id);
-          result.profile_picture = profilePictureUrl;
-          
-          
-          const user = await this.userRepo.findOne({ where: { id: result.user_id } });
-          if (user) {
-            user.profile_pic = profilePictureUrl;
-            await this.userRepo.save(user);
+        try {
+          const profileFile = files.profile_picture?.[0];
+          if (profileFile) {
+            const profilePictureUrl =
+              await this.employeeFileUploadService.uploadProfilePicture(
+                profileFile,
+                result.id,
+              );
+            result.profile_picture = profilePictureUrl;
+
+            const user = await this.userRepo.findOne({
+              where: { id: result.user_id },
+            });
+            if (user) {
+              user.profile_pic = profilePictureUrl;
+              await this.userRepo.save(user);
+            }
           }
+
+          const cnicFile = files.cnic_picture?.[0];
+          if (cnicFile) {
+            const cnicPictureUrl =
+              await this.employeeFileUploadService.uploadCnicPicture(
+                cnicFile,
+                result.id,
+              );
+            result.cnic_picture = cnicPictureUrl;
+          }
+
+          const cnicBackFile = files.cnic_back_picture?.[0];
+          if (cnicBackFile) {
+            const cnicBackPictureUrl =
+              await this.employeeFileUploadService.uploadCnicBackPicture(
+                cnicBackFile,
+                result.id,
+              );
+            result.cnic_back_picture = cnicBackPictureUrl;
+          }
+
+          await this.employeeRepo.save(result);
+        } catch (uploadError) {
+          // If file upload fails, we must delete the employee to prevent partial creation
+          // We also delete the linked user account
+          await this.employeeRepo.delete(result.id);
+          await this.userRepo.delete(result.user_id);
+          throw uploadError; // Re-throw the error to notify the user
         }
-        
-        const cnicFile = files.cnic_picture?.[0];
-        if (cnicFile) {
-          const cnicPictureUrl = await this.employeeFileUploadService.uploadCnicPicture(cnicFile, result.id);
-          result.cnic_picture = cnicPictureUrl;
-        }
-        
-        const cnicBackFile = files.cnic_back_picture?.[0];
-        if (cnicBackFile) {
-          const cnicBackPictureUrl = await this.employeeFileUploadService.uploadCnicBackPicture(cnicBackFile, result.id);
-          result.cnic_back_picture = cnicBackPictureUrl;
-        }
-        
-      
-        await this.employeeRepo.save(result);
       }
 
-      
+
       await this.sendPasswordResetEmail(dto.email, resetToken);
 
       // Notify all other employees in the same tenant (tenant isolation)
@@ -283,8 +303,7 @@ export class EmployeeService implements OnModuleInit {
         await this.employeeSalaryService.create(tenant_id, createdByUserId, salaryDto);
       } catch (salaryError) {
         this.logger.error(
-          `Failed to create default salary for manager ${result.id}: ${
-            salaryError instanceof Error ? salaryError.message : String(salaryError)
+          `Failed to create default salary for manager ${result.id}: ${salaryError instanceof Error ? salaryError.message : String(salaryError)
           }`,
         );
       }
@@ -299,14 +318,14 @@ export class EmployeeService implements OnModuleInit {
     }
   }
 
-  async create(tenant_id: string, createdByUserId: string, dto: CreateEmployeeDto, files?: { 
-    profile_picture?: Express.Multer.File[], 
-    cnic_picture?: Express.Multer.File[], 
-    cnic_back_picture?: Express.Multer.File[] 
+  async create(tenant_id: string, createdByUserId: string, dto: CreateEmployeeDto, files?: {
+    profile_picture?: Express.Multer.File[],
+    cnic_picture?: Express.Multer.File[],
+    cnic_back_picture?: Express.Multer.File[]
   }) {
     await this.validateDesignation(dto.designation_id, tenant_id);
 
-  
+
     if (dto.team_id && dto.team_id !== null) {
       this.validateUUID(dto.team_id, 'team_id');
       await this.validateTeam(dto.team_id, tenant_id);
@@ -322,15 +341,15 @@ export class EmployeeService implements OnModuleInit {
 
     let employeeRole;
     if (dto.role_name) {
-      
+
       employeeRole = await this.roleRepo.findOne({ where: { name: dto.role_name } });
       if (!employeeRole) throw new NotFoundException(`Role with name '${dto.role_name}' not found.`);
     } else if (dto.role_id) {
-  
+
       employeeRole = await this.roleRepo.findOne({ where: { id: dto.role_id } });
       if (!employeeRole) throw new NotFoundException('Specified role not found.');
     } else {
-  
+
       employeeRole = await this.roleRepo.findOne({ where: { name: 'Employee' } });
       if (!employeeRole) throw new NotFoundException('Employee role not found.');
     }
@@ -357,7 +376,7 @@ export class EmployeeService implements OnModuleInit {
       reset_token_expiry: resetTokenExpiry,
     };
 
-    
+
     try {
       const result = await this.userRepo.manager.transaction(async (manager) => {
         const userRepo = manager.getRepository(User);
@@ -380,42 +399,62 @@ export class EmployeeService implements OnModuleInit {
 
 
       if (files) {
-        const profileFile = files.profile_picture?.[0];
-        if (profileFile) {
-          const profilePictureUrl = await this.employeeFileUploadService.uploadProfilePicture(profileFile, result.id);
-          result.profile_picture = profilePictureUrl;
-          
-          
-          const user = await this.userRepo.findOne({ where: { id: result.user_id } });
-          if (user) {
-            user.profile_pic = profilePictureUrl;
-            await this.userRepo.save(user);
+        try {
+          const profileFile = files.profile_picture?.[0];
+          if (profileFile) {
+            const profilePictureUrl =
+              await this.employeeFileUploadService.uploadProfilePicture(
+                profileFile,
+                result.id,
+              );
+            result.profile_picture = profilePictureUrl;
+
+            const user = await this.userRepo.findOne({
+              where: { id: result.user_id },
+            });
+            if (user) {
+              user.profile_pic = profilePictureUrl;
+              await this.userRepo.save(user);
+            }
           }
+
+          const cnicFile = files.cnic_picture?.[0];
+          if (cnicFile) {
+            const cnicPictureUrl =
+              await this.employeeFileUploadService.uploadCnicPicture(
+                cnicFile,
+                result.id,
+              );
+            result.cnic_picture = cnicPictureUrl;
+          }
+
+          const cnicBackFile = files.cnic_back_picture?.[0];
+          if (cnicBackFile) {
+            const cnicBackPictureUrl =
+              await this.employeeFileUploadService.uploadCnicBackPicture(
+                cnicBackFile,
+                result.id,
+              );
+            result.cnic_back_picture = cnicBackPictureUrl;
+          }
+
+          await this.employeeRepo.save(result);
+        } catch (uploadError) {
+          // If file upload fails, we must delete the employee to prevent partial creation
+          // We also delete the linked user account
+          await this.employeeRepo.delete(result.id);
+          await this.userRepo.delete(result.user_id);
+          throw uploadError; // Re-throw the error to notify the user
         }
-        
-        const cnicFile = files.cnic_picture?.[0];
-        if (cnicFile) {
-          const cnicPictureUrl = await this.employeeFileUploadService.uploadCnicPicture(cnicFile, result.id);
-          result.cnic_picture = cnicPictureUrl;
-        }
-        
-        const cnicBackFile = files.cnic_back_picture?.[0];
-        if (cnicBackFile) {
-          const cnicBackPictureUrl = await this.employeeFileUploadService.uploadCnicBackPicture(cnicBackFile, result.id);
-          result.cnic_back_picture = cnicBackPictureUrl;
-        }
-        
-        
-        await this.employeeRepo.save(result);
       }
-      
+
       // Process payment BEFORE sending invitation
       // Payment must succeed before employee invitation is sent
       const user = await this.userRepo.findOne({ where: { id: result.user_id } });
       if (!user) {
         throw new NotFoundException('User not found after employee creation');
       }
-      
+
       const employeeName = `${user.first_name} ${user.last_name}`.trim();
       const event = new EmployeeCreatedEvent(
         tenant_id,
@@ -423,7 +462,7 @@ export class EmployeeService implements OnModuleInit {
         user.email,
         employeeName,
       );
-      
+
       // Process payment synchronously - if payment fails, return checkout URL
       try {
         await this.billingService.handleEmployeeCreated(event);
@@ -435,16 +474,16 @@ export class EmployeeService implements OnModuleInit {
         this.logger.error(
           `Payment failed for employee creation: ${result.id}. Error: ${errorMessage}`,
         );
-        
+
         // If payment method is required, create checkout session and return URL
-        if (errorMessage.includes('PAYMENT_METHOD_REQUIRED') || 
-            errorMessage.includes('Payment method') ||
-            errorMessage.includes('payment_intent_authentication_required')) {
-          
+        if (errorMessage.includes('PAYMENT_METHOD_REQUIRED') ||
+          errorMessage.includes('Payment method') ||
+          errorMessage.includes('payment_intent_authentication_required')) {
+
           // Delete the employee since payment failed
           await this.employeeRepo.remove(result);
           await this.userRepo.remove(user);
-          
+
           // Create checkout session for payment with full employee data
           try {
             const checkout = await this.billingService.createEmployeePaymentCheckout(
@@ -463,11 +502,11 @@ export class EmployeeService implements OnModuleInit {
                 password: dto.password,
               },
             );
-            
+
             this.logger.log(
               `Checkout session created: ${checkout.checkoutSessionId}, URL: ${checkout.checkoutUrl}`,
             );
-            
+
             // Return checkout URL instead of creating employee
             throw new BadRequestException({
               message: 'Payment method required. Please complete payment to create employee.',
@@ -482,12 +521,12 @@ export class EmployeeService implements OnModuleInit {
               `Failed to create checkout session: ${errorMessage}`,
               errorStack,
             );
-            
+
             // If it's already a BadRequestException, re-throw it as is
             if (checkoutError instanceof BadRequestException) {
               throw checkoutError;
             }
-            
+
             // Otherwise, throw a new error with the actual error message
             throw new BadRequestException({
               message: `Payment method required but failed to create checkout session: ${errorMessage}`,
@@ -496,16 +535,16 @@ export class EmployeeService implements OnModuleInit {
             });
           }
         }
-        
+
         // For other payment errors, delete employee and throw error
         await this.employeeRepo.remove(result);
         await this.userRepo.remove(user);
-        
+
         throw new BadRequestException(
           `Payment processing failed: ${errorMessage}. Employee creation cannot be completed without successful payment.`,
         );
       }
-      
+
       // Only send invitation if payment succeeds
       await this.sendPasswordResetEmail(dto.email, resetToken);
 
@@ -535,8 +574,7 @@ export class EmployeeService implements OnModuleInit {
         await this.employeeSalaryService.create(tenant_id, createdByUserId, salaryDto);
       } catch (salaryError) {
         this.logger.error(
-          `Failed to create default salary for employee ${result.id}: ${
-            salaryError instanceof Error ? salaryError.message : String(salaryError)
+          `Failed to create default salary for employee ${result.id}: ${salaryError instanceof Error ? salaryError.message : String(salaryError)
           }`,
         );
       }
@@ -699,8 +737,7 @@ export class EmployeeService implements OnModuleInit {
         await this.employeeSalaryService.create(tenant_id, result.user_id, salaryDto);
       } catch (salaryError) {
         this.logger.error(
-          `Failed to create default salary for employee ${result.id} after payment: ${
-            salaryError instanceof Error ? salaryError.message : String(salaryError)
+          `Failed to create default salary for employee ${result.id} after payment: ${salaryError instanceof Error ? salaryError.message : String(salaryError)
           }`,
         );
       }
@@ -771,14 +808,14 @@ export class EmployeeService implements OnModuleInit {
       .take(limit)
       .getManyAndCount();
 
-  
+
     const now = new Date();
     for (const item of items) {
       if (item.invite_status === InviteStatus.INVITE_SENT && item.user?.reset_token_expiry && now > item.user.reset_token_expiry) {
         item.invite_status = InviteStatus.INVITE_EXPIRED;
         try {
           await this.employeeRepo.update(item.id, { invite_status: InviteStatus.INVITE_EXPIRED });
-        } catch {}
+        } catch { }
       }
     }
 
@@ -806,7 +843,7 @@ export class EmployeeService implements OnModuleInit {
       throw new NotFoundException('Employee not found');
     }
 
-    
+
     const currentStatus = await this.inviteStatusService.getInviteStatus(employee.id);
     if (currentStatus && currentStatus !== employee.invite_status) {
       employee.invite_status = currentStatus as InviteStatus;
@@ -818,10 +855,10 @@ export class EmployeeService implements OnModuleInit {
     };
   }
 
-  async update(tenant_id: string, id: string, dto: UpdateEmployeeDto, files?: { 
-    profile_picture?: Express.Multer.File[], 
-    cnic_picture?: Express.Multer.File[], 
-    cnic_back_picture?: Express.Multer.File[] 
+  async update(tenant_id: string, id: string, dto: UpdateEmployeeDto, files?: {
+    profile_picture?: Express.Multer.File[],
+    cnic_picture?: Express.Multer.File[],
+    cnic_back_picture?: Express.Multer.File[]
   }) {
     const employee = await this.employeeRepo.findOne({
       where: { id },
@@ -859,7 +896,7 @@ export class EmployeeService implements OnModuleInit {
 
     let shouldSaveUser = false;
     if (dto.role_name) {
-      
+
       const newRole = await this.roleRepo.findOne({ where: { name: dto.role_name } });
       if (!newRole) throw new NotFoundException(`Role with name '${dto.role_name}' not found.`);
       user.role_id = newRole.id;
@@ -898,7 +935,7 @@ export class EmployeeService implements OnModuleInit {
       employee.cnic_number = dto.cnic_number;
     }
 
-  
+
     if (files) {
       if (files.profile_picture?.[0]) {
         if (user.profile_pic) {
@@ -1008,7 +1045,7 @@ export class EmployeeService implements OnModuleInit {
       const employeeRepo = manager.getRepository(Employee);
       const userRepo = manager.getRepository(User);
 
-      
+
       await employeeRepo.delete(employee.id);
       await userRepo.delete(employee.user.id);
     });
@@ -1028,7 +1065,7 @@ export class EmployeeService implements OnModuleInit {
       await this.sendGridService.sendWelcomeEmail(email, resetToken);
     } catch (error) {
       this.logger.error(`Failed to send welcome email to ${email}: ${String((error as any)?.message || error)}`);
-  
+
       this.logger.warn('Email sending failed, but continuing with employee creation');
     }
   }
@@ -1144,7 +1181,7 @@ export class EmployeeService implements OnModuleInit {
       .addOrderBy('month', 'ASC')
       .getRawMany();
 
-  
+
     if (!results || results.length === 0) {
       return [];
     }
@@ -1168,7 +1205,7 @@ export class EmployeeService implements OnModuleInit {
     if (employee.invite_status !== InviteStatus.INVITE_EXPIRED) {
       throw new BadRequestException('Invite can only be resent if status is Invite Expired');
     }
-    
+
     const resetToken = crypto.randomBytes(32).toString('hex');
     // Hash the token before storing (similar to passwords)
     const hashedResetToken = await bcrypt.hash(resetToken, 10);
@@ -1179,7 +1216,7 @@ export class EmployeeService implements OnModuleInit {
     employee.invite_status = InviteStatus.INVITE_SENT;
     await this.userRepo.save(employee.user);
     await this.employeeRepo.save(employee);
-    
+
     await this.sendPasswordResetEmail(employee.user.email, resetToken);
     return { message: 'Invite resent successfully' };
   }
@@ -1196,11 +1233,11 @@ export class EmployeeService implements OnModuleInit {
 
     let imagePath: string | null = null;
 
-    
+
     if (employee.profile_picture) {
       imagePath = employee.profile_picture;
     }
-    
+
     else if (employee.user.profile_pic) {
       imagePath = employee.user.profile_pic;
     }
@@ -1209,7 +1246,7 @@ export class EmployeeService implements OnModuleInit {
       throw new NotFoundException('No profile picture available');
     }
 
-  
+
     const fileName = imagePath.split('/').pop();
     if (!fileName) {
       throw new NotFoundException('Invalid image path');
@@ -1221,10 +1258,10 @@ export class EmployeeService implements OnModuleInit {
       throw new NotFoundException('Profile picture file not found');
     }
 
-    
+
     const ext = path.extname(fileName).toLowerCase();
     const contentType = this.getContentType(ext);
-    
+
     res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
     res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
@@ -1247,7 +1284,7 @@ export class EmployeeService implements OnModuleInit {
       throw new NotFoundException('No CNIC picture available');
     }
 
-  
+
     const fileName = employee.cnic_picture.split('/').pop();
     if (!fileName) {
       throw new NotFoundException('Invalid CNIC image path');
@@ -1255,20 +1292,20 @@ export class EmployeeService implements OnModuleInit {
 
     const filePath = path.join(process.cwd(), 'public', 'cnic-pictures', fileName);
 
-  
+
     if (!fs.existsSync(filePath)) {
       throw new NotFoundException('CNIC picture file not found');
     }
 
-    
+
     const ext = path.extname(fileName).toLowerCase();
     const contentType = this.getContentType(ext);
-    
+
     res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
     res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
 
-    
+
     const fileStream = fs.createReadStream(filePath);
     fileStream.pipe(res);
   }
@@ -1287,7 +1324,7 @@ export class EmployeeService implements OnModuleInit {
       throw new NotFoundException('No CNIC back picture available');
     }
 
-    
+
     const fileName = employee.cnic_back_picture.split('/').pop();
     if (!fileName) {
       throw new NotFoundException('Invalid CNIC back image path');
@@ -1295,20 +1332,20 @@ export class EmployeeService implements OnModuleInit {
 
     const filePath = path.join(process.cwd(), 'public', 'cnic-back-pictures', fileName);
 
-    
+
     if (!fs.existsSync(filePath)) {
       throw new NotFoundException('CNIC back picture file not found');
     }
 
-    
+
     const ext = path.extname(fileName).toLowerCase();
     const contentType = this.getContentType(ext);
-    
+
     res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
     res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
 
-  
+
     const fileStream = fs.createReadStream(filePath);
     fileStream.pipe(res);
   }
@@ -1324,7 +1361,7 @@ export class EmployeeService implements OnModuleInit {
       '.bmp': 'image/bmp',
       '.svg': 'image/svg+xml',
     };
-    
+
     return contentTypes[ext] || 'application/octet-stream';
   }
 
