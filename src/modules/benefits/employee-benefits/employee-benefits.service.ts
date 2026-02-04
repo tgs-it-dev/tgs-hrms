@@ -26,7 +26,7 @@ export class EmployeeBenefitsService {
 
     @InjectRepository(Tenant)
     private readonly tenantRepo: Repository<Tenant>,
-  ) {}
+  ) { }
 
   async create(
     tenant_id: string,
@@ -116,7 +116,7 @@ export class EmployeeBenefitsService {
     const skip = (page - 1) * 25;
     qb.skip(skip).take(25);
     const results = await qb.getMany();
-    
+
     // Group by employee, collect all their benefits into an array
     const employeeMap = new Map();
     for (const record of results) {
@@ -174,7 +174,11 @@ export class EmployeeBenefitsService {
     return await this.employeeBenefitRepo.save(benefitRecord);
   }
 
-  async getAllEmployeesWithBenefits(tenant_id: string, page: number = 1) {
+  async getAllEmployeesWithBenefits(
+    tenant_id: string,
+    page: number = 1,
+    limit: number = 25,
+  ) {
     const qb = this.employeeRepo
       .createQueryBuilder("employee")
       .leftJoinAndSelect("employee.employeeBenefits", "eb")
@@ -185,10 +189,10 @@ export class EmployeeBenefitsService {
       .where("user.tenant_id = :tenant_id", { tenant_id })
       .orderBy("employee.id", "ASC");
 
-    const skip = (page - 1) * 25;
-    qb.skip(skip).take(25);
+    const skip = (page - 1) * limit;
+    qb.skip(skip).take(limit);
 
-    const employees = await qb.getMany();
+    const [employees, total] = await qb.getManyAndCount();
 
     const data = employees.map((e) => ({
       employeeId: e.id,
@@ -206,7 +210,7 @@ export class EmployeeBenefitsService {
         createdBy: b.benefit.createdBy,
         createdAt: b.benefit.createdAt,
         // Assignment details:
-        benefitAssignmentId: b.id,  // ← This is what you need for cancellation!
+        benefitAssignmentId: b.id,
         statusOfAssignment: b.status,
         startDate: b.startDate,
         endDate: b.endDate,
@@ -215,7 +219,15 @@ export class EmployeeBenefitsService {
       })),
     }));
 
-    return data;
+    const totalPages = Math.ceil(total / limit) || 1;
+
+    return {
+      items: data,
+      total,
+      page,
+      limit,
+      totalPages,
+    };
   }
 
   async getSummary(tenant_id: string) {
