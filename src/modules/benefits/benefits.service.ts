@@ -19,7 +19,7 @@ export class BenefitsService {
 
     @InjectRepository(Tenant)
     private readonly tenantRepo: Repository<Tenant>,
-  ) {}
+  ) { }
 
   async create(tenant_id: string, createdBy: string, dto: CreateBenefitDto) {
     const tenant = await this.tenantRepo.findOne({ where: { id: tenant_id } });
@@ -119,7 +119,21 @@ export class BenefitsService {
     id: string,
   ): Promise<{ deleted: true; id: string }> {
     await this.findOne(tenant_id, id); // ensure it exists
-    await this.benefitRepo.delete(id);
-    return { deleted: true, id };
+
+    try {
+      await this.benefitRepo.delete(id);
+      return { deleted: true, id };
+    } catch (err) {
+      if (err instanceof QueryFailedError) {
+        const code: unknown = (err as QueryFailedError & { code?: string })
+          .code;
+        if (code === "23503") {
+          throw new ConflictException(
+            "Cannot delete benefit as it is assigned to one or more employees.",
+          );
+        }
+      }
+      throw err;
+    }
   }
 }
