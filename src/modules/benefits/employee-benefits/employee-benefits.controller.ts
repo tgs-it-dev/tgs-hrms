@@ -25,7 +25,9 @@ import { CreateEmployeeBenefitDto } from "../dto/employee-benefit/create-employe
 import { TenantId } from "src/common/decorators/company.deorator";
 import { JwtUserPayloadDto } from "src/modules/auth/dto/jwt-payload.dto";
 import { EmployeeBenefitSummaryDto } from "../dto/employee-benefit/employee-benefit-summary.dto";
-import { GetAllEmployeesWithBenefitsResponseDto } from "../dto/employee-benefit/get-all-employees-with-benefits.dto";
+import {
+  PaginatedGetAllEmployeesWithBenefitsResponseDto,
+} from "../dto/employee-benefit/get-all-employees-with-benefits.dto";
 
 @ApiTags("Employee Benefits")
 @Controller("employee-benefits")
@@ -34,7 +36,7 @@ import { GetAllEmployeesWithBenefitsResponseDto } from "../dto/employee-benefit/
 export class EmployeeBenefitsController {
   constructor(
     private readonly employeeBenefitsService: EmployeeBenefitsService,
-  ) {}
+  ) { }
 
   @Post()
   @Roles("hr-admin", 'admin')
@@ -84,33 +86,36 @@ export class EmployeeBenefitsController {
   }
 
   @Put(":id/cancel")
-  @Roles("hr-admin" , 'admin')
+  @Roles("hr-admin", 'admin')
   @ApiOperation({ summary: "Cancel an employee benefit" })
   async cancel(@TenantId() tenant_id: string, @Param("id") id: string) {
     return this.employeeBenefitsService.cancel(tenant_id, id);
   }
 
   @Get("employees")
-  @Roles("hr-admin","network-admin","system-admin")
+  @Roles("hr-admin", "network-admin", "system-admin")
   @ApiOperation({
-    summary: "Get all employees with their assigned benefits (HR Admin/System Admin view)",
+    summary:
+      "Get all employees with their assigned benefits (HR Admin/System Admin view)",
   })
   @ApiOkResponse({
-    type: [GetAllEmployeesWithBenefitsResponseDto],
+    type: PaginatedGetAllEmployeesWithBenefitsResponseDto,
     description: "List of all employees with their assigned benefits",
   })
   async getAllEmployeesWithBenefits(
     @TenantId() tenant_id: string,
     @Query("page") page: number = 1,
+    @Query("limit") limit: number = 25,
   ) {
     return this.employeeBenefitsService.getAllEmployeesWithBenefits(
       tenant_id,
       page,
+      limit,
     );
   }
 
   @Get("summary")
-  @Roles("network-admin","system-admin")
+  @Roles("network-admin", "system-admin")
   @ApiOperation({
     summary: "Get summary for benefits coverage (Network Admin/System Admin)",
   })
