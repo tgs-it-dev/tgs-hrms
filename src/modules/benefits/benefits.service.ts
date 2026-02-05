@@ -10,6 +10,7 @@ import { Benefit } from "../../entities/benefit.entity";
 import { Tenant } from "../../entities/tenant.entity";
 import { CreateBenefitDto } from "./dto/benefit/create-benefit.dto";
 import { UpdateBenefitDto } from "./dto/benefit/update-benefit.dto";
+import { PaginationResponse } from "../../common/interfaces/pagination.interface";
 
 @Injectable()
 export class BenefitsService {
@@ -94,16 +95,27 @@ export class BenefitsService {
     }
   }
 
-  async findAllByTenant(tenant_id: string, page = 1) {
+  async findAllByTenant(
+    tenant_id: string,
+    page = 1,
+  ): Promise<PaginationResponse<Benefit>> {
     const limit = 25;
     const skip = (page - 1) * limit;
 
-    return await this.benefitRepo.find({
+    const [items, total] = await this.benefitRepo.findAndCount({
       where: { tenant_id },
       order: { createdAt: "DESC" },
       skip,
       take: limit,
     });
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async findOne(tenant_id: string, id: string) {
