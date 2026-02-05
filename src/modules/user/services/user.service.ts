@@ -19,7 +19,7 @@ export class UserService {
     @InjectRepository(Role)
     private readonly roleRepo: Repository<Role>,
     private readonly fileUploadService: FileUploadService
-  ) {}
+  ) { }
   private async isSystemAdmin(userId: string): Promise<boolean> {
     const user = await this.userRepo.findOne({
       where: { id: userId },
@@ -33,10 +33,10 @@ export class UserService {
       where: { id: createUserDto.role_id },
     });
     if (!role) throw new NotFoundException('Role not found');
-    
+
     // System-admin users always get the global system tenant ID
     const finalTenantId = role.name === 'system-admin' ? GLOBAL_SYSTEM_TENANT_ID : tenantId;
-    
+
     // Validation: Only one system admin is allowed in the entire HRMS
     if (role.name === 'system-admin') {
       const existingSystemAdmin = await this.userRepo.findOne({
@@ -45,14 +45,25 @@ export class UserService {
           tenant_id: GLOBAL_SYSTEM_TENANT_ID,
         },
       });
-      
+
       if (existingSystemAdmin) {
         throw new BadRequestException(
           'Only one system admin is allowed in the entire HRMS. A system admin already exists.'
         );
       }
+    } else {
+      // Check email uniqueness within tenant
+      const existingUser = await this.userRepo.findOne({
+        where: {
+          email: createUserDto.email.toLowerCase(),
+          tenant_id: finalTenantId
+        }
+      });
+      if (existingUser) {
+        throw new BadRequestException('User with this email already exists in this organization');
+      }
     }
-    
+
     const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
     const user = this.userRepo.create({
       password: hashedPassword,
@@ -113,13 +124,13 @@ export class UserService {
   }
   async updateProfilePicture(userId: string, file: Express.Multer.File, tenantId: string) {
     const user = await this.findOne(userId, tenantId, userId);
-  
+
     if (user.profile_pic) {
       await this.fileUploadService.deleteProfilePicture(user.profile_pic);
     }
-  
+
     const profilePicUrl = await this.fileUploadService.uploadProfilePicture(file, userId);
-    
+
     user.profile_pic = profilePicUrl;
     return this.userRepo.save(user);
   }
@@ -132,11 +143,11 @@ export class UserService {
     }
     return user;
   }
-  
+
   async getProfilePicture(userId: string) {
     try {
       this.logger.debug(`Getting profile picture for user: ${userId}`);
-    
+
       const user = await this.userRepo.findOne({
         where: { id: userId },
         select: ['id', 'profile_pic'],
@@ -150,9 +161,9 @@ export class UserService {
         return null;
       }
       this.logger.debug(`User found with profile picture: ${user.id}`);
-    
+
       const uploadDir = path.join(process.cwd(), 'public', 'profile-pictures');
-      const fileName = user.profile_pic.split('/').pop(); 
+      const fileName = user.profile_pic.split('/').pop();
       if (!fileName) {
         this.logger.warn(`Invalid profile picture URL: ${user.profile_pic}`);
         return null;
@@ -164,12 +175,12 @@ export class UserService {
         this.logger.warn(`Profile picture file not found: ${filePath}`);
         return null;
       }
-      
+
       const stats = fs.statSync(filePath);
       const fileExtension = path.extname(filePath).toLowerCase();
       this.logger.debug(`Profile picture stats: size=${stats.size}, ext=${fileExtension}`);
-    
-      let contentType = 'image/jpeg'; 
+
+      let contentType = 'image/jpeg';
       switch (fileExtension) {
         case '.jpg':
         case '.jpeg':
@@ -188,7 +199,7 @@ export class UserService {
           contentType = 'image/jpeg';
           break;
       }
-    
+
       const fileStream = fs.createReadStream(filePath);
       this.logger.debug('Profile picture data prepared');
       return {

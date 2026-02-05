@@ -28,7 +28,7 @@ export enum UserRole {
 
 @Index(['tenant_id'])
 @Index(['email'])
-@Index(['tenant_id', 'email'])
+@Index(['email', 'tenant_id'], { unique: true })
 @Entity("users")
 export class User {
   @PrimaryGeneratedColumn("uuid")
@@ -70,14 +70,14 @@ export class User {
   @Column({ type: "timestamptz", nullable: true })
   first_login_time: Date;
 
-  @ManyToOne(() => Role, (role) => role.users, { 
+  @ManyToOne(() => Role, (role) => role.users, {
     nullable: false,
     onDelete: 'RESTRICT' // Prevent deletion if users exist
   })
   @JoinColumn({ name: "role_id" })
   role: Role;
 
-  @ManyToOne(() => Tenant, (tenant) => tenant.users, { 
+  @ManyToOne(() => Tenant, (tenant) => tenant.users, {
     nullable: false,
     onDelete: 'RESTRICT' // Prevent hard delete, use soft delete instead
   })
