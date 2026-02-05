@@ -38,7 +38,7 @@ export class AuthService {
     private configService: ConfigService,
     private emailService: EmailService,
     private inviteStatusService: InviteStatusService
-  ) {}
+  ) { }
 
   /**
    * Normalizes and checks if a role name is system-admin.
@@ -139,24 +139,27 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto) {
+    // Check if the role is system-admin to assign global tenant ID
+    const role = await this.roleRepository.findOne({
+      where: { id: dto.role_id },
+    });
+
+    // System-admin users always get the global system tenant ID
+    const finalTenantId = role?.name === 'system-admin' ? GLOBAL_SYSTEM_TENANT_ID : dto.tenant_id;
+
     const existingUser = await this.userRepository.findOne({
-      where: { email: dto.email.toLowerCase() },
+      where: {
+        email: dto.email.toLowerCase(),
+        tenant_id: finalTenantId
+      },
     });
 
     if (existingUser) {
       throw new BadRequestException({
         field: 'email',
-        message: 'User with this email already exists',
+        message: 'User with this email already exists in this organization',
       });
     }
-
-    // Check if the role is system-admin to assign global tenant ID
-    const role = await this.roleRepository.findOne({
-      where: { id: dto.role_id },
-    });
-    
-    // System-admin users always get the global system tenant ID
-    const finalTenantId = role?.name === 'system-admin' ? GLOBAL_SYSTEM_TENANT_ID : dto.tenant_id;
 
     // Validation: Only one system admin is allowed in the entire HRMS
     if (role?.name === 'system-admin') {
@@ -166,7 +169,7 @@ export class AuthService {
           tenant_id: GLOBAL_SYSTEM_TENANT_ID,
         },
       });
-      
+
       if (existingSystemAdmin) {
         throw new BadRequestException(
           'Only one system admin is allowed in the entire HRMS. A system admin already exists.'
@@ -192,18 +195,18 @@ export class AuthService {
 
   async validateToken(userId: string) {
     this.logger.log(`Validating token for user: ${userId}`);
-  
+
     try {
       const user = await this.userRepository.findOne({
         where: { id: userId },
         relations: ['role'],
       });
-  
+
       if (!user) {
         this.logger.warn(`Token validation failed: user not found for id: ${userId}`);
         throw new UnauthorizedException('User not found or has been deleted');
       }
-  
+
       if (!user.role?.name) {
         this.logger.warn(`Token validation failed: user role missing for id: ${userId}`);
         throw new UnauthorizedException('User role not found');
@@ -212,19 +215,19 @@ export class AuthService {
       // System-admin users always use the global system tenant ID
       const isSystemAdmin = this.isSystemAdminRole(user.role.name);
       const tenantId = isSystemAdmin ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
-      
+
       // Check if tenant is deleted (for non-system-admin users)
       if (!isSystemAdmin && tenantId) {
         const tenant = await this.tenantRepository.findOne({
           where: { id: tenantId },
         });
-        
+
         if (!tenant || tenant.deleted_at) {
           this.logger.warn(`Token validation failed: tenant is deleted for user: ${userId}`);
           throw new UnauthorizedException('Your organization account has been deleted. Please contact support.');
         }
       }
-  
+
       const permissions = await this.getUserPermissions(user.id);
 
       this.logger.log(`Token validation successful for user: ${user.email}`);
@@ -259,13 +262,12 @@ export class AuthService {
     const normalizedEmail = email.toLowerCase();
     this.logger.log(`Login attempt for email: ${normalizedEmail}`);
 
-    const user = await this.userRepository.findOne({
+    const users = await this.userRepository.find({
       where: { email: normalizedEmail },
       relations: ['role'],
     });
-   this.logger.log(`Login attempt for user: ${user}`);
 
-    if (!user) {
+    if (!users || users.length === 0) {
       this.logger.warn(`Login failed: user not found for email: ${normalizedEmail}`);
       throw new BadRequestException({
         field: 'email',
@@ -273,8 +275,16 @@ export class AuthService {
       });
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
+    let user: User | null = null;
+    for (const u of users) {
+      const isPasswordValid = await bcrypt.compare(password, u.password);
+      if (isPasswordValid) {
+        user = u;
+        break;
+      }
+    }
+
+    if (!user) {
       this.logger.warn(`Login failed: invalid password for email: ${normalizedEmail}`);
       throw new BadRequestException({
         field: 'password',
@@ -290,23 +300,23 @@ export class AuthService {
     // System-admin users always use the global system tenant ID
     const isSystemAdmin = this.isSystemAdminRole(user.role.name);
     const tenantId = isSystemAdmin ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
-    
+
     // Check if tenant is deleted (for non-system-admin users)
     if (!isSystemAdmin && tenantId) {
       const tenant = await this.tenantRepository.findOne({
         where: { id: tenantId },
       });
-      
+
       if (!tenant || tenant.deleted_at) {
         this.logger.warn(`Login failed: tenant is deleted for email: ${normalizedEmail}`);
         throw new UnauthorizedException('Your organization account has been deleted. Please contact support.');
       }
     }
-  
+
     const permissions = await this.getUserPermissions(user.id);
 
     const employee = await this.employeeRepository.findOne({ where: { user_id: user.id } });
-    
+
     const companyDetails = await this.getCompanyDetails(tenantId);
     const requiresPayment = companyDetails ? !companyDetails.is_paid : false;
 
@@ -334,16 +344,16 @@ export class AuthService {
     });
 
     user.refresh_token = refreshToken;
-    
-    
+
+
     if (!user.first_login_time) {
       user.first_login_time = new Date();
       this.logger.log(`First login recorded for user: ${normalizedEmail}`);
-      
-    
+
+
       await this.inviteStatusService.updateInviteStatusOnLogin(user.id);
     }
-    
+
     await this.userRepository.save(user);
 
     // Find SignupSession by email to get session_id
@@ -369,27 +379,30 @@ export class AuthService {
     const emailHash = this.sanitizeEmailForLogging(dto.email);
     this.logger.log(`Forgot password request for email: ${emailHash}`);
 
-    const user = await this.userRepository.findOne({
+    const users = await this.userRepository.find({
       where: { email: dto.email.toLowerCase() },
     });
 
-    if (!user) {
+    if (!users || users.length === 0) {
       this.logger.warn(`Forgot password failed: user not found for email: ${emailHash}`);
       throw new BadRequestException('In Valid email address');
     }
 
     const resetToken = this.generateSecureToken();
-    // Hash the token before storing (similar to passwords)
     const hashedResetToken = await bcrypt.hash(resetToken, 10);
     const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
 
-    await this.userRepository.update(user.id, {
-      reset_token: hashedResetToken,
-      reset_token_expiry: resetTokenExpiry,
-    });
+    // Update all users with this email
+    for (const user of users) {
+      await this.userRepository.update(user.id, {
+        reset_token: hashedResetToken,
+        reset_token_expiry: resetTokenExpiry,
+      });
+    }
 
-    const userName = `${user.first_name} ${user.last_name}`;
-    await this.emailService.sendPasswordResetEmail(user.email, resetToken, userName);
+    const firstUser = users[0];
+    const userName = `${firstUser.first_name} ${firstUser.last_name}`;
+    await this.emailService.sendPasswordResetEmail(firstUser.email, resetToken, userName);
 
     this.logger.log(`Password reset email sent to: ${emailHash}`);
 
@@ -456,31 +469,33 @@ export class AuthService {
       },
     });
 
-    let user: User | null = null;
+    const matchingUsers: User[] = [];
     // Verify token against hashed tokens
     for (const u of users) {
       if (u.reset_token && await bcrypt.compare(dto.token, u.reset_token)) {
-        user = u;
-        break;
+        matchingUsers.push(u);
       }
     }
 
-    if (!user) {
+    if (matchingUsers.length === 0) {
       this.logger.warn(`Reset password failed: invalid or expired token`);
       throw new BadRequestException('Invalid or expired reset token');
     }
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
-    await this.userRepository.update(user.id, {
-      password: hashedPassword,
-      reset_token: null,
-      reset_token_expiry: null,
-    });
+    for (const user of matchingUsers) {
+      await this.userRepository.update(user.id, {
+        password: hashedPassword,
+        reset_token: null,
+        reset_token_expiry: null,
+      });
+    }
 
-    const userName = `${user.first_name} ${user.last_name}`;
-    const emailHash = this.sanitizeEmailForLogging(user.email);
-    await this.emailService.sendPasswordResetSuccessEmail(user.email, userName);
+    const firstUser = matchingUsers[0];
+    const userName = `${firstUser.first_name} ${firstUser.last_name}`;
+    const emailHash = this.sanitizeEmailForLogging(firstUser.email);
+    await this.emailService.sendPasswordResetSuccessEmail(firstUser.email, userName);
 
     this.logger.log(`Password reset successful for user: ${emailHash}`);
 
@@ -493,22 +508,22 @@ export class AuthService {
     if (!refreshToken) {
       throw new BadRequestException('Refresh token is required');
     }
-  
+
     try {
       const payload = this.jwtService.verify(refreshToken, {
         secret: this.configService.get<string>('JWT_SECRET'),
       });
-  
+
       const user = await this.userRepository.findOne({
         where: { id: payload.sub },
         relations: ['role'],
       });
-  
+
       if (!user) {
         this.logger.warn(`Refresh token failed: user not found for id: ${payload.sub}`);
         throw new UnauthorizedException('User not found or has been deleted');
       }
-  
+
       if (!user.role?.name) {
         this.logger.warn(`Refresh token failed: user role missing for id: ${payload.sub}`);
         throw new UnauthorizedException('User role not found');
@@ -517,19 +532,19 @@ export class AuthService {
       // System-admin users always use the global system tenant ID
       const isSystemAdmin = this.isSystemAdminRole(user.role.name);
       const tenantId = isSystemAdmin ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
-      
+
       // Check if tenant is deleted (for non-system-admin users)
       if (!isSystemAdmin && tenantId) {
         const tenant = await this.tenantRepository.findOne({
           where: { id: tenantId },
         });
-        
+
         if (!tenant || tenant.deleted_at) {
           this.logger.warn(`Refresh token failed: tenant is deleted for user: ${user.email}`);
           throw new UnauthorizedException('Your organization account has been deleted. Please contact support.');
         }
       }
-  
+
       if (user.refresh_token !== refreshToken) {
         this.logger.warn(`Refresh token failed: token mismatch for user: ${user.email}`);
         throw new UnauthorizedException('Invalid refresh token');
@@ -547,14 +562,14 @@ export class AuthService {
         tenant_id: tenantId,
         permissions,
       };
-  
+
       this.logger.log(`Refresh: JWT payload for user ${user.email}: ${JSON.stringify(newPayload)}`);
-  
+
       const newAccessToken = this.jwtService.sign(newPayload, {
         secret: this.configService.get<string>('JWT_SECRET'),
         expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '24h',
       });
-  
+
       this.logger.log(`Access token refreshed successfully for user: ${user.email}`);
       return { accessToken: newAccessToken };
     } catch (error) {
@@ -596,26 +611,26 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token');
     }
   }
-  
+
   async deleteUser(userId: string) {
     this.logger.log(`Deleting user: ${userId}`);
-  
+
     const user = await this.userRepository.findOne({
       where: { id: userId },
     });
-  
+
     if (!user) {
       throw new NotFoundException('User not found');
     }
-  
-  
+
+
     await this.userRepository.update(userId, {
       refresh_token: null,
     });
-  
+
 
     await this.userRepository.delete(userId);
-  
+
     this.logger.log(`User deleted successfully: ${user.email}`);
     return { message: 'User deleted successfully' };
   }
