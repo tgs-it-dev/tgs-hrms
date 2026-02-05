@@ -26,6 +26,7 @@ import {
 } from '@nestjs/swagger';
 import { EmployeeService } from '../services/employee.service';
 import { CreateEmployeeDto, UpdateEmployeeDto, EmployeeQueryDto } from '../dto/employee.dto';
+import { RemoveEmployeeDocumentDto } from '../dto/update-employee.dto';
 
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
@@ -541,6 +542,33 @@ export class EmployeeController {
   @ApiResponse({ status: 404, description: 'Employee not found.' })
   async findOne(@TenantId() tenant_id: string, @Param('id') id: string) {
     return this.service.findOne(tenant_id, id);
+  }
+
+  @Delete(':id/documents')
+  @Roles('admin', 'system-admin', 'hr-admin')
+  @ApiOperation({ summary: 'Remove one document from employee (e.g. click on image to delete)' })
+  @ApiBody({
+    type: RemoveEmployeeDocumentDto,
+    schema: {
+      type: 'object',
+      required: ['documentUrl'],
+      properties: {
+        documentUrl: {
+          type: 'string',
+          example: '/profile-pictures/xxx.png',
+          description: 'URL of the document to remove',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Document removed successfully' })
+  @ApiResponse({ status: 404, description: 'Employee or document not found' })
+  async removeDocument(
+    @Param('id') id: string,
+    @Body() dto: RemoveEmployeeDocumentDto,
+    @TenantId() tenant_id: string,
+  ) {
+    return this.service.removeDocument(tenant_id, id, dto);
   }
 
   @Delete(':id')
