@@ -1,5 +1,5 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsOptional, IsString, IsUUID } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEmail, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class UpdateEmployeeDto {
@@ -67,11 +67,21 @@ export class UpdateEmployeeDto {
   @IsUUID()
   role_id?: string;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     example: '12345-1234567-1',
     description: 'CNIC number in format: XXXXX-XXXXXXX-X'
   })
   @IsOptional()
   @IsString()
   cnic_number?: string;
+}
+
+export class RemoveEmployeeDocumentDto {
+  @ApiProperty({
+    description: 'Document URL to remove (e.g. /profile-pictures/xxx.png)',
+    example: '/profile-pictures/8afaf744-278d-4905-aecd-79bff53941f0-1769611361810.png',
+  })
+  @IsString()
+  @IsNotEmpty()
+  documentUrl: string;
 }

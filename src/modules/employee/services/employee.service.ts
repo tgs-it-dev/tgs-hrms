@@ -14,6 +14,7 @@ import { Designation } from '../../../entities/designation.entity';
 import { Role } from '../../../entities/role.entity';
 import { Team } from '../../../entities/team.entity';
 import { CreateEmployeeDto, UpdateEmployeeDto, EmployeeQueryDto } from '../dto/employee.dto';
+import { RemoveEmployeeDocumentDto } from '../dto/update-employee.dto';
 import { SendGridService } from '../../../common/utils/email';
 import { InviteStatusService } from '../../invite-status/invite-status.service';
 import { EmployeeFileUploadService } from './employee-file-upload.service';
@@ -1051,6 +1052,48 @@ export class EmployeeService implements OnModuleInit {
     });
 
     return { deleted: true, id };
+  }
+
+  async removeDocument(tenant_id: string, id: string, dto: RemoveEmployeeDocumentDto): Promise<Employee> {
+    const employee = await this.employeeRepo.findOne({
+      where: { id, user: { tenant_id } },
+      relations: ['user'],
+    });
+
+    if (!employee) {
+      throw new NotFoundException('Employee not found');
+    }
+
+    const { documentUrl } = dto;
+    let fieldToUpdate: string | null = null;
+
+    if (employee.profile_picture === documentUrl) {
+      fieldToUpdate = 'profile_picture';
+      await this.employeeFileUploadService.deleteProfilePicture(documentUrl);
+    } else if (employee.cnic_picture === documentUrl) {
+      fieldToUpdate = 'cnic_picture';
+      await this.employeeFileUploadService.deleteCnicPicture(documentUrl);
+    } else if (employee.cnic_back_picture === documentUrl) {
+      fieldToUpdate = 'cnic_back_picture';
+      await this.employeeFileUploadService.deleteCnicBackPicture(documentUrl);
+    }
+
+    if (!fieldToUpdate) {
+      throw new NotFoundException('Document not found for this employee');
+    }
+
+    await this.employeeRepo.update(id, { [fieldToUpdate]: null });
+
+    const updatedEmployee = await this.employeeRepo.findOne({
+      where: { id },
+      relations: ['user', 'designation', 'team'],
+    });
+
+    if (!updatedEmployee) {
+      throw new NotFoundException('Employee not found after update');
+    }
+
+    return updatedEmployee;
   }
 
   private generateTemporaryPassword(): string {
