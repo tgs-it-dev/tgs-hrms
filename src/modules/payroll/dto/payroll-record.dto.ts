@@ -66,3 +66,46 @@ export class PayrollStatisticsQueryDto {
   endDate?: string;
 }
 
+export class PayrollQueryDto {
+  @ApiPropertyOptional({ description: 'Month (1-12)', example: 2 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(12)
+  month?: number;
+
+  @ApiPropertyOptional({ description: 'Year', example: 2026 })
+  @IsOptional()
+  @IsInt()
+  @Min(2000)
+  year?: number;
+
+  @ApiPropertyOptional({ description: 'Employee ID' })
+  @IsOptional()
+  @IsUUID()
+  employee_id?: string;
+
+  @ApiPropertyOptional({ description: 'Payroll status (pending, approved, paid, rejected)' })
+  @IsOptional()
+  @IsString()
+  status?: string;
+
+  @ApiPropertyOptional({ description: 'Search by employee name' })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({ description: 'Page number (default: 1)', default: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @ApiPropertyOptional({ description: 'Items per page (default: 25, max: 100)', default: 25 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+}
+

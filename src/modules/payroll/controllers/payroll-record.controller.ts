@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiQuery } from '@nestjs/swagger';
 import { PayrollRecordService } from '../services/payroll-record.service';
-import { GeneratePayrollDto, UpdatePayrollStatusDto, PayrollStatisticsQueryDto } from '../dto/payroll-record.dto';
+import { GeneratePayrollDto, UpdatePayrollStatusDto, PayrollStatisticsQueryDto, PayrollQueryDto } from '../dto/payroll-record.dto';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { TenantGuard } from '../../../common/guards/tenant.guard';
@@ -23,7 +23,7 @@ import { Roles } from '../../../common/decorators/roles.decorator';
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
 @Controller('payroll')
 export class PayrollRecordController {
-  constructor(private readonly payrollRecordService: PayrollRecordService) {}
+  constructor(private readonly payrollRecordService: PayrollRecordService) { }
 
   @Post('generate')
   @Roles('admin', 'hr-admin')
@@ -49,26 +49,18 @@ export class PayrollRecordController {
   @ApiQuery({ name: 'month', required: true, type: Number })
   @ApiQuery({ name: 'year', required: true, type: Number })
   @ApiQuery({ name: 'employee_id', required: false, type: String })
+  @ApiQuery({ name: 'status', required: false, type: String, description: 'Payroll status (pending, approved, paid, rejected)' })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'Search by employee name' })
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 25, max: 100)' })
   async getPayrollRecords(
     @Req() req: any,
-    @Query('month') month: number,
-    @Query('year') year: number,
-    @Query('employee_id') employeeId?: string,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
+    @Query() query: PayrollQueryDto,
   ) {
     const tenantId = req.user.tenant_id;
-    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-    const limitNumber = Math.min(100, Math.max(1, parseInt(limit || '25', 10) || 25));
     return await this.payrollRecordService.getPayrollRecords(
       tenantId,
-      Number(month),
-      Number(year),
-      employeeId,
-      pageNumber,
-      limitNumber,
+      query,
     );
   }
 
@@ -90,9 +82,9 @@ export class PayrollRecordController {
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
     const limitNumber = Math.min(100, Math.max(1, parseInt(limit || '25', 10) || 25));
 
-    
+
     if (userRole === 'employee') {
-     
+
     }
 
     return await this.payrollRecordService.getEmployeePayrollHistory(employeeId, tenantId, pageNumber, limitNumber);

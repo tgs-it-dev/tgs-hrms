@@ -9,7 +9,7 @@ import { Attendance } from '../../../entities/attendance.entity';
 import { Leave } from '../../../entities/leave.entity';
 import { EmployeeKpi } from '../../../entities/employee-kpi.entity';
 import { Tenant } from '../../../entities/tenant.entity';
-import { GeneratePayrollDto, UpdatePayrollStatusDto } from '../dto/payroll-record.dto';
+import { GeneratePayrollDto, UpdatePayrollStatusDto, PayrollQueryDto } from '../dto/payroll-record.dto';
 import { PayrollConfigService } from './payroll-config.service';
 import { EmployeeSalaryService } from './employee-salary.service';
 import { AttendanceType, LeaveStatus, PayrollStatus } from '../../../common/constants/enums';
@@ -34,7 +34,7 @@ export class PayrollRecordService {
     private readonly tenantRepo: Repository<Tenant>,
     private readonly payrollConfigService: PayrollConfigService,
     private readonly employeeSalaryService: EmployeeSalaryService,
-  ) {}
+  ) { }
 
   async generatePayroll(tenantId: string, userId: string, dto: GeneratePayrollDto): Promise<PayrollRecord | PayrollRecord[]> {
     const { month, year, employee_id } = dto;
@@ -542,8 +542,8 @@ export class PayrollRecordService {
 
     // Leave deductions
     if (payrollConfig.leaveDeductionPolicy?.unpaidLeaveDeduction && unpaidLeaves > 0) {
-        const baseSalary = Number(salary.baseSalary);
-        const dailySalary = baseSalary / workingDays;
+      const baseSalary = Number(salary.baseSalary);
+      const dailySalary = baseSalary / workingDays;
       deductions.leaveDeductions = dailySalary * unpaidLeaves;
     }
 
@@ -624,30 +624,46 @@ export class PayrollRecordService {
 
   async getPayrollRecords(
     tenantId: string,
-    month: number,
-    year: number,
-    employeeId?: string,
-    page: number = 1,
-    limit: number = 25,
+    queryDto: PayrollQueryDto,
   ): Promise<PaginationResponse<PayrollRecord>> {
+    const { month, year, employee_id, status, search, page = 1, limit = 25 } = queryDto;
     const skip = (page - 1) * limit;
-    const where: any = {
-      tenant_id: tenantId,
-      month,
-      year,
-    };
 
-    if (employeeId) {
-      where.employee_id = employeeId;
+    const query = this.payrollRecordRepo.createQueryBuilder('record')
+      .leftJoinAndSelect('record.employee', 'employee')
+      .leftJoinAndSelect('employee.user', 'user')
+      .leftJoinAndSelect('record.generatedBy', 'generatedBy')
+      .where('record.tenant_id = :tenantId', { tenantId });
+
+    if (month) {
+      query.andWhere('record.month = :month', { month });
     }
 
-    const [items, total] = await this.payrollRecordRepo.findAndCount({
-      where,
-      relations: ['employee', 'employee.user', 'generatedBy'],
-      order: { created_at: 'DESC' },
-      skip,
-      take: limit,
-    });
+    if (year) {
+      query.andWhere('record.year = :year', { year });
+    }
+
+    if (employee_id) {
+      query.andWhere('record.employee_id = :employee_id', { employee_id });
+    }
+
+    if (status) {
+      // Handle the status case-insensitively and trim it
+      query.andWhere('LOWER(record.status) = LOWER(:status)', { status: status.trim() });
+    }
+
+    if (search) {
+      query.andWhere(
+        '(LOWER(user.first_name) LIKE LOWER(:search) OR LOWER(user.last_name) LIKE LOWER(:search))',
+        { search: `%${search.trim()}%` }
+      );
+    }
+
+    const [items, total] = await query
+      .orderBy('record.created_at', 'DESC')
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
 
     const totalPages = Math.ceil(total / limit);
 
@@ -793,7 +809,7 @@ export class PayrollRecordService {
     // If tenantId is provided, get statistics for that tenant only
     // Otherwise, get statistics for all tenants (system-admin access)
     let tenants: Tenant[] = [];
-    
+
     if (tenantId) {
       const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
       if (tenant) {
@@ -842,7 +858,7 @@ export class PayrollRecordService {
 
     for (const record of allRecords) {
       const tenantIdKey = record.tenant_id;
-      
+
       // Initialize tenant data if not exists
       if (!tenantMonthlyData[tenantIdKey]) {
         tenantMonthlyData[tenantIdKey] = {};
@@ -896,7 +912,7 @@ export class PayrollRecordService {
       const monthlyData = tenantMonthlyData[tId];
       const deptStats = tenantDepartmentStats[tId];
       if (!monthlyData || !deptStats) return null;
-      
+
       const monthlyTrend = Object.values(monthlyData).sort((a: any, b: any) => {
         if (a.year !== b.year) return a.year - b.year;
         return a.month - b.month;
