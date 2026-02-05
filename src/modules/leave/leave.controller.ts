@@ -36,7 +36,7 @@ import { validateImageFile } from 'src/common/utils/file-validation.util';
 @Controller('leaves')
 @UseGuards(JwtAuthGuard)
 export class LeaveController {
-  constructor(private readonly leaveService: LeaveService) {}
+  constructor(private readonly leaveService: LeaveService) { }
 
   @Post()
   @ApiBearerAuth()
@@ -101,7 +101,7 @@ export class LeaveController {
             .substring(file.originalname.lastIndexOf('.'))
             .toLowerCase();
           const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-          
+
           if (!allowedExtensions.includes(fileExtension)) {
             return cb(
               new BadRequestException(
@@ -225,7 +225,7 @@ export class LeaveController {
             .substring(file.originalname.lastIndexOf('.'))
             .toLowerCase();
           const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-          
+
           if (!allowedExtensions.includes(fileExtension)) {
             return cb(
               new BadRequestException(
@@ -318,7 +318,7 @@ export class LeaveController {
   async getTeamLeaves(@Request() req: any, @Query('page') page?: string) {
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
 
-  
+
     if (req.user.role !== 'manager') {
       throw new ForbiddenException('Access denied. Manager role required.');
     }
@@ -367,7 +367,7 @@ export class LeaveController {
     },
   })
   async getTeamMembersWithLeaveApplications(@Request() req: any) {
-  
+
     if (req.user.role !== 'manager') {
       throw new ForbiddenException('Access denied. Manager role required.');
     }
@@ -382,7 +382,7 @@ export class LeaveController {
   @ApiResponse({ status: 200, description: 'Returns leave requests' })
   async find(@Request() req: any, @Query('page') page?: string) {
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-    return this.leaveService.getLeaves(req.user.id, pageNumber);
+    return this.leaveService.getLeaves(req.user.id, pageNumber, req.user.tenant_id);
   }
 
   @Get('all')
@@ -639,7 +639,7 @@ export class LeaveController {
             .substring(file.originalname.lastIndexOf('.'))
             .toLowerCase();
           const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-          
+
           if (!allowedExtensions.includes(fileExtension)) {
             return cb(
               new BadRequestException(
@@ -682,10 +682,10 @@ export class LeaveController {
         );
       }
     }
-    
+
     // Debug: Log the DTO to verify values are being received
     // console.log('EditLeave DTO received:', JSON.stringify(dto, null, 2));
-    
+
     return this.leaveService.editLeave(id, req.user.id, req.user.tenant_id, dto, files, req.user.role);
   }
 
@@ -722,7 +722,7 @@ export class LeaveController {
     );
   }
 
-  
+
   @Get('export/self')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Download your leave requests as CSV' })

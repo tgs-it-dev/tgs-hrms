@@ -344,7 +344,8 @@ export class LeaveService {
 
   async getLeaves(
     user_id?: string,
-    page: number = 1
+    page: number = 1,
+    tenantId?: string,
   ): Promise<{
     items: Leave[];
     total: number;
@@ -367,6 +368,10 @@ export class LeaveService {
       query = query.where('leave.employeeId = :user_id', { user_id });
     }
 
+    if (tenantId) {
+      query = query.andWhere('leave.tenantId = :tenantId', { tenantId });
+    }
+
     const [items, total] = await query
       .orderBy('leave.createdAt', 'DESC')
       .skip(skip)
@@ -376,10 +381,21 @@ export class LeaveService {
     const totalPages = Math.ceil(total / limit);
 
     let leavesLeft: number | undefined = undefined;
+    let totalEntitlement = 21; // Default fallback
+
+    if (tenantId) {
+      const leaveTypes = await this.leaveTypeRepo.find({
+        where: { tenantId, status: 'active' },
+      });
+      if (leaveTypes.length > 0) {
+        totalEntitlement = leaveTypes.reduce((sum, lt) => sum + lt.maxDaysPerYear, 0);
+      }
+    }
+
     if (user_id) {
       const taken = await this.getLeavesTakenInLast12Months(user_id);
-      leavesLeft = 21 - taken;
-      if (leavesLeft < 0) leavesLeft = 0;
+      leavesLeft = totalEntitlement - taken;
+      // We allow negative balance as per requirement
     }
 
     return {
@@ -389,7 +405,7 @@ export class LeaveService {
       limit,
       totalPages,
       ...(leavesLeft !== undefined ? { leavesLeft } : {}),
-      totalLeaves: 21,
+      totalLeaves: totalEntitlement,
     };
   }
 
