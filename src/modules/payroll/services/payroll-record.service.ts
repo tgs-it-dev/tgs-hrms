@@ -208,7 +208,7 @@ export class PayrollRecordService {
       return sum;
     }, 0);
 
-    const netSalary = grossSalary - totalDeductions + bonuses;
+    const netSalary = Math.max(0, grossSalary - totalDeductions + bonuses);
 
     // Create payroll record
     const payrollRecord = this.payrollRecordRepo.create({

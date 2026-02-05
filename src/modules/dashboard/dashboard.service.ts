@@ -43,7 +43,7 @@ export class DashboardService {
     @InjectRepository(Leave)
     private readonly leaveRepo: Repository<Leave>,
     private readonly employeeService: EmployeeService,
-  ) {}
+  ) { }
 
   private getCache<T>(key: string): T | null {
     const entry = this.cache.get(key);
@@ -137,35 +137,42 @@ export class DashboardService {
       },
     });
 
-    const totalSalary = salaries.reduce(
-      (sum, s) => sum + Number(s.baseSalary || 0),
-      0,
-    );
-
-    // Salary paid vs unpaid based on current month payroll records
+    // Total salary liability calculation:
+    // 1. Get netSalary for generated records (paid or unpaid)
+    // 2. Get baseSalary for those whose payroll isn't generated yet
     const month = now.getMonth() + 1;
     const year = now.getFullYear();
 
-    const payrollQb = this.payrollRecordRepo
-      .createQueryBuilder('record')
-      .where('record.tenant_id = :tenantId', { tenantId })
-      .andWhere('record.month = :month', { month })
-      .andWhere('record.year = :year', { year })
-      .andWhere('record.employee_id IN (:...employeeIds)', { employeeIds });
+    const payrollRecords = await this.payrollRecordRepo.find({
+      where: {
+        tenant_id: tenantId,
+        month,
+        year,
+        employee_id: In(employeeIds),
+      },
+    });
 
-    const payrollRecords = await payrollQb.getMany();
+    const generatedEmployeeIds = new Set(payrollRecords.map((r) => r.employee_id));
 
-    const paidRecords = payrollRecords.filter((r) => r.status === PayrollStatus.PAID);
-    const unpaidRecords = payrollRecords.filter((r) => r.status !== PayrollStatus.PAID);
+    let salaryPaid = 0;
+    let salaryUnpaid = 0;
 
-    const salaryPaid = paidRecords.reduce(
-      (sum, r) => sum + Number(r.netSalary || 0),
-      0,
-    );
-    const salaryUnpaid = unpaidRecords.reduce(
-      (sum, r) => sum + Number(r.netSalary || 0),
-      0,
-    );
+    for (const record of payrollRecords) {
+      const net = Number(record.netSalary || 0);
+      if (record.status === PayrollStatus.PAID) {
+        salaryPaid += net;
+      } else {
+        salaryUnpaid += net;
+      }
+    }
+
+    // Add baseSalary for employees without generated records to unpaid pool
+    const ungeneratedEmployees = salaries.filter(s => !generatedEmployeeIds.has(s.employee_id));
+    for (const s of ungeneratedEmployees) {
+      salaryUnpaid += Number(s.baseSalary || 0);
+    }
+
+    const totalSalary = salaryPaid + salaryUnpaid;
 
     // Employees present today (based on today's check-in/out)
     const attendanceRecords = await this.attendanceRepo.find({
@@ -345,6 +352,15 @@ export class DashboardService {
       return empty;
     }
 
+    // Fetch active salaries to account for ungenerated payroll liability
+    const salaries = await this.employeeSalaryRepo.find({
+      where: {
+        employee_id: In(employeeIds),
+        tenant_id: tenantId,
+        status: 'active',
+      },
+    });
+
     const records = await this.payrollRecordRepo.find({
       where: {
         tenant_id: tenantId,
@@ -356,18 +372,19 @@ export class DashboardService {
 
     const paidRecords = records.filter((r) => r.status === PayrollStatus.PAID);
     const unpaidRecords = records.filter((r) => r.status !== PayrollStatus.PAID);
+    const generatedEmployeeIds = new Set(records.map((r) => r.employee_id));
 
-    const paidSalary = paidRecords.reduce(
-      (sum, r) => sum + Number(r.netSalary || 0),
-      0,
-    );
-    const unpaidSalary = unpaidRecords.reduce(
-      (sum, r) => sum + Number(r.netSalary || 0),
-      0,
-    );
+    let paidSalary = paidRecords.reduce((sum, r) => sum + Number(r.netSalary || 0), 0);
+    let unpaidSalary = unpaidRecords.reduce((sum, r) => sum + Number(r.netSalary || 0), 0);
+
+    // Add baseSalary for employees without generated records to unpaid pool
+    const ungeneratedEmployees = salaries.filter(s => !generatedEmployeeIds.has(s.employee_id));
+    for (const s of ungeneratedEmployees) {
+      unpaidSalary += Number(s.baseSalary || 0);
+    }
 
     const paidEmployees = new Set(paidRecords.map((r) => r.employee_id)).size;
-    const unpaidEmployees = new Set(unpaidRecords.map((r) => r.employee_id)).size;
+    const unpaidEmployees = employeeIds.length - paidEmployees;
 
     const result = {
       paid_salary: Number(paidSalary.toFixed(2)),
