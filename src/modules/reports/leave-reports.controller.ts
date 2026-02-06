@@ -20,7 +20,7 @@ import { sendCsvResponse } from '../../common/utils/csv.util';
 @Controller('reports')
 @UseGuards(JwtAuthGuard)
 export class LeaveReportsController {
-  constructor(private readonly leaveReportsService: LeaveReportsService) {}
+  constructor(private readonly leaveReportsService: LeaveReportsService) { }
 
   @Get('leave-summary')
   @ApiBearerAuth()
@@ -200,13 +200,14 @@ export class LeaveReportsController {
   @Roles('admin', 'hr-admin', 'system-admin')
   @Permissions('view_leave_reports')
   @ApiBearerAuth()
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get comprehensive leave reports for all employees (paginated)',
     description: 'Returns detailed leave reports for the specified year (or current year if not provided) including employee summaries, leave records, and organization statistics. Accessible by admin, hr-admin, and system-admin roles. Supports pagination via page query parameter and filtering by year and month.'
   })
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
   @ApiQuery({ name: 'month', required: false, type: Number, description: 'Filter by month (1-12). If provided, returns data for that month only.' })
   @ApiQuery({ name: 'year', required: false, type: Number, description: 'Filter by year (e.g., 2025). If not provided, uses current year.' })
+  @ApiQuery({ name: 'employeeName', required: false, type: String, description: 'Filter by employee name (first or last name)' })
   @ApiResponse({
     status: 200,
     description: 'Returns comprehensive leave reports with pagination',
@@ -293,6 +294,7 @@ export class LeaveReportsController {
     @Query('page') page?: string,
     @Query('month') month?: string,
     @Query('year') year?: string,
+    @Query('employeeName') employeeName?: string,
   ) {
     const parsedPage = page ? parseInt(page, 10) : 1;
     const parsedMonth = month ? parseInt(month, 10) : undefined;
@@ -302,6 +304,7 @@ export class LeaveReportsController {
       parsedPage,
       parsedMonth,
       parsedYear,
+      employeeName,
     );
   }
 }
