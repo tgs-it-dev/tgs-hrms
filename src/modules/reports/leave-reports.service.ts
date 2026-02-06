@@ -188,24 +188,13 @@ export class LeaveReportsService {
   async getAllLeaveReports(
     tenantId: string,
     page: number = 1,
-    month?: number,
     year?: number,
     employeeName?: string,
   ) {
     const targetYear = year ?? new Date().getFullYear();
+    const startDate = new Date(targetYear, 0, 1, 0, 0, 0, 0);
+    const endDate = new Date(targetYear, 11, 31, 23, 59, 59, 999);
 
-    let startDate: Date;
-    let endDate: Date;
-
-    if (month && month >= 1 && month <= 12) {
-      // Specific month range within target year
-      startDate = new Date(targetYear, month - 1, 1, 0, 0, 0, 0);
-      endDate = new Date(targetYear, month, 0, 23, 59, 59, 999);
-    } else {
-      // Full year range
-      startDate = new Date(targetYear, 0, 1, 0, 0, 0, 0);
-      endDate = new Date(targetYear, 11, 31, 23, 59, 59, 999);
-    }
     const limit = 25;
     const skip = (page - 1) * limit;
 
@@ -224,76 +213,67 @@ export class LeaveReportsService {
       );
     }
 
-    // Get all employees for the tenant (matching filter) (for organization stats)
-    const allEmployees = await employeeQuery.getMany();
-    // Ensure unique employees (should be unique by ID already, but good safety)
-    const uniqueEmployees = Array.from(new Map(allEmployees.map(e => [e.user_id, e])).values());
+    const [allEmployees, total] = await employeeQuery
+      .orderBy('user.first_name', 'ASC')
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
 
-    // Get paginated employees for the current page
-    const paginatedEmployees = uniqueEmployees.slice(skip, skip + limit);
+    // Fetch leaves for the *entire year* for these employees to do the calculation in memory
+    // (Optimization: Fetching all leaves for the page of employees)
+    const employeeIds = allEmployees.map((e) => e.user_id);
+    let leavesByEmployee: Record<string, Leave[]> = {};
+
+    if (employeeIds.length > 0) {
+      const leaves = await this.leaveRepo
+        .createQueryBuilder('leave')
+        .leftJoinAndSelect('leave.leaveType', 'leaveType')
+        .where('leave.employeeId IN (:...employeeIds)', { employeeIds })
+        // We fetch ALL leaves for the target year to ensure correct annual calculation
+        // regardless of any "month" concept (which we are removing from the filter)
+        .andWhere('leave.startDate <= :endDate', { endDate })
+        .andWhere('leave.endDate >= :startDate', { startDate })
+        .getMany();
+
+      // Group leaves by employee
+      leaves.forEach((leave) => {
+        if (!leavesByEmployee[leave.employeeId]) {
+          leavesByEmployee[leave.employeeId] = [];
+        }
+        leavesByEmployee[leave.employeeId].push(leave);
+      });
+    }
 
     // Get all leave types for the tenant
     const leaveTypes = await this.leaveTypeRepo.find({
       where: { tenantId, status: 'active' },
     });
 
-    // We need two date ranges for calculations:
-    // 1. The period range (month or year) for "period usage"
-    // 2. The full year range for "annual balance"
-    const startOfYear = new Date(targetYear, 0, 1, 0, 0, 0, 0);
-    const endOfYear = new Date(targetYear, 11, 31, 23, 59, 59, 999);
-
-    // Get all leaves for the target year for all filtered employees
-    const allEmployeeIds = uniqueEmployees.map((emp) => emp.user_id);
-    if (allEmployeeIds.length === 0) {
-      return {
-        employeeReports: {
-          items: [],
-          total: 0,
-          page,
-          limit,
-          totalPages: 0,
-        },
-      };
-    }
-
-    const allYearLeaves = await this.leaveRepo
-      .createQueryBuilder('leave')
-      .leftJoinAndSelect('leave.leaveType', 'leaveType')
-      .where('leave.tenantId = :tenantId', { tenantId })
-      .andWhere('leave.employeeId IN (:...allEmployeeIds)', { allEmployeeIds })
-      .andWhere('leave.startDate <= :endOfYear', { endOfYear })
-      .andWhere('leave.endDate >= :startOfYear', { startOfYear })
-      .getMany();
-
-    // Group leaves by employee for easy access
-    const leavesByEmployee = allYearLeaves.reduce((acc, leave) => {
-      if (!acc[leave.employeeId]) acc[leave.employeeId] = [];
-      acc[leave.employeeId].push(leave);
-      return acc;
-    }, {} as Record<string, Leave[]>);
-
     // Generate comprehensive report for each employee
-    const employeeReportsPromises = paginatedEmployees.map(async (employee) => {
+    const employeeReportsPromises = allEmployees.map(async (employee) => {
       // Calculate balance using shared logic - Single Source of Truth
-      // We pass the parsed month if relevant, otherwise just year
-      const balances = await this.calculateEmployeeLeaveBalance(employee.user_id, targetYear, leaveTypes, (month && month >= 1 && month <= 12) ? month : undefined);
+      // force Annual calculation by NOT passing month
+      const balances = await this.calculateEmployeeLeaveBalance(employee.user_id, targetYear, leaveTypes);
 
       return { employee, balances };
     });
 
-    // Resolve all balance calculations 
+    // Resolve all balance calculations
     const employeeReportsWithBalances = await Promise.all(employeeReportsPromises);
 
     const employeeReports = employeeReportsWithBalances.map(({ employee, balances }) => {
       const employeeYearLeaves = leavesByEmployee[employee.user_id] || [];
 
+      // Since we removed month filtering, "periodLeaves" is just "employeeYearLeaves"
+      // But we'll keep the variable name if we want to support range filtering later, 
+      // otherwise we can just use employeeYearLeaves.
+      const periodLeaves = employeeYearLeaves;
+
       // Calculate leave summary by type using the accurate balances
       const leaveSummary = balances.map((balance) => {
-        // We still need period-specific counts for "pending" and "rejected" as balance logic focuses on "approved" (used)
         const typeLeaves = employeeYearLeaves.filter((l) => l.leaveTypeId === balance.leaveTypeId);
 
-        // Period specific usage/status for non-approved states
+        // Annual usage/status for non-approved states
         const pendingDays = typeLeaves
           .filter((l) => l.status === LeaveStatus.PENDING)
           .reduce((sum, l) => sum + this.calculateWorkingDaysInRange(l.startDate, l.endDate, startDate, endDate), 0);
@@ -302,16 +282,8 @@ export class LeaveReportsService {
           .filter((l) => l.status === LeaveStatus.REJECTED)
           .reduce((sum, l) => sum + this.calculateWorkingDaysInRange(l.startDate, l.endDate, startDate, endDate), 0);
 
-        // For approved days, we rely on the balance calculation if a month was specified (usedThisMonth),
-        // otherwise we use our range helper (which should yield same result as balance logic now uses same helper)
-        let approvedDays = 0;
-        if (month && month >= 1 && month <= 12 && balance.usedThisMonth !== undefined) {
-          approvedDays = balance.usedThisMonth;
-        } else {
-          approvedDays = typeLeaves
-            .filter((l) => l.status === LeaveStatus.APPROVED)
-            .reduce((sum, l) => sum + this.calculateWorkingDaysInRange(l.startDate, l.endDate, startDate, endDate), 0);
-        }
+        // APPROVED DAYS: Always use Annual Usage (balance.used)
+        const approvedDays = balance.used;
 
         return {
           leaveTypeId: balance.leaveTypeId,
@@ -321,17 +293,8 @@ export class LeaveReportsService {
           pendingDays,
           rejectedDays,
           maxDaysPerYear: balance.maxDaysPerYear,
-          remainingDays: balance.remaining, // Directly from shared logic
+          remainingDays: balance.remaining,
         };
-      });
-
-      // Filter leaves that overlap with the period for detailed records
-      const periodLeaves = employeeYearLeaves.filter((l) => {
-        const lStart = new Date(l.startDate).getTime();
-        const lEnd = new Date(l.endDate).getTime();
-        const pStart = startDate.getTime();
-        const pEnd = endDate.getTime();
-        return lStart <= pEnd && lEnd >= pStart;
       });
 
       const leaveRecords = periodLeaves.map((leave) => ({
@@ -367,12 +330,12 @@ export class LeaveReportsService {
       };
     });
 
-    const totalPages = Math.ceil(uniqueEmployees.length / limit);
+    const totalPages = Math.ceil(total / limit);
 
     return {
       employeeReports: {
         items: employeeReports,
-        total: uniqueEmployees.length,
+        total: total,
         page,
         limit,
         totalPages,
