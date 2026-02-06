@@ -52,7 +52,7 @@ export class LeaveReportsService {
           .andWhere('leave.endDate >= :startOfYear', { startOfYear })
           .getMany();
 
-        const used = leaves.reduce((total, leave) => total + leave.totalDays, 0);
+        const used = leaves.reduce((total, leave) => total + this.calculateWorkingDaysInRange(leave.startDate, leave.endDate, startOfYear, endOfYear), 0);
         // Allow remaining to go negative if usage exceeds entitlement
         const remaining = leaveType.maxDaysPerYear - used;
 
@@ -70,8 +70,6 @@ export class LeaveReportsService {
       summary,
     };
   }
-
-  // Monthly usage is now handled via optional month/year filters in getLeaveBalance
 
   async getTeamLeaveSummary(managerId: string, month: number, year: number, tenantId: string) {
     // Verify manager exists and belongs to tenant
@@ -95,7 +93,7 @@ export class LeaveReportsService {
       .andWhere('employee.user_id != :managerId', { managerId })
       .getMany();
 
-    const startOfMonth = new Date(year, month - 1, 1);
+    const startOfMonth = new Date(year, month - 1, 1, 0, 0, 0, 0);
     const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
 
     // Get leave data for team members
@@ -113,7 +111,7 @@ export class LeaveReportsService {
 
         const leaveSummary = leaves.map((leave) => ({
           type: leave.leaveType.name,
-          days: leave.totalDays,
+          days: this.calculateWorkingDaysInRange(leave.startDate, leave.endDate, startOfMonth, endOfMonth),
           startDate: leave.startDate,
           endDate: leave.endDate,
         }));
@@ -125,7 +123,7 @@ export class LeaveReportsService {
           department: member.designation?.department?.name || 'N/A',
           designation: member.designation?.title || 'N/A',
           leaves: leaveSummary,
-          totalLeaveDays: leaves.reduce((total, leave) => total + leave.totalDays, 0),
+          totalLeaveDays: leaveSummary.reduce((total, l) => total + l.days, 0),
         };
       })
     );
@@ -190,34 +188,11 @@ export class LeaveReportsService {
           .andWhere('leave.endDate >= :startOfYear', { startOfYear })
           .getMany();
 
-        const usedYear = yearLeaves.reduce((total, leave) => total + leave.totalDays, 0);
+        const usedYear = yearLeaves.reduce((total, leave) => total + this.calculateWorkingDaysInRange(leave.startDate, leave.endDate, startOfYear, endOfYear), 0);
 
         let usedThisMonth = 0;
         if (validMonth && monthStart && monthEnd) {
-          // Calculate days used in the specific month (only count days that fall within the month)
-          usedThisMonth = yearLeaves
-            .filter(
-              (l) =>
-                // Leave overlaps with month if startDate <= monthEnd AND endDate >= monthStart
-                l.startDate <= monthEnd! &&
-                l.endDate >= monthStart!,
-            )
-            .reduce((total, leave) => {
-              // Calculate actual days within the month range
-              const leaveStart = new Date(Math.max(leave.startDate.getTime(), monthStart!.getTime()));
-              const leaveEnd = new Date(Math.min(leave.endDate.getTime(), monthEnd!.getTime()));
-              // Count working days in the overlapping period
-              let daysInMonth = 0;
-              const current = new Date(leaveStart);
-              while (current <= leaveEnd) {
-                const day = current.getDay();
-                if (day !== 0 && day !== 6) { // Exclude weekends
-                  daysInMonth++;
-                }
-                current.setDate(current.getDate() + 1);
-              }
-              return total + daysInMonth;
-            }, 0);
+          usedThisMonth = yearLeaves.reduce((total, leave) => total + this.calculateWorkingDaysInRange(leave.startDate, leave.endDate, monthStart!, monthEnd!), 0);
         }
 
         // Remaining is always based on annual usage
@@ -243,7 +218,13 @@ export class LeaveReportsService {
     };
   }
 
-  async getAllLeaveReports(tenantId: string, page: number = 1, month?: number, year?: number) {
+  async getAllLeaveReports(
+    tenantId: string,
+    page: number = 1,
+    month?: number,
+    year?: number,
+    employeeName?: string,
+  ) {
     const targetYear = year ?? new Date().getFullYear();
 
     let startDate: Date;
@@ -251,32 +232,36 @@ export class LeaveReportsService {
 
     if (month && month >= 1 && month <= 12) {
       // Specific month range within target year
-      startDate = new Date(targetYear, month - 1, 1);
+      startDate = new Date(targetYear, month - 1, 1, 0, 0, 0, 0);
       endDate = new Date(targetYear, month, 0, 23, 59, 59, 999);
     } else {
       // Full year range
-      startDate = new Date(targetYear, 0, 1);
+      startDate = new Date(targetYear, 0, 1, 0, 0, 0, 0);
       endDate = new Date(targetYear, 11, 31, 23, 59, 59, 999);
     }
     const limit = 25;
     const skip = (page - 1) * limit;
 
-    // Get all employees for the tenant (for organization stats)
-    const allEmployees = await this.employeeRepo
+    // Build the employee query
+    const employeeQuery = this.employeeRepo
       .createQueryBuilder('employee')
       .leftJoinAndSelect('employee.user', 'user')
       .leftJoinAndSelect('employee.designation', 'designation')
       .leftJoinAndSelect('designation.department', 'department')
-      .where('user.tenant_id = :tenantId', { tenantId })
-      .getMany();
+      .where('user.tenant_id = :tenantId', { tenantId });
+
+    if (employeeName) {
+      employeeQuery.andWhere(
+        '(user.first_name ILIKE :name OR user.last_name ILIKE :name)',
+        { name: `%${employeeName}%` },
+      );
+    }
+
+    // Get all employees for the tenant (matching filter) (for organization stats)
+    const allEmployees = await employeeQuery.getMany();
 
     // Get paginated employees for the current page
-    const employees = await this.employeeRepo
-      .createQueryBuilder('employee')
-      .leftJoinAndSelect('employee.user', 'user')
-      .leftJoinAndSelect('employee.designation', 'designation')
-      .leftJoinAndSelect('designation.department', 'department')
-      .where('user.tenant_id = :tenantId', { tenantId })
+    const employees = await employeeQuery
       .skip(skip)
       .take(limit)
       .getMany();
@@ -286,14 +271,26 @@ export class LeaveReportsService {
       where: { tenantId, status: 'active' },
     });
 
-    // We need two date ranges:
+    // We need two date ranges for calculations:
     // 1. The period range (month or year) for "period usage"
     // 2. The full year range for "annual balance"
     const startOfYear = new Date(targetYear, 0, 1, 0, 0, 0, 0);
     const endOfYear = new Date(targetYear, 11, 31, 23, 59, 59, 999);
 
-    // Get all APPROVED leaves for the target year for all employees (for org stats and balances)
+    // Get all leaves for the target year for all filtered employees
     const allEmployeeIds = allEmployees.map((emp) => emp.user_id);
+    if (allEmployeeIds.length === 0) {
+      return {
+        employeeReports: {
+          items: [],
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
+        },
+      };
+    }
+
     const allYearLeaves = await this.leaveRepo
       .createQueryBuilder('leave')
       .leftJoinAndSelect('leave.leaveType', 'leaveType')
@@ -301,160 +298,101 @@ export class LeaveReportsService {
       .andWhere('leave.employeeId IN (:...allEmployeeIds)', { allEmployeeIds })
       .andWhere('leave.startDate <= :endOfYear', { endOfYear })
       .andWhere('leave.endDate >= :startOfYear', { startOfYear })
-      // We include all statuses here to calculate pending/rejected, but mostly interested in APPROVED for balance
       .getMany();
 
     // Group leaves by employee for easy access
-    const leavesByEmployeeYear = allYearLeaves.reduce((acc, leave) => {
+    const leavesByEmployee = allYearLeaves.reduce((acc, leave) => {
       if (!acc[leave.employeeId]) acc[leave.employeeId] = [];
       acc[leave.employeeId].push(leave);
       return acc;
     }, {} as Record<string, Leave[]>);
 
-    // Filter for the specific period (month or year)
-    const periodLeaves = allYearLeaves.filter(
-      (leave) => leave.startDate <= endDate && leave.endDate >= startDate,
-    );
-
     // Generate comprehensive report for each employee
-    const employeeReports = await Promise.all(
-      employees.map(async (employee) => {
-        const employeeYearLeaves = leavesByEmployeeYear[employee.user_id] || [];
-        const employeePeriodLeaves = periodLeaves.filter((l) => l.employeeId === employee.user_id);
+    const employeeReports = employees.map((employee) => {
+      const employeeYearLeaves = leavesByEmployee[employee.user_id] || [];
 
-        // Calculate leave summary by type
-        const leaveSummary = leaveTypes.map((leaveType) => {
-          // Annual approved days for balance calculation
-          const annualApprovedDays = employeeYearLeaves
-            .filter((l) => l.leaveTypeId === leaveType.id && l.status === LeaveStatus.APPROVED)
-            .reduce((sum, l) => sum + l.totalDays, 0);
+      // Calculate leave summary by type
+      const leaveSummary = leaveTypes.map((leaveType) => {
+        // Annual approved days for balance calculation (consistent with getLeaveBalance)
+        const annualApprovedDays = employeeYearLeaves
+          .filter((l) => l.leaveTypeId === leaveType.id && l.status === LeaveStatus.APPROVED)
+          .reduce((sum, l) => sum + this.calculateWorkingDaysInRange(l.startDate, l.endDate, startOfYear, endOfYear), 0);
 
-          // Period specific usage/status
-          const typePeriodLeaves = employeePeriodLeaves.filter((l) => l.leaveTypeId === leaveType.id);
-          const totalDays = typePeriodLeaves.reduce((sum, l) => sum + l.totalDays, 0);
-          const approvedDays = typePeriodLeaves
-            .filter((l) => l.status === LeaveStatus.APPROVED)
-            .reduce((sum, l) => sum + l.totalDays, 0);
-          const pendingDays = typePeriodLeaves
-            .filter((l) => l.status === LeaveStatus.PENDING)
-            .reduce((sum, l) => sum + l.totalDays, 0);
-          const rejectedDays = typePeriodLeaves
-            .filter((l) => l.status === LeaveStatus.REJECTED)
-            .reduce((sum, l) => sum + l.totalDays, 0);
+        // Period specific usage/status (consistent with getLeaveBalance)
+        const typeYearLeaves = employeeYearLeaves.filter((l) => l.leaveTypeId === leaveType.id);
 
-          return {
-            leaveTypeId: leaveType.id,
-            leaveTypeName: leaveType.name,
-            totalDays, // Total requested in period
-            approvedDays, // Approved in period
-            pendingDays, // Pending in period
-            rejectedDays, // Rejected in period
-            maxDaysPerYear: leaveType.maxDaysPerYear,
-            // REMAINING IS ALWAYS ANNUAL: Entitlement - Annual Approved
-            remainingDays: leaveType.maxDaysPerYear - annualApprovedDays,
-          };
-        });
+        const approvedDays = typeYearLeaves
+          .filter((l) => l.status === LeaveStatus.APPROVED)
+          .reduce((sum, l) => sum + this.calculateWorkingDaysInRange(l.startDate, l.endDate, startDate, endDate), 0);
 
-        // Get detailed leave records (for period)
-        const leaveRecords = employeePeriodLeaves.map((leave) => ({
-          id: leave.id,
-          leaveTypeName: leave.leaveType?.name || 'Unknown',
-          startDate: leave.startDate,
-          endDate: leave.endDate,
-          totalDays: leave.totalDays,
-          status: leave.status,
-          reason: leave.reason,
-          appliedDate: leave.createdAt,
-          approvedBy: leave.approvedBy,
-          approvedDate: leave.approvedAt,
-        }));
+        const pendingDays = typeYearLeaves
+          .filter((l) => l.status === LeaveStatus.PENDING)
+          .reduce((sum, l) => sum + this.calculateWorkingDaysInRange(l.startDate, l.endDate, startDate, endDate), 0);
 
-        // Calculate totals
-        const totalLeaveDays = employeePeriodLeaves.reduce((sum, leave) => sum + leave.totalDays, 0);
-        const approvedLeaveDays = employeePeriodLeaves
-          .filter(leave => leave.status === LeaveStatus.APPROVED)
-          .reduce((sum, leave) => sum + leave.totalDays, 0);
-        const pendingLeaveDays = employeePeriodLeaves
-          .filter(leave => leave.status === LeaveStatus.PENDING)
-          .reduce((sum, leave) => sum + leave.totalDays, 0);
+        const rejectedDays = typeYearLeaves
+          .filter((l) => l.status === LeaveStatus.REJECTED)
+          .reduce((sum, l) => sum + this.calculateWorkingDaysInRange(l.startDate, l.endDate, startDate, endDate), 0);
+
+        const totalDays = approvedDays + pendingDays + rejectedDays;
 
         return {
-          employeeId: employee.user_id,
-          employeeName: `${employee.user.first_name} ${employee.user.last_name}`,
-          email: employee.user.email,
-          department: employee.designation?.department?.name || 'N/A',
-          designation: employee.designation?.title || 'N/A',
-          leaveSummary,
-          leaveRecords,
-          totals: {
-            totalLeaveDays,
-            approvedLeaveDays,
-            pendingLeaveDays,
-            totalLeaveRequests: employeePeriodLeaves.length,
-            approvedRequests: employeePeriodLeaves.filter(leave => leave.status === LeaveStatus.APPROVED).length,
-            pendingRequests: employeePeriodLeaves.filter(leave => leave.status === LeaveStatus.PENDING).length,
-            rejectedRequests: employeePeriodLeaves.filter(leave => leave.status === LeaveStatus.REJECTED).length,
-          },
+          leaveTypeId: leaveType.id,
+          leaveTypeName: leaveType.name,
+          totalDays,
+          approvedDays,
+          pendingDays,
+          rejectedDays,
+          maxDaysPerYear: leaveType.maxDaysPerYear,
+          remainingDays: Math.max(0, leaveType.maxDaysPerYear - annualApprovedDays),
         };
-      })
-    );
+      });
 
-    // Calculate organization-wide statistics (using period specific leaves)
-    const allEmployeeReports = allEmployees.map((employee) => {
-      const employeePeriodLeaves = periodLeaves.filter((l) => l.employeeId === employee.user_id);
-      const totalLeaveDays = employeePeriodLeaves.reduce((sum, leave) => sum + leave.totalDays, 0);
-      const approvedLeaveDays = employeePeriodLeaves
-        .filter((leave) => leave.status === LeaveStatus.APPROVED)
-        .reduce((sum, leave) => sum + leave.totalDays, 0);
-      const pendingLeaveDays = employeePeriodLeaves
-        .filter((leave) => leave.status === LeaveStatus.PENDING)
-        .reduce((sum, leave) => sum + leave.totalDays, 0);
+      // Get detailed leave records (for period)
+      const periodLeaves = employeeYearLeaves.filter(
+        (l) => l.startDate <= endDate && l.endDate >= startDate
+      );
+
+      const leaveRecords = periodLeaves.map((leave) => ({
+        id: leave.id,
+        leaveTypeName: leave.leaveType?.name || 'Unknown',
+        startDate: leave.startDate,
+        endDate: leave.endDate,
+        totalDays: this.calculateWorkingDaysInRange(leave.startDate, leave.endDate, startDate, endDate),
+        status: leave.status,
+        reason: leave.reason,
+        appliedDate: leave.createdAt,
+        approvedBy: leave.approvedBy,
+        approvedDate: leave.approvedAt,
+      }));
+
+      // Calculate totals for period
+      const totalPeriodApprovedDays = leaveSummary.reduce((sum, s) => sum + s.approvedDays, 0);
+      const totalPeriodPendingDays = leaveSummary.reduce((sum, s) => sum + s.pendingDays, 0);
+      const totalPeriodDays = leaveSummary.reduce((sum, s) => sum + s.totalDays, 0);
 
       return {
-        totalLeaveDays,
-        approvedLeaveDays,
-        pendingLeaveDays,
-        totalLeaveRequests: employeePeriodLeaves.length,
-        approvedRequests: employeePeriodLeaves.filter(
-          (leave) => leave.status === LeaveStatus.APPROVED,
-        ).length,
-        pendingRequests: employeePeriodLeaves.filter(
-          (leave) => leave.status === LeaveStatus.PENDING,
-        ).length,
-        rejectedRequests: employeePeriodLeaves.filter(
-          (leave) => leave.status === LeaveStatus.REJECTED,
-        ).length,
+        employeeId: employee.user_id,
+        employeeName: `${employee.user.first_name} ${employee.user.last_name}`,
+        email: employee.user.email,
+        department: employee.designation?.department?.name || 'N/A',
+        designation: employee.designation?.title || 'N/A',
+        leaveSummary,
+        leaveRecords,
+        totals: {
+          totalLeaveDays: totalPeriodDays,
+          approvedLeaveDays: totalPeriodApprovedDays,
+          pendingLeaveDays: totalPeriodPendingDays,
+          totalLeaveRequests: periodLeaves.length,
+          approvedRequests: periodLeaves.filter(leave => leave.status === LeaveStatus.APPROVED).length,
+          pendingRequests: periodLeaves.filter(leave => leave.status === LeaveStatus.PENDING).length,
+          rejectedRequests: periodLeaves.filter(leave => leave.status === LeaveStatus.REJECTED).length,
+        },
       };
     });
-
-    const orgStats = {
-      totalEmployees: allEmployees.length,
-      employeesOnLeave: allEmployeeReports.filter(emp => emp.approvedLeaveDays > 0).length,
-      totalLeaveDays: allEmployeeReports.reduce((sum, emp) => sum + emp.approvedLeaveDays, 0),
-      totalPendingDays: allEmployeeReports.reduce((sum, emp) => sum + emp.pendingLeaveDays, 0),
-      totalLeaveRequests: allEmployeeReports.reduce((sum, emp) => sum + emp.totalLeaveRequests, 0),
-      approvedRequests: allEmployeeReports.reduce((sum, emp) => sum + emp.approvedRequests, 0),
-      pendingRequests: allEmployeeReports.reduce((sum, emp) => sum + emp.pendingRequests, 0),
-      rejectedRequests: allEmployeeReports.reduce((sum, emp) => sum + emp.rejectedRequests, 0),
-    };
 
     const totalPages = Math.ceil(allEmployees.length / limit);
 
     return {
-      period: {
-        year: targetYear,
-        ...(month && month >= 1 && month <= 12
-          ? {
-            month,
-            startDate,
-            endDate,
-          }
-          : {
-            startDate,
-            endDate,
-          }),
-      },
-      organizationStats: orgStats,
       employeeReports: {
         items: employeeReports,
         total: allEmployees.length,
@@ -462,12 +400,34 @@ export class LeaveReportsService {
         limit,
         totalPages,
       },
-      leaveTypes: leaveTypes.map(lt => ({
-        id: lt.id,
-        name: lt.name,
-        maxDaysPerYear: lt.maxDaysPerYear,
-        carryForward: lt.carryForward,
-      })),
     };
+  }
+
+  private calculateWorkingDaysInRange(
+    leaveStart: Date,
+    leaveEnd: Date,
+    rangeStart: Date,
+    rangeEnd: Date,
+  ): number {
+    const start = new Date(Math.max(new Date(leaveStart).getTime(), new Date(rangeStart).getTime()));
+    const end = new Date(Math.min(new Date(leaveEnd).getTime(), new Date(rangeEnd).getTime()));
+
+    if (start > end) return 0;
+
+    let workingDays = 0;
+    const current = new Date(start);
+    // Set to start of day for accurate comparison
+    current.setHours(0, 0, 0, 0);
+    const normalizedEnd = new Date(end);
+    normalizedEnd.setHours(23, 59, 59, 999);
+
+    while (current <= normalizedEnd) {
+      const day = current.getDay();
+      if (day !== 0 && day !== 6) { // Exclude weekends
+        workingDays++;
+      }
+      current.setDate(current.getDate() + 1);
+    }
+    return workingDays;
   }
 }
