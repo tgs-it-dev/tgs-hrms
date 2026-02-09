@@ -35,7 +35,7 @@ export class Employee {
   @Column({ type: 'varchar', length: 20, default: EmployeeStatus.ACTIVE })
   status: EmployeeStatus;
 
-  @Column({ type: 'varchar', length: 20, nullable:false, default: InviteStatus.INVITE_SENT })
+  @Column({ type: 'varchar', length: 20, nullable: false, default: InviteStatus.INVITE_SENT })
   invite_status: InviteStatus;
 
   @Column({ type: 'uuid', nullable: true })
@@ -45,9 +45,6 @@ export class Employee {
   cnic_number: string | null;
 
   @Column({ type: 'varchar', length: 500, nullable: true })
-  profile_picture: string | null;
-
-  @Column({ type: 'varchar', length: 500, nullable: true })
   cnic_picture: string | null;
 
   @Column({ type: 'varchar', length: 500, nullable: true })
@@ -55,8 +52,8 @@ export class Employee {
 
   @CreateDateColumn()
   created_at: Date;
-  
-  @ManyToOne(() => User, (user) => user.employees, { 
+
+  @ManyToOne(() => User, (user) => user.employees, {
     nullable: false,
     onDelete: 'CASCADE' // When user is deleted, employee should also be deleted
   })
@@ -70,7 +67,7 @@ export class Employee {
   @JoinColumn({ name: "designation_id" })
   designation: Designation;
 
-  @ManyToOne(() => Team, (team) => team.teamMembers, { 
+  @ManyToOne(() => Team, (team) => team.teamMembers, {
     nullable: true,
     onDelete: 'SET NULL' // When team is deleted, set team_id to NULL
   })
@@ -85,17 +82,17 @@ export class Employee {
 
   @OneToMany(() => EmployeeKpi, (employeeKpi) => employeeKpi.employee)
   employeeKpis: EmployeeKpi[];
-  
+
 
   @OneToMany(() => Promotion, (promotion) => promotion.employee)
 
   @OneToMany(
     () => PerformanceReview,
     (performanceReview) => performanceReview.employee,
-    )
-    employeePerformanceReviews: PerformanceReview[];
+  )
+  employeePerformanceReviews: PerformanceReview[];
 
   @OneToMany(() => Promotion, (promotion) => promotion.employee)
-employeePromotions: Promotion[];
+  employeePromotions: Promotion[];
 
 }
