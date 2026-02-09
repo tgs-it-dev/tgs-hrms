@@ -122,8 +122,8 @@ export class UserService {
     const user = await this.findOne(userId, tenantId, currentUserId);
     return this.userRepo.remove(user);
   }
-  async updateProfilePicture(userId: string, file: Express.Multer.File, tenantId: string) {
-    const user = await this.findOne(userId, tenantId, userId);
+  async updateProfilePicture(userId: string, file: Express.Multer.File, tenantId: string, currentUserId: string) {
+    const user = await this.findOne(userId, tenantId, currentUserId);
 
     if (user.profile_pic) {
       await this.fileUploadService.deleteProfilePicture(user.profile_pic);
@@ -134,11 +134,11 @@ export class UserService {
     user.profile_pic = profilePicUrl;
     return this.userRepo.save(user);
   }
-  async removeProfilePicture(userId: string, tenantId: string) {
-    const user = await this.findOne(userId, tenantId, userId);
+  async removeProfilePicture(userId: string, tenantId: string, currentUserId: string) {
+    const user = await this.findOne(userId, tenantId, currentUserId);
     if (user.profile_pic) {
       await this.fileUploadService.deleteProfilePicture(user.profile_pic);
-      user.profile_pic = "";
+      user.profile_pic = null;
       return this.userRepo.save(user);
     }
     return user;

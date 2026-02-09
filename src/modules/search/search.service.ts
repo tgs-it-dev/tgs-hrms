@@ -36,7 +36,7 @@ export class SearchService {
     private readonly payrollRecordRepository: Repository<PayrollRecord>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
-  ) {}
+  ) { }
 
   /**
    * Global search across all modules with tenant and role filtering
@@ -242,15 +242,15 @@ export class SearchService {
       if (currentUserEmployee) {
         const empUserEmail = currentUserEmployee.user.email.toLowerCase().trim();
         const currentUserInResults = employees.some(emp => emp.user_id === currentUserId);
-        
+
         // Check if search term matches current user's email exactly or partially
         const isExactEmailMatch = currentUserEmail && searchLower === currentUserEmail.toLowerCase().trim();
         const isPartialEmailMatch = currentUserEmail && currentUserEmail.toLowerCase().includes(searchLower);
         const isEmployeeEmailMatch = empUserEmail === searchLower || empUserEmail.includes(searchLower);
-        
+
         // Check if current user matches search term by other fields
         const fullName = `${currentUserEmployee.user.first_name} ${currentUserEmployee.user.last_name}`.toLowerCase();
-        const matchesSearchTerm = 
+        const matchesSearchTerm =
           isExactEmailMatch ||
           isPartialEmailMatch ||
           isEmployeeEmailMatch ||
@@ -285,14 +285,14 @@ export class SearchService {
         const userEmailLower = currentUserEmail.toLowerCase().trim();
         const isExactEmailMatch = userEmailLower === searchLower;
         const isPartialEmailMatch = userEmailLower.includes(searchLower);
-        
+
         if (isExactEmailMatch || isPartialEmailMatch) {
           // Fetch user data to create a result
           const currentUser = await this.userRepository.findOne({
             where: { id: currentUserId },
             relations: ['role'],
           });
-          
+
           if (currentUser) {
             // Create a pseudo-employee object with user data so it can be processed like other employees
             const pseudoEmployee = {
@@ -302,10 +302,10 @@ export class SearchService {
               designation: null,
               team: null,
               cnic_number: null,
-              profile_picture: null,
+              // profile_picture: null,
               status: null,
             } as any;
-            
+
             // Add to results at the top
             finalEmployees.unshift(pseudoEmployee);
           }
@@ -318,7 +318,7 @@ export class SearchService {
       const roleName = emp.user?.role?.name || 'N/A';
       const designationTitle = emp.designation?.title || roleName;
       const teamName = emp.team?.name || 'No Team';
-      
+
       return {
         id: emp.id,
         title: `${emp.user.first_name} ${emp.user.last_name}`,
@@ -329,7 +329,7 @@ export class SearchService {
           userId: emp.user_id,
           email: emp.user.email,
           phone: emp.user.phone,
-          profilePic: emp.user.profile_pic || emp.profile_picture || null,
+          profilePic: emp.user.profile_pic || null,
           designation: designationTitle,
           team: teamName !== 'No Team' ? teamName : null,
           status: emp.status || 'active',
@@ -339,7 +339,7 @@ export class SearchService {
     });
 
     // Update total count if we added the current user to results
-    const adjustedTotal = finalEmployees.length > employees.length 
+    const adjustedTotal = finalEmployees.length > employees.length
       ? total + (finalEmployees.length - employees.length)
       : total;
 
@@ -387,7 +387,7 @@ export class SearchService {
         where: { team_id: In(teamIds) },
         select: ['user_id'],
       });
-      
+
       if (teamEmployees.length > 0) {
         const userIds = teamEmployees.map(emp => emp.user_id);
         queryBuilder.andWhere('leave.employeeId IN (:...userIds)', { userIds });
@@ -404,11 +404,11 @@ export class SearchService {
 
     // Get employee IDs for all leaves (employeeId in Leave is actually userId)
     const userIds = [...new Set(leaves.map(l => l.employeeId))];
-    const employees = userIds.length > 0 
+    const employees = userIds.length > 0
       ? await this.employeeRepository.find({
-          where: userIds.map(userId => ({ user_id: userId })),
-          select: ['id', 'user_id'],
-        })
+        where: userIds.map(userId => ({ user_id: userId })),
+        select: ['id', 'user_id'],
+      })
       : [];
     const userToEmployeeMap = new Map(employees.map(emp => [emp.user_id, emp.id]));
 
@@ -532,7 +532,7 @@ export class SearchService {
         where: { team_id: In(teamIds) },
         select: ['user_id'],
       });
-      
+
       if (teamEmployees.length > 0) {
         const userIds = teamEmployees.map(emp => emp.user_id);
         queryBuilder.andWhere('assetRequest.requested_by IN (:...userIds)', { userIds });
@@ -548,11 +548,11 @@ export class SearchService {
       .getManyAndCount();
 
     const items: SearchResultItem[] = assetRequests.map((request) => {
-      const requesterName = request.requestedByUser 
+      const requesterName = request.requestedByUser
         ? `${request.requestedByUser.first_name} ${request.requestedByUser.last_name}`
         : 'Unknown User';
       const categoryName = request.category?.name || 'Unknown Category';
-      
+
       return {
         id: request.id,
         title: `${requesterName} - ${categoryName}`,
@@ -665,7 +665,7 @@ export class SearchService {
         where: { team_id: In(teamIds) },
         select: ['user_id'],
       });
-      
+
       if (teamEmployees.length > 0) {
         const userIds = teamEmployees.map(emp => emp.user_id);
         queryBuilder.andWhere('attendance.user_id IN (:...userIds)', { userIds });
@@ -742,13 +742,13 @@ export class SearchService {
       .getManyAndCount();
 
     const items: SearchResultItem[] = employeeBenefits.map((eb) => {
-      const startDate = eb.startDate instanceof Date 
-        ? eb.startDate.toLocaleDateString() 
+      const startDate = eb.startDate instanceof Date
+        ? eb.startDate.toLocaleDateString()
         : new Date(eb.startDate).toLocaleDateString();
-      const endDate = eb.endDate 
-        ? (eb.endDate instanceof Date 
-            ? eb.endDate.toLocaleDateString() 
-            : new Date(eb.endDate).toLocaleDateString())
+      const endDate = eb.endDate
+        ? (eb.endDate instanceof Date
+          ? eb.endDate.toLocaleDateString()
+          : new Date(eb.endDate).toLocaleDateString())
         : null;
 
       return {
@@ -762,7 +762,7 @@ export class SearchService {
           userId: eb.employee.user_id,
           employeeName: `${eb.employee.user.first_name} ${eb.employee.user.last_name}`,
           employeeEmail: eb.employee.user.email,
-          profilePic: eb.employee.user.profile_pic || eb.employee.profile_picture || null,
+          profilePic: eb.employee.user.profile_pic || null,
           benefitName: eb.benefit.name,
           benefitType: eb.benefit.type,
           status: eb.status,
@@ -831,7 +831,7 @@ export class SearchService {
         userId: payroll.employee.user_id,
         employeeName: `${payroll.employee.user.first_name} ${payroll.employee.user.last_name}`,
         employeeEmail: payroll.employee.user.email,
-        profilePic: payroll.employee.user.profile_pic || payroll.employee.profile_picture || null,
+        profilePic: payroll.employee.user.profile_pic || null,
         month: payroll.month,
         year: payroll.year,
         grossSalary: payroll.grossSalary,

@@ -230,7 +230,7 @@ export class EmployeeService implements OnModuleInit {
                 profileFile,
                 result.id,
               );
-            result.profile_picture = profilePictureUrl;
+            // result.profile_picture = profilePictureUrl;
 
             const user = await this.userRepo.findOne({
               where: { id: result.user_id },
@@ -408,7 +408,7 @@ export class EmployeeService implements OnModuleInit {
                 profileFile,
                 result.id,
               );
-            result.profile_picture = profilePictureUrl;
+            // result.profile_picture = profilePictureUrl;
 
             const user = await this.userRepo.findOne({
               where: { id: result.user_id },
@@ -826,6 +826,7 @@ export class EmployeeService implements OnModuleInit {
       items: items.map(employee => ({
         ...employee,
         role_name: employee.user?.role?.name || null,
+        profile_picture: employee.user?.profile_pic || null,
       })),
       total,
       page,
@@ -853,6 +854,7 @@ export class EmployeeService implements OnModuleInit {
     return {
       ...employee,
       role_name: employee.user?.role?.name || null,
+      profile_picture: employee.user?.profile_pic || null,
     };
   }
 
@@ -957,7 +959,7 @@ export class EmployeeService implements OnModuleInit {
           );
           this.logger.log('Profile picture uploaded successfully:', profilePictureUrl);
           user.profile_pic = profilePictureUrl;
-          employee.profile_picture = profilePictureUrl;
+          // employee.profile_picture = profilePictureUrl; // Removed
           shouldSaveUser = true;
         } catch (error) {
           this.logger.error('Failed to upload profile picture:', error);
@@ -1066,10 +1068,13 @@ export class EmployeeService implements OnModuleInit {
 
     const { documentUrl } = dto;
     let fieldToUpdate: string | null = null;
+    let isUserProfilePic = false;
 
-    if (employee.profile_picture === documentUrl) {
-      fieldToUpdate = 'profile_picture';
+    if (employee.user.profile_pic === documentUrl) {
+      isUserProfilePic = true;
       await this.employeeFileUploadService.deleteProfilePicture(documentUrl);
+      employee.user.profile_pic = null;
+      await this.userRepo.save(employee.user);
     } else if (employee.cnic_picture === documentUrl) {
       fieldToUpdate = 'cnic_picture';
       await this.employeeFileUploadService.deleteCnicPicture(documentUrl);
@@ -1078,11 +1083,13 @@ export class EmployeeService implements OnModuleInit {
       await this.employeeFileUploadService.deleteCnicBackPicture(documentUrl);
     }
 
-    if (!fieldToUpdate) {
+    if (!fieldToUpdate && !isUserProfilePic) {
       throw new NotFoundException('Document not found for this employee');
     }
 
-    await this.employeeRepo.update(id, { [fieldToUpdate]: null });
+    if (fieldToUpdate) {
+      await this.employeeRepo.update(id, { [fieldToUpdate]: null });
+    }
 
     const updatedEmployee = await this.employeeRepo.findOne({
       where: { id },
@@ -1277,11 +1284,7 @@ export class EmployeeService implements OnModuleInit {
     let imagePath: string | null = null;
 
 
-    if (employee.profile_picture) {
-      imagePath = employee.profile_picture;
-    }
-
-    else if (employee.user.profile_pic) {
+    if (employee.user?.profile_pic) {
       imagePath = employee.user.profile_pic;
     }
 
