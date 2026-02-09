@@ -7,7 +7,8 @@ import { Injectable, NestMiddleware, UnauthorizedException, CanActivate, Executi
 import { Request, Response, NextFunction } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { AuthService } from '../../modules/auth/auth.service';
+import { AuthService } from 'src/modules/auth/auth.service';
+import { RequestWithUser, JwtPayload } from 'src/modules/auth/interfaces';
 
 @Injectable()
 export class JwtMiddleware implements NestMiddleware {
@@ -17,7 +18,7 @@ export class JwtMiddleware implements NestMiddleware {
     private readonly authService: AuthService,
   ) {}
 
-  async use(req: Request, _res: Response, next: NextFunction) {
+  async use(req: RequestWithUser, _res: Response, next: NextFunction) {
     try {
       // Extract token from Authorization header
       const authHeader = req.headers.authorization;
@@ -39,7 +40,7 @@ export class JwtMiddleware implements NestMiddleware {
       }
 
       // Attach user information to request
-      req['user'] = {
+      req.user = {
         id: payload.sub,
         email: payload.email,
         role: payload.role,
@@ -73,8 +74,8 @@ export class JwtAuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
-    
+    const request = context.switchToHttp().getRequest<RequestWithUser>();
+
     try {
       // Extract token from Authorization header
       const authHeader = request.headers.authorization;
@@ -96,7 +97,7 @@ export class JwtAuthGuard implements CanActivate {
       }
 
       // Attach user information to request
-      request['user'] = {
+      request.user = {
         id: payload.sub,
         email: payload.email,
         role: payload.role,

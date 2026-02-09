@@ -118,15 +118,13 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
         expect.objectContaining({
           reset_token: expect.any(String),
           reset_token_expiry: expect.any(Date),
-        })
+        }),
       );
     });
 
     it('should throw BadRequestException for unknown email', async () => {
       jest.spyOn(userRepo, 'findOne').mockResolvedValue(null);
-      await expect(service.forgotPassword({ email: 'invalid@example.com' })).rejects.toThrow(
-        BadRequestException
-      );
+      await expect(service.forgotPassword({ email: 'invalid@example.com' })).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -157,7 +155,7 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
           password: 'hashedPassword',
           reset_token: null,
           reset_token_expiry: null,
-        })
+        }),
       );
     });
 
@@ -169,7 +167,7 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
           token: 'wrong',
           password: 'newpass123',
           confirmPassword: 'newpass123',
-        })
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -187,7 +185,7 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
           token: 'valid-token',
           password: 'newpass123',
           confirmPassword: 'newpass123',
-        })
+        }),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -218,7 +216,7 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
       expect(result).toEqual({ message: 'Successfully logged out' });
       expect(userRepo.update).toHaveBeenCalledWith(
         expect.any(String),
-        expect.objectContaining({ refresh_token: null })
+        expect.objectContaining({ refresh_token: null }),
       );
     });
 

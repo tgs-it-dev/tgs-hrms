@@ -1,41 +1,35 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import * as sgMail from "@sendgrid/mail";
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import * as sgMail from '@sendgrid/mail';
 
 @Injectable()
 export class SendGridService {
   private readonly logger = new Logger(SendGridService.name);
 
   constructor(private readonly configService: ConfigService) {
-    const apiKey = this.configService.get<string>("SENDGRID_API_KEY");
+    const apiKey = this.configService.get<string>('SENDGRID_API_KEY');
     if (apiKey) {
       sgMail.setApiKey(apiKey);
-      this.logger.log("SendGrid API key configured successfully");
+      this.logger.log('SendGrid API key configured successfully');
     } else {
-      this.logger.warn(
-        "SENDGRID_API_KEY not found. Email functionality will be disabled.",
-      );
+      this.logger.warn('SENDGRID_API_KEY not found. Email functionality will be disabled.');
     }
   }
 
-  async sendPasswordResetEmail(
-    email: string,
-    resetToken: string,
-    userName: string,
-  ): Promise<void> {
-    const frontendUrl = this.configService.get<string>("FRONTEND_URL");
+  async sendPasswordResetEmail(email: string, resetToken: string, userName: string): Promise<void> {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
     const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
-    const fromEmail = this.configService.get<string>("SENDGRID_FROM");
+    const fromEmail = this.configService.get<string>('SENDGRID_FROM');
 
     if (!fromEmail) {
-      this.logger.warn("SENDGRID_FROM not configured. Skipping email send.");
+      this.logger.warn('SENDGRID_FROM not configured. Skipping email send.');
       return;
     }
 
     const msg = {
       to: email,
       from: fromEmail,
-      subject: "Password Reset Request",
+      subject: 'Password Reset Request',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2>Password Reset Request</h2>
@@ -61,29 +55,23 @@ export class SendGridService {
       await sgMail.send(msg);
       this.logger.log(`Password reset email sent to ${email}`);
     } catch (error) {
-      this.logger.error(
-        `Failed to send password reset email to ${email}:`,
-        error,
-      );
-      throw new Error("Failed to send password reset email");
+      this.logger.error(`Failed to send password reset email to ${email}:`, error);
+      throw new Error('Failed to send password reset email');
     }
   }
 
-  async sendPasswordResetSuccessEmail(
-    email: string,
-    userName: string,
-  ): Promise<void> {
-    const fromEmail = this.configService.get<string>("SENDGRID_FROM");
+  async sendPasswordResetSuccessEmail(email: string, userName: string): Promise<void> {
+    const fromEmail = this.configService.get<string>('SENDGRID_FROM');
 
     if (!fromEmail) {
-      this.logger.warn("SENDGRID_FROM not configured. Skipping email send.");
+      this.logger.warn('SENDGRID_FROM not configured. Skipping email send.');
       return;
     }
 
     const msg = {
       to: email,
       from: fromEmail,
-      subject: "Password Reset Successful",
+      subject: 'Password Reset Successful',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2>Password Reset Successful</h2>
@@ -101,27 +89,24 @@ export class SendGridService {
       await sgMail.send(msg);
       this.logger.log(`Password reset success email sent to ${email}`);
     } catch (error) {
-      this.logger.error(
-        `Failed to send password reset success email to ${email}:`,
-        error,
-      );
+      this.logger.error(`Failed to send password reset success email to ${email}:`, error);
     }
   }
 
   async sendWelcomeEmail(email: string, resetToken: string): Promise<void> {
-    const frontendUrl = this.configService.get<string>("FRONTEND_URL");
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
     const resetUrl = `${frontendUrl}/confirm-password?token=${resetToken}`;
-    const fromEmail = this.configService.get<string>("SENDGRID_FROM");
+    const fromEmail = this.configService.get<string>('SENDGRID_FROM');
 
     if (!fromEmail) {
-      this.logger.warn("SENDGRID_FROM not configured. Skipping email send.");
+      this.logger.warn('SENDGRID_FROM not configured. Skipping email send.');
       return;
     }
 
     const msg = {
       to: email,
       from: fromEmail,
-      subject: "Welcome to HRMS - Set Your Password",
+      subject: 'Welcome to HRMS - Set Your Password',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2>Welcome to HRMS!</h2>
@@ -149,7 +134,7 @@ export class SendGridService {
       this.logger.log(`Welcome email sent to ${email}`);
     } catch (error) {
       this.logger.error(`Failed to send welcome email to ${email}:`, error);
-      throw new Error("Failed to send welcome email");
+      throw new Error('Failed to send welcome email');
     }
   }
 }

@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { User, UserRole } from '../../entities/user.entity';
+import { User } from '../../entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
@@ -84,6 +84,7 @@ const mockEmailService = {
 
 describe('AuthService - Login', () => {
   let service: AuthService;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   let userRepo: Repository<User>;
 
   beforeEach(async () => {
@@ -111,16 +112,12 @@ describe('AuthService - Login', () => {
   });
 
   it('should throw error for invalid email', async () => {
-    await expect(service.validateUser('wrong@company.com', '123456')).rejects.toThrow(
-      BadRequestException
-    );
+    await expect(service.validateUser('wrong@company.com', '123456')).rejects.toThrow(BadRequestException);
   });
 
   it('should throw error for invalid password', async () => {
     jest.spyOn(bcrypt, 'compare').mockImplementation(() => Promise.resolve(false));
 
-    await expect(service.validateUser('admin@company.com', 'wrongpass')).rejects.toThrow(
-      BadRequestException
-    );
+    await expect(service.validateUser('admin@company.com', 'wrongpass')).rejects.toThrow(BadRequestException);
   });
 });

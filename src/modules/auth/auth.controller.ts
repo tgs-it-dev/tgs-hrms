@@ -13,6 +13,7 @@ import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Permissions } from 'src/common/decorators/permissions.decorator';
 import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+import { RequestWithUser, ValidatedUser, LoginResponse, RegisterResponse, TokenPair, JwtPayload } from './interfaces';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -46,15 +47,15 @@ export class AuthController {
       },
     },
   })
-  async register(@Body() dto: RegisterDto) {
+  async register(@Body() dto: RegisterDto): Promise<RegisterResponse> {
     return this.authService.register(dto);
   }
 
   @Post('login')
   @Throttle({ default: { limit: 5, ttl: 60_000 } }) // 5 requests per minute (stricter for auth)
   @ApiBody({ type: LoginDto })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Login successful',
     schema: {
       example: {
@@ -66,7 +67,7 @@ export class AuthController {
           first_name: 'John',
           last_name: 'Doe',
           role: 'admin',
-          tenant_id: 'tenant-id'
+          tenant_id: 'tenant-id',
         },
         permissions: ['manage_users', 'view_reports'],
         employee: null,
@@ -74,12 +75,12 @@ export class AuthController {
           id: 'company-id',
           company_name: 'Company Name',
           domain: 'company.com',
-          is_paid: false
+          is_paid: false,
         },
         requiresPayment: true,
-        session_id: 'signup-session-id'
-      }
-    }
+        session_id: 'signup-session-id',
+      },
+    },
   })
   @ApiResponse({
     status: 400,
@@ -114,7 +115,7 @@ export class AuthController {
       },
     },
   })
-  async login(@Body() body: LoginDto) {
+  async login(@Body() body: LoginDto): Promise<LoginResponse> {
     return this.authService.validateUser(body.email, body.password);
   }
 
@@ -123,8 +124,7 @@ export class AuthController {
   @ApiBody({ type: ForgotPasswordDto })
   @ApiOperation({
     summary: 'Request password reset',
-    description:
-      'Sends a password reset link to the provided email address. The link will expire in 1 hour.',
+    description: 'Sends a password reset link to the provided email address. The link will expire in 1 hour.',
   })
   @ApiResponse({
     status: 200,
@@ -145,15 +145,14 @@ export class AuthController {
       },
     },
   })
-  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+  async forgotPassword(@Body() dto: ForgotPasswordDto): Promise<{ message: string }> {
     return this.authService.forgotPassword(dto);
   }
 
   @Post('verify-reset-token')
   @ApiOperation({
     summary: 'Verify reset token',
-    description:
-      'Verifies if a reset token is valid and not expired. Useful for frontend validation.',
+    description: 'Verifies if a reset token is valid and not expired. Useful for frontend validation.',
   })
   @ApiBody({
     schema: {
@@ -182,7 +181,7 @@ export class AuthController {
       },
     },
   })
-  async verifyResetToken(@Body('token') token: string) {
+  async verifyResetToken(@Body('token') token: string): Promise<{ valid: boolean; message: string }> {
     return this.authService.verifyResetToken(token);
   }
 
@@ -224,15 +223,14 @@ export class AuthController {
       },
     },
   })
-  async resetPassword(@Body() dto: ResetPasswordDto) {
+  async resetPassword(@Body() dto: ResetPasswordDto): Promise<{ message: string }> {
     return this.authService.resetPassword(dto);
   }
 
   @Post('refresh')
   @ApiOperation({
     summary: 'Refresh access token',
-    description:
-      'Generate a new access token using a valid refresh token. Access tokens expire after 24 hours.',
+    description: 'Generate a new access token using a valid refresh token. Access tokens expire after 24 hours.',
   })
   @ApiBody({ type: RefreshTokenDto })
   @ApiResponse({
@@ -253,7 +251,7 @@ export class AuthController {
       },
     },
   })
-  async refresh(@Body() dto: RefreshTokenDto) {
+  async refresh(@Body() dto: RefreshTokenDto): Promise<TokenPair> {
     return this.authService.refreshToken(dto.refreshToken);
   }
 
@@ -269,16 +267,10 @@ export class AuthController {
   @ApiBearerAuth()
   @Get('test-permissions')
   @UseGuards(JwtAuthGuard)
-  async testPermissions(@Req() req: any) {
+  testPermissions(@Req() req: RequestWithUser): { message: string; user: JwtPayload } {
     return {
       message: 'Permissions test endpoint',
-      user: {
-        id: req.user.id,
-        email: req.user.email,
-        role: req.user.role,
-        tenant_id: req.user.tenant_id,
-        permissions: req.user.permissions,
-      },
+      user: req.user,
     };
   }
 
@@ -307,7 +299,7 @@ export class AuthController {
       },
     },
   })
-  async logout(@Body() dto: LogoutDto) {
+  async logout(@Body() dto: LogoutDto): Promise<{ message: string }> {
     return this.authService.logout(dto.refreshToken);
   }
 
@@ -328,24 +320,21 @@ export class AuthController {
           id: 'user-id',
           email: 'user@example.com',
           role: 'admin',
-          tenant_id: 'tenant-id'
-        }
-      }
-    }
+          tenant_id: 'tenant-id',
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 401,
     description: 'Token is invalid or user not found',
     schema: {
       example: {
-        message: 'User not found or has been deleted'
-      }
-    }
+        message: 'User not found or has been deleted',
+      },
+    },
   })
-  async validateToken(@Req() req: any) {
+  async validateToken(@Req() req: RequestWithUser): Promise<ValidatedUser> {
     return this.authService.validateToken(req.user.id);
   }
-
-
-
 }

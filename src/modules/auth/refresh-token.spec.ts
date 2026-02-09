@@ -119,7 +119,7 @@ describe('AuthService - Refresh Token', () => {
         {
           secret: 'mocked-secret',
           expiresIn: '24h',
-        }
+        },
       );
     });
 

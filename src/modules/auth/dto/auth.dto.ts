@@ -166,10 +166,10 @@ export class SessionInfoDto {
 }
 
 // Re-export common DTOs
-export { 
-  LoginDto, 
-  RegisterDto, 
-  ForgotPasswordDto, 
-  ResetPasswordDto, 
-  ChangePasswordDto 
+export {
+  LoginDto,
+  RegisterDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+  ChangePasswordDto,
 } from '../../../common/dto/common.dto';

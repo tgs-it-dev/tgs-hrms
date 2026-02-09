@@ -25,6 +25,6 @@ import { SignupSession } from 'src/entities/signup-session.entity';
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtMiddleware, JwtAuthGuard, JwtTokenValidator, EmailService, SendGridService],
-  exports: [AuthService], 
+  exports: [AuthService],
 })
 export class AuthModule {}
