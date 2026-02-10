@@ -1,14 +1,7 @@
-import { Request } from 'express';
+import { RequestWithUser } from 'src/modules/auth/interfaces';
 
-export interface AuthenticatedRequest extends Request {
-  user: {
-    id: string;
-    email: string;
-    role: string;
-    tenant_id: string;
-    permissions: string[];
-    first_name?: string;
-    last_name?: string;
-  };
-}
-
+/**
+ * Request with authenticated user (JwtPayload).
+ * Alias for RequestWithUser so controllers can use either name.
+ */
+export type AuthenticatedRequest = RequestWithUser;

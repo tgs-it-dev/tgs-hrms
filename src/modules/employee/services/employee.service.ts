@@ -15,7 +15,7 @@ import { Role } from '../../../entities/role.entity';
 import { Team } from '../../../entities/team.entity';
 import { CreateEmployeeDto, UpdateEmployeeDto, EmployeeQueryDto } from '../dto/employee.dto';
 import { RemoveEmployeeDocumentDto } from '../dto/update-employee.dto';
-import { SendGridService } from '../../../common/utils/email';
+import { EmailService } from '../../../common/utils/email';
 import { InviteStatusService } from '../../invite-status/invite-status.service';
 import { EmployeeFileUploadService } from './employee-file-upload.service';
 import { EmployeeCreatedEvent } from '../../billing/events/employee-created.event';
@@ -48,7 +48,7 @@ export class EmployeeService implements OnModuleInit {
     private readonly roleRepo: Repository<Role>,
     @InjectRepository(Team)
     private readonly teamRepo: Repository<Team>,
-    private readonly sendGridService: SendGridService,
+    private readonly emailService: EmailService,
     private readonly inviteStatusService: InviteStatusService,
     private readonly employeeFileUploadService: EmployeeFileUploadService,
     private readonly eventEmitter: EventEmitter2,
@@ -1105,7 +1105,7 @@ export class EmployeeService implements OnModuleInit {
 
   private async sendPasswordResetEmail(email: string, resetToken: string) {
     try {
-      await this.sendGridService.sendWelcomeEmail(email, resetToken);
+      await this.emailService.sendWelcomeEmail(email, resetToken);
     } catch (error) {
       this.logger.error(`Failed to send welcome email to ${email}: ${String((error as any)?.message || error)}`);
 
@@ -1135,7 +1135,7 @@ export class EmployeeService implements OnModuleInit {
       }
       for (const recipient of recipients) {
         try {
-          await this.sendGridService.sendNewTeamMemberAnnouncementEmail(
+          await this.emailService.sendNewTeamMemberAnnouncementEmail(
             recipient.email,
             newEmployeeName,
             newEmployeeEmail,

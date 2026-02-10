@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -8,11 +8,15 @@ import { Role } from '../../entities/role.entity';
 import { Tenant } from '../../entities/tenant.entity';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-import { JwtMiddleware, JwtAuthGuard, JwtTokenValidator } from '../../common/middleware/jwt.middleware';
-import { EmailService, SendGridService } from '../../common/utils/email';
+import { JwtMiddleware } from '../../common/middleware/jwt.middleware';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { SharedJwtModule } from '../../common/modules/jwt.module';
+import { EmailModule } from '../../common/utils/email/email.module';
 import { InviteStatusModule } from '../invite-status/invite-status.module';
 import { Employee } from 'src/entities/employee.entity';
 import { SignupSession } from 'src/entities/signup-session.entity';
+
+@Global()
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, CompanyDetails, Employee, SignupSession, Role, Tenant]),
@@ -21,10 +25,12 @@ import { SignupSession } from 'src/entities/signup-session.entity';
       secret: process.env.JWT_SECRET || 'default_secret',
       signOptions: { expiresIn: process.env.JWT_EXPIRES_IN || '24h' },
     }),
+    SharedJwtModule,
+    EmailModule,
     InviteStatusModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtMiddleware, JwtAuthGuard, JwtTokenValidator, EmailService, SendGridService],
+  providers: [AuthService, JwtMiddleware, JwtAuthGuard],
   exports: [AuthService],
 })
 export class AuthModule {}

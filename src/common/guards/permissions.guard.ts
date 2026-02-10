@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PERMISSIONS_KEY } from '../decorators/permissions.decorator';
-import { AuthenticatedRequest } from '../types/request.types';
+import { RequestWithUser } from 'src/modules/auth/interfaces';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
@@ -28,7 +28,7 @@ export class PermissionsGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const request = context.switchToHttp().getRequest<RequestWithUser>();
     const user = request.user;
 
     this.logger.debug(`PermissionsGuard: User object: ${JSON.stringify(user)}`);

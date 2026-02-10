@@ -24,9 +24,24 @@ const mockRole: Role = {
 const mockTenant: Tenant = {
   id: '11111111-1111-1111-1111-111111111111',
   name: 'Test Company',
+  status: 'active',
   created_at: new Date(),
+  updated_at: new Date(),
+  deleted_at: null,
   users: [],
   departments: [],
+  designations: [],
+  benefits: [],
+  employeeBenefits: [],
+  kpis: [],
+  employeeKpis: [],
+  employeePerformanceReviews: [],
+  employeePromotions: [],
+  assets: [],
+  leaves: [],
+  tasks: [],
+  assetComments: [],
+  geofences: [],
 };
 
 const mockUser: User = {
@@ -42,8 +57,8 @@ const mockUser: User = {
   last_name: 'User',
   phone: '1234567890',
   gender: null,
-  profile_pic: null,
-  first_login_time: null,
+  profile_pic: '',
+  first_login_time: new Date(),
   created_at: new Date(),
   updated_at: new Date(),
   role: mockRole,
@@ -103,7 +118,7 @@ describe('AuthService - Login', () => {
   });
 
   it('should validate and return access token for valid credentials', async () => {
-    jest.spyOn(bcrypt, 'compare').mockImplementation(() => Promise.resolve(true));
+    (jest.spyOn(bcrypt, 'compare') as unknown as jest.Mock<Promise<boolean>>).mockResolvedValue(true);
 
     const result = await service.validateUser('admin@company.com', '123456');
 
@@ -116,7 +131,7 @@ describe('AuthService - Login', () => {
   });
 
   it('should throw error for invalid password', async () => {
-    jest.spyOn(bcrypt, 'compare').mockImplementation(() => Promise.resolve(false));
+    (jest.spyOn(bcrypt, 'compare') as unknown as jest.Mock<Promise<boolean>>).mockResolvedValue(false);
 
     await expect(service.validateUser('admin@company.com', 'wrongpass')).rejects.toThrow(BadRequestException);
   });

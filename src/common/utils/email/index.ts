@@ -4,4 +4,3 @@
  */
 
 export { EmailService } from './email.service';
-export { SendGridService } from './sendgrid.service';

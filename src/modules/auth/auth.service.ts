@@ -5,6 +5,7 @@ import { User } from '../../entities/user.entity';
 import { CompanyDetails } from '../../entities/company-details.entity';
 import { Repository, Not, IsNull, MoreThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
+import { JwtHelperService } from '../../common/jwt';
 import { RegisterDto } from './dto/register.dto';
 import * as bcrypt from 'bcrypt';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -37,6 +38,7 @@ export class AuthService {
     @InjectRepository(Tenant)
     private tenantRepository: Repository<Tenant>,
     private jwtService: JwtService,
+    private jwtHelper: JwtHelperService,
     private configService: ConfigService,
     private emailService: EmailService,
     private inviteStatusService: InviteStatusService,
@@ -402,6 +404,7 @@ export class AuthService {
     const firstUser = matchingUsers[0];
     const userName = `${firstUser.first_name} ${firstUser.last_name}`;
     await this.emailService.sendPasswordResetSuccessEmail(firstUser.email, userName);
+    const emailHash = this.sanitizeEmailForLogging(firstUser.email);
     this.logger.log(`Password reset successful for user: ${emailHash}`);
     return { message: 'Password reset successfully' };
   }
@@ -411,9 +414,7 @@ export class AuthService {
       throw new BadRequestException('Refresh token is required');
     }
     try {
-      const payload = this.jwtService.verify(refreshToken, {
-        secret: this.configService.get<string>('JWT_SECRET'),
-      });
+      const payload = this.jwtHelper.verifyToken<JwtPayload>(refreshToken);
       const user = await this.userRepository.findOne({
         where: { id: payload.sub },
         relations: ['role'],
@@ -476,9 +477,7 @@ export class AuthService {
       throw new BadRequestException('Refresh token is required');
     }
     try {
-      const payload = this.jwtService.verify(refreshToken, {
-        secret: this.configService.get<string>('JWT_SECRET'),
-      });
+      const payload = this.jwtHelper.verifyToken<JwtPayload>(refreshToken);
       const user = await this.userRepository.findOne({
         where: { id: payload.sub },
       });

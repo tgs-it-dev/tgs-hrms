@@ -13,7 +13,7 @@ import { Attendance } from 'src/entities/attendance.entity';
 import { Leave } from 'src/entities/leave.entity';
 import { AttendanceModule } from '../attendance/attendace.module';
 import { LeaveModule } from '../leave/leave.module';
-import { SendGridService } from '../../common/utils/email';
+import { EmailModule } from '../../common/utils/email/email.module';
 import { InviteStatusModule } from '../invite-status/invite-status.module';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
 import { EmployeeFileUploadService } from './services/employee-file-upload.service';
@@ -26,12 +26,13 @@ import { PayrollModule } from '../payroll/payroll.module';
     AttendanceModule,
     LeaveModule,
     InviteStatusModule,
+    EmailModule,
     SharedJwtModule,
     forwardRef(() => BillingModule),
     PayrollModule,
   ],
   controllers: [EmployeeController, EmployeeProfileController],
-  providers: [EmployeeService, EmployeeProfileService, SendGridService, EmployeeFileUploadService],
+  providers: [EmployeeService, EmployeeProfileService, EmployeeFileUploadService],
   exports: [EmployeeService],
 })
 export class EmployeeModule {}

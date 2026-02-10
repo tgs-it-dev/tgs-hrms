@@ -21,7 +21,8 @@ export class DepartmentService {
     private tenantRepo: Repository<Tenant>
   ) {}
 
-  async create(tenant_id: string, dto: CreateDepartmentDto): Promise<Department> {
+  async create(tenant_id: string | null, dto: CreateDepartmentDto): Promise<Department> {
+    if (tenant_id == null || tenant_id === '') throw new BadRequestException('Tenant context is required');
     const existing = await this.repo.findOne({
       where: { name: dto.name, tenant_id },
     });
@@ -50,7 +51,8 @@ export class DepartmentService {
     }
   }
 
-  async update(tenant_id: string, id: string, dto: UpdateDepartmentDto): Promise<Department> {
+  async update(tenant_id: string | null, id: string, dto: UpdateDepartmentDto): Promise<Department> {
+    if (tenant_id == null || tenant_id === '') throw new BadRequestException('Tenant context is required');
     const department = await this.repo.findOne({ where: { id } });
 
     if (!department) {
@@ -101,7 +103,8 @@ export class DepartmentService {
   }
 
   
-  async findAll(tenant_id: string): Promise<Department[]> {
+  async findAll(tenant_id: string | null): Promise<Department[]> {
+    if (tenant_id == null || tenant_id === '') throw new BadRequestException('Tenant context is required');
     return this.repo.createQueryBuilder('dept')
       .where('dept.tenant_id IN (:...tenants)', { tenants: [GLOBAL, tenant_id] })
       .orderBy('dept.name', 'ASC')
@@ -109,7 +112,8 @@ export class DepartmentService {
   }
 
 
-  async findOne(tenant_id: string, id: string): Promise<Department> {
+  async findOne(tenant_id: string | null, id: string): Promise<Department> {
+    if (tenant_id == null || tenant_id === '') throw new BadRequestException('Tenant context is required');
     const dept = await this.repo.findOne({ where: { id } });
 
     if (!dept) {
@@ -129,7 +133,8 @@ export class DepartmentService {
     return dept;
   }
 
-  async remove(tenant_id: string, id: string): Promise<{ deleted: true; id: string }> {
+  async remove(tenant_id: string | null, id: string): Promise<{ deleted: true; id: string }> {
+    if (tenant_id == null || tenant_id === '') throw new BadRequestException('Tenant context is required');
     const dept = await this.repo.findOne({ 
       where: { id }, 
       relations: ['designations'] 
