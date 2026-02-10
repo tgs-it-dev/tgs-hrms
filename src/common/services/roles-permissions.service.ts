@@ -45,12 +45,22 @@ export class RolesPermissionsService {
 
   private loadConfig(): void {
     try {
-      const configPath = join(process.cwd(), 'src', 'config', 'roles-permissions.json');
+      const configPath = join(
+        process.cwd(),
+        'src',
+        'config',
+        'roles-permissions.json',
+      );
       const configFile = readFileSync(configPath, 'utf8');
-      this.config = JSON.parse(configFile);
-      this.logger.log('Roles and permissions configuration loaded successfully');
+      this.config = JSON.parse(configFile) as RolesPermissionsConfig;
+      this.logger.log(
+        'Roles and permissions configuration loaded successfully',
+      );
     } catch (error) {
-      this.logger.error('Failed to load roles and permissions configuration:', error);
+      this.logger.error(
+        'Failed to load roles and permissions configuration:',
+        error,
+      );
       throw new Error('Failed to load roles and permissions configuration');
     }
   }
@@ -96,7 +106,7 @@ export class RolesPermissionsService {
    */
   hasPermission(userRole: string, permission: string): boolean {
     const rolePermissions = this.getRolePermissions(userRole);
-    
+
     // Admin roles have all permissions
     if (this.isAdminRole(userRole)) {
       return true;
@@ -194,10 +204,10 @@ export class RolesPermissionsService {
    */
   getMultipleRolesPermissions(roles: string[]): string[] {
     const allPermissions = new Set<string>();
-    
-    roles.forEach(role => {
+
+    roles.forEach((role) => {
       const rolePermissions = this.getRolePermissions(role);
-      rolePermissions.forEach(permission => {
+      rolePermissions.forEach((permission) => {
         allPermissions.add(permission);
       });
     });
@@ -219,8 +229,10 @@ export class RolesPermissionsService {
       return false;
     }
     const resourcePermissions = this.getPermission(resource);
-    
-    return Boolean(resourcePermissions && resourcePermissions[action] !== undefined);
+
+    return Boolean(
+      resourcePermissions && resourcePermissions[action] !== undefined,
+    );
   }
 
   /**
@@ -228,11 +240,11 @@ export class RolesPermissionsService {
    */
   getAllPermissions(): string[] {
     const permissions: string[] = [];
-    
-    Object.keys(this.config.permissions).forEach(resource => {
+
+    Object.keys(this.config.permissions).forEach((resource) => {
       const resourcePerms = this.config.permissions[resource];
       if (resourcePerms) {
-        Object.keys(resourcePerms).forEach(action => {
+        Object.keys(resourcePerms).forEach((action) => {
           permissions.push(`${resource}.${action}`);
         });
       }
@@ -249,5 +261,3 @@ export class RolesPermissionsService {
     this.logger.log('Roles and permissions configuration reloaded');
   }
 }
-
-

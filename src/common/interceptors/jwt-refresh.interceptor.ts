@@ -4,6 +4,7 @@ import {
   ExecutionContext,
   CallHandler,
   UnauthorizedException,
+  Logger,
 } from '@nestjs/common';
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';

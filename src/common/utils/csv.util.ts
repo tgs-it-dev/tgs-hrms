@@ -1,3 +1,5 @@
+import { Response } from 'express';
+
 export function toCsv(rows: Array<Record<string, any>>): string {
   if (!rows || rows.length === 0) {
     return '';
@@ -12,7 +14,7 @@ export function toCsv(rows: Array<Record<string, any>>): string {
   const escape = (value: any): string => {
     if (value === null || value === undefined) return '';
     const str = String(value);
-    
+
     const needsQuotes = /[",\n\r]/.test(str) || str.includes(',');
     const escaped = str.replace(/"/g, '""');
     return needsQuotes ? `"${escaped}"` : escaped;
@@ -24,14 +26,12 @@ export function toCsv(rows: Array<Record<string, any>>): string {
 }
 
 export function sendCsvResponse(
-  res: any,
+  res: Response,
   filename: string,
-  rows: Array<Record<string, any>>
+  rows: Array<Record<string, any>>,
 ): void {
   const csv = toCsv(rows);
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.send(csv);
 }
-
-

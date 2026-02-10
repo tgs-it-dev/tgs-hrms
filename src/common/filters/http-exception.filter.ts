@@ -22,8 +22,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
 
     // Handle CORS errors specifically - they should return 403, not 500
-    if (exception instanceof Error && exception.message.includes('Not allowed by CORS')) {
-      const correlationId = (request.headers['x-correlation-id'] as string) || 'unknown';
+    if (
+      exception instanceof Error &&
+      exception.message.includes('Not allowed by CORS')
+    ) {
+      const correlationId =
+        (request.headers['x-correlation-id'] as string) || 'unknown';
       // Only log CORS errors in development, not in production to avoid clutter
       if (process.env.NODE_ENV !== 'production') {
         this.logger.warn(
@@ -44,14 +48,15 @@ export class HttpExceptionFilter implements ExceptionFilter {
     // Handle Multer file upload errors
     if (exception instanceof Error) {
       const errorMessage = exception.message.toLowerCase();
-      
+
       // File size errors from Multer
       if (
         errorMessage.includes('file too large') ||
         errorMessage.includes('limit exceeded') ||
         errorMessage.includes('file size')
       ) {
-        const correlationId = (request.headers['x-correlation-id'] as string) || 'unknown';
+        const correlationId =
+          (request.headers['x-correlation-id'] as string) || 'unknown';
         response.status(HttpStatus.BAD_REQUEST).json({
           statusCode: HttpStatus.BAD_REQUEST,
           timestamp: new Date().toISOString(),
@@ -70,14 +75,16 @@ export class HttpExceptionFilter implements ExceptionFilter {
         errorMessage.includes('invalid file') ||
         (errorMessage.includes('image') && errorMessage.includes('not allowed'))
       ) {
-        const correlationId = (request.headers['x-correlation-id'] as string) || 'unknown';
+        const correlationId =
+          (request.headers['x-correlation-id'] as string) || 'unknown';
         response.status(HttpStatus.BAD_REQUEST).json({
           statusCode: HttpStatus.BAD_REQUEST,
           timestamp: new Date().toISOString(),
           path: request.url,
           method: request.method,
           correlationId,
-          message: 'Invalid file type. Only image files are allowed (JPG, JPEG, PNG, GIF, WebP)',
+          message:
+            'Invalid file type. Only image files are allowed (JPG, JPEG, PNG, GIF, WebP)',
         });
         return;
       }
@@ -93,19 +100,20 @@ export class HttpExceptionFilter implements ExceptionFilter {
         ? exception.getResponse()
         : 'Internal server error';
 
-    const correlationId = (request.headers['x-correlation-id'] as string) || 'unknown';
+    const correlationId =
+      (request.headers['x-correlation-id'] as string) || 'unknown';
 
     // Extract message text and preserve additional properties
     let messageText: string;
     let additionalProps: Record<string, any> = {};
-    
+
     if (typeof message === 'string') {
       messageText = message;
     } else if (typeof message === 'object' && message !== null) {
       const msgObj = message as Record<string, any>;
-      messageText = msgObj.message || 'Internal server error';
+      messageText = String(msgObj.message) || 'Internal server error';
       // Extract all properties except 'message' to preserve additional data like checkoutUrl
-      const { message: _, ...rest } = msgObj;
+      const { ...rest } = msgObj;
       additionalProps = rest;
     } else {
       messageText = 'Internal server error';
@@ -132,5 +140,3 @@ export class HttpExceptionFilter implements ExceptionFilter {
     response.status(status).json(errorResponse);
   }
 }
-
-

@@ -3,7 +3,18 @@
  */
 
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsEmail, IsOptional, IsUUID, IsEnum, MinLength, MaxLength, IsNumber, Min, Max } from 'class-validator';
+import {
+  IsString,
+  IsEmail,
+  IsOptional,
+  IsUUID,
+  IsEnum,
+  MinLength,
+  MaxLength,
+  IsNumber,
+  Min,
+  Max,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 import { UserGender, UserStatus } from '../constants/enums';
 
@@ -16,7 +27,12 @@ export class BaseQueryDto {
   @Min(1)
   page?: number = 1;
 
-  @ApiPropertyOptional({ description: 'Items per page', example: 10, minimum: 1, maximum: 100 })
+  @ApiPropertyOptional({
+    description: 'Items per page',
+    example: 10,
+    minimum: 1,
+    maximum: 100,
+  })
   @IsOptional()
   @Transform(({ value }) => parseInt(value))
   @IsNumber()
@@ -96,7 +112,10 @@ export class FileUploadDto {
 
 // File Upload Response DTO
 export class FileUploadResponseDto {
-  @ApiProperty({ description: 'File URL', example: 'https://example.com/uploads/file.jpg' })
+  @ApiProperty({
+    description: 'File URL',
+    example: 'https://example.com/uploads/file.jpg',
+  })
   url: string;
 
   @ApiProperty({ description: 'File name', example: 'profile_pic.jpg' })
@@ -208,7 +227,10 @@ export class StatusUpdateDto {
 
 // Bulk Action DTO
 export class BulkActionDto {
-  @ApiProperty({ description: 'Array of IDs to perform action on', type: [String] })
+  @ApiProperty({
+    description: 'Array of IDs to perform action on',
+    type: [String],
+  })
   @IsUUID('4', { each: true })
   ids: string[];
 

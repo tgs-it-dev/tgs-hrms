@@ -47,4 +47,3 @@ export class MiddlewareConfigModule implements NestModule {
       .forRoutes('*');
   }
 }
- 

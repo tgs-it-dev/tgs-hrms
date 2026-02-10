@@ -343,5 +343,3 @@ export enum AnnouncementStatus {
   SENT = 'sent',
   CANCELLED = 'cancelled',
 }
-
-

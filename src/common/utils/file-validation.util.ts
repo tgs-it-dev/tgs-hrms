@@ -52,7 +52,10 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024;
 /**
  * Validates file signature (magic number) against expected MIME type
  */
-function validateFileSignature(buffer: Buffer, expectedMimeType: string): boolean {
+function validateFileSignature(
+  buffer: Buffer,
+  expectedMimeType: string,
+): boolean {
   const signatures = FILE_SIGNATURES[expectedMimeType.toLowerCase()];
   if (!signatures || signatures.length === 0) {
     // If no signature defined for this type, skip signature validation
@@ -95,21 +98,24 @@ function validateWebPSignature(buffer: Buffer): boolean {
  * - File signature (magic number)
  */
 export function validateImageFile(
-  file: Express.Multer.File | { buffer: Buffer; mimetype: string; originalname: string; size: number },
+  file:
+    | Express.Multer.File
+    | { buffer: Buffer; mimetype: string; originalname: string; size: number },
   options: {
     maxSize?: number;
     allowedMimeTypes?: string[];
     allowedExtensions?: string[];
-  } = {}
+  } = {},
 ): void {
   const maxSize = options.maxSize || MAX_FILE_SIZE;
   const allowedMimeTypes = options.allowedMimeTypes || ALLOWED_IMAGE_MIME_TYPES;
-  const allowedExtensions = options.allowedExtensions || ALLOWED_IMAGE_EXTENSIONS;
+  const allowedExtensions =
+    options.allowedExtensions || ALLOWED_IMAGE_EXTENSIONS;
 
   // Validate file size
   if (file.size > maxSize) {
     throw new BadRequestException(
-      `File size exceeds maximum allowed size of ${maxSize / 1024 / 1024}MB`
+      `File size exceeds maximum allowed size of ${maxSize / 1024 / 1024}MB`,
     );
   }
 
@@ -120,7 +126,7 @@ export function validateImageFile(
 
   if (!allowedExtensions.includes(fileExtension)) {
     throw new BadRequestException(
-      `Invalid file extension. Allowed extensions: ${allowedExtensions.join(', ')}`
+      `Invalid file extension. Allowed extensions: ${allowedExtensions.join(', ')}`,
     );
   }
 
@@ -128,7 +134,7 @@ export function validateImageFile(
   const mimeType = file.mimetype.toLowerCase();
   if (!allowedMimeTypes.includes(mimeType)) {
     throw new BadRequestException(
-      `Invalid file type. Allowed types: ${allowedMimeTypes.join(', ')}`
+      `Invalid file type. Allowed types: ${allowedMimeTypes.join(', ')}`,
     );
   }
 
@@ -147,7 +153,7 @@ export function validateImageFile(
     // Validate signature for other image types
     if (!validateFileSignature(file.buffer, mimeType)) {
       throw new BadRequestException(
-        `File signature does not match declared MIME type: ${mimeType}`
+        `File signature does not match declared MIME type: ${mimeType}`,
       );
     }
   }
@@ -165,7 +171,7 @@ export function getFileExtension(filename: string): string {
  */
 export function isAllowedExtension(
   filename: string,
-  allowedExtensions: string[]
+  allowedExtensions: string[],
 ): boolean {
   const ext = getFileExtension(filename);
   return allowedExtensions.includes(ext);

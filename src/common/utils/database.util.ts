@@ -2,8 +2,22 @@
  * Enhanced Database Utility with Pagination
  */
 
-import { Repository, SelectQueryBuilder, ObjectLiteral } from 'typeorm';
-import { PaginationDto, PaginationService, PaginatedResponse } from '../dto/pagination.dto';
+import {
+  Repository,
+  SelectQueryBuilder,
+  ObjectLiteral,
+  FindOptionsWhere,
+} from 'typeorm';
+import {
+  PaginationDto,
+  PaginationService,
+  PaginatedResponse,
+} from '../dto/pagination.dto';
+import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
+
+interface SoftDeletable {
+  deletedAt: Date | null;
+}
 
 export class DatabaseUtil {
   /**
@@ -12,21 +26,27 @@ export class DatabaseUtil {
   static createPaginatedQuery<T extends ObjectLiteral>(
     repository: Repository<T>,
     paginationDto: PaginationDto,
-    allowedSortFields: string[] = []
+    allowedSortFields: string[] = [],
   ): SelectQueryBuilder<T> {
     const query = repository.createQueryBuilder();
-    
+
     // Apply pagination
-    const offset = PaginationService.calculateOffset(paginationDto.page!, paginationDto.limit!);
-    query.skip(offset).take(paginationDto.limit!);
-    
+    const offset = PaginationService.calculateOffset(
+      paginationDto.page!,
+      paginationDto.limit!,
+    );
+    query.skip(offset).take(paginationDto.limit);
+
     // Apply sorting
-    if (paginationDto.sortBy && allowedSortFields.includes(paginationDto.sortBy)) {
-      query.orderBy(paginationDto.sortBy, paginationDto.sortOrder!);
+    if (
+      paginationDto.sortBy &&
+      allowedSortFields.includes(paginationDto.sortBy)
+    ) {
+      query.orderBy(paginationDto.sortBy, paginationDto.sortOrder);
     } else {
-      query.orderBy('created_at', paginationDto.sortOrder!);
+      query.orderBy('created_at', paginationDto.sortOrder);
     }
-    
+
     return query;
   }
 
@@ -35,15 +55,15 @@ export class DatabaseUtil {
    */
   static async executePaginatedQuery<T extends ObjectLiteral>(
     queryBuilder: SelectQueryBuilder<T>,
-    paginationDto: PaginationDto
+    paginationDto: PaginationDto,
   ): Promise<PaginatedResponse<T>> {
     const [items, total] = await queryBuilder.getManyAndCount();
-    
+
     return PaginationService.createPaginatedResponse(
       items,
       paginationDto.page!,
       paginationDto.limit!,
-      total
+      total,
     );
   }
 
@@ -53,15 +73,15 @@ export class DatabaseUtil {
   static buildSearchQuery<T extends ObjectLiteral>(
     queryBuilder: SelectQueryBuilder<T>,
     searchTerm: string,
-    searchFields: string[]
+    searchFields: string[],
   ): SelectQueryBuilder<T> {
     if (!searchTerm || searchFields.length === 0) {
       return queryBuilder;
     }
 
-    const searchConditions = searchFields.map(field => 
-      `${field} ILIKE :searchTerm`
-    ).join(' OR ');
+    const searchConditions = searchFields
+      .map((field) => `${field} ILIKE :searchTerm`)
+      .join(' OR ');
 
     queryBuilder.andWhere(`(${searchConditions})`, {
       searchTerm: `%${searchTerm}%`,
@@ -75,7 +95,7 @@ export class DatabaseUtil {
    */
   static buildFilterQuery<T extends ObjectLiteral>(
     queryBuilder: SelectQueryBuilder<T>,
-    filters: Record<string, any>
+    filters: Record<string, unknown>,
   ): SelectQueryBuilder<T> {
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
@@ -99,12 +119,12 @@ export class DatabaseUtil {
     queryBuilder: SelectQueryBuilder<T>,
     dateField: string,
     startDate?: Date,
-    endDate?: Date
+    endDate?: Date,
   ): SelectQueryBuilder<T> {
     if (startDate) {
       queryBuilder.andWhere(`${dateField} >= :startDate`, { startDate });
     }
-    
+
     if (endDate) {
       queryBuilder.andWhere(`${dateField} <= :endDate`, { endDate });
     }
@@ -117,7 +137,7 @@ export class DatabaseUtil {
    */
   static async executeTransaction<T extends ObjectLiteral>(
     repository: Repository<T>,
-    operations: (manager: any) => Promise<any>
+    operations: (manager: any) => Promise<any>,
   ): Promise<any> {
     return repository.manager.transaction(operations);
   }
@@ -125,21 +145,27 @@ export class DatabaseUtil {
   /**
    * Soft delete entity
    */
-  static async softDelete<T extends ObjectLiteral>(
+  static async softDelete<T extends ObjectLiteral & SoftDeletable>(
     repository: Repository<T>,
-    id: string | number
+    id: string | number,
   ): Promise<void> {
-    await repository.update(id, { deletedAt: new Date() } as any);
+    const payload: QueryDeepPartialEntity<SoftDeletable> = {
+      deletedAt: new Date(),
+    };
+    await repository.update(id, payload as QueryDeepPartialEntity<T>);
   }
 
   /**
    * Restore soft deleted entity
    */
-  static async restore<T extends ObjectLiteral>(
+  static async restore<T extends ObjectLiteral & SoftDeletable>(
     repository: Repository<T>,
-    id: string | number
+    id: string | number,
   ): Promise<void> {
-    await repository.update(id, { deletedAt: null } as any);
+    const payload: QueryDeepPartialEntity<SoftDeletable> = {
+      deletedAt: null,
+    };
+    await repository.update(id, payload as QueryDeepPartialEntity<T>);
   }
 
   /**
@@ -147,7 +173,7 @@ export class DatabaseUtil {
    */
   static async exists<T extends ObjectLiteral>(
     repository: Repository<T>,
-    conditions: any
+    conditions: FindOptionsWhere<T>,
   ): Promise<boolean> {
     const count = await repository.count(conditions);
     return count > 0;
@@ -158,8 +184,8 @@ export class DatabaseUtil {
    */
   static async findOneOrFail<T extends ObjectLiteral>(
     repository: Repository<T>,
-    conditions: any,
-    errorMessage: string = 'Entity not found'
+    conditions: FindOptionsWhere<T>,
+    errorMessage: string = 'Entity not found',
   ): Promise<T> {
     const entity = await repository.findOne(conditions);
     if (!entity) {
@@ -174,12 +200,12 @@ export class DatabaseUtil {
   static async bulkInsert<T extends ObjectLiteral>(
     repository: Repository<T>,
     entities: any[],
-    conflictFields: string[] = []
+    conflictFields: string[] = [],
   ): Promise<void> {
     if (entities.length === 0) return;
 
     const queryBuilder = repository.createQueryBuilder().insert();
-    
+
     if (conflictFields.length > 0) {
       queryBuilder.onConflict(`(${conflictFields.join(', ')}) DO NOTHING`);
     }
@@ -190,9 +216,9 @@ export class DatabaseUtil {
   /**
    * Get query performance stats
    */
-  static async getQueryStats<T extends ObjectLiteral>(
-    queryBuilder: SelectQueryBuilder<T>
-  ): Promise<{ sql: string; parameters: any[] }> {
+  static getQueryStats<T extends ObjectLiteral>(
+    queryBuilder: SelectQueryBuilder<T>,
+  ): { sql: string; parameters: any[] } {
     const [sql, parameters] = queryBuilder.getQueryAndParameters();
     return { sql, parameters };
   }
@@ -208,13 +234,13 @@ export class DatabaseUtil {
       searchFields?: string[];
       defaultSortField?: string;
       tenantId?: string;
-    } = {}
+    } = {},
   ): SelectQueryBuilder<T> {
     const {
       allowedSortFields = [],
       searchFields = [],
       defaultSortField = 'created_at',
-      tenantId
+      tenantId,
     } = options;
 
     let query = repository.createQueryBuilder();
@@ -236,18 +262,19 @@ export class DatabaseUtil {
     }
 
     // Apply pagination
-    const offset = PaginationService.calculateOffset(paginationDto.page!, paginationDto.limit!);
-    query.skip(offset).take(paginationDto.limit!);
+    const offset = PaginationService.calculateOffset(
+      paginationDto.page!,
+      paginationDto.limit!,
+    );
+    query.skip(offset).take(paginationDto.limit);
 
     // Apply sorting
-    const sortField = allowedSortFields.includes(paginationDto.sortBy!) 
-      ? paginationDto.sortBy! 
+    const sortField = allowedSortFields.includes(paginationDto.sortBy!)
+      ? paginationDto.sortBy!
       : defaultSortField;
-    
-    query.orderBy(sortField, paginationDto.sortOrder!);
+
+    query.orderBy(sortField, paginationDto.sortOrder);
 
     return query;
   }
 }
-
-
