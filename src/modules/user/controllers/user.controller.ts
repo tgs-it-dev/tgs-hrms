@@ -7,6 +7,7 @@ import {
   Patch,
   Param,
   Delete,
+  Put,
   UseGuards,
   HttpException,
   HttpStatus,
@@ -24,7 +25,7 @@ import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { TenantId } from 'src/common/decorators/company.deorator';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags, ApiConsumes, ApiBody, ApiOperation } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ParseFilePipe, MaxFileSizeValidator, FileTypeValidator } from '@nestjs/common';
 import { Permissions } from 'src/common/decorators/permissions.decorator';
@@ -33,7 +34,7 @@ import { PermissionsGuard } from 'src/common/guards/permissions.guard';
 @ApiTags('Users')
 @Controller('users')
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(private readonly userService: UserService) { }
 
 
   @Get(':id/profile-picture')
@@ -164,6 +165,20 @@ export class UserController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Post(':id/profile-picture')
   @UseInterceptors(FileInterceptor('profile_pic'))
+  @ApiOperation({ summary: 'Upload or update profile picture' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        profile_pic: {
+          type: 'string',
+          format: 'binary',
+          description: 'Profile picture file (jpg, jpeg, png, gif)',
+        },
+      },
+    },
+  })
   async uploadProfilePicture(
     @Param('id') id: string,
     @UploadedFile(
@@ -180,13 +195,72 @@ export class UserController {
   ) {
     try {
       const authenticatedUserId = req.user.id;
-      if (id !== authenticatedUserId) {
+      const userRole = (req.user.role || '').toLowerCase();
+      const isAdmin = ['admin', 'system-admin', 'hr-admin', 'network-admin'].includes(userRole);
+
+      // Allow if self or if user has admin privileges
+      if (id !== authenticatedUserId && !isAdmin) {
         throw new HttpException(
           'You can only update your own profile picture',
           HttpStatus.FORBIDDEN
         );
       }
-      const updatedUser = await this.userService.updateProfilePicture(id, file, tenantId);
+      const updatedUser = await this.userService.updateProfilePicture(id, file, tenantId, authenticatedUserId);
+      return { message: 'Profile picture updated successfully', user: updatedUser };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new HttpException(
+        'Error updating profile picture: ' + errorMessage,
+        HttpStatus.BAD_REQUEST
+      );
+    }
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Put(':id/profile-picture')
+  @UseInterceptors(FileInterceptor('profile_pic'))
+  @ApiOperation({ summary: 'Update profile picture' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        profile_pic: {
+          type: 'string',
+          format: 'binary',
+          description: 'Profile picture file (jpg, jpeg, png, gif)',
+        },
+      },
+    },
+  })
+  async updateProfilePicturePut(
+    @Param('id') id: string,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
+          new FileTypeValidator({ fileType: '.(jpg|jpeg|png|gif)' }),
+        ],
+      })
+    )
+    file: Express.Multer.File,
+    @TenantId() tenantId: string,
+    @Req() req: AuthenticatedRequest
+  ) {
+    try {
+      const authenticatedUserId = req.user.id;
+      const userRole = (req.user.role || '').toLowerCase();
+      const isAdmin = ['admin', 'system-admin', 'hr-admin', 'network-admin'].includes(userRole);
+
+      // Allow if self or if user has admin privileges
+      if (id !== authenticatedUserId && !isAdmin) {
+        throw new HttpException(
+          'You can only update your own profile picture',
+          HttpStatus.FORBIDDEN
+        );
+      }
+      const updatedUser = await this.userService.updateProfilePicture(id, file, tenantId, authenticatedUserId);
       return { message: 'Profile picture updated successfully', user: updatedUser };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -203,13 +277,17 @@ export class UserController {
   async removeProfilePicture(@Param('id') id: string, @TenantId() tenantId: string, @Req() req: AuthenticatedRequest) {
     try {
       const authenticatedUserId = req.user.id;
-      if (id !== authenticatedUserId) {
+      const userRole = (req.user.role || '').toLowerCase();
+      const isAdmin = ['admin', 'system-admin', 'hr-admin', 'network-admin'].includes(userRole);
+
+      // Allow if self or if user has admin privileges
+      if (id !== authenticatedUserId && !isAdmin) {
         throw new HttpException(
           'You can only remove your own profile picture',
           HttpStatus.FORBIDDEN
         );
       }
-      const updatedUser = await this.userService.removeProfilePicture(id, tenantId);
+      const updatedUser = await this.userService.removeProfilePicture(id, tenantId, authenticatedUserId);
       return { message: 'Profile picture removed successfully', user: updatedUser };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

@@ -50,7 +50,7 @@ export class User {
   last_name: string;
 
   @Column({ type: "varchar", length: 500, nullable: true })
-  profile_pic: string;
+  profile_pic: string | null;
 
   @Column({ type: "uuid" })
   role_id: string;

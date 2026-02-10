@@ -5,7 +5,7 @@ import { RequestWithUser, JwtPayload } from 'src/modules/auth/interfaces';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
+  constructor(private reflector: Reflector) { }
 
   canActivate(ctx: ExecutionContext): boolean {
     const requiredRoles = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [ctx.getHandler(), ctx.getClass()]);
@@ -17,7 +17,9 @@ export class RolesGuard implements CanActivate {
     const userRole = (user?.role || '').toLowerCase();
     const normalizedRequired = (requiredRoles || []).map((r) => (r || '').toLowerCase());
 
-    const isAdminEquivalent = (role: string) => role === 'admin' || role === 'system-admin' || role === 'network-admin';
+
+    const isAdminEquivalent = (role: string) =>
+      role === 'admin' || role === 'system-admin' || role === 'network-admin' || role === 'hr-admin';
 
     if (normalizedRequired.includes(userRole)) return true;
 
