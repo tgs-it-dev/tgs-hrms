@@ -12,6 +12,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { join } from 'path';
 import { MiddlewareConfigModule } from './common/middleware/middleware.config';
+import { TokenValidationModule } from './common/modules/token-validation.module';
 import { EmailModule } from './common/utils/email/email.module';
 import { UserModule } from './modules/user/user.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -56,6 +57,7 @@ import { SystemLog } from './entities/system-log.entity';
     EventEmitterModule.forRoot(),
     ConfigModule.forRoot({ isGlobal: true }),
     MiddlewareConfigModule,
+    TokenValidationModule,
     EmailModule,
 
     TypeOrmModule.forRootAsync({

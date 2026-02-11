@@ -8,9 +8,8 @@ import { Role } from '../../entities/role.entity';
 import { Tenant } from '../../entities/tenant.entity';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-import { JwtMiddleware } from '../../common/middleware/jwt.middleware';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
+import { TokenValidationModule } from '../../common/modules/token-validation.module';
 import { EmailModule } from '../../common/utils/email/email.module';
 import { InviteStatusModule } from '../invite-status/invite-status.module';
 import { Employee } from 'src/entities/employee.entity';
@@ -26,11 +25,12 @@ import { SignupSession } from 'src/entities/signup-session.entity';
       signOptions: { expiresIn: process.env.JWT_EXPIRES_IN || '24h' },
     }),
     SharedJwtModule,
+    TokenValidationModule,
     EmailModule,
     InviteStatusModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtMiddleware, JwtAuthGuard],
+  providers: [AuthService],
   exports: [AuthService],
 })
 export class AuthModule {}

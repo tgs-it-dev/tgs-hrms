@@ -6,10 +6,10 @@
 import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { JwtMiddleware } from './jwt.middleware';
 import { SharedJwtModule } from '../modules/jwt.module';
-import { AuthModule } from '../../modules/auth/auth.module';
+import { TokenValidationModule } from '../modules/token-validation.module';
 
 @Module({
-  imports: [SharedJwtModule, AuthModule],
+  imports: [SharedJwtModule, TokenValidationModule],
   providers: [JwtMiddleware],
   exports: [JwtMiddleware],
 })

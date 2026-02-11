@@ -13,7 +13,7 @@ import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Permissions } from 'src/common/decorators/permissions.decorator';
 import { PermissionsGuard } from 'src/common/guards/permissions.guard';
-import { RequestWithUser, ValidatedUser, LoginResponse, RegisterResponse, TokenPair, JwtPayload } from './interfaces';
+import { AuthenticatedRequest, ValidatedUser, LoginResponse, RegisterResponse, TokenPair, JwtPayload } from './interfaces';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -267,7 +267,7 @@ export class AuthController {
   @ApiBearerAuth()
   @Get('test-permissions')
   @UseGuards(JwtAuthGuard)
-  testPermissions(@Req() req: RequestWithUser): { message: string; user: JwtPayload } {
+  testPermissions(@Req() req: AuthenticatedRequest): { message: string; user: JwtPayload } {
     return {
       message: 'Permissions test endpoint',
       user: req.user,
@@ -334,7 +334,7 @@ export class AuthController {
       },
     },
   })
-  async validateToken(@Req() req: RequestWithUser): Promise<ValidatedUser> {
+  async validateToken(@Req() req: AuthenticatedRequest): Promise<ValidatedUser> {
     return this.authService.validateToken(req.user.id);
   }
 }

@@ -93,6 +93,6 @@ export interface MessageResponse {
 }
 
 /** Express Request with authenticated user (set by JwtAuthGuard) */
-export interface RequestWithUser extends Request {
+export interface AuthenticatedRequest extends Request {
   user: JwtPayload;
 }
