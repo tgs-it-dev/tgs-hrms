@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from '../../entities/user.entity';
@@ -16,14 +16,13 @@ import { InviteStatusService } from '../invite-status/invite-status.service';
 import { Employee } from 'src/entities/employee.entity';
 import { SignupSession } from 'src/entities/signup-session.entity';
 import { GLOBAL_SYSTEM_TENANT_ID } from '../../common/constants/enums';
+import { AUTH_MESSAGES } from '../../common/constants/auth-messages';
 import { Role } from '../../entities/role.entity';
 import { Tenant } from '../../entities/tenant.entity';
 import { ValidatedUser, LoginResponse, RegisterResponse, JwtPayload, TokenPair, CompanyInfo } from './interfaces';
 
 @Injectable()
 export class AuthService {
-  private readonly logger = new Logger(AuthService.name);
-
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
@@ -56,15 +55,11 @@ export class AuthService {
 
   private async getUserPermissions(userId: string): Promise<string[]> {
     try {
-      this.logger.log(`Loading permissions for user ${userId}`);
       const user = await this.userRepository.findOne({
         where: { id: userId },
         relations: ['role'],
       });
-      if (!user || !user.role) {
-        this.logger.warn(`User ${userId} has no role assigned`);
-        return [];
-      }
+      if (!user || !user.role) return [];
       const permissions = await this.userRepository
         .createQueryBuilder('user')
         .leftJoin('user.role', 'role')
@@ -73,33 +68,21 @@ export class AuthService {
         .where('user.id = :userId', { userId: user.id })
         .select('permission.name', 'name')
         .getRawMany();
-      const permissionNames = permissions
+      return permissions
         .map((row: { name: string }) => row.name)
         .filter((name) => !!name)
         .map((name) => name.toLowerCase());
-      this.logger.log(`Processed permissions for user ${userId}: ${JSON.stringify(permissionNames)}`);
-      return permissionNames;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const errorStack = error instanceof Error ? error.stack : undefined;
-      this.logger.error(`Failed to load permissions for user ${userId}: ${errorMessage}`);
-      if (errorStack) {
-        this.logger.error(`Error stack: ${errorStack}`);
-      }
+    } catch {
       return [];
     }
   }
 
   private async getCompanyDetails(tenantId: string): Promise<CompanyInfo | null> {
     try {
-      this.logger.log(`Loading company details for tenant: ${tenantId}`);
       const company = await this.companyDetailsRepository.findOne({
         where: { tenant_id: tenantId },
       });
-      if (!company) {
-        this.logger.warn(`Company details not found for tenant: ${tenantId}`);
-        return null;
-      }
+      if (!company) return null;
       return {
         id: company.id,
         company_name: company.company_name,
@@ -112,9 +95,7 @@ export class AuthService {
         stripe_customer_id: company.stripe_customer_id ?? null,
         stripe_payment_intent_id: company.stripe_payment_intent_id ?? null,
       } as CompanyInfo;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Failed to load company details for tenant ${tenantId}: ${errorMessage}`);
+    } catch {
       return null;
     }
   }
@@ -133,7 +114,7 @@ export class AuthService {
     if (existingUser) {
       throw new BadRequestException({
         field: 'email',
-        message: 'User with this email already exists in this organization',
+        message: AUTH_MESSAGES.USER_EMAIL_EXISTS,
       });
     }
     if (role?.name === 'system-admin') {
@@ -144,9 +125,7 @@ export class AuthService {
         },
       });
       if (existingSystemAdmin) {
-        throw new BadRequestException(
-          'Only one system admin is allowed in the entire HRMS. A system admin already exists.',
-        );
+        throw new BadRequestException(AUTH_MESSAGES.ONLY_ONE_SYSTEM_ADMIN);
       }
     }
     const hashedPassword = await bcrypt.hash(dto.password, 10);
@@ -165,25 +144,18 @@ export class AuthService {
       email: user.email,
       first_name: user.first_name,
       last_name: user.last_name,
-      message: 'User registered successfully',
+      message: AUTH_MESSAGES.USER_REGISTERED,
     };
   }
 
   async validateToken(userId: string): Promise<ValidatedUser> {
-    this.logger.log(`Validating token for user: ${userId}`);
     try {
       const user = await this.userRepository.findOne({
         where: { id: userId },
         relations: ['role'],
       });
-      if (!user) {
-        this.logger.warn(`Token validation failed: user not found for id: ${userId}`);
-        throw new UnauthorizedException('User not found or has been deleted');
-      }
-      if (!user.role?.name) {
-        this.logger.warn(`Token validation failed: user role missing for id: ${userId}`);
-        throw new UnauthorizedException('User role not found');
-      }
+      if (!user) throw new UnauthorizedException(AUTH_MESSAGES.USER_NOT_FOUND_OR_DELETED);
+      if (!user.role?.name) throw new UnauthorizedException(AUTH_MESSAGES.USER_ROLE_NOT_FOUND);
       const isSystemAdmin = this.isSystemAdminRole(user.role.name);
       const tenantId = isSystemAdmin ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
       if (!isSystemAdmin && tenantId) {
@@ -191,12 +163,10 @@ export class AuthService {
           where: { id: tenantId },
         });
         if (!tenant || tenant.deleted_at) {
-          this.logger.warn(`Token validation failed: tenant is deleted for user: ${userId}`);
-          throw new UnauthorizedException('Your organization account has been deleted. Please contact support.');
+          throw new UnauthorizedException(AUTH_MESSAGES.ORG_ACCOUNT_DELETED);
         }
       }
       const permissions = await this.getUserPermissions(user.id);
-      this.logger.log(`Token validation successful for user: ${user.email}`);
       return {
         valid: true,
         user: {
@@ -210,27 +180,21 @@ export class AuthService {
         },
       };
     } catch (error) {
-      if (error instanceof UnauthorizedException) {
-        throw error;
-      }
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Token validation error for user ${userId}: ${errorMessage}`);
-      throw new UnauthorizedException('Token validation failed');
+      if (error instanceof UnauthorizedException) throw error;
+      throw new UnauthorizedException(AUTH_MESSAGES.TOKEN_VALIDATION_FAILED);
     }
   }
 
   async validateUser(email: string, password: string): Promise<LoginResponse> {
     const normalizedEmail = email.toLowerCase();
-    this.logger.log(`Login attempt for email: ${normalizedEmail}`);
     const users = await this.userRepository.find({
       where: { email: normalizedEmail },
       relations: ['role'],
     });
     if (!users || users.length === 0) {
-      this.logger.warn(`Login failed: user not found for email: ${normalizedEmail}`);
       throw new BadRequestException({
         field: 'email',
-        message: 'Email not found',
+        message: AUTH_MESSAGES.EMAIL_NOT_FOUND,
       });
     }
     let user: User | null = null;
@@ -242,15 +206,13 @@ export class AuthService {
       }
     }
     if (!user) {
-      this.logger.warn(`Login failed: invalid password for email: ${normalizedEmail}`);
       throw new BadRequestException({
         field: 'password',
-        message: 'Incorrect password',
+        message: AUTH_MESSAGES.INCORRECT_PASSWORD,
       });
     }
     if (!user.role || !user.role.name) {
-      this.logger.error(`User role missing for email: ${normalizedEmail}`);
-      throw new UnauthorizedException('User role not found');
+      throw new UnauthorizedException(AUTH_MESSAGES.USER_ROLE_NOT_FOUND);
     }
     const isSystemAdmin = this.isSystemAdminRole(user.role.name);
     const tenantId = isSystemAdmin ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
@@ -259,15 +221,13 @@ export class AuthService {
         where: { id: tenantId },
       });
       if (!tenant || tenant.deleted_at) {
-        this.logger.warn(`Login failed: tenant is deleted for email: ${normalizedEmail}`);
-        throw new UnauthorizedException('Your organization account has been deleted. Please contact support.');
+        throw new UnauthorizedException(AUTH_MESSAGES.ORG_ACCOUNT_DELETED);
       }
     }
     const permissions = await this.getUserPermissions(user.id);
     const employee = await this.employeeRepository.findOne({ where: { user_id: user.id } });
     const companyDetails = await this.getCompanyDetails(tenantId);
     const requiresPayment = companyDetails ? !companyDetails.is_paid : false;
-    this.logger.log(`User ${user.email} permissions: ${JSON.stringify(permissions)}`);
     const payload: JwtPayload = {
       id: user.id,
       email: user.email,
@@ -278,7 +238,6 @@ export class AuthService {
       first_name: user.first_name,
       last_name: user.last_name,
     };
-    this.logger.log(`JWT payload for user ${user.email}: ${JSON.stringify(payload)}`);
     const accessToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_SECRET'),
       expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '24h',
@@ -290,14 +249,12 @@ export class AuthService {
     user.refresh_token = refreshToken;
     if (!user.first_login_time) {
       user.first_login_time = new Date();
-      this.logger.log(`First login recorded for user: ${normalizedEmail}`);
       await this.inviteStatusService.updateInviteStatusOnLogin(user.id);
     }
     await this.userRepository.save(user);
     const signupSession = await this.signupSessionRepository.findOne({
       where: { email: normalizedEmail },
     });
-    this.logger.log(`Login successful for email: ${normalizedEmail}`);
     return {
       accessToken,
       refreshToken,
@@ -311,14 +268,11 @@ export class AuthService {
   }
 
   async forgotPassword(dto: ForgotPasswordDto) {
-    const emailHash = this.sanitizeEmailForLogging(dto.email);
-    this.logger.log(`Forgot password request for email: ${emailHash}`);
     const users = await this.userRepository.find({
       where: { email: dto.email.toLowerCase() },
     });
     if (!users || users.length === 0) {
-      this.logger.warn(`Forgot password failed: user not found for email: ${emailHash}`);
-      throw new BadRequestException('In Valid email address');
+      throw new BadRequestException(AUTH_MESSAGES.INVALID_EMAIL_ADDRESS);
     }
     const resetToken = this.generateSecureToken();
     const hashedResetToken = await bcrypt.hash(resetToken, 10);
@@ -332,34 +286,16 @@ export class AuthService {
     const firstUser = users[0];
     const userName = `${firstUser.first_name} ${firstUser.last_name}`;
     await this.emailService.sendPasswordResetEmail(firstUser.email, resetToken, userName);
-    this.logger.log(`Password reset email sent to: ${emailHash}`);
-    return {
-      message: 'Check your email for the password reset link.',
-    };
+    return { message: AUTH_MESSAGES.CHECK_EMAIL_RESET_LINK };
   }
 
   private generateSecureToken(): string {
     return randomBytes(32).toString('hex');
   }
 
-  private sanitizeEmailForLogging(email: string): string {
-    if (!email || !email.includes('@')) {
-      return '***';
-    }
-    const parts = email.split('@');
-    if (parts.length !== 2) {
-      return '***';
-    }
-    const [localPart, domain] = parts;
-    if (!localPart || localPart.length <= 3) {
-      return '***@' + domain;
-    }
-    return localPart.substring(0, 3) + '***@' + domain;
-  }
-
   async verifyResetToken(token: string): Promise<{ valid: boolean; message: string }> {
     if (!token) {
-      return { valid: false, message: 'Token is required' };
+      return { valid: false, message: AUTH_MESSAGES.TOKEN_REQUIRED };
     }
     const users = await this.userRepository.find({
       where: {
@@ -369,14 +305,13 @@ export class AuthService {
     });
     for (const user of users) {
       if (user.reset_token && (await bcrypt.compare(token, user.reset_token))) {
-        return { valid: true, message: 'Token is valid' };
+        return { valid: true, message: AUTH_MESSAGES.TOKEN_VALID };
       }
     }
-    return { valid: false, message: 'Invalid or expired reset token' };
+    return { valid: false, message: AUTH_MESSAGES.INVALID_OR_EXPIRED_RESET_TOKEN };
   }
 
   async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
-    this.logger.log('Reset password attempt with token (sanitized)');
     const users = await this.userRepository.find({
       where: {
         reset_token: Not(IsNull()),
@@ -390,8 +325,7 @@ export class AuthService {
       }
     }
     if (matchingUsers.length === 0) {
-      this.logger.warn('Reset password failed: invalid or expired token');
-      throw new BadRequestException('Invalid or expired reset token');
+      throw new BadRequestException(AUTH_MESSAGES.INVALID_OR_EXPIRED_RESET_TOKEN);
     }
     const hashedPassword = await bcrypt.hash(dto.password, 10);
     for (const user of matchingUsers) {
@@ -404,14 +338,12 @@ export class AuthService {
     const firstUser = matchingUsers[0];
     const userName = `${firstUser.first_name} ${firstUser.last_name}`;
     await this.emailService.sendPasswordResetSuccessEmail(firstUser.email, userName);
-    const emailHash = this.sanitizeEmailForLogging(firstUser.email);
-    this.logger.log(`Password reset successful for user: ${emailHash}`);
-    return { message: 'Password reset successfully' };
+    return { message: AUTH_MESSAGES.PASSWORD_RESET_SUCCESS };
   }
 
   async refreshToken(refreshToken: string): Promise<TokenPair> {
     if (!refreshToken) {
-      throw new BadRequestException('Refresh token is required');
+      throw new BadRequestException(AUTH_MESSAGES.REFRESH_TOKEN_REQUIRED);
     }
     try {
       const payload = this.jwtHelper.verifyToken<JwtPayload>(refreshToken);
@@ -419,14 +351,8 @@ export class AuthService {
         where: { id: payload.sub },
         relations: ['role'],
       });
-      if (!user) {
-        this.logger.warn(`Refresh token failed: user not found for id: ${payload.sub}`);
-        throw new UnauthorizedException('User not found or has been deleted');
-      }
-      if (!user.role?.name) {
-        this.logger.warn(`Refresh token failed: user role missing for id: ${payload.sub}`);
-        throw new UnauthorizedException('User role not found');
-      }
+      if (!user) throw new UnauthorizedException(AUTH_MESSAGES.USER_NOT_FOUND_OR_DELETED);
+      if (!user.role?.name) throw new UnauthorizedException(AUTH_MESSAGES.USER_ROLE_NOT_FOUND);
       const isSystemAdmin = this.isSystemAdminRole(user.role.name);
       const tenantId = isSystemAdmin ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
       if (!isSystemAdmin && tenantId) {
@@ -434,17 +360,13 @@ export class AuthService {
           where: { id: tenantId },
         });
         if (!tenant || tenant.deleted_at) {
-          this.logger.warn(`Refresh token failed: tenant is deleted for user: ${user.email}`);
-          throw new UnauthorizedException('Your organization account has been deleted. Please contact support.');
+          throw new UnauthorizedException(AUTH_MESSAGES.ORG_ACCOUNT_DELETED);
         }
       }
       if (user.refresh_token !== refreshToken) {
-        this.logger.warn(`Refresh token failed: token mismatch for user: ${user.email}`);
-        throw new UnauthorizedException('Invalid refresh token');
+        throw new UnauthorizedException(AUTH_MESSAGES.INVALID_REFRESH_TOKEN);
       }
       const permissions = await this.getUserPermissions(user.id);
-      this.logger.log(`Refresh: User ${user.email} has role: ${user.role.name}`);
-      this.logger.log(`Refresh: User ${user.email} permissions: ${JSON.stringify(permissions)}`);
       const newPayload: JwtPayload = {
         id: user.id,
         email: user.email,
@@ -455,59 +377,41 @@ export class AuthService {
         first_name: user.first_name,
         last_name: user.last_name,
       };
-      this.logger.log(`Refresh: JWT payload for user ${user.email}: ${JSON.stringify(newPayload)}`);
       const newAccessToken = this.jwtService.sign(newPayload, {
         secret: this.configService.get<string>('JWT_SECRET'),
         expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '24h',
       });
-      this.logger.log(`Access token refreshed successfully for user: ${user.email}`);
       return { accessToken: newAccessToken };
     } catch (error) {
-      if (error instanceof UnauthorizedException || error instanceof BadRequestException) {
-        throw error;
-      }
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.warn(`Refresh token failed: ${errorMessage}`);
-      throw new UnauthorizedException('Invalid refresh token');
+      if (error instanceof UnauthorizedException || error instanceof BadRequestException) throw error;
+      throw new UnauthorizedException(AUTH_MESSAGES.INVALID_REFRESH_TOKEN);
     }
   }
 
   async logout(refreshToken: string): Promise<{ message: string }> {
     if (!refreshToken) {
-      throw new BadRequestException('Refresh token is required');
+      throw new BadRequestException(AUTH_MESSAGES.REFRESH_TOKEN_REQUIRED);
     }
     try {
       const payload = this.jwtHelper.verifyToken<JwtPayload>(refreshToken);
       const user = await this.userRepository.findOne({
         where: { id: payload.sub },
       });
-      if (!user) {
-        throw new UnauthorizedException('Invalid refresh token');
-      }
-      await this.userRepository.update(user.id, {
-        refresh_token: null,
-      });
-      this.logger.log(`User logged out successfully: ${user.email}`);
-      return { message: 'Successfully logged out' };
+      if (!user) throw new UnauthorizedException(AUTH_MESSAGES.INVALID_REFRESH_TOKEN);
+      await this.userRepository.update(user.id, { refresh_token: null });
+      return { message: AUTH_MESSAGES.SUCCESSFULLY_LOGGED_OUT };
     } catch {
-      this.logger.warn('Logout failed: invalid refresh token');
-      throw new UnauthorizedException('Invalid refresh token');
+      throw new UnauthorizedException(AUTH_MESSAGES.INVALID_REFRESH_TOKEN);
     }
   }
 
   async deleteUser(userId: string): Promise<{ message: string }> {
-    this.logger.log(`Deleting user: ${userId}`);
     const user = await this.userRepository.findOne({
       where: { id: userId },
     });
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-    await this.userRepository.update(userId, {
-      refresh_token: null,
-    });
+    if (!user) throw new NotFoundException(AUTH_MESSAGES.USER_NOT_FOUND);
+    await this.userRepository.update(userId, { refresh_token: null });
     await this.userRepository.delete(userId);
-    this.logger.log(`User deleted successfully: ${user.email}`);
-    return { message: 'User deleted successfully' };
+    return { message: AUTH_MESSAGES.USER_DELETED };
   }
 }

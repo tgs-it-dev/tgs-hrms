@@ -1,5 +1,6 @@
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { JwtHelperService } from 'src/common/jwt';
+import { AUTH_MESSAGES } from 'src/common/constants/auth-messages';
 import { AuthService } from 'src/modules/auth/auth.service';
 import { RequestWithUser } from 'src/modules/auth/interfaces';
 
@@ -19,14 +20,13 @@ export class JwtAuthGuard implements CanActivate {
 
     const token = this.jwtHelper.extractBearerToken(request.headers.authorization);
     if (!token) {
-      throw new UnauthorizedException('No token provided');
+      throw new UnauthorizedException(AUTH_MESSAGES.NO_TOKEN_PROVIDED);
     }
 
     const payload = this.jwtHelper.verifyToken(token);
-
     const userValidation = await this.authService.validateToken(payload.sub);
     if (!userValidation.valid) {
-      throw new UnauthorizedException('User not found or has been deleted');
+      throw new UnauthorizedException(AUTH_MESSAGES.USER_NOT_FOUND_OR_DELETED);
     }
 
     request.user = this.jwtHelper.buildRequestUser(payload);
