@@ -1,4 +1,3 @@
-
 import { Module, Logger, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { DEFAULT_JWT_EXPIRES_IN } from './common/constants';
@@ -40,7 +39,7 @@ import { AssetModule } from './modules/asset/asset.module';
 import { AssetRequestModule } from './modules/asset-request/asset-request.module';
 import { AssetCategoryModule } from './modules/asset-category/asset-category.module';
 import { AssetSubcategoryModule } from './modules/asset-subcategory/asset-subcategory.module';
-import { BenefitsModule } from "./modules/benefits/benefits.module";
+import { BenefitsModule } from './modules/benefits/benefits.module';
 import { PmsModule } from './modules/pms/pms.module';
 import { SystemModule } from './modules/system/system.module';
 import { SearchModule } from './modules/search/search.module';
@@ -54,6 +53,7 @@ import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { SystemLoggingInterceptor } from './common/interceptors/system-logging.interceptor';
 import { SystemLog } from './entities/system-log.entity';
+
 @Module({
   imports: [
     ScheduleModule.forRoot(),
@@ -75,14 +75,8 @@ import { SystemLog } from './entities/system-log.entity';
     }),
     TypeOrmModule.forFeature([SystemLog]),
 
-    ThrottlerModule.forRoot({
-      throttlers: [
-      
-        { name: 'default', ttl: 900_000, limit: 100 },
-        
-        { name: 'short', ttl: 60_000, limit: 10 },
-      ],
-    }),
+    // Global throttling: ttl in seconds (900 = 15 minutes)
+    ThrottlerModule.forRoot([{ ttl: 900, limit: 100 }]),
 
     MailerModule.forRootAsync({
       imports: [ConfigModule],
@@ -188,8 +182,6 @@ import { SystemLog } from './entities/system-log.entity';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(CorrelationIdMiddleware)
-      .forRoutes('*');
+    consumer.apply(CorrelationIdMiddleware).forRoutes('*');
   }
 }

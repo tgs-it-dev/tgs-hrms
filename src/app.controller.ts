@@ -16,6 +16,8 @@ export class AppController {
       status: 'ok',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
+      pid: process.pid,
+      memory: process.memoryUsage(),
     };
   }
 }

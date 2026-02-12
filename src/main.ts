@@ -1,17 +1,22 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { ValidationPipe, BadRequestException } from '@nestjs/common';
+import { ValidationPipe, BadRequestException, ClassSerializerInterceptor } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { Request, Response, NextFunction } from 'express';
+import helmet from 'helmet';
 // Use require() so production build works (express-basic-auth is CommonJS, no default export)
-const basicAuth = require('express-basic-auth');
+import basicAuth from 'express-basic-auth';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
- 
+  // Security & performance middlewares
+  app.use(helmet());
+
+  // Request timing header
   app.use((_req: Request, res: Response, next: NextFunction) => {
     const start = Date.now();
 
@@ -20,19 +25,17 @@ async function bootstrap() {
       try {
         res.setHeader('X-Response-Time', `${duration}ms`);
       } catch {
-        
+        // Ignore if headers already sent
       }
     });
 
     next();
   });
 
-  
   app.useStaticAssets(join(process.cwd(), 'public'), {
     prefix: '/',
   });
 
-  
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -51,33 +54,30 @@ async function bootstrap() {
           errors: errorMessages,
         });
       },
-    })
+    }),
   );
 
 
   const allowedOrigins = process.env.CORS_ORIGINS
-    ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
+    ? process.env.CORS_ORIGINS.split(',').map((origin: string) => origin.trim())
     : [
         'https://snazzy-raindrop-644615.netlify.app',
         'https://tgs-hrms.onrender.com',
         'http://localhost:5173',
         'http://localhost:3000',
         'http://localhost:3001',
-         'http://192.168.0.109:3001',
+        'http://192.168.0.109:3001',
       ];
 
   app.enableCors({
     origin: (origin, callback) => {
-      
       if (!origin) {
         return callback(null, true);
       }
-      
-      
+
       if (allowedOrigins.includes('*') || allowedOrigins.indexOf(origin) !== -1) {
         callback(null, true);
       } else {
-      
         if (process.env.NODE_ENV !== 'production') {
           console.warn(`CORS: Rejected origin: ${origin}. Allowed origins: ${allowedOrigins.join(', ')}`);
         }
@@ -86,26 +86,18 @@ async function bootstrap() {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-      'X-Correlation-ID',
-      'Accept',
-      'Origin',
-      'X-Requested-With',
-    ],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Correlation-ID', 'Accept', 'Origin', 'X-Requested-With'],
     exposedHeaders: ['X-Correlation-ID', 'X-Response-Time'],
     preflightContinue: false,
     optionsSuccessStatus: 204,
   });
 
-  
   // Protect Swagger with Basic Auth when SWAGGER_PASSWORD is set (e.g. on Render/live)
   const swaggerPassword = process.env.SWAGGER_PASSWORD;
   const swaggerUser = process.env.SWAGGER_USER || 'admin';
   if (swaggerPassword) {
     app.use(
-      '/api',
+      '/api/docs',
       basicAuth({
         users: {
           [swaggerUser]: swaggerPassword,
@@ -124,14 +116,17 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document, {
+  // Mount docs under the global API prefix at `/api/docs`
+  SwaggerModule.setup('docs', app, document, {
     swaggerOptions: {
       docExpansion: 'none',
-    }
+    },
   });
 
-  
   const port = parseInt(process.env.PORT || '3001', 10);
   await app.listen(port, '0.0.0.0');
 }
-bootstrap();
+bootstrap().catch((err) => {
+  console.error('Error starting server:', err);
+  process.exit(1);
+});
