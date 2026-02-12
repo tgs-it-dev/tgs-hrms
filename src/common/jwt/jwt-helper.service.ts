@@ -2,14 +2,15 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { JwtPayload } from './interfaces';
+import { AUTH_MESSAGES } from '../constants';
 
 const BEARER_PREFIX = 'Bearer ';
 const DEFAULT_SECRET = 'default_secret';
 
 /**
- * Central JWT helper for the entire project.
- * Use for: extracting Bearer token, verifying tokens, building request.user shape.
- * Import a module that exports JwtHelperService (e.g. SharedJwtModule) to inject.
+ * JWT helper for non–request-auth flows.
+ * Request auth (extract + verify + user load) is handled by Passport JwtStrategy.
+ * Use this for: refresh/logout token verify, decode (e.g. interceptor), buildRequestUser (used by JwtStrategy).
  */
 @Injectable()
 export class JwtHelperService {
@@ -49,7 +50,7 @@ export class JwtHelperService {
       });
       return payload;
     } catch {
-      throw new UnauthorizedException('Invalid token');
+      throw new UnauthorizedException(AUTH_MESSAGES.INVALID_TOKEN);
     }
   }
 

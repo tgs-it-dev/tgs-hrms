@@ -319,7 +319,7 @@ export class SystemTenantService {
           <p>If you did not expect this email, please contact our support team.</p>
         </div>
       `;
-      await this.emailService.sendEmail(email, subject, html);
+      await this.emailService.send({ to: email, subject, html });
     } catch (error) {
       this.logger.error(
         `Failed to send tenant admin credentials email to ${email}: ${String(

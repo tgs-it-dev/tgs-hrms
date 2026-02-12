@@ -25,7 +25,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { NotificationStatus, NotificationType } from '../../common/constants/enums';
 import { SendNotificationDto } from './dto/send-notification.dto';
-import { AuthenticatedRequest } from '../../common/types/request.types';
+import { AuthenticatedRequest } from 'src/modules/auth/interfaces';
 
 @ApiTags('Notifications')
 @ApiBearerAuth()

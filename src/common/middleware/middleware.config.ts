@@ -4,20 +4,17 @@
  */
 
 import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
-import { JwtMiddleware } from './jwt.middleware';
-import { SharedJwtModule } from '../modules/jwt.module';
+import { jwtMiddleware } from './jwt.middleware';
 import { TokenValidationModule } from '../modules/token-validation.module';
 
 @Module({
-  imports: [SharedJwtModule, TokenValidationModule],
-  providers: [JwtMiddleware],
-  exports: [JwtMiddleware],
+  imports: [TokenValidationModule],
 })
 export class MiddlewareConfigModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    // Apply JWT middleware to all routes except auth routes
+    // Apply JWT middleware (Passport JwtStrategy) to all routes except auth/public
     consumer
-      .apply(JwtMiddleware)
+      .apply(jwtMiddleware)
       .exclude(
         'auth/login',
         'auth/register',

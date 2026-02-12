@@ -1,35 +1,28 @@
 /**
- * JWT Authentication Middleware
- * Uses shared JwtHelperService + TokenValidationService (same flow as JwtAuthGuard).
+ * JWT middleware using Passport's same JwtStrategy (passport.authenticate('jwt')).
+ * Use for routes that need auth without per-route guard; strategy does verify + user load.
  */
 
-import { Injectable, NestMiddleware, UnauthorizedException } from '@nestjs/common';
-import { Response, NextFunction } from 'express';
-import { JwtHelperService } from 'src/common/jwt';
-import { TokenValidationService } from 'src/common/services/token-validation.service';
-import { AuthenticatedRequest } from 'src/modules/auth/interfaces';
+import { UnauthorizedException } from '@nestjs/common';
+import { NextFunction, Response } from 'express';
+import * as passport from 'passport';
+import { AUTH_MESSAGES } from 'src/common/constants';
+import type { AuthenticatedRequest } from 'src/modules/auth/interfaces';
+import type { JwtPayload } from 'src/common/jwt/interfaces';
 
-@Injectable()
-export class JwtMiddleware implements NestMiddleware {
-  constructor(
-    private readonly jwtHelper: JwtHelperService,
-    private readonly tokenValidationService: TokenValidationService,
-  ) {}
-
-  async use(req: AuthenticatedRequest, _res: Response, next: NextFunction): Promise<void> {
-    const token = this.jwtHelper.extractBearerToken(req.headers.authorization);
-    if (!token) {
-      throw new UnauthorizedException('No token provided');
-    }
-
-    const payload = this.jwtHelper.verifyToken(token);
-
-    const userValidation = await this.tokenValidationService.validateToken(payload.sub);
-    if (!userValidation.valid) {
-      throw new UnauthorizedException('User not found or has been deleted');
-    }
-
-    req.user = this.jwtHelper.buildRequestUser(payload);
-    next();
-  }
+export function jwtMiddleware(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+): void {
+  passport.authenticate(
+    'jwt',
+    { session: false },
+    (err: Error | null, user: JwtPayload | false) => {
+      if (err) return next(err);
+      if (!user) return next(new UnauthorizedException(AUTH_MESSAGES.NO_TOKEN_PROVIDED));
+      req.user = user;
+      next();
+    },
+  )(req, res, next);
 }

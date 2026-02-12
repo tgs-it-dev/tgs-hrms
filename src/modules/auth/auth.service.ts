@@ -11,19 +11,27 @@ import * as bcrypt from 'bcrypt';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ConfigService } from '@nestjs/config';
-import { EmailService } from '../../common/utils/email';
+import { EmailService, EmailTemplateService } from '../../common/utils/email';
 import { InviteStatusService } from '../invite-status/invite-status.service';
 import { Employee } from 'src/entities/employee.entity';
 import { SignupSession } from 'src/entities/signup-session.entity';
-import { GLOBAL_SYSTEM_TENANT_ID } from '../../common/constants/enums';
-import { AUTH_MESSAGES } from '../../common/constants/auth-messages';
+import {
+  AUTH_MESSAGES,
+  BCRYPT_SALT_ROUNDS,
+  GLOBAL_SYSTEM_TENANT_ID,
+  RESET_TOKEN_EXPIRY_MS,
+  UserRole,
+} from '../../common/constants';
 import { Role } from '../../entities/role.entity';
 import { Tenant } from '../../entities/tenant.entity';
 import { ValidatedUser, LoginResponse, RegisterResponse, JwtPayload, TokenPair, CompanyInfo } from './interfaces';
 import { TokenValidationService } from '../../common/services/token-validation.service';
+import { ContextLogger, LoggerService } from '../../common/logger/logger.service';
 
 @Injectable()
 export class AuthService {
+  private readonly logger: ContextLogger;
+
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
@@ -41,18 +49,21 @@ export class AuthService {
     private jwtHelper: JwtHelperService,
     private configService: ConfigService,
     private emailService: EmailService,
+    private emailTemplateService: EmailTemplateService,
     private inviteStatusService: InviteStatusService,
     private tokenValidationService: TokenValidationService,
-  ) {}
+    private readonly loggerService: LoggerService,
+  ) {
+    this.logger = this.loggerService.forChild(AuthService.name);
+  }
 
   /**
    * Normalizes and checks if a role name is system-admin.
    */
   private isSystemAdminRole(roleName?: string | null): boolean {
-    if (!roleName) {
-      return false;
-    }
-    return roleName.trim().toLowerCase() === 'system-admin';
+    if (!roleName) return false;
+    const normalized = roleName.trim().toLowerCase() as UserRole;
+    return normalized === UserRole.SYSTEM_ADMIN;
   }
 
   private async getUserPermissions(userId: string): Promise<string[]> {
@@ -106,7 +117,7 @@ export class AuthService {
     const role = await this.roleRepository.findOne({
       where: { id: dto.role_id },
     });
-    const finalTenantId = role?.name === 'system-admin' ? GLOBAL_SYSTEM_TENANT_ID : dto.tenant_id;
+    const finalTenantId = role?.name === UserRole.SYSTEM_ADMIN ? GLOBAL_SYSTEM_TENANT_ID : dto.tenant_id;
     const existingUser = await this.userRepository.findOne({
       where: {
         email: dto.email.toLowerCase(),
@@ -119,7 +130,7 @@ export class AuthService {
         message: AUTH_MESSAGES.USER_EMAIL_EXISTS,
       });
     }
-    if (role?.name === 'system-admin') {
+    if (role?.name === UserRole.SYSTEM_ADMIN) {
       const existingSystemAdmin = await this.userRepository.findOne({
         where: {
           role_id: dto.role_id,
@@ -130,7 +141,7 @@ export class AuthService {
         throw new BadRequestException(AUTH_MESSAGES.ONLY_ONE_SYSTEM_ADMIN);
       }
     }
-    const hashedPassword = await bcrypt.hash(dto.password, 10);
+    const hashedPassword = await bcrypt.hash(dto.password, BCRYPT_SALT_ROUNDS);
     const user = this.userRepository.create({
       email: dto.email.toLowerCase(),
       password: hashedPassword,
@@ -150,11 +161,13 @@ export class AuthService {
     };
   }
 
-  async validateToken(userId: string): Promise<ValidatedUser> {
-    return this.tokenValidationService.validateToken(userId);
+  async validateUser(userId: string): Promise<ValidatedUser> {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
+    const result: ValidatedUser = await this.tokenValidationService.validateUser(userId);
+    return result;
   }
 
-  async validateUser(email: string, password: string): Promise<LoginResponse> {
+  async validateUserForLogin(email: string, password: string): Promise<LoginResponse> {
     const normalizedEmail = email.toLowerCase();
     const users = await this.userRepository.find({
       where: { email: normalizedEmail },
@@ -209,7 +222,7 @@ export class AuthService {
     };
     const accessToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_SECRET'),
-      expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '24h',
+      expiresIn: this.configService.get<string>('JWT_EXPIRES_IN'),
     });
     const refreshToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_SECRET'),
@@ -237,25 +250,44 @@ export class AuthService {
   }
 
   async forgotPassword(dto: ForgotPasswordDto) {
-    const users = await this.userRepository.find({
+    const user = await this.userRepository.findOne({
       where: { email: dto.email.toLowerCase() },
     });
-    if (!users || users.length === 0) {
+    if (!user) {
       throw new BadRequestException(AUTH_MESSAGES.INVALID_EMAIL_ADDRESS);
     }
     const resetToken = this.generateSecureToken();
-    const hashedResetToken = await bcrypt.hash(resetToken, 10);
-    const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
-    for (const user of users) {
-      await this.userRepository.update(user.id, {
-        reset_token: hashedResetToken,
-        reset_token_expiry: resetTokenExpiry,
-      });
-    }
-    const firstUser = users[0];
-    const userName = `${firstUser.first_name} ${firstUser.last_name}`;
-    await this.emailService.sendPasswordResetEmail(firstUser.email, resetToken, userName);
+    const hashedResetToken = await bcrypt.hash(resetToken, BCRYPT_SALT_ROUNDS);
+    const resetTokenExpiry = new Date(Date.now() + RESET_TOKEN_EXPIRY_MS);
+    await this.userRepository.update(user.id, {
+      reset_token: hashedResetToken,
+      reset_token_expiry: resetTokenExpiry,
+    });
+    const userName = `${user.first_name} ${user.last_name}`;
+    await this.sendPasswordResetEmail(user.email, resetToken, userName);
     return { message: AUTH_MESSAGES.CHECK_EMAIL_RESET_LINK };
+  }
+
+  private async sendPasswordResetEmail(email: string, resetToken: string, userName: string): Promise<void> {
+    const from = this.emailService.getFromEmail();
+    if (!from) {
+      this.logger.warn('SENDGRID_FROM not configured. Skipping password reset email.');
+      return;
+    }
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL') ?? '';
+    const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
+    const html = this.emailTemplateService.render('password-reset', { userName, resetUrl });
+    await this.emailService.send({ to: email, from, subject: 'Password Reset Request', html });
+  }
+
+  private async sendPasswordResetSuccessEmail(email: string, userName: string): Promise<void> {
+    const from = this.emailService.getFromEmail();
+    if (!from) {
+      this.logger.warn('SENDGRID_FROM not configured. Skipping password reset success email.');
+      return;
+    }
+    const html = this.emailTemplateService.render('password-reset-success', { userName });
+    await this.emailService.send({ to: email, from, subject: 'Password Reset Successful', html });
   }
 
   private generateSecureToken(): string {
@@ -287,26 +319,18 @@ export class AuthService {
         reset_token_expiry: MoreThan(new Date()),
       },
     });
-    const matchingUsers: User[] = [];
-    for (const u of users) {
-      if (u.reset_token && (await bcrypt.compare(dto.token, u.reset_token))) {
-        matchingUsers.push(u);
-      }
-    }
-    if (matchingUsers.length === 0) {
+    const matchingUser = users.find((u) => u.reset_token && bcrypt.compareSync(dto.token, u.reset_token));
+    if (!matchingUser) {
       throw new BadRequestException(AUTH_MESSAGES.INVALID_OR_EXPIRED_RESET_TOKEN);
     }
-    const hashedPassword = await bcrypt.hash(dto.password, 10);
-    for (const user of matchingUsers) {
-      await this.userRepository.update(user.id, {
-        password: hashedPassword,
-        reset_token: null,
-        reset_token_expiry: null,
-      });
-    }
-    const firstUser = matchingUsers[0];
-    const userName = `${firstUser.first_name} ${firstUser.last_name}`;
-    await this.emailService.sendPasswordResetSuccessEmail(firstUser.email, userName);
+    const hashedPassword = await bcrypt.hash(dto.password, BCRYPT_SALT_ROUNDS);
+    await this.userRepository.update(matchingUser.id, {
+      password: hashedPassword,
+      reset_token: null,
+      reset_token_expiry: null,
+    });
+    const userName = `${matchingUser.first_name} ${matchingUser.last_name}`;
+    await this.sendPasswordResetSuccessEmail(matchingUser.email, userName);
     return { message: AUTH_MESSAGES.PASSWORD_RESET_SUCCESS };
   }
 
@@ -348,7 +372,7 @@ export class AuthService {
       };
       const newAccessToken = this.jwtService.sign(newPayload, {
         secret: this.configService.get<string>('JWT_SECRET'),
-        expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '24h',
+        expiresIn: this.configService.get<string>('JWT_EXPIRES_IN'),
       });
       return { accessToken: newAccessToken };
     } catch (error) {

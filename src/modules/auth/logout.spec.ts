@@ -120,19 +120,19 @@ describe('AuthService - Login', () => {
   it('should validate and return access token for valid credentials', async () => {
     (jest.spyOn(bcrypt, 'compare') as unknown as jest.Mock<Promise<boolean>>).mockResolvedValue(true);
 
-    const result = await service.validateUser('admin@company.com', '123456');
+    const result = await service.validateUserForLogin('admin@company.com', '123456');
 
     expect(result).toHaveProperty('accessToken', 'mocked-jwt-token');
     expect(result.user?.email).toBe('admin@company.com');
   });
 
   it('should throw error for invalid email', async () => {
-    await expect(service.validateUser('wrong@company.com', '123456')).rejects.toThrow(BadRequestException);
+    await expect(service.validateUserForLogin('wrong@company.com', '123456')).rejects.toThrow(BadRequestException);
   });
 
   it('should throw error for invalid password', async () => {
     (jest.spyOn(bcrypt, 'compare') as unknown as jest.Mock<Promise<boolean>>).mockResolvedValue(false);
 
-    await expect(service.validateUser('admin@company.com', 'wrongpass')).rejects.toThrow(BadRequestException);
+    await expect(service.validateUserForLogin('admin@company.com', 'wrongpass')).rejects.toThrow(BadRequestException);
   });
 });

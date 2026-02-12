@@ -34,7 +34,7 @@ export class ProfileController {
   @UseGuards(JwtAuthGuard)
   async getProfile(@Req() req: any) {
     try {
-      const user = await this.authService.validateToken(req.user.id);
+      const user = await this.authService.validateUser(req.user.id);
       return user.user;
     } catch (error) {
       if (error instanceof UnauthorizedException) {

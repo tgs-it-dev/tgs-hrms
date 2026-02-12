@@ -1,11 +1,12 @@
 /**
- * Renders email HTML from Handlebars-style templates in src/templates.
- * Uses simple {{variable}} replacement (no full Handlebars dependency).
+ * Renders email HTML from Handlebars templates in src/templates.
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import Handlebars from 'handlebars';
+import { ContextLogger, LoggerService } from '../../logger/logger.service';
 
 function getTemplatesDir(): string {
   const srcTemplates = join(process.cwd(), 'src', 'templates');
@@ -17,24 +18,24 @@ function getTemplatesDir(): string {
 
 @Injectable()
 export class EmailTemplateService {
-  private readonly logger = new Logger(EmailTemplateService.name);
+  private readonly logger: ContextLogger;
+
+  constructor(private readonly loggerService: LoggerService) {
+    this.logger = this.loggerService.forChild(EmailTemplateService.name);
+  }
 
   /**
-   * Render a template file with the given variables.
-   * Template placeholders: {{variableName}} replaced by variables[variableName].
+   * Load and compile a Handlebars template, then inject variables.
    */
   render(templateName: string, variables: Record<string, string>): string {
     const dir = getTemplatesDir();
-    const path = join(dir, templateName.endsWith('.hbs') ? templateName : `${templateName}.hbs`);
-    if (!existsSync(path)) {
-      this.logger.warn(`Email template not found: ${path}, using empty string`);
+    const filePath = join(dir, templateName.endsWith('.hbs') ? templateName : `${templateName}.hbs`);
+    if (!existsSync(filePath)) {
+      this.logger.warn(`Email template not found: ${filePath}, using empty string`);
       return '';
     }
-    let html = readFileSync(path, 'utf-8');
-    for (const [key, value] of Object.entries(variables)) {
-      const placeholder = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g');
-      html = html.replace(placeholder, value ?? '');
-    }
-    return html;
+    const source = readFileSync(filePath, 'utf-8');
+    const template = Handlebars.compile(source);
+    return template(variables);
   }
 }

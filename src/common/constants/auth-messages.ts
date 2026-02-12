@@ -11,6 +11,7 @@ export const AUTH_MESSAGES = {
 
   // Login / validation
   NO_TOKEN_PROVIDED: 'No token provided',
+  INVALID_TOKEN: 'Invalid token',
   USER_NOT_FOUND_OR_DELETED: 'User not found or has been deleted',
   USER_ROLE_NOT_FOUND: 'User role not found',
   ORG_ACCOUNT_DELETED: 'Your organization account has been deleted. Please contact support.',
@@ -34,4 +35,7 @@ export const AUTH_MESSAGES = {
   // User
   USER_NOT_FOUND: 'User not found',
   USER_DELETED: 'User deleted successfully',
+
+  // Permissions
+  PERMISSION_DENIED: 'You do not have the required permissions',
 } as const;

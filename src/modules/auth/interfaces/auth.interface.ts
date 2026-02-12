@@ -15,7 +15,7 @@ export interface AuthPayload {
   permissions: string[];
 }
 
-/** Result of token validation (validateToken) */
+/** Result of user validation (validateUser) */
 export interface ValidatedUser {
   valid: boolean;
   user?: {

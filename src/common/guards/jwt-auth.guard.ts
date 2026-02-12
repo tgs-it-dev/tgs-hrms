@@ -1,35 +1,22 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
-import { JwtHelperService } from 'src/common/jwt';
-import { AUTH_MESSAGES } from 'src/common/constants/auth-messages';
-import { TokenValidationService } from 'src/common/services/token-validation.service';
-import { AuthenticatedRequest } from 'src/modules/auth/interfaces';
+import { ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+import { AUTH_MESSAGES } from 'src/common/constants';
 
 /**
- * JWT Authentication Guard – single place for HTTP JWT auth.
- * Uses JwtHelperService (extract + verify) and TokenValidationService (validate user).
+ * JWT Auth guard using Passport JwtStrategy.
+ * Use @UseGuards(JwtAuthGuard); request.user is set by JwtStrategy.validate().
  */
 @Injectable()
-export class JwtAuthGuard implements CanActivate {
-  constructor(
-    private readonly jwtHelper: JwtHelperService,
-    private readonly tokenValidationService: TokenValidationService,
-  ) {}
+export class JwtAuthGuard extends AuthGuard('jwt') {
+  canActivate(context: ExecutionContext) {
+    return super.canActivate(context);
+  }
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
-
-    const token = this.jwtHelper.extractBearerToken(request.headers.authorization);
-    if (!token) {
+  handleRequest<TUser>(err: Error | null, user: TUser, _info: unknown): TUser {
+    if (err) throw err;
+    if (!user) {
       throw new UnauthorizedException(AUTH_MESSAGES.NO_TOKEN_PROVIDED);
     }
-
-    const payload = this.jwtHelper.verifyToken(token);
-    const userValidation = await this.tokenValidationService.validateToken(payload.sub);
-    if (!userValidation.valid) {
-      throw new UnauthorizedException(AUTH_MESSAGES.USER_NOT_FOUND_OR_DELETED);
-    }
-
-    request.user = this.jwtHelper.buildRequestUser(payload);
-    return true;
+    return user;
   }
 }

@@ -1,19 +1,14 @@
-import { Body, Controller, Post, UseGuards, Get, Req } from '@nestjs/common';
-import { ApiTags, ApiBody, ApiResponse, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Body, Controller, Post, UseGuards, Get, Req, Headers } from '@nestjs/common';
+import { ApiTags, ApiBody, ApiResponse, ApiBearerAuth, ApiOperation, ApiHeader } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
-import { RefreshTokenDto } from './dto/refresh-token.dto';
-import { LogoutDto } from './dto/logout.dto';
+import { ResetPasswordBodyDto } from './dto/reset-password.dto';
 import { Throttle } from '@nestjs/throttler';
-import { RolesGuard } from 'src/common/guards/roles.guard';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
-import { Roles } from 'src/common/decorators/roles.decorator';
-import { Permissions } from 'src/common/decorators/permissions.decorator';
-import { PermissionsGuard } from 'src/common/guards/permissions.guard';
-import { AuthenticatedRequest, ValidatedUser, LoginResponse, RegisterResponse, TokenPair, JwtPayload } from './interfaces';
+import { AUTH_MESSAGES, UserRole } from 'src/common/constants';
+import { AuthenticatedRequest, ValidatedUser, LoginResponse, RegisterResponse, TokenPair } from './interfaces';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -66,7 +61,7 @@ export class AuthController {
           email: 'user@example.com',
           first_name: 'John',
           last_name: 'Doe',
-          role: 'admin',
+          role: UserRole.ADMIN,
           tenant_id: 'tenant-id',
         },
         permissions: ['manage_users', 'view_reports'],
@@ -116,7 +111,7 @@ export class AuthController {
     },
   })
   async login(@Body() body: LoginDto): Promise<LoginResponse> {
-    return this.authService.validateUser(body.email, body.password);
+    return this.authService.validateUserForLogin(body.email, body.password);
   }
 
   @Post('forgot-password')
@@ -152,14 +147,12 @@ export class AuthController {
   @Post('verify-reset-token')
   @ApiOperation({
     summary: 'Verify reset token',
-    description: 'Verifies if a reset token is valid and not expired. Useful for frontend validation.',
+    description: 'Verifies if a reset token is valid and not expired. Send token in x-reset-token header.',
   })
-  @ApiBody({
-    schema: {
-      properties: {
-        token: { type: 'string' },
-      },
-    },
+  @ApiHeader({
+    name: 'x-reset-token',
+    description: 'Password reset token from email',
+    required: true,
   })
   @ApiResponse({
     status: 200,
@@ -181,7 +174,7 @@ export class AuthController {
       },
     },
   })
-  async verifyResetToken(@Body('token') token: string): Promise<{ valid: boolean; message: string }> {
+  async verifyResetToken(@Headers('x-reset-token') token: string): Promise<{ valid: boolean; message: string }> {
     return this.authService.verifyResetToken(token);
   }
 
@@ -189,9 +182,14 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 300_000 } })
   @ApiOperation({
     summary: 'Reset password using token',
-    description: 'Resets the user password using a valid reset token received via email.',
+    description: 'Resets the user password. Send reset token in x-reset-token header; new password in body.',
   })
-  @ApiBody({ type: ResetPasswordDto })
+  @ApiHeader({
+    name: 'x-reset-token',
+    description: 'Password reset token from email',
+    required: true,
+  })
+  @ApiBody({ type: ResetPasswordBodyDto })
   @ApiResponse({
     status: 200,
     description: 'Password reset successful',
@@ -223,16 +221,28 @@ export class AuthController {
       },
     },
   })
-  async resetPassword(@Body() dto: ResetPasswordDto): Promise<{ message: string }> {
-    return this.authService.resetPassword(dto);
+  async resetPassword(
+    @Headers('x-reset-token') token: string,
+    @Body() dto: ResetPasswordBodyDto,
+  ): Promise<{ message: string }> {
+    return this.authService.resetPassword({
+      token,
+      password: dto.password,
+      confirmPassword: dto.confirmPassword,
+    });
   }
 
   @Post('refresh')
   @ApiOperation({
     summary: 'Refresh access token',
-    description: 'Generate a new access token using a valid refresh token. Access tokens expire after 24 hours.',
+    description:
+      'Generate a new access token using a valid refresh token. Send refresh token in x-refresh-token header.',
   })
-  @ApiBody({ type: RefreshTokenDto })
+  @ApiHeader({
+    name: 'x-refresh-token',
+    description: 'Refresh token to generate a new access token',
+    required: true,
+  })
   @ApiResponse({
     status: 200,
     description: 'New access token generated successfully',
@@ -251,42 +261,27 @@ export class AuthController {
       },
     },
   })
-  async refresh(@Body() dto: RefreshTokenDto): Promise<TokenPair> {
-    return this.authService.refreshToken(dto.refreshToken);
-  }
-
-  @ApiBearerAuth()
-  @Post('admin-data')
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin')
-  @Permissions('manage_users')
-  getAdminData() {
-    return { message: 'Only Admin can access this route' };
-  }
-
-  @ApiBearerAuth()
-  @Get('test-permissions')
-  @UseGuards(JwtAuthGuard)
-  testPermissions(@Req() req: AuthenticatedRequest): { message: string; user: JwtPayload } {
-    return {
-      message: 'Permissions test endpoint',
-      user: req.user,
-    };
+  async refresh(@Headers('x-refresh-token') refreshToken: string): Promise<TokenPair> {
+    return this.authService.refreshToken(refreshToken);
   }
 
   @ApiBearerAuth()
   @Post('logout')
   @ApiOperation({
     summary: 'Logout user',
-    description: 'Invalidate the refresh token to log out the user',
+    description: 'Invalidate the refresh token. Send refresh token in x-refresh-token header.',
   })
-  @ApiBody({ type: LogoutDto })
+  @ApiHeader({
+    name: 'x-refresh-token',
+    description: 'Refresh token to invalidate',
+    required: true,
+  })
   @ApiResponse({
     status: 200,
     description: 'User logged out successfully',
     schema: {
       example: {
-        message: 'Successfully logged out',
+        message: AUTH_MESSAGES.SUCCESSFULLY_LOGGED_OUT,
       },
     },
   })
@@ -295,12 +290,12 @@ export class AuthController {
     description: 'Refresh token missing or invalid',
     schema: {
       example: {
-        message: 'Refresh token is required',
+        message: AUTH_MESSAGES.REFRESH_TOKEN_REQUIRED,
       },
     },
   })
-  async logout(@Body() dto: LogoutDto): Promise<{ message: string }> {
-    return this.authService.logout(dto.refreshToken);
+  async logout(@Headers('x-refresh-token') refreshToken: string): Promise<{ message: string }> {
+    return this.authService.logout(refreshToken);
   }
 
   @ApiBearerAuth()
@@ -319,7 +314,7 @@ export class AuthController {
         user: {
           id: 'user-id',
           email: 'user@example.com',
-          role: 'admin',
+          role: UserRole.ADMIN,
           tenant_id: 'tenant-id',
         },
       },
@@ -330,11 +325,11 @@ export class AuthController {
     description: 'Token is invalid or user not found',
     schema: {
       example: {
-        message: 'User not found or has been deleted',
+        message: AUTH_MESSAGES.USER_NOT_FOUND_OR_DELETED,
       },
     },
   })
-  async validateToken(@Req() req: AuthenticatedRequest): Promise<ValidatedUser> {
-    return this.authService.validateToken(req.user.id);
+  async validateUser(@Req() req: AuthenticatedRequest): Promise<ValidatedUser> {
+    return this.authService.validateUser(req.user.id);
   }
 }

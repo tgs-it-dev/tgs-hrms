@@ -30,3 +30,25 @@ export class ResetPasswordDto {
   @Match('password', { message: 'Passwords do not match' })
   confirmPassword: string;
 }
+
+/** Body only (token comes from x-reset-token header). */
+export class ResetPasswordBodyDto {
+  @ApiProperty({
+    example: 'StrongPass123!',
+    description: 'The new password to set',
+    minLength: 6,
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(6, { message: 'Password must be at least 6 characters long' })
+  password: string;
+
+  @ApiProperty({
+    example: 'StrongPass123!',
+    description: 'Confirm the new password',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @Match('password', { message: 'Passwords do not match' })
+  confirmPassword: string;
+}

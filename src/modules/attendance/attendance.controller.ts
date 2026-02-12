@@ -4,7 +4,7 @@ import { AttendanceService } from './attendance.service';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { ApproveCheckInDto, BulkApproveCheckInDto } from './dto/approve-checkin.dto';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
-import { AuthenticatedRequest } from 'src/common/types/request.types';
+import { AuthenticatedRequest } from 'src/modules/auth/interfaces';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Permissions } from 'src/common/decorators/permissions.decorator';

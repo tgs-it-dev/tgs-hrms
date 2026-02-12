@@ -9,7 +9,7 @@ import { LessThanOrEqual, Repository } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Announcement } from '../../entities/announcement.entity';
 import { User } from '../../entities/user.entity';
-import { EmailService } from '../../common/utils/email';
+import { EmailService, EmailTemplateService } from '../../common/utils/email';
 import { CreateAnnouncementDto } from './dto/create-announcement.dto';
 import { UpdateAnnouncementDto } from './dto/update-announcement.dto';
 import {
@@ -28,6 +28,7 @@ export class AnnouncementService {
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
     private readonly emailService: EmailService,
+    private readonly emailTemplateService: EmailTemplateService,
   ) {}
 
   /**
@@ -212,6 +213,49 @@ export class AnnouncementService {
   }
 
   /**
+   * Build and send a single announcement email using the common EmailService.
+   */
+  private async sendAnnouncementEmail(
+    recipientEmail: string,
+    recipientName: string,
+    title: string,
+    content: string,
+    category: string,
+    priority: string,
+  ): Promise<void> {
+    const from = this.emailService.getFromEmail();
+    if (!from) {
+      this.logger.warn('SENDGRID_FROM not configured. Skipping announcement email.');
+      return;
+    }
+    const priorityStyles: Record<string, { color: string; badge: string }> = {
+      low: { color: '#28a745', badge: 'Low Priority' },
+      medium: { color: '#ffc107', badge: 'Medium Priority' },
+      high: { color: '#dc3545', badge: 'High Priority' },
+    };
+    const categoryLabels: Record<string, string> = {
+      general: 'General Announcement',
+      holiday: 'Holiday Notice',
+      policy: 'Policy Update',
+      event: 'Event Announcement',
+      urgent: 'Urgent Notice',
+    };
+    const style = priorityStyles[priority] ?? priorityStyles.medium;
+    const categoryLabel = categoryLabels[category] ?? 'Announcement';
+    const contentHtml = content.replace(/\n/g, '<br>');
+    const html = this.emailTemplateService.render('announcement', {
+      recipientName,
+      title,
+      contentHtml,
+      categoryLabel,
+      styleColor: style.color,
+      styleBadge: style.badge,
+    });
+    const subject = `${priority === 'high' ? '🔴 ' : ''}${categoryLabel}: ${title}`;
+    await this.emailService.send({ to: recipientEmail, from, subject, html });
+  }
+
+  /**
    * Send announcement email to all users in the tenant
    */
   private async sendAnnouncementToTenant(
@@ -236,7 +280,7 @@ export class AnnouncementService {
 
       for (const user of tenantUsers) {
         try {
-          await this.emailService.sendAnnouncementEmail(
+          await this.sendAnnouncementEmail(
             user.email,
             `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Team Member',
             announcement.title,

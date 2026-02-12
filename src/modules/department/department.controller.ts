@@ -10,7 +10,7 @@ import {
   UseGuards,
   Query,
 } from '@nestjs/common';
-import { AuthenticatedRequest } from '../../common/types/request.types';
+import { AuthenticatedRequest } from 'src/modules/auth/interfaces';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiQuery } from '@nestjs/swagger';
 import { DepartmentService } from './department.service';
 import { CreateDepartmentDto } from './dto/create-department.dto';

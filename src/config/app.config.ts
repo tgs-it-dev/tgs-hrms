@@ -70,7 +70,7 @@ export const getAppConfig = (_configService: ConfigService): AppConfig => {
     
     jwt: {
       secret: envVars.JWT_SECRET,
-      expiresIn: envVars.JWT_EXPIRES_IN,
+      expiresIn: envVars.JWT_EXPIRES_IN || '60m',
       refreshSecret: envVars.JWT_REFRESH_SECRET || envVars.JWT_SECRET,
       refreshExpiresIn: envVars.JWT_REFRESH_EXPIRES_IN,
     },

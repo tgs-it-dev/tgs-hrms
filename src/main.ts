@@ -4,7 +4,6 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe, BadRequestException } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
-import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { Request, Response, NextFunction } from 'express';
 // Use require() so production build works (express-basic-auth is CommonJS, no default export)
 const basicAuth = require('express-basic-auth');
@@ -56,9 +55,6 @@ async function bootstrap() {
   );
 
 
-  app.useGlobalFilters(new HttpExceptionFilter());
-
-  
   const allowedOrigins = process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
     : [

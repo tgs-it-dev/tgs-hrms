@@ -1,5 +1,6 @@
 import { IsEmail, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { UserRole } from 'src/common/constants';
 
 export class JwtPayloadDto {
   @ApiProperty({ example: 'user@example.com', description: 'User email' })
@@ -13,7 +14,7 @@ export class JwtPayloadDto {
   @IsUUID()
   sub: string;
 
-  @ApiProperty({ example: 'admin', description: 'User role' })
+  @ApiProperty({ example: UserRole.ADMIN, description: 'User role' })
   @IsString()
   @IsNotEmpty()
   role: string;
@@ -39,7 +40,7 @@ export class JwtUserPayloadDto {
   @IsUUID()
   id: string;
 
-  @ApiProperty({ example: 'admin', description: 'User role' })
+  @ApiProperty({ example: UserRole.ADMIN, description: 'User role' })
   @IsString()
   @IsNotEmpty()
   role: string;

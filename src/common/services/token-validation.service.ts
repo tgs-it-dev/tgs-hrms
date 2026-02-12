@@ -1,7 +1,6 @@
 /**
- * Token validation for JWT auth flow.
- * Lives in common so JwtAuthGuard and JwtMiddleware can depend on it
- * without requiring AuthModule to be global.
+ * DB-backed validation for JWT auth (user exists, tenant, permissions).
+ * Used by Passport JwtStrategy.validate(); not for request extraction/verify (Passport does that).
  */
 
 import { Injectable, UnauthorizedException } from '@nestjs/common';
@@ -9,8 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../../entities/user.entity';
 import { Tenant } from '../../entities/tenant.entity';
-import { GLOBAL_SYSTEM_TENANT_ID } from '../constants/enums';
-import { AUTH_MESSAGES } from '../constants/auth-messages';
+import { AUTH_MESSAGES, GLOBAL_SYSTEM_TENANT_ID, UserRole } from '../constants';
 import type { ValidatedUser } from '../../modules/auth/interfaces';
 
 @Injectable()
@@ -24,7 +22,8 @@ export class TokenValidationService {
 
   private isSystemAdminRole(roleName?: string | null): boolean {
     if (!roleName) return false;
-    return roleName.trim().toLowerCase() === 'system-admin';
+    const normalized = roleName.trim().toLowerCase() as UserRole;
+    return normalized === UserRole.SYSTEM_ADMIN;
   }
 
   private async getUserPermissions(userId: string): Promise<string[]> {
@@ -51,7 +50,7 @@ export class TokenValidationService {
     }
   }
 
-  async validateToken(userId: string): Promise<ValidatedUser> {
+  async validateUser(userId: string): Promise<ValidatedUser> {
     try {
       const user = await this.userRepository.findOne({
         where: { id: userId },
