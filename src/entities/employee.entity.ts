@@ -21,6 +21,7 @@ import { Promotion } from "./promotion.entity";
 @Index(['user_id'])
 @Index(['designation_id'])
 @Index(['team_id'])
+@Index(['cnic_number'], { unique: true })
 @Entity("employees")
 export class Employee {
   @PrimaryGeneratedColumn("uuid")

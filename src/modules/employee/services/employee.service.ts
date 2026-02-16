@@ -108,6 +108,37 @@ export class EmployeeService implements OnModuleInit {
     return team;
   }
 
+  /**
+   * Ensures phone (users) and CNIC (employees) are unique across the DB.
+   * Use excludeUserId/excludeEmployeeId when updating to allow keeping same values.
+   */
+  private async validateUniquePhoneAndCnic(
+    phone?: string,
+    cnicNumber?: string | null,
+    excludeUserId?: string,
+    excludeEmployeeId?: string,
+  ): Promise<void> {
+    if (phone) {
+      const qb = this.userRepo.createQueryBuilder('u').where('u.phone = :phone', { phone });
+      if (excludeUserId) qb.andWhere('u.id != :excludeUserId', { excludeUserId });
+      const existingPhone = await qb.getOne();
+      if (existingPhone) {
+        throw new ConflictException('A user with this phone number already exists.');
+      }
+    }
+    const cnic = typeof cnicNumber === 'string' ? cnicNumber.trim() || null : null;
+    if (cnic) {
+      const qb = this.employeeRepo
+        .createQueryBuilder('e')
+        .where('e.cnic_number = :cnic', { cnic });
+      if (excludeEmployeeId) qb.andWhere('e.id != :excludeEmployeeId', { excludeEmployeeId });
+      const existingCnic = await qb.getOne();
+      if (existingCnic) {
+        throw new ConflictException('An employee with this CNIC number already exists.');
+      }
+    }
+  }
+
   async promoteToManager(tenant_id: string, id: string) {
     const employee = await this.findOne(tenant_id, id);
     const managerRole = await this.roleRepo.findOne({ where: { name: 'manager' } });
@@ -167,6 +198,8 @@ export class EmployeeService implements OnModuleInit {
     const existingUser = await this.userRepo.findOne({ where: { email: dto.email, tenant_id } });
     if (existingUser)
       throw new ConflictException('User with this email already exists in the tenant.');
+
+    await this.validateUniquePhoneAndCnic(dto.phone, dto.cnic_number);
 
     let managerRole;
     if (dto.role_id) {
@@ -342,6 +375,8 @@ export class EmployeeService implements OnModuleInit {
     const existingUser = await this.userRepo.findOne({ where: { email: dto.email, tenant_id } });
     if (existingUser)
       throw new ConflictException('User with this email already exists in the tenant.');
+
+    await this.validateUniquePhoneAndCnic(dto.phone, dto.cnic_number);
 
     let employeeRole;
     if (dto.role_name) {
@@ -675,6 +710,8 @@ export class EmployeeService implements OnModuleInit {
     if (existingUser)
       throw new ConflictException('User with this email already exists in the tenant.');
 
+    await this.validateUniquePhoneAndCnic(dto.phone, dto.cnic_number);
+
     let employeeRole;
     if (dto.role_name) {
       employeeRole = await this.roleRepo.findOne({ where: { name: dto.role_name } });
@@ -981,6 +1018,10 @@ export class EmployeeService implements OnModuleInit {
       employee.cnic_number = dto.cnic_number;
     }
 
+    if (dto.phone !== undefined || dto.cnic_number !== undefined) {
+      await this.validateUniquePhoneAndCnic(dto.phone, dto.cnic_number, user.id, employee.id);
+    }
+
 
     if (files) {
       if (files.profile_picture?.[0]) {
@@ -1087,14 +1128,21 @@ export class EmployeeService implements OnModuleInit {
       throw new NotFoundException('Employee not found');
     }
 
-    await this.employeeRepo.manager.transaction(async (manager) => {
-      const employeeRepo = manager.getRepository(Employee);
-      const userRepo = manager.getRepository(User);
+    try {
+      await this.employeeRepo.manager.transaction(async (manager) => {
+        const employeeRepo = manager.getRepository(Employee);
+        const userRepo = manager.getRepository(User);
 
-
-      await employeeRepo.delete(employee.id);
-      await userRepo.delete(employee.user.id);
-    });
+        await employeeRepo.delete(employee.id);
+        await userRepo.delete(employee.user.id);
+      });
+    } catch (err) {
+      const errorCode = getPostgresErrorCode(err);
+      if (errorCode === '23503') {
+        throw new BadRequestException('Employee cannot be deleted because it has related records');
+      }
+      throw err;
+    }
 
     return { deleted: true, id };
   }

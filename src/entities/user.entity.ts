@@ -29,6 +29,7 @@ export enum UserRole {
 @Index(['tenant_id'])
 @Index(['email'])
 @Index(['email', 'tenant_id'], { unique: true })
+@Index(['phone'], { unique: true })
 @Entity("users")
 export class User {
   @PrimaryGeneratedColumn("uuid")
