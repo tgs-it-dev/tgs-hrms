@@ -407,6 +407,47 @@ export class EmployeeService implements OnModuleInit {
         throw new NotFoundException('User not found after employee creation');
       }
 
+      // 2. Upload files IMMEDIATELY (while Multer buffers are valid, before any long-running payment)
+      // Track URLs for rollback on payment failure
+      let uploadedProfilePic: string | null = null;
+      let uploadedCnicPic: string | null = null;
+      let uploadedCnicBackPic: string | null = null;
+
+      if (files) {
+        try {
+          if (files.profile_picture?.[0]) {
+            uploadedProfilePic = await this.employeeFileUploadService.uploadProfilePicture(
+              files.profile_picture[0],
+              result.id,
+            );
+            await this.userRepo.update(result.user_id, { profile_pic: uploadedProfilePic });
+          }
+
+          const employeePictureUpdate: Partial<Pick<Employee, 'cnic_picture' | 'cnic_back_picture'>> = {};
+          if (files.cnic_picture?.[0]) {
+            uploadedCnicPic = await this.employeeFileUploadService.uploadCnicPicture(
+              files.cnic_picture[0],
+              result.id,
+            );
+            employeePictureUpdate.cnic_picture = uploadedCnicPic;
+          }
+          if (files.cnic_back_picture?.[0]) {
+            uploadedCnicBackPic = await this.employeeFileUploadService.uploadCnicBackPicture(
+              files.cnic_back_picture[0],
+              result.id,
+            );
+            employeePictureUpdate.cnic_back_picture = uploadedCnicBackPic;
+          }
+          if (Object.keys(employeePictureUpdate).length > 0) {
+            await this.employeeRepo.update(result.id, employeePictureUpdate);
+          }
+        } catch (uploadError) {
+          await this.employeeRepo.delete(result.id);
+          await this.userRepo.delete(result.user_id);
+          throw uploadError;
+        }
+      }
+
       const employeeName = `${user.first_name} ${user.last_name}`.trim();
       const event = new EmployeeCreatedEvent(
         tenant_id,
@@ -415,7 +456,7 @@ export class EmployeeService implements OnModuleInit {
         employeeName,
       );
 
-      // Process payment synchronously - if payment fails, return checkout URL
+      // 3. Process payment - on failure: delete employee, user, AND uploaded files (full rollback)
       try {
         await this.billingService.handleEmployeeCreated(event);
         this.logger.log(
@@ -427,16 +468,33 @@ export class EmployeeService implements OnModuleInit {
           `Payment failed for employee creation: ${result.id}. Error: ${errorMessage}`,
         );
 
-        // If payment method is required, create checkout session and return URL
+        // Rollback: delete uploaded files from disk
+        if (uploadedProfilePic) {
+          try {
+            await this.employeeFileUploadService.deleteProfilePicture(uploadedProfilePic);
+          } catch (e) {
+            this.logger.warn('Failed to delete profile picture on payment rollback', e);
+          }
+        }
+        if (uploadedCnicPic) {
+          try {
+            await this.employeeFileUploadService.deleteCnicPicture(uploadedCnicPic);
+          } catch (e) {
+            this.logger.warn('Failed to delete CNIC picture on payment rollback', e);
+          }
+        }
+        if (uploadedCnicBackPic) {
+          try {
+            await this.employeeFileUploadService.deleteCnicBackPicture(uploadedCnicBackPic);
+          } catch (e) {
+            this.logger.warn('Failed to delete CNIC back picture on payment rollback', e);
+          }
+        }
+
         if (errorMessage.includes('PAYMENT_METHOD_REQUIRED') ||
           errorMessage.includes('Payment method') ||
           errorMessage.includes('payment_intent_authentication_required')) {
 
-          // Delete the employee since payment failed
-          await this.employeeRepo.remove(result);
-          await this.userRepo.remove(user);
-
-          // Create checkout session for payment with full employee data
           try {
             const checkout = await this.billingService.createEmployeePaymentCheckout(
               tenant_id,
@@ -455,11 +513,18 @@ export class EmployeeService implements OnModuleInit {
               },
             );
 
+            // Save documents to temp folder for createAfterPayment (files lost after redirect)
+            if (files) {
+              this.employeeFileUploadService.saveToTempForCheckout(checkout.checkoutSessionId, files);
+            }
+
+            await this.employeeRepo.delete(result.id);
+            await this.userRepo.delete(result.user_id);
+
             this.logger.log(
               `Checkout session created: ${checkout.checkoutSessionId}, URL: ${checkout.checkoutUrl}`,
             );
 
-            // Return checkout URL instead of creating employee
             throw new BadRequestException({
               message: 'Payment method required. Please complete payment to create employee.',
               checkoutUrl: checkout.checkoutUrl,
@@ -467,63 +532,33 @@ export class EmployeeService implements OnModuleInit {
               requiresPayment: true,
             });
           } catch (checkoutError) {
-            const errorMessage = checkoutError instanceof Error ? checkoutError.message : String(checkoutError);
-            const errorStack = checkoutError instanceof Error ? checkoutError.stack : undefined;
-            this.logger.error(
-              `Failed to create checkout session: ${errorMessage}`,
-              errorStack,
-            );
-
-            // If it's already a BadRequestException, re-throw it as is
             if (checkoutError instanceof BadRequestException) {
+              this.logger.log(
+                `Redirecting to Stripe checkout: ${(checkoutError.getResponse() as any)?.checkoutUrl ? 'URL provided' : 'no URL'}`,
+              );
               throw checkoutError;
             }
+            const checkoutErrMsg = checkoutError instanceof Error ? checkoutError.message : String(checkoutError);
+            this.logger.error(`Failed to create checkout session: ${checkoutErrMsg}`);
 
-            // Otherwise, throw a new error with the actual error message
+            // Checkout failed - delete employee/user (no temp files were saved)
+            await this.employeeRepo.delete(result.id);
+            await this.userRepo.delete(result.user_id);
+
             throw new BadRequestException({
-              message: `Payment method required but failed to create checkout session: ${errorMessage}`,
-              originalError: errorMessage,
+              message: `Payment method required but failed to create checkout session: ${checkoutErrMsg}`,
+              originalError: checkoutErrMsg,
               requiresPayment: true,
             });
           }
         }
 
-        // For other payment errors, delete employee and throw error
-        await this.employeeRepo.remove(result);
-        await this.userRepo.remove(user);
+        await this.employeeRepo.delete(result.id);
+        await this.userRepo.delete(result.user_id);
 
         throw new BadRequestException(
           `Payment processing failed: ${errorMessage}. Employee creation cannot be completed without successful payment.`,
         );
-      }
-
-      // 3. Payment succeeded → upload files and update DB (no orphaned files if payment had failed)
-      if (files) {
-        try {
-          const profileFile = files.profile_picture?.[0];
-          if (profileFile) {
-            const profilePictureUrl =
-              await this.employeeFileUploadService.uploadProfilePicture(profileFile, result.id);
-            await this.userRepo.update(result.user_id, { profile_pic: profilePictureUrl });
-          }
-
-          const employeePictureUpdate: Partial<Pick<Employee, 'cnic_picture' | 'cnic_back_picture'>> = {};
-          if (files.cnic_picture?.[0]) {
-            employeePictureUpdate.cnic_picture =
-              await this.employeeFileUploadService.uploadCnicPicture(files.cnic_picture[0], result.id);
-          }
-          if (files.cnic_back_picture?.[0]) {
-            employeePictureUpdate.cnic_back_picture =
-              await this.employeeFileUploadService.uploadCnicBackPicture(files.cnic_back_picture[0], result.id);
-          }
-          if (Object.keys(employeePictureUpdate).length > 0) {
-            await this.employeeRepo.update(result.id, employeePictureUpdate);
-          }
-        } catch (uploadError) {
-          await this.employeeRepo.delete(result.id);
-          await this.userRepo.delete(result.user_id);
-          throw uploadError;
-        }
       }
 
       // 4. Send invitation and post-creation steps
@@ -589,8 +624,8 @@ export class EmployeeService implements OnModuleInit {
   }
 
   /**
-   * Creates employee after payment confirmation
-   * This is called when payment is successful via checkout
+   * Creates employee after payment confirmation (checkout redirect flow).
+   * When checkoutSessionId is provided, moves temp documents to final locations and updates DB.
    */
   async createAfterPayment(
     tenant_id: string,
@@ -607,6 +642,7 @@ export class EmployeeService implements OnModuleInit {
       cnic_number?: string;
       password?: string;
     },
+    checkoutSessionId?: string,
   ) {
     // Convert to CreateEmployeeDto format
     const dto: CreateEmployeeDto = {
@@ -691,6 +727,28 @@ export class EmployeeService implements OnModuleInit {
         const savedEmployee = await employeeRepo.save(employee);
         return savedEmployee;
       });
+
+      // Move temp documents to final locations (checkout redirect flow - files were saved before redirect)
+      if (checkoutSessionId) {
+        try {
+          const docUrls = await this.employeeFileUploadService.moveTempToFinal(
+            checkoutSessionId,
+            result.id,
+          );
+          if (docUrls.profilePic) {
+            await this.userRepo.update(result.user_id, { profile_pic: docUrls.profilePic });
+          }
+          const picUpdate: Partial<Pick<Employee, 'cnic_picture' | 'cnic_back_picture'>> = {};
+          if (docUrls.cnicPic) picUpdate.cnic_picture = docUrls.cnicPic;
+          if (docUrls.cnicBackPic) picUpdate.cnic_back_picture = docUrls.cnicBackPic;
+          if (Object.keys(picUpdate).length > 0) {
+            await this.employeeRepo.update(result.id, picUpdate);
+          }
+        } catch (docErr: unknown) {
+          const errMsg = docErr instanceof Error ? docErr.message : String(docErr);
+          this.logger.warn(`Failed to move temp documents for employee ${result.id}: ${errMsg}`);
+        }
+      }
 
       // Send invitation email
       await this.sendPasswordResetEmail(dto.email, resetToken);

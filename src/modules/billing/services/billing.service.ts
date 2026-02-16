@@ -411,12 +411,13 @@ export class BillingService {
       `Payment confirmed for employee creation: ${metadata.employee_email} (checkout session: ${checkoutSessionId})`,
     );
 
-    // Create employee and send invitation
+    // Create employee and send invitation (pass checkoutSessionId for temp document recovery)
     if (this.employeeService) {
       try {
         const createdEmployee = await this.employeeService.createAfterPayment(
           tenantId,
           employeeData,
+          checkoutSessionId,
         );
         
         // Update transaction with employee_id
