@@ -382,6 +382,7 @@ export class EmployeeService implements OnModuleInit {
 
 
     try {
+      // 1. Create user + employee in transaction (no file URLs yet)
       const result = await this.userRepo.manager.transaction(async (manager) => {
         const userRepo = manager.getRepository(User);
         const employeeRepo = manager.getRepository(Employee);
@@ -401,57 +402,6 @@ export class EmployeeService implements OnModuleInit {
         return savedEmployee;
       });
 
-
-      if (files) {
-        try {
-          const profileFile = files.profile_picture?.[0];
-          if (profileFile) {
-            const profilePictureUrl =
-              await this.employeeFileUploadService.uploadProfilePicture(
-                profileFile,
-                result.id,
-              );
-
-            const user = await this.userRepo.findOne({
-              where: { id: result.user_id },
-            });
-            if (user) {
-              user.profile_pic = profilePictureUrl;
-              await this.userRepo.save(user);
-            }
-          }
-
-          const employeePictureUpdate: Partial<Pick<Employee, 'cnic_picture' | 'cnic_back_picture'>> = {};
-          const cnicFile = files.cnic_picture?.[0];
-          if (cnicFile) {
-            employeePictureUpdate.cnic_picture =
-              await this.employeeFileUploadService.uploadCnicPicture(
-                cnicFile,
-                result.id,
-              );
-          }
-          const cnicBackFile = files.cnic_back_picture?.[0];
-          if (cnicBackFile) {
-            employeePictureUpdate.cnic_back_picture =
-              await this.employeeFileUploadService.uploadCnicBackPicture(
-                cnicBackFile,
-                result.id,
-              );
-          }
-          if (Object.keys(employeePictureUpdate).length > 0) {
-            await this.employeeRepo.update(result.id, employeePictureUpdate);
-          }
-        } catch (uploadError) {
-          // If file upload fails, we must delete the employee to prevent partial creation
-          // We also delete the linked user account
-          await this.employeeRepo.delete(result.id);
-          await this.userRepo.delete(result.user_id);
-          throw uploadError; // Re-throw the error to notify the user
-        }
-      }
-
-      // Process payment BEFORE sending invitation
-      // Payment must succeed before employee invitation is sent
       const user = await this.userRepo.findOne({ where: { id: result.user_id } });
       if (!user) {
         throw new NotFoundException('User not found after employee creation');
@@ -547,7 +497,36 @@ export class EmployeeService implements OnModuleInit {
         );
       }
 
-      // Only send invitation if payment succeeds
+      // 3. Payment succeeded → upload files and update DB (no orphaned files if payment had failed)
+      if (files) {
+        try {
+          const profileFile = files.profile_picture?.[0];
+          if (profileFile) {
+            const profilePictureUrl =
+              await this.employeeFileUploadService.uploadProfilePicture(profileFile, result.id);
+            await this.userRepo.update(result.user_id, { profile_pic: profilePictureUrl });
+          }
+
+          const employeePictureUpdate: Partial<Pick<Employee, 'cnic_picture' | 'cnic_back_picture'>> = {};
+          if (files.cnic_picture?.[0]) {
+            employeePictureUpdate.cnic_picture =
+              await this.employeeFileUploadService.uploadCnicPicture(files.cnic_picture[0], result.id);
+          }
+          if (files.cnic_back_picture?.[0]) {
+            employeePictureUpdate.cnic_back_picture =
+              await this.employeeFileUploadService.uploadCnicBackPicture(files.cnic_back_picture[0], result.id);
+          }
+          if (Object.keys(employeePictureUpdate).length > 0) {
+            await this.employeeRepo.update(result.id, employeePictureUpdate);
+          }
+        } catch (uploadError) {
+          await this.employeeRepo.delete(result.id);
+          await this.userRepo.delete(result.user_id);
+          throw uploadError;
+        }
+      }
+
+      // 4. Send invitation and post-creation steps
       await this.sendPasswordResetEmail(dto.email, resetToken);
 
       // Notify all other employees in the same tenant (tenant isolation)
