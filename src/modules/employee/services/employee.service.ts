@@ -230,7 +230,6 @@ export class EmployeeService implements OnModuleInit {
                 profileFile,
                 result.id,
               );
-            // result.profile_picture = profilePictureUrl;
 
             const user = await this.userRepo.findOne({
               where: { id: result.user_id },
@@ -241,27 +240,26 @@ export class EmployeeService implements OnModuleInit {
             }
           }
 
+          const employeePictureUpdate: Partial<Pick<Employee, 'cnic_picture' | 'cnic_back_picture'>> = {};
           const cnicFile = files.cnic_picture?.[0];
           if (cnicFile) {
-            const cnicPictureUrl =
+            employeePictureUpdate.cnic_picture =
               await this.employeeFileUploadService.uploadCnicPicture(
                 cnicFile,
                 result.id,
               );
-            result.cnic_picture = cnicPictureUrl;
           }
-
           const cnicBackFile = files.cnic_back_picture?.[0];
           if (cnicBackFile) {
-            const cnicBackPictureUrl =
+            employeePictureUpdate.cnic_back_picture =
               await this.employeeFileUploadService.uploadCnicBackPicture(
                 cnicBackFile,
                 result.id,
               );
-            result.cnic_back_picture = cnicBackPictureUrl;
           }
-
-          await this.employeeRepo.save(result);
+          if (Object.keys(employeePictureUpdate).length > 0) {
+            await this.employeeRepo.update(result.id, employeePictureUpdate);
+          }
         } catch (uploadError) {
           // If file upload fails, we must delete the employee to prevent partial creation
           // We also delete the linked user account
@@ -309,7 +307,12 @@ export class EmployeeService implements OnModuleInit {
         );
       }
 
-      return result;
+      // Reload so response includes picture URLs persisted via update()
+      const created = await this.employeeRepo.findOne({
+        where: { id: result.id },
+        relations: ['user', 'designation', 'designation.department', 'team'],
+      });
+      return created ?? result;
     } catch (err) {
       const errorCode = getPostgresErrorCode(err);
       if (errorCode === '23505') {
@@ -408,7 +411,6 @@ export class EmployeeService implements OnModuleInit {
                 profileFile,
                 result.id,
               );
-            // result.profile_picture = profilePictureUrl;
 
             const user = await this.userRepo.findOne({
               where: { id: result.user_id },
@@ -419,27 +421,26 @@ export class EmployeeService implements OnModuleInit {
             }
           }
 
+          const employeePictureUpdate: Partial<Pick<Employee, 'cnic_picture' | 'cnic_back_picture'>> = {};
           const cnicFile = files.cnic_picture?.[0];
           if (cnicFile) {
-            const cnicPictureUrl =
+            employeePictureUpdate.cnic_picture =
               await this.employeeFileUploadService.uploadCnicPicture(
                 cnicFile,
                 result.id,
               );
-            result.cnic_picture = cnicPictureUrl;
           }
-
           const cnicBackFile = files.cnic_back_picture?.[0];
           if (cnicBackFile) {
-            const cnicBackPictureUrl =
+            employeePictureUpdate.cnic_back_picture =
               await this.employeeFileUploadService.uploadCnicBackPicture(
                 cnicBackFile,
                 result.id,
               );
-            result.cnic_back_picture = cnicBackPictureUrl;
           }
-
-          await this.employeeRepo.save(result);
+          if (Object.keys(employeePictureUpdate).length > 0) {
+            await this.employeeRepo.update(result.id, employeePictureUpdate);
+          }
         } catch (uploadError) {
           // If file upload fails, we must delete the employee to prevent partial creation
           // We also delete the linked user account
@@ -593,7 +594,12 @@ export class EmployeeService implements OnModuleInit {
         );
       }
 
-      return result;
+      // Reload so response includes picture URLs persisted via update()
+      const created = await this.employeeRepo.findOne({
+        where: { id: result.id },
+        relations: ['user', 'designation', 'designation.department', 'team'],
+      });
+      return created ?? result;
     } catch (err) {
       const errorCode = getPostgresErrorCode(err);
       if (errorCode === '23505') {
