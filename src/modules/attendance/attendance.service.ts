@@ -100,15 +100,30 @@ export class AttendanceService {
       relations: ['user', 'team'],
     });
 
+    // Managers: auto-approve their own check-in (no one approves them). Team members: PENDING (need manager approval).
+    let approvalStatus: CheckInApprovalStatus | null = null;
+    let approvedBy: string | null = null;
+    let approvedAt: Date | null = null;
+    if (dto.type === AttendanceType.CHECK_IN) {
+      const isManager =
+        tenantId &&
+        (await this.teamService.getManagerTeams(userId, tenantId)).length > 0;
+      if (isManager) {
+        approvalStatus = CheckInApprovalStatus.APPROVED;
+        approvedBy = userId;
+        approvedAt = now;
+      } else {
+        approvalStatus = CheckInApprovalStatus.PENDING;
+      }
+    }
+
     const attendance = this.attendanceRepo.create({
       type: dto.type,
       user_id: userId,
       timestamp: now,
-      // Set approval_status to PENDING for check-ins, null for other types
-      approval_status:
-        dto.type === AttendanceType.CHECK_IN
-          ? CheckInApprovalStatus.PENDING
-          : null,
+      approval_status: approvalStatus,
+      approved_by: approvedBy,
+      approved_at: approvedAt,
       near_boundary: nearBoundary,
     });
     const saved = await this.attendanceRepo.save(attendance);
