@@ -64,7 +64,7 @@ export class ReimbursementService {
 
     const employeeId = employee.id;
 
-    // Validate employee benefit assignment
+    // Validate employee benefit assignment (must be active)
     const employeeBenefit = await this.employeeBenefitRepo.findOne({
       where: {
         id: dto.employeeBenefitId,
@@ -78,6 +78,23 @@ export class ReimbursementService {
     if (!employeeBenefit) {
       throw new NotFoundException(
         'Active benefit assignment not found for this employee',
+      );
+    }
+
+    if (employeeBenefit.benefit?.status !== 'active') {
+      throw new BadRequestException(
+        'This benefit is inactive. Reimbursement is not allowed.',
+      );
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (
+      employeeBenefit.endDate &&
+      new Date(employeeBenefit.endDate) < today
+    ) {
+      throw new BadRequestException(
+        'This benefit assignment has expired. Reimbursement is not allowed.',
       );
     }
 
