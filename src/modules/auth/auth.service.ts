@@ -216,7 +216,7 @@ export class AuthService {
       const isSystemAdmin = this.isSystemAdminRole(user.role.name);
       const tenantId = isSystemAdmin ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
 
-      // Check if tenant is deleted (for non-system-admin users)
+      // Check if tenant is deleted or suspended (for non-system-admin users)
       if (!isSystemAdmin && tenantId) {
         const tenant = await this.tenantRepository.findOne({
           where: { id: tenantId },
@@ -225,6 +225,10 @@ export class AuthService {
         if (!tenant || tenant.deleted_at) {
           this.logger.warn(`Token validation failed: tenant is deleted for user: ${userId}`);
           throw new UnauthorizedException('Your organization account has been deleted. Please contact support.');
+        }
+        if (tenant.status === 'suspended') {
+          this.logger.warn(`Token validation failed: tenant is suspended for user: ${userId}`);
+          throw new UnauthorizedException('Your organization account has been suspended. Please contact support.');
         }
       }
 
@@ -301,7 +305,7 @@ export class AuthService {
     const isSystemAdmin = this.isSystemAdminRole(user.role.name);
     const tenantId = isSystemAdmin ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
 
-    // Check if tenant is deleted (for non-system-admin users)
+    // Check if tenant is deleted or suspended (for non-system-admin users)
     if (!isSystemAdmin && tenantId) {
       const tenant = await this.tenantRepository.findOne({
         where: { id: tenantId },
@@ -310,6 +314,10 @@ export class AuthService {
       if (!tenant || tenant.deleted_at) {
         this.logger.warn(`Login failed: tenant is deleted for email: ${normalizedEmail}`);
         throw new UnauthorizedException('Your organization account has been deleted. Please contact support.');
+      }
+      if (tenant.status === 'suspended') {
+        this.logger.warn(`Login failed: tenant is suspended for email: ${normalizedEmail}`);
+        throw new UnauthorizedException('Your organization account has been suspended. Please contact support.');
       }
     }
 
@@ -533,7 +541,7 @@ export class AuthService {
       const isSystemAdmin = this.isSystemAdminRole(user.role.name);
       const tenantId = isSystemAdmin ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
 
-      // Check if tenant is deleted (for non-system-admin users)
+      // Check if tenant is deleted or suspended (for non-system-admin users)
       if (!isSystemAdmin && tenantId) {
         const tenant = await this.tenantRepository.findOne({
           where: { id: tenantId },
@@ -542,6 +550,10 @@ export class AuthService {
         if (!tenant || tenant.deleted_at) {
           this.logger.warn(`Refresh token failed: tenant is deleted for user: ${user.email}`);
           throw new UnauthorizedException('Your organization account has been deleted. Please contact support.');
+        }
+        if (tenant.status === 'suspended') {
+          this.logger.warn(`Refresh token failed: tenant is suspended for user: ${user.email}`);
+          throw new UnauthorizedException('Your organization account has been suspended. Please contact support.');
         }
       }
 
