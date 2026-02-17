@@ -29,7 +29,7 @@ import { InviteStatus, UserGender, EmployeeStatus } from '../../../common/consta
 import { Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
-import { getPostgresErrorCode } from '../../../common/types/database.types';
+import { getPostgresErrorCode, getPostgresErrorConstraint } from '../../../common/types/database.types';
 import { EmployeeSalaryService } from '../../payroll/services/employee-salary.service';
 import { CreateEmployeeSalaryDto } from '../../payroll/dto/employee-salary.dto';
 import { SalaryStatus } from '../../../common/constants/enums';
@@ -109,6 +109,21 @@ export class EmployeeService implements OnModuleInit {
   }
 
   /**
+   * Returns a user-friendly conflict message for PostgreSQL unique violation (23505)
+   * based on the constraint name (phone vs CNIC vs other).
+   */
+  private getDuplicateConflictMessage(err: unknown): string {
+    const constraint = getPostgresErrorConstraint(err);
+    if (constraint) {
+      const c = constraint.toLowerCase();
+      if (c.includes('phone')) return 'Phone number already exists.';
+      if (c.includes('cnic')) return 'CNIC already exists.';
+      if (c.includes('email')) return 'Email already exists for this tenant.';
+    }
+    return 'Employee already exists.';
+  }
+
+  /**
    * Ensures phone (users) and CNIC (employees) are unique across the DB.
    * Use excludeUserId/excludeEmployeeId when updating to allow keeping same values.
    */
@@ -123,7 +138,7 @@ export class EmployeeService implements OnModuleInit {
       if (excludeUserId) qb.andWhere('u.id != :excludeUserId', { excludeUserId });
       const existingPhone = await qb.getOne();
       if (existingPhone) {
-        throw new ConflictException('A user with this phone number already exists.');
+        throw new ConflictException('Phone number already exists.');
       }
     }
     const cnic = typeof cnicNumber === 'string' ? cnicNumber.trim() || null : null;
@@ -134,7 +149,7 @@ export class EmployeeService implements OnModuleInit {
       if (excludeEmployeeId) qb.andWhere('e.id != :excludeEmployeeId', { excludeEmployeeId });
       const existingCnic = await qb.getOne();
       if (existingCnic) {
-        throw new ConflictException('An employee with this CNIC number already exists.');
+        throw new ConflictException('CNIC already exists.');
       }
     }
   }
@@ -349,7 +364,7 @@ export class EmployeeService implements OnModuleInit {
     } catch (err) {
       const errorCode = getPostgresErrorCode(err);
       if (errorCode === '23505') {
-        throw new ConflictException('Manager already exists.');
+        throw new ConflictException(this.getDuplicateConflictMessage(err));
       }
       throw err;
     }
@@ -652,7 +667,7 @@ export class EmployeeService implements OnModuleInit {
     } catch (err) {
       const errorCode = getPostgresErrorCode(err);
       if (errorCode === '23505') {
-        throw new ConflictException('Employee already exists.');
+        throw new ConflictException(this.getDuplicateConflictMessage(err));
       }
       throw err;
     }
@@ -834,7 +849,7 @@ export class EmployeeService implements OnModuleInit {
     } catch (err) {
       const errorCode = getPostgresErrorCode(err);
       if (errorCode === '23505') {
-        throw new ConflictException('Employee already exists.');
+        throw new ConflictException(this.getDuplicateConflictMessage(err));
       }
       throw err;
     }
@@ -1112,7 +1127,7 @@ export class EmployeeService implements OnModuleInit {
     } catch (err) {
       const errorCode = getPostgresErrorCode(err);
       if (errorCode === '23505') {
-        throw new ConflictException('Employee already exists.');
+        throw new ConflictException(this.getDuplicateConflictMessage(err));
       }
       throw err;
     }

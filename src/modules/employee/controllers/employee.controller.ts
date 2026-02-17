@@ -210,10 +210,10 @@ export class EmployeeController {
   })
   @ApiResponse({
     status: 409,
-    description: 'User is already an employee in this tenant.',
+    description: 'Conflict: duplicate email, phone, or CNIC (e.g. "Phone number already exists.", "CNIC already exists.").',
     schema: {
       example: {
-        message: 'User is already an employee in this tenant.',
+        message: 'Phone number already exists.',
         error: 'Conflict',
         statusCode: 409,
       },

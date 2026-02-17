@@ -19,7 +19,8 @@ export const getPostgresErrorCode = (error: unknown): string | undefined => {
 
 export const getPostgresErrorConstraint = (error: unknown): string | undefined => {
   if (isPostgresError(error)) {
-    return error.constraint;
+    const e = error as QueryFailedError & { driverError?: { constraint?: string }; constraint?: string };
+    return e.driverError?.constraint ?? e.constraint;
   }
   return undefined;
 };
