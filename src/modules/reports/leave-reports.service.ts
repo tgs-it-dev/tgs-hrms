@@ -207,9 +207,11 @@ export class LeaveReportsService {
       .where('user.tenant_id = :tenantId', { tenantId });
 
     if (employeeName) {
+      // Match by full name (first + last) so "Alex Parker" returns only that employee, not "Alex Pen"
+      const trimmedName = employeeName.trim().replace(/\s+/g, ' ');
       employeeQuery.andWhere(
-        '(user.first_name ILIKE :name OR user.last_name ILIKE :name)',
-        { name: `%${employeeName}%` },
+        `LOWER(TRIM(CONCAT(COALESCE(user.first_name, ''), ' ', COALESCE(user.last_name, '')))) = LOWER(:name)`,
+        { name: trimmedName },
       );
     }
 

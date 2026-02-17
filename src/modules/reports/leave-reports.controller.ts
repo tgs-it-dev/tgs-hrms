@@ -206,7 +206,7 @@ export class LeaveReportsController {
   })
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
   @ApiQuery({ name: 'year', required: false, type: Number, description: 'Filter by year (e.g., 2025). If not provided, uses current year.' })
-  @ApiQuery({ name: 'employeeName', required: false, type: String, description: 'Filter by employee name (first or last name)' })
+  @ApiQuery({ name: 'employeeName', required: false, type: String, description: 'Filter by employee full name (first name + last name, e.g. "Alex Parker"). Pass the complete name to match exactly one employee.' })
   @ApiResponse({
     status: 200,
     description: 'Returns comprehensive leave reports with pagination',
