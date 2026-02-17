@@ -419,10 +419,10 @@ export class LeaveController {
 
   @Patch(':id/approve')
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin', 'hr-admin')
+  @Roles('admin', 'system-admin')
   @Permissions('approve_leaves', 'manage_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Approve a leave request (Admin/HR Admin only)' })
+  @ApiOperation({ summary: 'Approve a leave request (Admin or System Admin only)' })
   @ApiResponse({
     status: 200,
     description: 'Leave request approved successfully',
@@ -433,10 +433,10 @@ export class LeaveController {
 
   @Patch(':id/reject')
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin', 'hr-admin')
+  @Roles('admin', 'system-admin')
   @Permissions('approve_leaves', 'manage_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Reject a leave request with remarks (Admin/HR Admin only)' })
+  @ApiOperation({ summary: 'Reject a leave request (Admin or System Admin only)' })
   @ApiResponse({
     status: 200,
     description: 'Leave request rejected successfully',
@@ -448,10 +448,10 @@ export class LeaveController {
   // PUT aliases for approve/reject to match external API spec
   @Put(':id/approve')
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin', 'hr-admin')
+  @Roles('admin', 'system-admin')
   @Permissions('approve_leaves', 'manage_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Approve a leave request (Admin/HR Admin only) [PUT alias]' })
+  @ApiOperation({ summary: 'Approve a leave request (Admin or System Admin only) [PUT alias]' })
   @ApiResponse({ status: 200, description: 'Leave request approved successfully' })
   async approveLeavePut(@Param('id') id: string, @Body() dto: ApproveLeaveDto, @Request() req: any) {
     return this.leaveService.approveLeave(id, req.user.id, req.user.tenant_id, dto.remarks);
@@ -459,10 +459,10 @@ export class LeaveController {
 
   @Put(':id/reject')
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin', 'hr-admin')
+  @Roles('admin', 'system-admin')
   @Permissions('approve_leaves', 'manage_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Reject a leave request (Admin/HR Admin only) [PUT alias]' })
+  @ApiOperation({ summary: 'Reject a leave request (Admin or System Admin only) [PUT alias]' })
   @ApiResponse({ status: 200, description: 'Leave request rejected successfully' })
   async rejectLeavePut(@Param('id') id: string, @Request() req: any) {
     return this.leaveService.rejectLeave(id, req.user.id, req.user.tenant_id);
