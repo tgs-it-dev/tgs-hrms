@@ -456,13 +456,19 @@ export class EmployeeBenefitsService {
 
     const skip = (page - 1) * limit;
 
-    // Paginate tenants
-    const [tenants, total] = await this.tenantRepo.findAndCount({
-      where: tenantWhere,
-      order: { name: 'ASC' },
-      skip,
-      take: limit,
-    });
+    // When no tenant_id: return ALL tenants with their employees (no pagination). When tenant_id provided: single tenant.
+    const [tenants, total] =
+      tenantId
+        ? await this.tenantRepo.findAndCount({
+            where: tenantWhere,
+            order: { name: 'ASC' },
+            skip,
+            take: limit,
+          })
+        : await this.tenantRepo.findAndCount({
+            where: tenantWhere,
+            order: { name: 'ASC' },
+          });
 
     const tenantIds = tenants.map((t) => t.id);
     if (tenantIds.length === 0) {
@@ -564,13 +570,14 @@ export class EmployeeBenefitsService {
       });
     }
 
-    const totalPages = Math.ceil(total / limit) || 1;
+    const totalPages = tenantId ? Math.ceil(total / limit) || 1 : 1;
+    const effectiveLimit = tenantId ? limit : result.length;
 
     return {
       items: result,
       total,
-      page,
-      limit,
+      page: tenantId ? page : 1,
+      limit: effectiveLimit,
       totalPages,
     };
   }
