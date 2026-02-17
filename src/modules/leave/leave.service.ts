@@ -587,7 +587,7 @@ export class LeaveService {
 
       try {
         const payload = { related_entity_type: 'leave' as const, related_entity_id: saved.id };
-        // Employee-only: create and send only to leave.employeeId
+        // Notify employee: manager approved, now in processing
         const empNotif = await this.notificationService.create(
           leave.employeeId,
           tenantId,
@@ -602,6 +602,34 @@ export class LeaveService {
           ...payload,
           created_at: empNotif.created_at,
         });
+
+        // Notify admin/hr: leave submitted by manager and awaiting their approval
+        const employeeUser = await this.userRepo.findOne({
+          where: { id: leave.employeeId },
+          select: ['first_name', 'last_name'],
+        });
+        const employeeName = employeeUser
+          ? `${employeeUser.first_name} ${employeeUser.last_name}`.trim()
+          : 'An employee';
+        const adminMessage = `${employeeName}'s leave has been submitted by manager and is awaiting your approval`;
+        const adminUserIds = await this.getTenantAdminAndHrAdminUserIds(tenantId);
+        for (const adminId of adminUserIds) {
+          if (adminId === approverId) continue; // exclude approver (actor never gets own action's notification)
+          const adminNotif = await this.notificationService.create(
+            adminId,
+            tenantId,
+            adminMessage,
+            NotificationType.LEAVE,
+            { relatedEntityType: 'leave', relatedEntityId: saved.id },
+          );
+          this.notificationGateway.sendToUser(adminId, 'new_notification', {
+            id: adminNotif.id,
+            message: adminNotif.message,
+            type: adminNotif.type,
+            ...payload,
+            created_at: adminNotif.created_at,
+          });
+        }
       } catch (error) {
         console.error('Failed to create leave approval notifications:', error);
       }
@@ -618,7 +646,7 @@ export class LeaveService {
 
       try {
         // Employee-only: create and send only to leave.employeeId; never to admin or manager
-        const message = 'Admin/HR has approved your leave';
+        const message = 'Admin has approved your leave';
         const notification = await this.notificationService.create(
           leave.employeeId,
           tenantId,
@@ -664,6 +692,12 @@ export class LeaveService {
 
     if (!leave) {
       throw new NotFoundException('Leave not found');
+    }
+
+    // Only admin or system-admin can reject; hr-admin cannot
+    const isApproverAdmin = await this.isUserAdmin(approverId);
+    if (!isApproverAdmin) {
+      throw new ForbiddenException('Only admin or system-admin can reject leave requests');
     }
 
     const canReject =
