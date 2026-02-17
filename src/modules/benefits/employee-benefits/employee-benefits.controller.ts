@@ -81,8 +81,27 @@ export class EmployeeBenefitsController {
     @Query("employeeId") employeeId: string,
     @Query("page") page: number = 1,
   ) {
-    // Only show benefits for the requested employeeId
     return this.employeeBenefitsService.findAll(tenant_id, employeeId, page);
+  }
+
+  @Get("eligible-for-reimbursement")
+  @Roles("employee", "manager", "hr-admin", "admin")
+  @ApiOperation({
+    summary: "Get benefit assignments eligible for reimbursement (active + not expired). Use for reimbursement form dropdown.",
+  })
+  @ApiQuery({
+    name: "employeeId",
+    required: true,
+    description: "Employee ID (use own employeeId for employee role)",
+  })
+  async getEligibleForReimbursement(
+    @TenantId() tenant_id: string,
+    @Query("employeeId") employeeId: string,
+  ) {
+    return this.employeeBenefitsService.getEligibleForReimbursement(
+      tenant_id,
+      employeeId,
+    );
   }
 
   @Put(":id/cancel")

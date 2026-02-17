@@ -97,11 +97,29 @@ export class EmployeeBenefitsService {
     }
   }
 
+  /**
+   * Mark assignments as expired when end_date has passed (so employee and reimbursement see correct status).
+   */
+  private async expireAssignmentsPastEndDate(): Promise<void> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    await this.employeeBenefitRepo
+      .createQueryBuilder()
+      .update(EmployeeBenefit)
+      .set({ status: "expired" })
+      .where("status = :status", { status: "active" })
+      .andWhere("end_date IS NOT NULL")
+      .andWhere("end_date < :today", { today })
+      .execute();
+  }
+
   async findAll(
     tenant_id: string,
     employeeId: string,
     page: number = 1,
   ) {
+    await this.expireAssignmentsPastEndDate();
+
     const qb = this.employeeBenefitRepo
       .createQueryBuilder("eb")
       .leftJoinAndSelect("eb.employee", "employee")
@@ -156,6 +174,39 @@ export class EmployeeBenefitsService {
     return Array.from(employeeMap.values());
   }
 
+  /**
+   * Returns only benefit assignments eligible for reimbursement: active assignment + active benefit + not expired.
+   * Use this for reimbursement form dropdown so employee cannot pick inactive/expired benefits.
+   */
+  async getEligibleForReimbursement(tenant_id: string, employeeId: string) {
+    await this.expireAssignmentsPastEndDate();
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const list = await this.employeeBenefitRepo
+      .createQueryBuilder("eb")
+      .leftJoinAndSelect("eb.benefit", "benefit")
+      .leftJoinAndSelect("eb.employee", "employee")
+      .leftJoinAndSelect("employee.user", "user")
+      .where("eb.tenant_id = :tenant_id", { tenant_id })
+      .andWhere("eb.employee_id = :employeeId", { employeeId })
+      .andWhere("eb.status = :status", { status: "active" })
+      .andWhere("benefit.status = :benefitStatus", { benefitStatus: "active" })
+      .andWhere("(eb.end_date IS NULL OR eb.end_date >= :today)", { today })
+      .orderBy("eb.createdAt", "DESC")
+      .getMany();
+
+    return list.map((eb) => ({
+      benefitAssignmentId: eb.id,
+      benefitId: eb.benefit.id,
+      name: eb.benefit.name,
+      type: eb.benefit.type,
+      startDate: eb.startDate,
+      endDate: eb.endDate,
+    }));
+  }
+
   async cancel(tenant_id: string, id: string) {
     const benefitRecord = await this.employeeBenefitRepo.findOne({
       where: { id, tenant_id },
@@ -179,6 +230,8 @@ export class EmployeeBenefitsService {
     page: number = 1,
     limit: number = 25,
   ) {
+    await this.expireAssignmentsPastEndDate();
+
     const qb = this.employeeRepo
       .createQueryBuilder("employee")
       .leftJoinAndSelect("employee.employeeBenefits", "eb")
@@ -389,6 +442,8 @@ export class EmployeeBenefitsService {
     limit: number;
     totalPages: number;
   }> {
+    await this.expireAssignmentsPastEndDate();
+
     const toLowerStrict = (value: string): string => value.toLowerCase();
     const toLowerOrNull = (value: string | null | undefined): string | null =>
       typeof value === 'string' ? value.toLowerCase() : null;
@@ -408,6 +463,39 @@ export class EmployeeBenefitsService {
       skip,
       take: limit,
     });
+
+    const tenantIds = tenants.map((t) => t.id);
+    if (tenantIds.length === 0) {
+      const totalPages = Math.ceil(total / limit) || 1;
+      return {
+        items: [],
+        total,
+        page,
+        limit,
+        totalPages,
+      };
+    }
+
+    // Single query: all employees for this page's tenants (user.tenant_id IN (...))
+    const allEmployees = await this.employeeRepo
+      .createQueryBuilder("employee")
+      .leftJoinAndSelect("employee.employeeBenefits", "eb")
+      .leftJoinAndSelect("eb.benefit", "benefit")
+      .innerJoinAndSelect("employee.user", "user")
+      .innerJoinAndSelect("employee.designation", "designation")
+      .leftJoinAndSelect("designation.department", "department")
+      .where("user.tenant_id IN (:...tenantIds)", { tenantIds })
+      .orderBy("user.tenant_id", "ASC")
+      .addOrderBy("employee.id", "ASC")
+      .getMany();
+
+    const employeesByTenantId = new Map<string, typeof allEmployees>();
+    for (const emp of allEmployees) {
+      const tid = emp.user?.tenant_id;
+      if (!tid) continue;
+      if (!employeesByTenantId.has(tid)) employeesByTenantId.set(tid, []);
+      employeesByTenantId.get(tid)!.push(emp);
+    }
 
     const result: Array<{
       tenant_id: string;
@@ -440,51 +528,39 @@ export class EmployeeBenefitsService {
       }>;
     }> = [];
 
+    const transformEmployee = (e: (typeof allEmployees)[0]) => ({
+      employeeId: e.id,
+      employeeName: toLowerStrict(`${e.user?.first_name ?? ""} ${e.user?.last_name ?? ""}`),
+      email: toLowerStrict(e.user?.email ?? ""),
+      profile_pic: e.user?.profile_pic ?? null,
+      department: toLowerOrNull(e.designation?.department?.name),
+      designation: toLowerOrNull(e.designation?.title),
+      benefits: (e.employeeBenefits || []).map((b) => ({
+        id: b.benefit?.id ?? b.benefitId,
+        name: toLowerStrict(b.benefit?.name ?? ""),
+        description: toLowerOrNull(b.benefit?.description),
+        type: toLowerStrict(b.benefit?.type ?? ""),
+        eligibilityCriteria: toLowerOrNull(b.benefit?.eligibilityCriteria),
+        status: toLowerStrict(b.benefit?.status ?? ""),
+        tenant_id: b.benefit?.tenant_id ?? b.tenant_id,
+        createdBy: b.benefit?.createdBy ?? "",
+        createdAt: b.benefit?.createdAt ?? b.createdAt,
+        benefitAssignmentId: b.id,
+        statusOfAssignment: toLowerStrict(b.status),
+        startDate: b.startDate,
+        endDate: b.endDate,
+        assignedBy: b.assignedBy,
+        benefitCreatedAt: b.createdAt,
+      })),
+    });
+
     for (const tenant of tenants) {
-      // Get all employees with their benefits for this tenant
-      const employees = await this.employeeRepo
-        .createQueryBuilder("employee")
-        .leftJoinAndSelect("employee.employeeBenefits", "eb")
-        .leftJoinAndSelect("eb.benefit", "benefit")
-        .innerJoinAndSelect("employee.user", "user")
-        .innerJoinAndSelect("employee.designation", "designation")
-        .leftJoinAndSelect("designation.department", "department")
-        .where("user.tenant_id = :tenant_id", { tenant_id: tenant.id })
-        .orderBy("employee.id", "ASC")
-        .getMany();
-
-      // Transform employees data
-      const transformedEmployees = employees.map((e) => ({
-        employeeId: e.id,
-        employeeName: toLowerStrict(`${e.user.first_name} ${e.user.last_name}`),
-        email: toLowerStrict(e.user.email),
-        profile_pic: e.user.profile_pic,
-        department: toLowerOrNull(e.designation?.department?.name),
-        designation: toLowerOrNull(e.designation?.title),
-        benefits: (e.employeeBenefits || []).map((b) => ({
-          id: b.benefit.id,
-          name: toLowerStrict(b.benefit.name),
-          description: toLowerOrNull(b.benefit.description),
-          type: toLowerStrict(b.benefit.type),
-          eligibilityCriteria: toLowerOrNull(b.benefit.eligibilityCriteria),
-          status: toLowerStrict(b.benefit.status),
-          tenant_id: b.benefit.tenant_id,
-          createdBy: b.benefit.createdBy,
-          createdAt: b.benefit.createdAt,
-          benefitAssignmentId: b.id,
-          statusOfAssignment: toLowerStrict(b.status),
-          startDate: b.startDate,
-          endDate: b.endDate,
-          assignedBy: b.assignedBy,
-          benefitCreatedAt: b.createdAt,
-        })),
-      }));
-
+      const employees = employeesByTenantId.get(tenant.id) ?? [];
       result.push({
         tenant_id: tenant.id,
         tenant_name: toLowerStrict(tenant.name),
         tenant_status: toLowerStrict(tenant.status),
-        employees: transformedEmployees,
+        employees: employees.map(transformEmployee),
       });
     }
 
