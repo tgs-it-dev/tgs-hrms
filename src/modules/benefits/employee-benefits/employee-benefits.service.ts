@@ -239,34 +239,39 @@ export class EmployeeBenefitsService {
       .andWhere("eb.status = :status", { status: "active" })
       .getCount();
 
-    // Most Common Benefit Type
-    const mostCommon: { benefitName: string } | null | undefined =
-      await this.employeeBenefitRepo
-        .createQueryBuilder("eb")
-        .innerJoin("eb.benefit", "benefit")
-        .where("eb.tenant_id = :tenant_id", { tenant_id })
-        .select("benefit.name", "benefitName")
-        .addSelect("COUNT(eb.id)", "count")
-        .groupBy("benefit.name")
-        .orderBy("count", "DESC")
-        .limit(1)
-        .getRawOne();
+    // Most Common Benefit Type (raw keys may be lowercase in PostgreSQL)
+    const mostCommonRaw = await this.employeeBenefitRepo
+      .createQueryBuilder("eb")
+      .innerJoin("eb.benefit", "benefit")
+      .where("eb.tenant_id = :tenant_id", { tenant_id })
+      .andWhere("eb.status = :status", { status: "active" })
+      .select("benefit.name", "benefitName")
+      .addSelect("COUNT(eb.id)", "count")
+      .groupBy("benefit.name")
+      .orderBy("count", "DESC")
+      .limit(1)
+      .getRawOne<{ benefitName?: string; benefitname?: string }>();
 
-    // Total Employees Covered
-    const totalEmployeesCovered: { count: string } | null | undefined =
-      await this.employeeBenefitRepo
-        .createQueryBuilder("eb")
-        .where("eb.tenant_id = :tenant_id", { tenant_id })
-        .andWhere("eb.status = :status", { status: "active" })
-        .select("COUNT(DISTINCT eb.employee_id)", "count")
-        .getRawOne();
+    const mostCommonBenefitType =
+      mostCommonRaw?.benefitName ?? mostCommonRaw?.benefitname ?? null;
+
+    // Total Employees Covered (raw key may be lowercase)
+    const totalEmployeesCoveredRaw = await this.employeeBenefitRepo
+      .createQueryBuilder("eb")
+      .where("eb.tenant_id = :tenant_id", { tenant_id })
+      .andWhere("eb.status = :status", { status: "active" })
+      .select("COUNT(DISTINCT eb.employee_id)", "count")
+      .getRawOne<{ count?: string }>();
+
+    const totalEmployeesCoveredCount = totalEmployeesCoveredRaw?.count;
+    const totalEmployeesCovered = totalEmployeesCoveredCount
+      ? parseInt(String(totalEmployeesCoveredCount), 10) || 0
+      : 0;
 
     return {
       totalActiveBenefits,
-      mostCommonBenefitType: mostCommon?.benefitName ?? null,
-      totalEmployeesCovered: totalEmployeesCovered
-        ? parseInt(totalEmployeesCovered.count, 10) || 0
-        : 0,
+      mostCommonBenefitType,
+      totalEmployeesCovered,
     };
   }
 
@@ -299,16 +304,18 @@ export class EmployeeBenefitsService {
       });
     }
 
-    const mostCommon: { benefitName: string } | null | undefined =
-      await mostCommonQb
-        .select("benefit.name", "benefitName")
-        .addSelect("COUNT(eb.id)", "count")
-        .groupBy("benefit.name")
-        .orderBy("count", "DESC")
-        .limit(1)
-        .getRawOne();
+    const mostCommonRaw = await mostCommonQb
+      .select("benefit.name", "benefitName")
+      .addSelect("COUNT(eb.id)", "count")
+      .groupBy("benefit.name")
+      .orderBy("count", "DESC")
+      .limit(1)
+      .getRawOne<{ benefitName?: string; benefitname?: string }>();
 
-    // Total Employees Covered
+    const mostCommonBenefitType =
+      mostCommonRaw?.benefitName ?? mostCommonRaw?.benefitname ?? null;
+
+    // Total Employees Covered (raw key may be lowercase)
     let totalEmployeesCoveredQb = this.employeeBenefitRepo
       .createQueryBuilder("eb")
       .where("eb.status = :status", { status: "active" });
@@ -320,18 +327,20 @@ export class EmployeeBenefitsService {
       );
     }
 
-    const totalEmployeesCovered: { count: string } | null | undefined =
-      await totalEmployeesCoveredQb
-        .select("COUNT(DISTINCT eb.employee_id)", "count")
-        .getRawOne();
+    const totalEmployeesCoveredRaw = await totalEmployeesCoveredQb
+      .select("COUNT(DISTINCT eb.employee_id)", "count")
+      .getRawOne<{ count?: string }>();
+
+    const totalEmployeesCoveredCount = totalEmployeesCoveredRaw?.count;
+    const totalEmployeesCovered = totalEmployeesCoveredCount
+      ? parseInt(String(totalEmployeesCoveredCount), 10) || 0
+      : 0;
 
     return {
       tenant_id: tenant_id || "all",
       totalActiveBenefits,
-      mostCommonBenefitType: mostCommon?.benefitName ?? null,
-      totalEmployeesCovered: totalEmployeesCovered
-        ? parseInt(totalEmployeesCovered.count, 10) || 0
-        : 0,
+      mostCommonBenefitType,
+      totalEmployeesCovered,
     };
   }
 
