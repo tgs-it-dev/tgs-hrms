@@ -119,11 +119,29 @@ export class EmployeeBenefitsController {
   @ApiOperation({
     summary: "Get summary for benefits coverage (Network Admin/System Admin)",
   })
+  @ApiQuery({
+    name: "tenant_id",
+    required: false,
+    description: "Optional tenant ID (System Admin only - when provided, stats for that tenant; otherwise all tenants)",
+  })
   @ApiOkResponse({
     type: EmployeeBenefitSummaryDto,
     description: "Summary statistics of employee benefits coverage",
   })
-  async getSummary(@TenantId() tenant_id: string) {
+  async getSummary(
+    @TenantId() tenant_id: string,
+    @Query("tenant_id") tenantIdQuery?: string,
+    @Req() req?: { user?: { role?: string } },
+  ) {
+    const isSystemAdmin = req?.user?.role === "system-admin";
+    if (isSystemAdmin) {
+      const result = await this.employeeBenefitsService.getSystemAdminSummary(tenantIdQuery);
+      return {
+        totalActiveBenefits: result.totalActiveBenefits,
+        mostCommonBenefitType: result.mostCommonBenefitType,
+        totalEmployeesCovered: result.totalEmployeesCovered,
+      };
+    }
     return this.employeeBenefitsService.getSummary(tenant_id);
   }
 
