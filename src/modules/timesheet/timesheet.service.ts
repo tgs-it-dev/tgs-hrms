@@ -73,7 +73,7 @@ export class TimesheetService {
     const activeSession = await this.timesheetRepo.findOne({
       where: { user_id: userId, end_time: IsNull() },
     });
-    if (!activeSession) throw new NotFoundException('No active work session found');
+    if (!activeSession) return null;
 
     activeSession.end_time = new Date();
     activeSession.duration_hours =
