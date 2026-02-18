@@ -52,14 +52,16 @@ export class AttendanceService {
       if (!hasValidLocation) {
         throw new BadRequestException('Turn on Your Location');
       }
+      const lat = Number(dto.latitude);
+      const lng = Number(dto.longitude);
 
       // Validate location is within geofence boundary
       if (tenantId) {
         const validationResult = await this.validateCheckInLocationWithThreshold(
           userId,
           tenantId,
-          dto.latitude,
-          dto.longitude,
+          lat,
+          lng,
         );
         nearBoundary = validationResult.nearBoundary;
       }
@@ -80,14 +82,16 @@ export class AttendanceService {
       if (!hasValidLocation) {
         throw new BadRequestException('Turn on Your Location');
       }
+      const lat = Number(dto.latitude);
+      const lng = Number(dto.longitude);
 
       // Validate location is within geofence boundary
       if (tenantId) {
         const validationResult = await this.validateCheckInLocationWithThreshold(
           userId,
           tenantId,
-          dto.latitude,
-          dto.longitude,
+          lat,
+          lng,
         );
         nearBoundary = validationResult.nearBoundary;
       }

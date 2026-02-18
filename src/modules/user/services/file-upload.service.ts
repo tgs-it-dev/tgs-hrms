@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
+import { validateImageFile } from '../../../common/utils/file-validation.util';
 
 @Injectable()
 export class FileUploadService {
   async uploadProfilePicture(file: Express.Multer.File, userId: string): Promise<string> {
+    validateImageFile(file);
     const uploadDir = path.join(process.cwd(), 'public', 'profile-pictures');
 
   
