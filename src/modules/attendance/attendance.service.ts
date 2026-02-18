@@ -43,11 +43,14 @@ export class AttendanceService {
     let nearBoundary = false;
 
     if (dto.type === AttendanceType.CHECK_IN) {
-      // Validate location is provided for check-in
-      if (dto.latitude === undefined || dto.longitude === undefined) {
-        throw new BadRequestException(
-          'Latitude and longitude are required for check-in.',
-        );
+      // Validate location is provided for check-in (location disabled or not shared = clear message for toast)
+      const hasValidLocation =
+        dto.latitude != null &&
+        dto.longitude != null &&
+        !Number.isNaN(Number(dto.latitude)) &&
+        !Number.isNaN(Number(dto.longitude));
+      if (!hasValidLocation) {
+        throw new BadRequestException('Turn on Your Location');
       }
 
       // Validate location is within geofence boundary
@@ -68,11 +71,14 @@ export class AttendanceService {
         );
       }
     } else if (dto.type === AttendanceType.CHECK_OUT) {
-      // Validate location is provided for check-out
-      if (dto.latitude === undefined || dto.longitude === undefined) {
-        throw new BadRequestException(
-          'Latitude and longitude are required for check-out.',
-        );
+      // Validate location is provided for check-out (location disabled or not shared = clear message for toast)
+      const hasValidLocation =
+        dto.latitude != null &&
+        dto.longitude != null &&
+        !Number.isNaN(Number(dto.latitude)) &&
+        !Number.isNaN(Number(dto.longitude));
+      if (!hasValidLocation) {
+        throw new BadRequestException('Turn on Your Location');
       }
 
       // Validate location is within geofence boundary
@@ -218,26 +224,10 @@ export class AttendanceService {
     // Check if location is within any active geofence (with threshold support)
     let isWithinGeofence = false;
     let isNearBoundary = false;
-    let validationDetails: string[] = [];
 
     for (const geofence of activeGeofences) {
       const result = checkPointWithinGeofence(latitude, longitude, geofence);
-      const thresholdInfo = geofence.threshold_enabled 
-        ? ` (threshold: ${geofence.threshold_distance}m, enabled: ${geofence.threshold_enabled})` 
-        : ' (threshold disabled)';
-      validationDetails.push(
-        `Geofence "${geofence.name}" (type: ${geofence.type || 'legacy'}${thresholdInfo}): ${result.isWithin ? 'INSIDE' : 'OUTSIDE'}${result.isNearBoundary ? ' (NEAR BOUNDARY)' : ''}`,
-      );
-      
-      // Debug logging
-      console.log(`[Geofence Check] ${geofence.name}:`, {
-        threshold_enabled: geofence.threshold_enabled,
-        threshold_distance: geofence.threshold_distance,
-        isWithin: result.isWithin,
-        isNearBoundary: result.isNearBoundary,
-        location: `(${latitude}, ${longitude})`,
-      });
-      
+
       if (result.isWithin) {
         isWithinGeofence = true;
         isNearBoundary = result.isNearBoundary;
@@ -246,10 +236,7 @@ export class AttendanceService {
     }
 
     if (!isWithinGeofence) {
-      const detailsMessage = validationDetails.join('; ');
-      throw new BadRequestException(
-        `Check-in location (${latitude}, ${longitude}) is outside the allowed geofence boundary for your team. Validation details: ${detailsMessage}. Please check in from within the designated area.`,
-      );
+      throw new BadRequestException('You are not in the Geo Fencing Zone');
     }
 
     return { nearBoundary: isNearBoundary };
