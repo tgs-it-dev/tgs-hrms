@@ -30,6 +30,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ParseFilePipe, MaxFileSizeValidator, FileTypeValidator } from '@nestjs/common';
 import { Permissions } from 'src/common/decorators/permissions.decorator';
 import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+import { validateImageFile } from '../../../common/utils/file-validation.util';
 
 @ApiTags('Users')
 @Controller('users')
@@ -174,7 +175,7 @@ export class UserController {
         profile_pic: {
           type: 'string',
           format: 'binary',
-          description: 'Profile picture file (jpg, jpeg, png, gif)',
+          description: 'Profile picture - only JPG, JPEG, PNG, GIF or WebP allowed. JFIF is not accepted.',
         },
       },
     },
@@ -185,7 +186,7 @@ export class UserController {
       new ParseFilePipe({
         validators: [
           new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
-          new FileTypeValidator({ fileType: '.(jpg|jpeg|png|gif)' }),
+          new FileTypeValidator({ fileType: /^image\/(jpeg|jpg|png|gif|webp)$/ }),
         ],
       })
     )
@@ -193,6 +194,7 @@ export class UserController {
     @TenantId() tenantId: string,
     @Req() req: AuthenticatedRequest
   ) {
+    validateImageFile(file);
     try {
       const authenticatedUserId = req.user.id;
       const userRole = (req.user.role || '').toLowerCase();
@@ -229,7 +231,7 @@ export class UserController {
         profile_pic: {
           type: 'string',
           format: 'binary',
-          description: 'Profile picture file (jpg, jpeg, png, gif)',
+          description: 'Profile picture - only JPG, JPEG, PNG, GIF or WebP allowed. JFIF is not accepted.',
         },
       },
     },
@@ -240,7 +242,7 @@ export class UserController {
       new ParseFilePipe({
         validators: [
           new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
-          new FileTypeValidator({ fileType: '.(jpg|jpeg|png|gif)' }),
+          new FileTypeValidator({ fileType: /^image\/(jpeg|jpg|png|gif|webp)$/ }),
         ],
       })
     )
@@ -248,6 +250,7 @@ export class UserController {
     @TenantId() tenantId: string,
     @Req() req: AuthenticatedRequest
   ) {
+    validateImageFile(file);
     try {
       const authenticatedUserId = req.user.id;
       const userRole = (req.user.role || '').toLowerCase();
