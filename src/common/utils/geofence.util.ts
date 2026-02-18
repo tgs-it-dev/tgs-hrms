@@ -5,7 +5,7 @@ import { Geofence, GeofenceType } from '../../entities/geofence.entity';
 const GEOFENCE_MARGIN_METERS = 20;
 
 
-function calculateDistance(
+export function calculateDistance(
   lat1: number,
   lon1: number,
   lat2: number,

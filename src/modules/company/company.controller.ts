@@ -25,6 +25,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import { validateImageFile } from '../../common/utils/file-validation.util';
 
 @ApiTags('Company')
 @Controller('company')
@@ -111,7 +112,7 @@ export class CompanyController {
         logo: {
           type: 'string',
           format: 'binary',
-          description: 'Logo file (jpg, jpeg, png, gif - max 5MB)',
+          description: 'Logo file - only JPG, JPEG, PNG, GIF or WebP allowed (max 5MB). JFIF and other formats are not accepted.',
         },
       },
     },
@@ -129,13 +130,14 @@ export class CompanyController {
     @UploadedFile(
       new ParseFilePipe({
         validators: [
-          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), 
-          new FileTypeValidator({ fileType: /^image\/(jpeg|jpg|png|gif)$/ }),
+          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
+          new FileTypeValidator({ fileType: /^image\/(jpeg|jpg|png|gif|webp)$/ }),
         ],
       }),
     )
     file: Express.Multer.File,
   ): Promise<CompanyResponseDto> {
+    validateImageFile(file);
     this.logger.log(`Updating company logo for tenant: ${req.user.tenant_id}, user: ${req.user.sub}`);
     return this.companyService.updateCompanyLogo(
       req.user.tenant_id,

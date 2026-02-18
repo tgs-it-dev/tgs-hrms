@@ -1,8 +1,10 @@
 import {
+  ConflictException,
   Injectable,
   NotFoundException,
   ForbiddenException,
   Logger,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -13,6 +15,7 @@ import { CompanyResponseDto } from './dto/company-response.dto';
 import * as fs from 'fs';
 import * as path from 'path';
 import { createReadStream, statSync, existsSync } from 'fs';
+import { validateImageFile } from '../../common/utils/file-validation.util';
 
 @Injectable()
 export class CompanyService {
@@ -79,8 +82,24 @@ export class CompanyService {
       throw new NotFoundException('Company details not found');
     }
 
-    company.company_name = updateDto.company_name;
-    company.domain = updateDto.domain;
+    if (updateDto.domain !== undefined) {
+      const domainNormalized = (updateDto.domain || '').trim().toLowerCase();
+      if (!domainNormalized) {
+        throw new BadRequestException('Domain cannot be empty');
+      }
+      const existingByDomain = await this.companyDetailsRepo
+        .createQueryBuilder('cd')
+        .where('LOWER(cd.domain) = :domain', { domain: domainNormalized })
+        .andWhere('cd.id != :id', { id: company.id })
+        .getOne();
+      if (existingByDomain) {
+        throw new ConflictException('Domain already exists.');
+      }
+      company.domain = domainNormalized;
+    }
+    if (updateDto.company_name !== undefined) {
+      company.company_name = updateDto.company_name;
+    }
 
     if (updateDto.logo_url !== undefined) {
       company.logo_url = updateDto.logo_url;
@@ -123,6 +142,10 @@ export class CompanyService {
     this.logger.log(
       `Updating company logo for tenant: ${tenantId}, role: ${userRole}`,
     );
+
+    if (file) {
+      validateImageFile(file);
+    }
 
     if (userRole !== 'admin' && userRole !== 'system-admin') {
       throw new ForbiddenException(

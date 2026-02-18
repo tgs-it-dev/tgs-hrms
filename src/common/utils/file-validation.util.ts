@@ -40,9 +40,12 @@ const ALLOWED_IMAGE_MIME_TYPES = [
 ];
 
 /**
- * Allowed file extensions
+ * Allowed file extensions (JFIF is explicitly rejected - use JPG/JPEG instead)
  */
 const ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+
+/** Extensions that are not supported (e.g. .jfif often sent as image/jpeg) */
+const REJECTED_IMAGE_EXTENSIONS = ['.jfif'];
 
 /**
  * Maximum file size (5MB)
@@ -106,6 +109,15 @@ export function validateImageFile(
   const allowedMimeTypes = options.allowedMimeTypes || ALLOWED_IMAGE_MIME_TYPES;
   const allowedExtensions = options.allowedExtensions || ALLOWED_IMAGE_EXTENSIONS;
 
+  const fileExtension = file.originalname
+    ? file.originalname.substring(file.originalname.lastIndexOf('.')).toLowerCase()
+    : '';
+  if (REJECTED_IMAGE_EXTENSIONS.includes(fileExtension)) {
+    throw new BadRequestException(
+      'JFIF image format is not supported. Please use JPG, JPEG, PNG, GIF, or WebP.',
+    );
+  }
+
   // Validate file size
   if (file.size > maxSize) {
     throw new BadRequestException(
@@ -113,11 +125,7 @@ export function validateImageFile(
     );
   }
 
-  // Validate file extension
-  const fileExtension = file.originalname
-    .substring(file.originalname.lastIndexOf('.'))
-    .toLowerCase();
-
+  // Validate file extension (fileExtension already set above)
   if (!allowedExtensions.includes(fileExtension)) {
     throw new BadRequestException(
       `Invalid file extension. Allowed extensions: ${allowedExtensions.join(', ')}`

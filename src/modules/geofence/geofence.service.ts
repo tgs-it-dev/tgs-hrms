@@ -13,6 +13,7 @@ import { Employee } from '../../entities/employee.entity';
 import { CreateGeofenceDto } from './dto/create-geofence.dto';
 import { UpdateGeofenceDto } from './dto/update-geofence.dto';
 import { getPostgresErrorCode } from '../../common/types/database.types';
+import { calculateDistance } from '../../common/utils/geofence.util';
 
 @Injectable()
 export class GeofenceService {
@@ -100,8 +101,11 @@ export class GeofenceService {
     }
 
     try {
-      const type = dto.type ?? (dto.coordinates ? GeofenceType.POLYGON : null);
-      const hasCoords = dto.coordinates !== undefined && dto.coordinates !== null;
+      const hasCoords = dto.coordinates !== undefined && dto.coordinates !== null && dto.coordinates.length > 0;
+      const coordCount = dto.coordinates?.length ?? 0;
+      const type =
+        dto.type ??
+        (coordCount === 4 ? GeofenceType.RECTANGLE : hasCoords ? GeofenceType.POLYGON : null);
 
       let latitude = dto.latitude;
       let longitude = dto.longitude;
@@ -110,23 +114,49 @@ export class GeofenceService {
 
       if (hasCoords) {
         this.validateCoordinates(dto.coordinates);
-        coordinates = dto.coordinates;
-        const center = this.getCentroidOrFirstVertex(coordinates);
-        latitude = center.latitude;
-        longitude = center.longitude;
+        const coords = dto.coordinates;
+
+        if (type === GeofenceType.RECTANGLE) {
+          if (coords.length !== 4) {
+            throw new BadRequestException(
+              "Rectangle geofence requires exactly 4 coordinates [lat, lng].",
+            );
+          }
+          coordinates = coords;
+          const center = this.getCentroidOrFirstVertex(coordinates);
+          latitude = center.latitude;
+          longitude = center.longitude;
+        } else if (type === GeofenceType.CIRCLE) {
+          const center = this.getCentroidOrFirstVertex(coords);
+          latitude = center.latitude;
+          longitude = center.longitude;
+          let maxDist = 0;
+          for (const [lat, lng] of coords) {
+            const d = calculateDistance(center.latitude, center.longitude, lat, lng);
+            if (d > maxDist) maxDist = d;
+          }
+          radius = maxDist;
+          coordinates = null;
+        } else {
+          coordinates = coords;
+          const center = this.getCentroidOrFirstVertex(coordinates);
+          latitude = center.latitude;
+          longitude = center.longitude;
+        }
       }
 
-      if (type === GeofenceType.CIRCLE) {
+      if (type === GeofenceType.CIRCLE && !hasCoords) {
         if (radius === null || radius === undefined) {
           throw new BadRequestException("radius is required when type='circle'");
         }
         if (latitude === undefined || longitude === undefined) {
-          throw new BadRequestException("latitude and longitude are required when type='circle'");
+          throw new BadRequestException(
+            "latitude and longitude are required when type='circle'",
+          );
         }
-        coordinates = coordinates ?? null;
+        coordinates = null;
       }
 
-      // Backward compatibility: always persist latitude/longitude
       if (latitude === undefined || longitude === undefined) {
         throw new BadRequestException(
           'Either coordinates must be provided, or latitude/longitude must be provided',
@@ -387,15 +417,47 @@ export class GeofenceService {
     if (dto.type !== undefined) geofence.type = dto.type ?? null;
     if (dto.radius !== undefined) geofence.radius = dto.radius === null ? null : String(dto.radius);
     if (dto.coordinates !== undefined) {
-      if (dto.coordinates === null) {
+      if (dto.coordinates === null || dto.coordinates.length === 0) {
         geofence.coordinates = null;
       } else {
         this.validateCoordinates(dto.coordinates);
-        geofence.coordinates = dto.coordinates;
-        // Backward compatibility: update lat/lng to centroid (or first vertex)
-        const center = this.getCentroidOrFirstVertex(dto.coordinates);
-        geofence.latitude = String(center.latitude);
-        geofence.longitude = String(center.longitude);
+        const coords = dto.coordinates;
+        const effectiveType =
+          dto.type ??
+          geofence.type ??
+          (coords.length === 4 ? GeofenceType.RECTANGLE : GeofenceType.POLYGON);
+
+        if (dto.type === undefined && coords.length === 4) {
+          geofence.type = GeofenceType.RECTANGLE;
+        }
+
+        if (effectiveType === GeofenceType.RECTANGLE) {
+          if (coords.length !== 4) {
+            throw new BadRequestException(
+              "Rectangle geofence requires exactly 4 coordinates [lat, lng].",
+            );
+          }
+          geofence.coordinates = coords;
+          const center = this.getCentroidOrFirstVertex(coords);
+          geofence.latitude = String(center.latitude);
+          geofence.longitude = String(center.longitude);
+        } else if (effectiveType === GeofenceType.CIRCLE) {
+          const center = this.getCentroidOrFirstVertex(coords);
+          geofence.latitude = String(center.latitude);
+          geofence.longitude = String(center.longitude);
+          let maxDist = 0;
+          for (const [lat, lng] of coords) {
+            const d = calculateDistance(center.latitude, center.longitude, lat, lng);
+            if (d > maxDist) maxDist = d;
+          }
+          geofence.radius = String(maxDist);
+          geofence.coordinates = null;
+        } else {
+          geofence.coordinates = coords;
+          const center = this.getCentroidOrFirstVertex(coords);
+          geofence.latitude = String(center.latitude);
+          geofence.longitude = String(center.longitude);
+        }
       }
     }
 

@@ -7,10 +7,12 @@ import {
   OneToOne,
   JoinColumn,
   ManyToOne,
+  Index,
 } from 'typeorm';
 import { SignupSession } from './signup-session.entity';
 import { Tenant } from './tenant.entity';
 
+@Index(['domain'], { unique: true })
 @Entity('company_details')
 export class CompanyDetails {
   @PrimaryGeneratedColumn('uuid')
