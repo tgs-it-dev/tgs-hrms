@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SignupSession } from '../../entities/signup-session.entity';
@@ -214,16 +214,29 @@ export class SignupService {
     const session = await this.signupSessionRepo.findOne({ where: { id: dto.signupSessionId } });
     if (!session) throw new NotFoundException('Signup session not found');
 
-    
+    const domainNormalized = (dto.domain || '').trim().toLowerCase();
+    if (!domainNormalized) {
+      throw new BadRequestException('Domain cannot be empty');
+    }
+
     let details = await this.companyDetailsRepo.findOne({ where: { signup_session_id: session.id } });
+    const existingByDomain = await this.companyDetailsRepo
+      .createQueryBuilder('cd')
+      .where('LOWER(cd.domain) = :domain', { domain: domainNormalized })
+      .andWhere('(cd.signup_session_id IS NULL OR cd.signup_session_id != :sessionId)', { sessionId: session.id })
+      .getOne();
+    if (existingByDomain) {
+      throw new ConflictException('Domain already exists.');
+    }
+
     if (details) {
       details.company_name = dto.companyName;
-      details.domain = dto.domain;
+      details.domain = domainNormalized;
       details.plan_id = dto.planId;
     } else {
       details = this.companyDetailsRepo.create({
         company_name: dto.companyName,
-        domain: dto.domain,
+        domain: domainNormalized,
         plan_id: dto.planId,
         signup_session_id: session.id,
         is_paid: false,

@@ -76,8 +76,18 @@ export class SignupController {
       },
     }),
     fileFilter: (_req, file, cb) => {
+      const ext = (path.extname(file.originalname || '') || '').toLowerCase();
+      const allowed = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+      if (!allowed.includes(ext)) {
+        return cb(
+          new BadRequestException(
+            'Company logo: Only JPG, JPEG, PNG, GIF and WebP are accepted. Other formats (e.g. .jfif) are not allowed.',
+          ),
+          false,
+        );
+      }
       if (!file.mimetype.startsWith('image/')) {
-        return cb(new Error('Only image files are allowed!'), false);
+        return cb(new BadRequestException('Only image files are allowed.'), false);
       }
       cb(null, true);
     },

@@ -27,6 +27,8 @@ import * as path from "path";
 import { EmailService } from "src/common/utils/email/email.service";
 import { CompanyDetails } from "src/entities/company-details.entity";
 import { SignupSession } from "src/entities/signup-session.entity";
+import { getPostgresErrorCode } from "src/common/types/database.types";
+import { validateImageFile } from "src/common/utils/file-validation.util";
 
 @Injectable()
 export class SystemTenantService {
@@ -68,7 +70,8 @@ export class SystemTenantService {
     // Handle file upload if provided
     let logoUrl: string | null = null;
     if (file) {
-      // Save uploaded file to public/company-logos
+      validateImageFile(file);
+      const ext = (path.extname(file.originalname || '') || '').toLowerCase();
       const uploadsDir = path.join(process.cwd(), 'public', 'company-logos');
       if (!fs.existsSync(uploadsDir)) {
         await fs.promises.mkdir(uploadsDir, { recursive: true });
@@ -76,7 +79,7 @@ export class SystemTenantService {
 
       const timestamp = Date.now();
       const randomNum = Math.floor(Math.random() * 1000000000);
-      const fileExtension = path.extname(file.originalname);
+      const fileExtension = ext || path.extname(file.originalname);
       const fileName = `${timestamp}-${randomNum}${fileExtension}`;
       const filePath = path.join(uploadsDir, fileName);
 
@@ -540,7 +543,8 @@ export class SystemTenantService {
     // Handle file upload if provided
     let logoUrl: string | null = null;
     if (file) {
-      // Save uploaded file to public/company-logos
+      validateImageFile(file);
+      const ext = (path.extname(file.originalname || '') || '').toLowerCase();
       const uploadsDir = path.join(process.cwd(), 'public', 'company-logos');
       if (!fs.existsSync(uploadsDir)) {
         await fs.promises.mkdir(uploadsDir, { recursive: true });
@@ -564,7 +568,7 @@ export class SystemTenantService {
 
       const timestamp = Date.now();
       const randomNum = Math.floor(Math.random() * 1000000000);
-      const fileExtension = path.extname(file.originalname);
+      const fileExtension = ext || path.extname(file.originalname);
       const fileName = `${timestamp}-${randomNum}${fileExtension}`;
       const filePath = path.join(uploadsDir, fileName);
 
@@ -623,15 +627,15 @@ export class SystemTenantService {
           throw new BadRequestException("Domain cannot be empty");
         }
 
-        // Check for duplicate domain (excluding current tenant)
-        const existingCompany = await this.companyDetailsRepo.findOne({
-          where: { domain: ILike(trimmedDomain) },
-        });
+        // Check for duplicate domain (excluding current company record)
+        const existingCompany = await this.companyDetailsRepo
+          .createQueryBuilder('cd')
+          .where('LOWER(cd.domain) = :domain', { domain: trimmedDomain })
+          .andWhere('cd.id != :id', { id: companyDetails.id })
+          .getOne();
 
-        if (existingCompany && existingCompany.tenant_id !== tenant.id) {
-          throw new ConflictException(
-            `Company details already exist for domain '${dto.domain}'.`,
-          );
+        if (existingCompany) {
+          throw new ConflictException('Domain already exists.');
         }
 
         companyDetails.domain = trimmedDomain;
@@ -642,18 +646,27 @@ export class SystemTenantService {
     }
 
     // Save both tenant and company details in a transaction
-    const result = await this.dataSource.transaction(async (manager) => {
-      const tenantRepository = manager.getRepository(Tenant);
-      const companyRepository = manager.getRepository(CompanyDetails);
+    let result: { tenant: Tenant; company: CompanyDetails };
+    try {
+      result = await this.dataSource.transaction(async (manager) => {
+        const tenantRepository = manager.getRepository(Tenant);
+        const companyRepository = manager.getRepository(CompanyDetails);
 
-      const savedTenant = await tenantRepository.save(tenant);
-      const savedCompany = await companyRepository.save(companyDetails);
+        const savedTenant = await tenantRepository.save(tenant);
+        const savedCompany = await companyRepository.save(companyDetails);
 
-      return {
-        tenant: savedTenant,
-        company: savedCompany,
-      };
-    });
+        return {
+          tenant: savedTenant,
+          company: savedCompany,
+        };
+      });
+    } catch (err) {
+      const errorCode = getPostgresErrorCode(err);
+      if (errorCode === '23505') {
+        throw new ConflictException('Domain already exists.');
+      }
+      throw err;
+    }
 
     return {
       id: result.tenant.id,
