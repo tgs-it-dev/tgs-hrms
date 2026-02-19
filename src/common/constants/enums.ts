@@ -239,6 +239,14 @@ export enum NotificationStatus {
   UNREAD = 'unread',
 }
 
+/** Workflow action that triggered the notification (e.g. leave APPLIED, PROCESSING, APPROVED, REJECTED). */
+export enum NotificationAction {
+  APPLIED = 'applied',
+  PROCESSING = 'processing',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+}
+
 // // Audit Enums
 // export enum AuditAction {
 //   CREATE = 'create',
