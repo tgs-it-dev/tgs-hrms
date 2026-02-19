@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
-import { LeaveStatus, NotificationType, UserRole } from '../../common/constants/enums';
+import { LeaveStatus, NotificationType, NotificationAction, UserRole } from '../../common/constants/enums';
 import { Leave } from 'src/entities/leave.entity';
 import { LeaveType } from 'src/entities/leave-type.entity';
 import { CreateLeaveDto } from './dto/create-leave.dto';
@@ -148,50 +148,57 @@ export class LeaveService {
         where: { user_id: employeeId },
         relations: ['team', 'user'],
       });
-      const employeeName = `${employee?.user?.first_name || ''} ${employee?.user?.last_name || ''}`.trim();
-      const message = directToAdmin
-        ? `Leave request from ${employeeName || 'staff'} is pending admin approval`
-        : `Leave request pending approval from ${employeeName || 'an employee'}`;
+      const employeePayload = employee?.user
+        ? { id: employeeId, first_name: employee.user.first_name, last_name: employee.user.last_name }
+        : { id: employeeId, first_name: '', last_name: '' };
       const payload = {
         related_entity_type: 'leave' as const,
         related_entity_id: savedLeave.id,
       };
+      const leavePayload = { id: savedLeave.id, tenantId: savedLeave.tenantId };
 
       if (directToAdmin) {
         const adminUserIds = await this.getTenantAdminAndHrAdminUserIds(tenantId);
-        for (const adminId of adminUserIds) {
-          const notification = await this.notificationService.create(
-            adminId,
-            tenantId,
-            message,
-            NotificationType.LEAVE,
-            { relatedEntityType: 'leave', relatedEntityId: savedLeave.id },
-          );
-          this.notificationGateway.sendToUser(adminId, 'new_notification', {
-            id: notification.id,
-            message: notification.message,
-            type: notification.type,
+        const notifications = await this.notificationService.sendToUsers(
+          adminUserIds,
+          tenantId,
+          `Leave request from ${[employeePayload.first_name, employeePayload.last_name].filter(Boolean).join(' ').trim() || 'staff'} is pending admin approval`,
+          NotificationType.LEAVE,
+          {
+            relatedEntityType: 'leave',
+            relatedEntityId: savedLeave.id,
+            senderId: employeeId,
+            senderRole: 'employee',
+            action: NotificationAction.APPLIED,
+            isSystem: false,
+          },
+        );
+        for (const n of notifications) {
+          this.notificationGateway.sendToUser(n.user_id, 'new_notification', {
+            id: n.id,
+            message: n.message,
+            type: n.type,
             ...payload,
-            created_at: notification.created_at,
+            created_at: n.created_at,
           });
         }
       } else {
         const managerId = employee?.team?.manager_id;
         if (employee?.team && managerId && managerId !== employeeId) {
-          const notification = await this.notificationService.create(
-            managerId,
-            tenantId,
-            message,
-            NotificationType.LEAVE,
-            { relatedEntityType: 'leave', relatedEntityId: savedLeave.id },
+          const notifications = await this.notificationService.notifyLeaveApplied(
+            leavePayload,
+            employeePayload,
+            [managerId],
           );
-          this.notificationGateway.sendToUser(managerId, 'new_notification', {
-            id: notification.id,
-            message: notification.message,
-            type: notification.type,
-            ...payload,
-            created_at: notification.created_at,
-          });
+          for (const n of notifications) {
+            this.notificationGateway.sendToUser(n.user_id, 'new_notification', {
+              id: n.id,
+              message: n.message,
+              type: n.type,
+              ...payload,
+              created_at: n.created_at,
+            });
+          }
         }
       }
     } catch (error) {
@@ -203,18 +210,19 @@ export class LeaveService {
 
   /**
    * Get user IDs of tenant users with role admin, hr-admin, or system-admin (for pending leave notifications).
+   * Uses getMany() so IDs are correct; role name compared case-insensitively.
    */
   private async getTenantAdminAndHrAdminUserIds(tenantId: string): Promise<string[]> {
     const users = await this.userRepo
       .createQueryBuilder('user')
       .innerJoin('user.role', 'role')
       .where('user.tenant_id = :tenantId', { tenantId })
-      .andWhere('role.name IN (:...names)', {
+      .andWhere('LOWER(role.name) IN (:...names)', {
         names: ['admin', 'hr-admin', 'system-admin'],
       })
-      .select('user.id')
-      .getRawMany<{ user_id: string }>();
-    return users.map((r) => r.user_id);
+      .select(['user.id'])
+      .getMany();
+    return users.map((u) => u.id);
   }
 
   /**
@@ -326,49 +334,56 @@ export class LeaveService {
         where: { user_id: dto.employeeId },
         relations: ['team', 'user'],
       });
-      const employeeName = `${employee?.user?.first_name || ''} ${employee?.user?.last_name || ''}`.trim();
-      const message = directToAdmin
-        ? `Leave request from ${employeeName || 'staff'} is pending admin approval`
-        : `Leave request pending approval from ${employeeName || 'an employee'}`;
+      const employeePayload = employee?.user
+        ? { id: dto.employeeId, first_name: employee.user.first_name, last_name: employee.user.last_name }
+        : { id: dto.employeeId, first_name: '', last_name: '' };
       const payload = {
         related_entity_type: 'leave' as const,
         related_entity_id: savedLeave.id,
       };
+      const leavePayload = { id: savedLeave.id, tenantId: savedLeave.tenantId };
 
       if (directToAdmin) {
         const adminUserIds = await this.getTenantAdminAndHrAdminUserIds(tenantId);
-        for (const adminId of adminUserIds) {
-          const notification = await this.notificationService.create(
-            adminId,
-            tenantId,
-            message,
-            NotificationType.LEAVE,
-            { relatedEntityType: 'leave', relatedEntityId: savedLeave.id },
-          );
-          this.notificationGateway.sendToUser(adminId, 'new_notification', {
-            id: notification.id,
-            message: notification.message,
-            type: notification.type,
+        const notifications = await this.notificationService.sendToUsers(
+          adminUserIds,
+          tenantId,
+          `Leave request from ${[employeePayload.first_name, employeePayload.last_name].filter(Boolean).join(' ').trim() || 'staff'} is pending admin approval`,
+          NotificationType.LEAVE,
+          {
+            relatedEntityType: 'leave',
+            relatedEntityId: savedLeave.id,
+            senderId: dto.employeeId,
+            senderRole: 'employee',
+            action: NotificationAction.APPLIED,
+            isSystem: false,
+          },
+        );
+        for (const n of notifications) {
+          this.notificationGateway.sendToUser(n.user_id, 'new_notification', {
+            id: n.id,
+            message: n.message,
+            type: n.type,
             ...payload,
-            created_at: notification.created_at,
+            created_at: n.created_at,
           });
         }
       } else if (employee?.team?.manager_id && employee.team.manager_id !== dto.employeeId) {
         const managerId = employee.team.manager_id;
-        const notification = await this.notificationService.create(
-          managerId,
-          tenantId,
-          message,
-          NotificationType.LEAVE,
-          { relatedEntityType: 'leave', relatedEntityId: savedLeave.id },
+        const notifications = await this.notificationService.notifyLeaveApplied(
+          leavePayload,
+          employeePayload,
+          [managerId],
         );
-        this.notificationGateway.sendToUser(managerId, 'new_notification', {
-          id: notification.id,
-          message: notification.message,
-          type: notification.type,
-          ...payload,
-          created_at: notification.created_at,
-        });
+        for (const n of notifications) {
+          this.notificationGateway.sendToUser(n.user_id, 'new_notification', {
+            id: n.id,
+            message: n.message,
+            type: n.type,
+            ...payload,
+            created_at: n.created_at,
+          });
+        }
       }
     } catch (error) {
       console.error('Failed to create leave notification (createLeaveForEmployee):', error);
@@ -578,7 +593,7 @@ export class LeaveService {
     const isApproverAdmin = await this.isUserAdmin(approverId);
 
     if (isPending && isApproverManager) {
-      // Manager approves: status → PROCESSING; notify employee + admin/hr (exclude approver — actor never gets own action's notification)
+      // Manager approves: status → PROCESSING; notify employee + admins only (manager must NOT get this notification)
       leave.status = LeaveStatus.PROCESSING;
       leave.approvedBy = approverId;
       leave.approvedAt = new Date();
@@ -587,42 +602,31 @@ export class LeaveService {
 
       try {
         const payload = { related_entity_type: 'leave' as const, related_entity_id: saved.id };
-        // Notify employee: manager approved, now in processing
-        const empNotif = await this.notificationService.create(
-          leave.employeeId,
-          tenantId,
-          'Your leave has been approved by manager and is now in processing',
-          NotificationType.LEAVE,
-          { relatedEntityType: 'leave', relatedEntityId: saved.id },
-        );
-        this.notificationGateway.sendToUser(leave.employeeId, 'new_notification', {
-          id: empNotif.id,
-          message: empNotif.message,
-          type: empNotif.type,
-          ...payload,
-          created_at: empNotif.created_at,
-        });
-
-        // Notify admin/hr: leave submitted by manager and awaiting their approval
         const employeeUser = await this.userRepo.findOne({
           where: { id: leave.employeeId },
-          select: ['first_name', 'last_name'],
+          select: ['id', 'first_name', 'last_name'],
         });
-        const employeeName = employeeUser
-          ? `${employeeUser.first_name} ${employeeUser.last_name}`.trim()
-          : 'An employee';
-        const adminMessage = `${employeeName}'s leave has been submitted by manager and is awaiting your approval`;
-        const adminUserIds = await this.getTenantAdminAndHrAdminUserIds(tenantId);
-        for (const adminId of adminUserIds) {
-          if (adminId === approverId) continue; // exclude approver (actor never gets own action's notification)
-          const adminNotif = await this.notificationService.create(
-            adminId,
-            tenantId,
-            adminMessage,
-            NotificationType.LEAVE,
-            { relatedEntityType: 'leave', relatedEntityId: saved.id },
-          );
-          this.notificationGateway.sendToUser(adminId, 'new_notification', {
+        const employeePayload = employeeUser
+          ? { id: employeeUser.id, first_name: employeeUser.first_name, last_name: employeeUser.last_name }
+          : { id: leave.employeeId, first_name: '', last_name: '' };
+        // Only admins get processing notification — manager must NOT get it (exclude approverId from list)
+        const allAdminUserIds = await this.getTenantAdminAndHrAdminUserIds(tenantId);
+        const adminUserIdsExcludingManager = allAdminUserIds.filter((id) => id !== approverId);
+        const { employeeNotification, adminNotifications } = await this.notificationService.notifyLeaveProcessing(
+          { id: saved.id, tenantId: saved.tenantId },
+          approverId,
+          employeePayload,
+          adminUserIdsExcludingManager,
+        );
+        this.notificationGateway.sendToUser(leave.employeeId, 'new_notification', {
+          id: employeeNotification.id,
+          message: employeeNotification.message,
+          type: employeeNotification.type,
+          ...payload,
+          created_at: employeeNotification.created_at,
+        });
+        for (const adminNotif of adminNotifications) {
+          this.notificationGateway.sendToUser(adminNotif.user_id, 'new_notification', {
             id: adminNotif.id,
             message: adminNotif.message,
             type: adminNotif.type,
@@ -630,6 +634,13 @@ export class LeaveService {
             created_at: adminNotif.created_at,
           });
         }
+        // Mark manager's "leave applied" notification for this leave as read so it doesn't stay in their inbox
+        await this.notificationService.markAsReadForRelatedEntity(
+          approverId,
+          tenantId,
+          'leave',
+          saved.id,
+        );
       } catch (error) {
         console.error('Failed to create leave approval notifications:', error);
       }
@@ -645,14 +656,18 @@ export class LeaveService {
       const saved = await this.leaveRepo.save(leave);
 
       try {
-        // Employee-only: create and send only to leave.employeeId; never to admin or manager
-        const message = 'Admin has approved your leave';
-        const notification = await this.notificationService.create(
-          leave.employeeId,
-          tenantId,
-          message,
-          NotificationType.LEAVE,
-          { relatedEntityType: 'leave', relatedEntityId: saved.id },
+        const employeeUser = await this.userRepo.findOne({
+          where: { id: leave.employeeId },
+          select: ['id', 'first_name', 'last_name'],
+        });
+        const employeePayload = employeeUser
+          ? { id: employeeUser.id, first_name: employeeUser.first_name, last_name: employeeUser.last_name }
+          : { id: leave.employeeId, first_name: '', last_name: '' };
+        const notification = await this.notificationService.notifyLeaveFinalDecision(
+          { id: saved.id, tenantId: saved.tenantId },
+          approverId,
+          employeePayload,
+          true,
         );
         this.notificationGateway.sendToUser(leave.employeeId, 'new_notification', {
           id: notification.id,
@@ -694,48 +709,98 @@ export class LeaveService {
       throw new NotFoundException('Leave not found');
     }
 
-    // Only admin or system-admin can reject; hr-admin cannot
-    const isApproverAdmin = await this.isUserAdmin(approverId);
-    if (!isApproverAdmin) {
-      throw new ForbiddenException('Only admin or system-admin can reject leave requests');
-    }
-
     const canReject =
       leave.status === LeaveStatus.PENDING || leave.status === LeaveStatus.PROCESSING;
     if (!canReject) {
       throw new ForbiddenException('Only pending or processing leaves can be rejected');
     }
 
-    leave.status = LeaveStatus.REJECTED;
-    leave.approvedBy = approverId;
-    leave.approvedAt = new Date();
-    leave.remarks = remarks || '';
+    const employeeRecord = await this.employeeRepo.findOne({
+      where: { user_id: leave.employeeId },
+      relations: ['team'],
+    });
+    const managerId = employeeRecord?.team?.manager_id ?? null;
+    const isApproverManager = Boolean(managerId && approverId === managerId);
+    const isApproverAdmin = await this.isUserAdmin(approverId);
 
-    const saved = await this.leaveRepo.save(leave);
-
-    // Employee-only: notify only leave.employeeId; never to approver (manager/admin)
-    try {
-      const notification = await this.notificationService.create(
-        leave.employeeId,
-        tenantId,
-        'Your leave request was rejected',
-        NotificationType.LEAVE,
-        { relatedEntityType: 'leave', relatedEntityId: saved.id },
-      );
-      this.notificationGateway.sendToUser(leave.employeeId, 'new_notification', {
-        id: notification.id,
-        message: notification.message,
-        type: notification.type,
-        related_entity_type: 'leave',
-        related_entity_id: saved.id,
-        created_at: notification.created_at,
-      });
-    } catch (error) {
-      // Don't fail rejection if notification fails
-      console.error('Failed to create leave rejection notification:', error);
+    // Manager can reject only PENDING leaves (before they reach admin). Admin can reject PENDING or PROCESSING.
+    if (leave.status === LeaveStatus.PENDING && isApproverManager) {
+      leave.status = LeaveStatus.REJECTED;
+      leave.approvedBy = approverId;
+      leave.approvedAt = new Date();
+      leave.remarks = remarks || '';
+      const saved = await this.leaveRepo.save(leave);
+      try {
+        const employeeUser = await this.userRepo.findOne({
+          where: { id: leave.employeeId },
+          select: ['id', 'first_name', 'last_name'],
+        });
+        const employeePayload = employeeUser
+          ? { id: employeeUser.id, first_name: employeeUser.first_name, last_name: employeeUser.last_name }
+          : { id: leave.employeeId, first_name: '', last_name: '' };
+        const notification = await this.notificationService.create(
+          leave.employeeId,
+          tenantId,
+          'Your leave request was rejected by your manager',
+          NotificationType.LEAVE,
+          {
+            relatedEntityType: 'leave',
+            relatedEntityId: saved.id,
+            senderId: approverId,
+            senderRole: 'manager',
+            action: NotificationAction.REJECTED,
+            isSystem: false,
+          },
+        );
+        this.notificationGateway.sendToUser(leave.employeeId, 'new_notification', {
+          id: notification.id,
+          message: notification.message,
+          type: notification.type,
+          related_entity_type: 'leave',
+          related_entity_id: saved.id,
+          created_at: notification.created_at,
+        });
+      } catch (error) {
+        console.error('Failed to create manager rejection notification:', error);
+      }
+      return saved;
     }
 
-    return saved;
+    if (isApproverAdmin) {
+      leave.status = LeaveStatus.REJECTED;
+      leave.approvedBy = approverId;
+      leave.approvedAt = new Date();
+      leave.remarks = remarks || '';
+      const saved = await this.leaveRepo.save(leave);
+      try {
+        const employeeUser = await this.userRepo.findOne({
+          where: { id: leave.employeeId },
+          select: ['id', 'first_name', 'last_name'],
+        });
+        const employeePayload = employeeUser
+          ? { id: employeeUser.id, first_name: employeeUser.first_name, last_name: employeeUser.last_name }
+          : { id: leave.employeeId, first_name: '', last_name: '' };
+        const notification = await this.notificationService.notifyLeaveFinalDecision(
+          { id: saved.id, tenantId: saved.tenantId },
+          approverId,
+          employeePayload,
+          false,
+        );
+        this.notificationGateway.sendToUser(leave.employeeId, 'new_notification', {
+          id: notification.id,
+          message: notification.message,
+          type: notification.type,
+          related_entity_type: 'leave',
+          related_entity_id: saved.id,
+          created_at: notification.created_at,
+        });
+      } catch (error) {
+        console.error('Failed to create leave rejection notification:', error);
+      }
+      return saved;
+    }
+
+    throw new ForbiddenException('Only the team manager (for pending leaves) or admin can reject leave requests');
   }
 
   /**

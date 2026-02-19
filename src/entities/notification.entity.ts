@@ -10,13 +10,16 @@ import {
 } from 'typeorm';
 import { User } from './user.entity';
 import { Tenant } from './tenant.entity';
-import { NotificationType, NotificationStatus } from '../common/constants/enums';
+import { NotificationType, NotificationStatus, NotificationAction } from '../common/constants/enums';
 
 @Index(['user_id'])
 @Index(['tenant_id'])
 @Index(['status'])
 @Index(['type'])
 @Index(['user_id', 'status'])
+@Index(['tenant_id', 'user_id'])
+@Index(['action'])
+@Index(['related_entity_type', 'related_entity_id'])
 @Entity('notifications')
 export class Notification {
   @PrimaryGeneratedColumn('uuid')
@@ -28,6 +31,16 @@ export class Notification {
   @ManyToOne(() => User, { nullable: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id' })
   user: User;
+
+  @Column({ type: 'uuid', nullable: true })
+  sender_id: string | null;
+
+  @ManyToOne(() => User, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'sender_id' })
+  sender: User | null;
+
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  sender_role: string | null;
 
   @Column({ type: 'uuid' })
   tenant_id: string;
@@ -42,6 +55,9 @@ export class Notification {
   @Column({ type: 'varchar', length: 20 })
   type: NotificationType;
 
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  action: NotificationAction | null;
+
   @Column({ type: 'varchar', length: 20, default: NotificationStatus.UNREAD })
   status: NotificationStatus;
 
@@ -52,6 +68,9 @@ export class Notification {
   /** e.g. leave_id, attendance_id - for deep link */
   @Column({ type: 'uuid', nullable: true })
   related_entity_id: string | null;
+
+  @Column({ type: 'boolean', default: false })
+  is_system: boolean;
 
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
