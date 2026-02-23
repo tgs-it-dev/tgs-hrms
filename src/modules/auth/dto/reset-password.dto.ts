@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, MinLength, IsNotEmpty } from 'class-validator';
-import { Match } from '../../../common/decorators/match.decorator'; // custom decorator
+import { Match } from '../../../common/decorators/match.decorator';
+import { MIN_PASSWORD_LENGTH } from '../../../common/constants';
 
 export class ResetPasswordDto {
   @ApiProperty({
@@ -14,11 +15,11 @@ export class ResetPasswordDto {
   @ApiProperty({
     example: 'StrongPass123!',
     description: 'The new password to set',
-    minLength: 6,
+    minLength: MIN_PASSWORD_LENGTH,
   })
   @IsString({ message: 'Password must be a string' })
   @IsNotEmpty({ message: 'Password is required' })
-  @MinLength(6, { message: 'Password must be at least 6 characters long' })
+  @MinLength(MIN_PASSWORD_LENGTH, { message: 'Password must be at least 6 characters long' })
   password: string;
 
   @ApiProperty({
@@ -36,11 +37,11 @@ export class ResetPasswordBodyDto {
   @ApiProperty({
     example: 'StrongPass123!',
     description: 'The new password to set',
-    minLength: 6,
+    minLength: MIN_PASSWORD_LENGTH,
   })
   @IsString()
   @IsNotEmpty()
-  @MinLength(6, { message: 'Password must be at least 6 characters long' })
+  @MinLength(MIN_PASSWORD_LENGTH, { message: 'Password must be at least 6 characters long' })
   password: string;
 
   @ApiProperty({

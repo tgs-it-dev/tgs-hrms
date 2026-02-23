@@ -7,7 +7,16 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordBodyDto } from './dto/reset-password.dto';
 import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
-import { AUTH_MESSAGES, UserRole } from 'src/common/constants';
+import {
+  AUTH_MESSAGES,
+  AUTH_THROTTLE_LOGIN_LIMIT,
+  AUTH_THROTTLE_LOGIN_TTL_MS,
+  AUTH_THROTTLE_REGISTER_LIMIT,
+  AUTH_THROTTLE_REGISTER_TTL_MS,
+  AUTH_THROTTLE_RESET_LIMIT,
+  AUTH_THROTTLE_RESET_TTL_MS,
+  UserRole,
+} from 'src/common/constants';
 import { AuthenticatedRequest, ValidatedUser, LoginResponse, RegisterResponse, TokenPair } from './interfaces';
 
 @ApiTags('Auth')
@@ -16,7 +25,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  @Throttle({ default: { limit: 3, ttl: 300_000 } }) // 3 requests per 5 minutes
+  @Throttle({ default: { limit: AUTH_THROTTLE_REGISTER_LIMIT, ttl: AUTH_THROTTLE_REGISTER_TTL_MS } })
   @ApiBody({ type: RegisterDto })
   @ApiResponse({ status: 201, description: 'User registered successfully' })
   @ApiResponse({
@@ -47,7 +56,7 @@ export class AuthController {
   }
 
   @Post('login')
-  @Throttle({ default: { limit: 5, ttl: 60_000 } }) // 5 requests per minute (stricter for auth)
+  @Throttle({ default: { limit: AUTH_THROTTLE_LOGIN_LIMIT, ttl: AUTH_THROTTLE_LOGIN_TTL_MS } })
   @ApiBody({ type: LoginDto })
   @ApiResponse({
     status: 200,
@@ -115,7 +124,7 @@ export class AuthController {
   }
 
   @Post('forgot-password')
-  @Throttle({ default: { limit: 3, ttl: 300_000 } })
+  @Throttle({ default: { limit: AUTH_THROTTLE_REGISTER_LIMIT, ttl: AUTH_THROTTLE_REGISTER_TTL_MS } })
   @ApiBody({ type: ForgotPasswordDto })
   @ApiOperation({
     summary: 'Request password reset',
@@ -179,7 +188,7 @@ export class AuthController {
   }
 
   @Post('reset-password')
-  @Throttle({ default: { limit: 5, ttl: 300_000 } })
+  @Throttle({ default: { limit: AUTH_THROTTLE_RESET_LIMIT, ttl: AUTH_THROTTLE_RESET_TTL_MS } })
   @ApiOperation({
     summary: 'Reset password using token',
     description: 'Resets the user password. Send reset token in x-reset-token header; new password in body.',

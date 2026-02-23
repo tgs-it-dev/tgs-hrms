@@ -19,7 +19,10 @@ import {
   AUTH_MESSAGES,
   BCRYPT_SALT_ROUNDS,
   DEFAULT_JWT_REFRESH_EXPIRES_IN,
+  EMAIL_SUBJECT_PASSWORD_RESET,
+  EMAIL_SUBJECT_PASSWORD_RESET_SUCCESS,
   GLOBAL_SYSTEM_TENANT_ID,
+  RESET_TOKEN_BYTES,
   RESET_TOKEN_EXPIRY_MS,
   UserRole,
 } from '../../common/constants';
@@ -163,9 +166,7 @@ export class AuthService {
   }
 
   async validateUser(userId: string): Promise<ValidatedUser> {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
-    const result: ValidatedUser = await this.tokenValidationService.validateUser(userId);
-    return result;
+    return this.tokenValidationService.validateUser(userId);
   }
 
   async validateUserForLogin(email: string, password: string): Promise<LoginResponse> {
@@ -278,7 +279,7 @@ export class AuthService {
     const frontendUrl = this.configService.get<string>('FRONTEND_URL') ?? '';
     const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
     const html = this.emailTemplateService.render('password-reset', { userName, resetUrl });
-    await this.emailService.send({ to: email, from, subject: 'Password Reset Request', html });
+    this.emailService.send({ to: email, from, subject: EMAIL_SUBJECT_PASSWORD_RESET, html });
   }
 
   private async sendPasswordResetSuccessEmail(email: string, userName: string): Promise<void> {
@@ -288,11 +289,11 @@ export class AuthService {
       return;
     }
     const html = this.emailTemplateService.render('password-reset-success', { userName });
-    await this.emailService.send({ to: email, from, subject: 'Password Reset Successful', html });
+    this.emailService.send({ to: email, from, subject: EMAIL_SUBJECT_PASSWORD_RESET_SUCCESS, html });
   }
 
   private generateSecureToken(): string {
-    return randomBytes(32).toString('hex');
+    return randomBytes(RESET_TOKEN_BYTES).toString('hex');
   }
 
   async verifyResetToken(token: string): Promise<{ valid: boolean; message: string }> {
