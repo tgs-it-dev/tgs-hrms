@@ -14,6 +14,9 @@ import {
   PaginatedResponse,
 } from '../dto/pagination.dto';
 import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
+import {
+  VALIDATION_ERROR,
+} from '../constants';
 
 interface SoftDeletable {
   deletedAt: Date | null;
@@ -185,7 +188,7 @@ export class DatabaseUtil {
   static async findOneOrFail<T extends ObjectLiteral>(
     repository: Repository<T>,
     conditions: FindOptionsWhere<T>,
-    errorMessage: string = 'Entity not found',
+    errorMessage: string = VALIDATION_ERROR.ENTITY_NOT_FOUND,
   ): Promise<T> {
     const entity = await repository.findOne(conditions);
     if (!entity) {
