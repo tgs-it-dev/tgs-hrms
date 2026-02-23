@@ -9,7 +9,7 @@ import { Observable } from 'rxjs';
 import { SystemLog } from 'src/entities/system-log.entity';
 import { Repository } from 'typeorm';
 import { sanitizeRequestBody } from '../utils/sanitize-request-body';
-import { AuthenticatedRequest } from '../types/request.types';
+import { AuthenticatedRequest } from 'src/modules/auth/interfaces';
 
 @Injectable()
 export class SystemLoggingInterceptor implements NestInterceptor {
