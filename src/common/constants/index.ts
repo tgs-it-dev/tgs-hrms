@@ -7,3 +7,4 @@ export * from './auth-messages';
 export * from './auth.constants';
 export * from './config.defaults';
 export * from './enums';
+export * from './http.exception.constants';

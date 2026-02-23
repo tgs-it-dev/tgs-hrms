@@ -7,6 +7,9 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { ContextLogger, LoggerService } from '../logger/logger.service';
+import {
+  FILE_ERROR
+} from '../constants';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -63,7 +66,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
           path: request.url,
           method: request.method,
           correlationId,
-          message: 'File size exceeds the maximum allowed limit of 5MB',
+          message: FILE_ERROR.SIZE_EXCEEDED,
         });
         return;
       }
@@ -83,8 +86,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
           path: request.url,
           method: request.method,
           correlationId,
-          message:
-            'Invalid file type. Only image files are allowed (JPG, JPEG, PNG, GIF, WebP)',
+          message: FILE_ERROR.INVALID_TYPE,
         });
         return;
       }
