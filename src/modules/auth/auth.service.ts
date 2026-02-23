@@ -291,39 +291,37 @@ export class AuthService {
     if (!token) {
       return { valid: false, message: AUTH_MESSAGES.TOKEN_REQUIRED };
     }
-    const users = await this.userRepository.find({
+    const user = await this.userRepository.findOne({
       where: {
         reset_token: Not(IsNull()),
         reset_token_expiry: MoreThan(new Date()),
       },
     });
-    for (const user of users) {
-      if (user.reset_token && (await bcrypt.compare(token, user.reset_token))) {
-        return { valid: true, message: AUTH_MESSAGES.TOKEN_VALID };
-      }
+    if (!user?.reset_token) {
+      return { valid: false, message: AUTH_MESSAGES.INVALID_OR_EXPIRED_RESET_TOKEN };
     }
-    return { valid: false, message: AUTH_MESSAGES.INVALID_OR_EXPIRED_RESET_TOKEN };
+    const valid = await bcrypt.compare(token, user.reset_token);
+    return { valid, message: valid ? AUTH_MESSAGES.TOKEN_VALID : AUTH_MESSAGES.INVALID_OR_EXPIRED_RESET_TOKEN };
   }
 
   async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
-    const users = await this.userRepository.find({
+    const user = await this.userRepository.findOne({
       where: {
         reset_token: Not(IsNull()),
         reset_token_expiry: MoreThan(new Date()),
       },
     });
-    const matchingUser = users.find((u) => u.reset_token && bcrypt.compareSync(dto.token, u.reset_token));
-    if (!matchingUser) {
+    if (!user?.reset_token || !bcrypt.compareSync(dto.token, user.reset_token)) {
       throw new BadRequestException(AUTH_MESSAGES.INVALID_OR_EXPIRED_RESET_TOKEN);
     }
     const hashedPassword = await bcrypt.hash(dto.password, BCRYPT_SALT_ROUNDS);
-    await this.userRepository.update(matchingUser.id, {
+    await this.userRepository.update(user.id, {
       password: hashedPassword,
       reset_token: null,
       reset_token_expiry: null,
     });
-    const userName = `${matchingUser.first_name} ${matchingUser.last_name}`;
-    await this.sendPasswordResetSuccessEmail(matchingUser.email, userName);
+    const userName = `${user.first_name} ${user.last_name}`;
+    await this.sendPasswordResetSuccessEmail(user.email, userName);
     return { message: AUTH_MESSAGES.PASSWORD_RESET_SUCCESS };
   }
 
