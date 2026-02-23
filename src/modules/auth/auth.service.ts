@@ -122,11 +122,9 @@ export class AuthService {
       where: { id: dto.role_id },
     });
     const finalTenantId = role?.name === UserRole.SYSTEM_ADMIN ? GLOBAL_SYSTEM_TENANT_ID : dto.tenant_id;
+    const normalizedEmail = dto.email.toLowerCase();
     const existingUser = await this.userRepository.findOne({
-      where: {
-        email: dto.email.toLowerCase(),
-        tenant_id: finalTenantId,
-      },
+      where: { email: normalizedEmail },
     });
     if (existingUser) {
       throw new BadRequestException({
@@ -147,7 +145,7 @@ export class AuthService {
     }
     const hashedPassword = await bcrypt.hash(dto.password, BCRYPT_SALT_ROUNDS);
     const user = this.userRepository.create({
-      email: dto.email.toLowerCase(),
+      email: normalizedEmail,
       password: hashedPassword,
       first_name: dto.first_name,
       last_name: dto.last_name,
@@ -171,25 +169,18 @@ export class AuthService {
 
   async validateUserForLogin(email: string, password: string): Promise<LoginResponse> {
     const normalizedEmail = email.toLowerCase();
-    const users = await this.userRepository.find({
+    const user = await this.userRepository.findOne({
       where: { email: normalizedEmail },
       relations: ['role'],
     });
-    if (!users || users.length === 0) {
+    if (!user) {
       throw new BadRequestException({
         field: 'email',
         message: AUTH_MESSAGES.EMAIL_NOT_FOUND,
       });
     }
-    let user: User | null = null;
-    for (const u of users) {
-      const isPasswordValid = await bcrypt.compare(password, u.password);
-      if (isPasswordValid) {
-        user = u;
-        break;
-      }
-    }
-    if (!user) {
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
       throw new BadRequestException({
         field: 'password',
         message: AUTH_MESSAGES.INCORRECT_PASSWORD,
