@@ -5,6 +5,9 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import {
+  FILE_ERROR
+} from '../constants';
 
 @Catch()
 export class MulterExceptionFilter implements ExceptionFilter {
@@ -25,7 +28,7 @@ export class MulterExceptionFilter implements ExceptionFilter {
         errorMessage.includes('file too large') ||
         errorMessage.includes('limit exceeded')
       ) {
-        message = 'File size exceeds the maximum allowed limit of 5MB';
+        message = FILE_ERROR.SIZE_EXCEEDED;
       }
       // File type errors
       else if (
@@ -34,8 +37,7 @@ export class MulterExceptionFilter implements ExceptionFilter {
         errorMessage.includes('mime type') ||
         errorMessage.includes('extension')
       ) {
-        message =
-          'Invalid file type. Only image files are allowed (JPG, JPEG, PNG, GIF, WebP)';
+        message = FILE_ERROR.INVALID_TYPE;
       }
       // File validation errors
       else if (
@@ -44,19 +46,18 @@ export class MulterExceptionFilter implements ExceptionFilter {
         errorMessage.includes('invalid')
       ) {
         message =
-          exception.message ||
-          'File validation failed. Please upload a valid image file';
+          exception.message || FILE_ERROR.FAILED_VALIDATION;
       }
       // Generic file upload errors
       else if (
         errorMessage.includes('file') ||
         errorMessage.includes('upload')
       ) {
-        message = exception.message || 'File upload failed';
+        message = exception.message || FILE_ERROR.UPLOAD_FAILED;
       }
       // Other errors
       else {
-        message = exception.message || 'An error occurred during file upload';
+        message = exception.message || FILE_ERROR.ERROR_OCCURRED;
       }
     }
 
