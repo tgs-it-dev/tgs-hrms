@@ -3,6 +3,11 @@
  */
 
 import { ConfigService } from '@nestjs/config';
+import {
+  DEFAULT_JWT_EXPIRES_IN,
+  DEFAULT_JWT_SECRET,
+  DEFAULT_SENDGRID_FROM,
+} from '../common/constants';
 import { validateEnvironment } from './env.validation';
 
 export interface AppConfig {
@@ -69,15 +74,15 @@ export const getAppConfig = (_configService: ConfigService): AppConfig => {
     },
     
     jwt: {
-      secret: envVars.JWT_SECRET,
-      expiresIn: envVars.JWT_EXPIRES_IN,
+      secret: envVars.JWT_SECRET || DEFAULT_JWT_SECRET,
+      expiresIn: envVars.JWT_EXPIRES_IN || DEFAULT_JWT_EXPIRES_IN,
       refreshSecret: envVars.JWT_REFRESH_SECRET || envVars.JWT_SECRET,
       refreshExpiresIn: envVars.JWT_REFRESH_EXPIRES_IN,
     },
     
     email: {
       sendgridApiKey: envVars.SENDGRID_API_KEY || '',
-      sendgridFrom: envVars.SENDGRID_FROM || 'noreply@example.com',
+      sendgridFrom: envVars.SENDGRID_FROM || DEFAULT_SENDGRID_FROM,
     },
     
     fileUpload: {

@@ -6,9 +6,8 @@ import {
   SubscribeMessage,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger, UseGuards } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
+import { Logger } from '@nestjs/common';
+import { JwtHelperService, JwtPayload } from 'src/common/jwt';
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -33,14 +32,10 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
   private readonly logger = new Logger(NotificationGateway.name);
   private readonly connectedClients = new Map<string, AuthenticatedSocket>();
 
-  constructor(
-    private readonly jwtService: JwtService,
-    private readonly configService: ConfigService,
-  ) {}
+  constructor(private readonly jwtHelper: JwtHelperService) {}
 
   async handleConnection(client: AuthenticatedSocket) {
     try {
-      // Extract token from handshake auth or query
       const token = client.handshake.auth?.token || client.handshake.query?.token;
 
       if (!token || typeof token !== 'string') {
@@ -49,31 +44,20 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
         return;
       }
 
-      // Verify JWT token
-      const secret = this.configService.get<string>('JWT_SECRET');
-      if (!secret) {
-        this.logger.error('JWT_SECRET not configured');
-        client.disconnect();
-        return;
-      }
-
       try {
-        const payload = this.jwtService.verify(token, { secret });
-        if (!payload.id || typeof payload.id !== 'string') {
+        const payload = this.jwtHelper.verifyToken<JwtPayload>(token);
+        const userId = payload.sub ?? payload.id;
+        if (!userId || typeof userId !== 'string') {
           this.logger.warn(`Client ${client.id} disconnected: Token missing user ID`);
           client.disconnect();
           return;
         }
-        
-        const userId: string = payload.id;
+
         client.userId = userId;
-        client.tenantId = payload.tenant_id;
-
-        // Store client by userId for easy lookup
+        client.tenantId = payload.tenant_id ?? undefined;
         this.connectedClients.set(userId, client);
-
         this.logger.log(`Client ${client.id} connected as user ${userId}`);
-      } catch (error) {
+      } catch {
         this.logger.warn(`Client ${client.id} disconnected: Invalid token`);
         client.disconnect();
       }

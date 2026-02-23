@@ -3,5 +3,5 @@
  * Centralized export for all email-related services
  */
 
-export { EmailService } from './email.service';
-export { SendGridService } from './sendgrid.service';
+export { EmailService, SendMailOptions } from './email.service';
+export { EmailTemplateService } from './email-template.service';

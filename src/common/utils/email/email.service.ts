@@ -1,131 +1,73 @@
 /**
- * Email Service
- * High-level email service that handles all email operations
+ * SendGrid-only email service. Any module can inject this to send emails.
+ * No business logic (e.g. reset, announcement) — that lives in respective modules.
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { SendGridService } from './sendgrid.service';
+import * as sgMail from '@sendgrid/mail';
+import { ContextLogger, LoggerService } from '../../logger/logger.service';
+
+export interface SendMailOptions {
+  to: string | string[];
+  subject: string;
+  html: string;
+  from?: string;
+}
 
 @Injectable()
 export class EmailService {
-  private readonly logger = new Logger(EmailService.name);
+  private readonly logger: ContextLogger;
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly sendGridService: SendGridService
-  ) {}
+    private readonly loggerService: LoggerService,
+  ) {
+    this.logger = this.loggerService.forChild(EmailService.name);
+    const apiKey = this.configService.get<string>('SENDGRID_API_KEY');
+    if (apiKey) {
+      sgMail.setApiKey(apiKey);
+      this.logger.log('SendGrid API key configured successfully');
+    } else {
+      this.logger.warn('SENDGRID_API_KEY not found. Email functionality will be disabled.');
+    }
+  }
 
-  async sendPasswordResetEmail(email: string, resetToken: string, userName: string): Promise<void> {
+  /** Default "from" address from config. */
+  getFromEmail(): string | null {
+    return this.configService.get<string>('SENDGRID_FROM') ?? null;
+  }
+
+  /**
+   * Send a single or multiple recipients. Uses SENDGRID_FROM when from is omitted.
+   */
+  async send(options: SendMailOptions): Promise<void> {
+    const from = options.from ?? this.getFromEmail();
+    if (!from) {
+      this.logger.warn('SENDGRID_FROM not configured. Skipping email send.');
+      return;
+    }
+    const msg = { to: options.to, from, subject: options.subject, html: options.html };
+    this.sendOrThrow(msg, `Email to ${Array.isArray(options.to) ? options.to.length : 1} recipient(s)`);
+  }
+
+  /**
+   * Send the same email to multiple recipients (convenience for to[]).
+   */
+  async sendBulk(to: string[], subject: string, html: string, from?: string): Promise<void> {
+    await this.send({ to, subject, html, from });
+  }
+
+  private async sendOrThrow(
+    msg: { to: string | string[]; from: string; subject: string; html: string },
+    description: string,
+  ): Promise<void> {
     try {
-      await this.sendGridService.sendPasswordResetEmail(email, resetToken, userName);
+      await sgMail.send(msg);
+      this.logger.log(`${description} sent successfully`);
     } catch (error) {
-      this.logger.error(`Failed to send password reset email to ${email}:`, error);
-      throw new Error('Failed to send password reset email');
+      this.logger.error(`Failed to send ${description}:`, error);
+      throw new Error(`Failed to send ${description}`);
     }
-  }
-
-  async sendPasswordResetSuccessEmail(email: string, userName: string): Promise<void> {
-    try {
-      await this.sendGridService.sendPasswordResetSuccessEmail(email, userName);
-    } catch (error) {
-      this.logger.error(`Failed to send password reset success email to ${email}:`, error);
-    }
-  }
-
-  async sendWelcomeEmail(email: string, resetToken: string): Promise<void> {
-    try {
-      await this.sendGridService.sendWelcomeEmail(email, resetToken);
-    } catch (error) {
-      this.logger.error(`Failed to send welcome email to ${email}:`, error);
-      throw new Error('Failed to send welcome email');
-    }
-  }
-
-  async sendEmail(to: string, subject: string, html: string, from?: string): Promise<void> {
-    try {
-      await this.sendGridService.sendEmail(to, subject, html, from);
-    } catch (error) {
-      this.logger.error(`Failed to send email to ${to}:`, error);
-      throw new Error('Failed to send email');
-    }
-  }
-
-  async sendBulkEmail(emails: string[], subject: string, html: string, from?: string): Promise<void> {
-    try {
-      await this.sendGridService.sendBulkEmail(emails, subject, html, from);
-    } catch (error) {
-      this.logger.error(`Failed to send bulk email to ${emails.length} recipients:`, error);
-      throw new Error('Failed to send bulk email');
-    }
-  }
-
-  async sendNotificationEmail(email: string, title: string, message: string): Promise<void> {
-    const subject = `Notification: ${title}`;
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2>${title}</h2>
-        <p>${message}</p>
-        <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
-        <p style="color: #666; font-size: 12px;">This is an automated message, please do not reply.</p>
-      </div>
-    `;
-
-    await this.sendEmail(email, subject, html);
-  }
-
-  async sendInvitationEmail(email: string, userName: string, companyName: string, inviteToken: string): Promise<void> {
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
-    const inviteUrl = `${frontendUrl}/accept-invitation?token=${inviteToken}`;
-    const subject = `Invitation to join ${companyName}`;
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2>You're invited to join ${companyName}!</h2>
-        <p>Hello ${userName},</p>
-        <p>You have been invited to join ${companyName} on our HRMS platform.</p>
-        <p>Click the button below to accept the invitation and set up your account:</p>
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${inviteUrl}" 
-             style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
-            Accept Invitation
-          </a>
-        </div>
-        <p>If the button doesn't work, copy and paste this link into your browser:</p>
-        <p style="word-break: break-all; color: #666;">${inviteUrl}</p>
-        <p>This invitation will expire in 7 days.</p>
-        <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
-        <p style="color: #666; font-size: 12px;">This is an automated message, please do not reply.</p>
-      </div>
-    `;
-
-    await this.sendEmail(email, subject, html);
-  }
-
-  async sendReminderEmail(email: string, title: string, message: string, actionUrl?: string): Promise<void> {
-    const subject = `Reminder: ${title}`;
-    let html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2>Reminder: ${title}</h2>
-        <p>${message}</p>
-    `;
-
-    if (actionUrl) {
-      html += `
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${actionUrl}" 
-             style="background-color: #ffc107; color: black; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
-            Take Action
-          </a>
-        </div>
-      `;
-    }
-
-    html += `
-        <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
-        <p style="color: #666; font-size: 12px;">This is an automated message, please do not reply.</p>
-      </div>
-    `;
-
-    await this.sendEmail(email, subject, html);
   }
 }

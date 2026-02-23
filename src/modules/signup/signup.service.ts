@@ -17,6 +17,7 @@ import { SubscriptionPlan } from '../../entities/subscription-plan.entity';
 import axios from 'axios';
 import { GoogleSignupInitDto, GoogleSignupInitResponse } from './dto/google-signup-init.dto';
 import { JwtService } from '@nestjs/jwt';
+import { DEFAULT_JWT_REFRESH_EXPIRES_IN } from '../../common/constants';
 
 @Injectable()
 export class SignupService {
@@ -146,7 +147,7 @@ export class SignupService {
       });
       const refreshToken = this.jwtService.sign(payload, {
         secret: this.configService.get<string>('JWT_SECRET'),
-        expiresIn: '7d',
+        expiresIn: DEFAULT_JWT_REFRESH_EXPIRES_IN,
       });
 
       existingUser.refresh_token = refreshToken;
@@ -497,7 +498,7 @@ export class SignupService {
       });
       const refreshToken = this.jwtService.sign(tokenPayload, {
         secret: this.configService.get<string>('JWT_SECRET'),
-        expiresIn: '7d',
+        expiresIn: DEFAULT_JWT_REFRESH_EXPIRES_IN,
       });
 
       user.refresh_token = refreshToken;
@@ -589,7 +590,7 @@ export class SignupService {
     });
     const refreshToken = this.jwtService.sign(tokenPayload, {
       secret: this.configService.get<string>('JWT_SECRET'),
-      expiresIn: '7d',
+      expiresIn: DEFAULT_JWT_REFRESH_EXPIRES_IN,
     });
 
     user.refresh_token = refreshToken;

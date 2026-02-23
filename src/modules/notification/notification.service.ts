@@ -19,11 +19,12 @@ export class NotificationService {
    */
   async create(
     userId: string,
-    tenantId: string,
+    tenantId: string | null,
     message: string,
     type: NotificationType,
     options?: { relatedEntityType?: string; relatedEntityId?: string },
   ): Promise<Notification> {
+    if (tenantId == null || tenantId === '') throw new BadRequestException('Tenant context is required');
     const notification = this.notificationRepo.create({
       user_id: userId,
       tenant_id: tenantId,
@@ -43,12 +44,13 @@ export class NotificationService {
    */
   async getUserNotifications(
     userId: string,
-    tenantId: string,
+    tenantId: string | null,
     _userRole: string,
     status?: NotificationStatus,
     type?: NotificationType,
     limit: number = 50,
   ): Promise<Notification[]> {
+    if (tenantId == null || tenantId === '') throw new BadRequestException('Tenant context is required');
     const query = this.notificationRepo
       .createQueryBuilder('notification')
       .where('notification.user_id = :userId', { userId })
@@ -72,9 +74,10 @@ export class NotificationService {
    */
   async getUnreadCount(
     userId: string,
-    tenantId: string,
+    tenantId: string | null,
     _userRole: string,
   ): Promise<number> {
+    if (tenantId == null || tenantId === '') throw new BadRequestException('Tenant context is required');
     return await this.notificationRepo.count({
       where: {
         user_id: userId,
@@ -90,9 +93,10 @@ export class NotificationService {
   async markAsRead(
     notificationId: string,
     userId: string,
-    tenantId: string,
+    tenantId: string | null,
     _userRole: string,
   ): Promise<Notification> {
+    if (tenantId == null || tenantId === '') throw new BadRequestException('Tenant context is required');
     const notification = await this.notificationRepo.findOne({
       where: {
         id: notificationId,
@@ -133,9 +137,10 @@ export class NotificationService {
   async markAsReadAndGetRedirect(
     notificationId: string,
     userId: string,
-    tenantId: string,
+    tenantId: string | null,
     userRole: string,
   ): Promise<{ notification: Notification; redirect_path: string | null }> {
+    if (tenantId == null || tenantId === '') throw new BadRequestException('Tenant context is required');
     const notification = await this.markAsRead(notificationId, userId, tenantId, userRole);
     const redirect_path = this.buildRedirectPath(notification.type);
     return { notification, redirect_path };
@@ -146,9 +151,10 @@ export class NotificationService {
    */
   async markAllAsRead(
     userId: string,
-    tenantId: string,
+    tenantId: string | null,
     _userRole: string,
   ): Promise<void> {
+    if (tenantId == null || tenantId === '') throw new BadRequestException('Tenant context is required');
     await this.notificationRepo.update(
       {
         user_id: userId,
@@ -166,11 +172,12 @@ export class NotificationService {
    */
   async sendToUsers(
     userIds: string[],
-    tenantId: string,
+    tenantId: string | null,
     message: string,
     type: NotificationType,
     options?: { relatedEntityType?: string; relatedEntityId?: string },
   ): Promise<Notification[]> {
+    if (tenantId == null || tenantId === '') throw new BadRequestException('Tenant context is required');
     if (!userIds || userIds.length === 0) {
       throw new BadRequestException('At least one user ID is required');
     }

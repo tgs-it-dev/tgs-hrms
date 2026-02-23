@@ -1,6 +1,6 @@
 {
   "name": "nestjs-boilerplate",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "",
   "author": "",
   "private": true,
@@ -49,6 +49,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express-basic-auth": "^1.2.1",
+    "handlebars": "^4.7.8",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",

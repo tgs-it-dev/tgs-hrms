@@ -1,28 +1,29 @@
 /**
- * JWT Module
- * Shared module that provides JWT dependencies for all modules
+ * JWT Module (common)
+ * Provides JwtHelperService for the entire project. No auth-specific deps.
  */
 
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { AuthModule } from '../../modules/auth/auth.module';
+import { JwtHelperService } from '../jwt/jwt-helper.service';
 
+@Global()
 @Module({
   imports: [
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => ({
+      useFactory: (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET') || 'default_secret',
         signOptions: {
-          expiresIn: configService.get<string>('JWT_EXPIRES_IN') || '24h',
+          expiresIn: configService.get<string>('JWT_EXPIRES_IN'),
         },
       }),
     }),
     ConfigModule,
-    AuthModule,
   ],
-  exports: [JwtModule, ConfigModule, AuthModule],
+  providers: [JwtHelperService],
+  exports: [JwtModule, ConfigModule, JwtHelperService],
 })
 export class SharedJwtModule {}

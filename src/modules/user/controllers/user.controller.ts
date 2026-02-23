@@ -18,7 +18,7 @@ import {
   Res,
 } from '@nestjs/common';
 import { Response } from 'express';
-import { AuthenticatedRequest } from '../../../common/types/request.types';
+import { AuthenticatedRequest } from 'src/modules/auth/interfaces';
 import { UserService } from '../services/user.service';
 import { CreateUserDto, UpdateUserDto } from '../dto/user.dto';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';

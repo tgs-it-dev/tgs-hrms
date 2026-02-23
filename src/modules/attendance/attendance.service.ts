@@ -37,7 +37,7 @@ export class AttendanceService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  async create(userId: string, dto: CreateAttendanceDto, tenantId?: string) {
+  async create(userId: string, dto: CreateAttendanceDto, tenantId?: string | null) {
     const now = new Date();
 
     let nearBoundary = false;

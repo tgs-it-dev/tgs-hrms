@@ -27,14 +27,12 @@ export enum UserRole {
 }
 
 @Index(['tenant_id'])
-@Index(['email'])
-@Index(['email', 'tenant_id'], { unique: true })
 @Entity("users")
 export class User {
   @PrimaryGeneratedColumn("uuid")
   id: string;
 
-  @Column({ type: "varchar" })
+  @Column({ type: "varchar", unique: true })
   email: string;
 
   @Column({ type: "varchar" })

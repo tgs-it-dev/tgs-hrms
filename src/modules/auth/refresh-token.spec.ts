@@ -7,12 +7,17 @@ import { ConfigService } from '@nestjs/config';
 import { EmailService } from '../../common/utils/email';
 import { UnauthorizedException, BadRequestException } from '@nestjs/common';
 
+type MockUserRepository = {
+  findOne: jest.Mock;
+  save: jest.Mock;
+  update: jest.Mock;
+  query: jest.Mock;
+};
+
 describe('AuthService - Refresh Token', () => {
   let service: AuthService;
-  let jwtService: JwtService;
-  let userRepository: any;
 
-  const mockUserRepository = {
+  const mockUserRepository: MockUserRepository = {
     findOne: jest.fn(),
     save: jest.fn(),
     update: jest.fn(),
@@ -62,8 +67,6 @@ describe('AuthService - Refresh Token', () => {
     }).compile();
 
     service = module.get<AuthService>(AuthService);
-    jwtService = module.get<JwtService>(JwtService);
-    userRepository = module.get(getRepositoryToken(User));
   });
 
   afterEach(() => {
@@ -119,7 +122,7 @@ describe('AuthService - Refresh Token', () => {
         {
           secret: 'mocked-secret',
           expiresIn: '24h',
-        }
+        },
       );
     });
 

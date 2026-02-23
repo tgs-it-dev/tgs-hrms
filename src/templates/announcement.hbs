@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Announcement</title>
+</head>
+<body style="margin: 0; padding: 0;">
+  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+    <div style="background-color: {{styleColor}}; color: white; padding: 20px; text-align: center;">
+      <h1 style="margin: 0; font-size: 24px;">{{title}}</h1>
+      <p style="margin: 8px 0 0 0; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">{{categoryLabel}} | {{styleBadge}}</p>
+    </div>
+    <div style="padding: 30px; background-color: #f9f9f9;">
+      <p style="margin-top: 0;">Hello {{recipientName}},</p>
+      <div style="background-color: white; padding: 20px; border-radius: 6px; border-left: 4px solid {{styleColor}}; margin: 20px 0;">
+        {{contentHtml}}
+      </div>
+      <p style="color: #666; font-size: 14px; margin-bottom: 0;">This is an official announcement from your organization. Please take note accordingly.</p>
+    </div>
+    <div style="background-color: #f0f0f0; padding: 15px; text-align: center; border-top: 1px solid #e0e0e0;">
+      <p style="margin: 0; color: #888; font-size: 12px;">This is an automated message from your HRMS. Please do not reply to this email.</p>
+    </div>
+  </div>
+</body>
+</html>

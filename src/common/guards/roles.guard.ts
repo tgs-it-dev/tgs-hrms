@@ -1,38 +1,23 @@
-import { Injectable, CanActivate, ExecutionContext } from "@nestjs/common";
-import { Reflector } from "@nestjs/core";
-import { ROLES_KEY } from "../decorators/roles.decorator";
-import { JwtPayloadDto } from "src/modules/auth/dto/jwt-payload.dto";
+import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { ROLES_KEY } from '../decorators/roles.decorator';
+import { AuthenticatedRequest, JwtPayload } from 'src/modules/auth/interfaces';
+import { isAdminEquivalentRole, normalizeRole } from './guard-helpers';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
-  constructor(private reflector: Reflector) { }
+  constructor(private reflector: Reflector) {}
 
   canActivate(ctx: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.getAllAndOverride<string[]>(
-      ROLES_KEY,
-      [ctx.getHandler(), ctx.getClass()],
-    );
-    if (!requiredRoles || requiredRoles.length === 0) return true;
+    const requiredRoles = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [ctx.getHandler(), ctx.getClass()]);
+    if (!requiredRoles?.length) return true;
 
-    const request = ctx.switchToHttp().getRequest();
-    const user: JwtPayloadDto = (request as { user: JwtPayloadDto }).user;
-
-    const userRole = (user?.role || '').toLowerCase();
-    const normalizedRequired = (requiredRoles || []).map((r) => (r || '').toLowerCase());
-
-
-    const isAdminEquivalent = (role: string) =>
-      role === 'admin' || role === 'system-admin' || role === 'network-admin' || role === 'hr-admin';
+    const request = ctx.switchToHttp().getRequest<AuthenticatedRequest>();
+    const userRole = normalizeRole((request.user as JwtPayload)?.role);
+    const normalizedRequired = requiredRoles.map((r) => normalizeRole(r));
 
     if (normalizedRequired.includes(userRole)) return true;
-
-    if (
-      normalizedRequired.some(isAdminEquivalent) &&
-      isAdminEquivalent(userRole)
-    ) {
-      return true;
-    }
-
+    if (isAdminEquivalentRole(userRole) && normalizedRequired.some(isAdminEquivalentRole)) return true;
     return false;
   }
 }

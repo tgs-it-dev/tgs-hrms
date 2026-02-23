@@ -1,18 +1,23 @@
-import { Body, Controller, Post, UseGuards, Get, Req } from '@nestjs/common';
-import { ApiTags, ApiBody, ApiResponse, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Body, Controller, Post, UseGuards, Get, Req, Headers } from '@nestjs/common';
+import { ApiTags, ApiBody, ApiResponse, ApiBearerAuth, ApiOperation, ApiHeader } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
-import { RefreshTokenDto } from './dto/refresh-token.dto';
-import { LogoutDto } from './dto/logout.dto';
+import { ResetPasswordBodyDto } from './dto/reset-password.dto';
 import { Throttle } from '@nestjs/throttler';
-import { RolesGuard } from 'src/common/guards/roles.guard';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
-import { Roles } from 'src/common/decorators/roles.decorator';
-import { Permissions } from 'src/common/decorators/permissions.decorator';
-import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+import {
+  AUTH_MESSAGES,
+  AUTH_THROTTLE_LOGIN_LIMIT,
+  AUTH_THROTTLE_LOGIN_TTL_MS,
+  AUTH_THROTTLE_REGISTER_LIMIT,
+  AUTH_THROTTLE_REGISTER_TTL_MS,
+  AUTH_THROTTLE_RESET_LIMIT,
+  AUTH_THROTTLE_RESET_TTL_MS,
+  UserRole,
+} from 'src/common/constants';
+import { AuthenticatedRequest, ValidatedUser, LoginResponse, RegisterResponse, TokenPair } from './interfaces';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -20,7 +25,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  @Throttle({ default: { limit: 3, ttl: 300_000 } }) // 3 requests per 5 minutes
+  @Throttle({ default: { limit: AUTH_THROTTLE_REGISTER_LIMIT, ttl: AUTH_THROTTLE_REGISTER_TTL_MS } })
   @ApiBody({ type: RegisterDto })
   @ApiResponse({ status: 201, description: 'User registered successfully' })
   @ApiResponse({
@@ -46,15 +51,15 @@ export class AuthController {
       },
     },
   })
-  async register(@Body() dto: RegisterDto) {
+  async register(@Body() dto: RegisterDto): Promise<RegisterResponse> {
     return this.authService.register(dto);
   }
 
   @Post('login')
-  @Throttle({ default: { limit: 5, ttl: 60_000 } }) // 5 requests per minute (stricter for auth)
+  @Throttle({ default: { limit: AUTH_THROTTLE_LOGIN_LIMIT, ttl: AUTH_THROTTLE_LOGIN_TTL_MS } })
   @ApiBody({ type: LoginDto })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Login successful',
     schema: {
       example: {
@@ -65,8 +70,8 @@ export class AuthController {
           email: 'user@example.com',
           first_name: 'John',
           last_name: 'Doe',
-          role: 'admin',
-          tenant_id: 'tenant-id'
+          role: UserRole.ADMIN,
+          tenant_id: 'tenant-id',
         },
         permissions: ['manage_users', 'view_reports'],
         employee: null,
@@ -74,12 +79,12 @@ export class AuthController {
           id: 'company-id',
           company_name: 'Company Name',
           domain: 'company.com',
-          is_paid: false
+          is_paid: false,
         },
         requiresPayment: true,
-        session_id: 'signup-session-id'
-      }
-    }
+        session_id: 'signup-session-id',
+      },
+    },
   })
   @ApiResponse({
     status: 400,
@@ -114,17 +119,16 @@ export class AuthController {
       },
     },
   })
-  async login(@Body() body: LoginDto) {
-    return this.authService.validateUser(body.email, body.password);
+  async login(@Body() body: LoginDto): Promise<LoginResponse> {
+    return this.authService.validateUserForLogin(body.email, body.password);
   }
 
   @Post('forgot-password')
-  @Throttle({ default: { limit: 3, ttl: 300_000 } })
+  @Throttle({ default: { limit: AUTH_THROTTLE_REGISTER_LIMIT, ttl: AUTH_THROTTLE_REGISTER_TTL_MS } })
   @ApiBody({ type: ForgotPasswordDto })
   @ApiOperation({
     summary: 'Request password reset',
-    description:
-      'Sends a password reset link to the provided email address. The link will expire in 1 hour.',
+    description: 'Sends a password reset link to the provided email address. The link will expire in 1 hour.',
   })
   @ApiResponse({
     status: 200,
@@ -145,22 +149,19 @@ export class AuthController {
       },
     },
   })
-  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+  async forgotPassword(@Body() dto: ForgotPasswordDto): Promise<{ message: string }> {
     return this.authService.forgotPassword(dto);
   }
 
   @Post('verify-reset-token')
   @ApiOperation({
     summary: 'Verify reset token',
-    description:
-      'Verifies if a reset token is valid and not expired. Useful for frontend validation.',
+    description: 'Verifies if a reset token is valid and not expired. Send token in x-reset-token header.',
   })
-  @ApiBody({
-    schema: {
-      properties: {
-        token: { type: 'string' },
-      },
-    },
+  @ApiHeader({
+    name: 'x-reset-token',
+    description: 'Password reset token from email',
+    required: true,
   })
   @ApiResponse({
     status: 200,
@@ -182,17 +183,22 @@ export class AuthController {
       },
     },
   })
-  async verifyResetToken(@Body('token') token: string) {
+  async verifyResetToken(@Headers('x-reset-token') token: string): Promise<{ valid: boolean; message: string }> {
     return this.authService.verifyResetToken(token);
   }
 
   @Post('reset-password')
-  @Throttle({ default: { limit: 5, ttl: 300_000 } })
+  @Throttle({ default: { limit: AUTH_THROTTLE_RESET_LIMIT, ttl: AUTH_THROTTLE_RESET_TTL_MS } })
   @ApiOperation({
     summary: 'Reset password using token',
-    description: 'Resets the user password using a valid reset token received via email.',
+    description: 'Resets the user password. Send reset token in x-reset-token header; new password in body.',
   })
-  @ApiBody({ type: ResetPasswordDto })
+  @ApiHeader({
+    name: 'x-reset-token',
+    description: 'Password reset token from email',
+    required: true,
+  })
+  @ApiBody({ type: ResetPasswordBodyDto })
   @ApiResponse({
     status: 200,
     description: 'Password reset successful',
@@ -224,17 +230,28 @@ export class AuthController {
       },
     },
   })
-  async resetPassword(@Body() dto: ResetPasswordDto) {
-    return this.authService.resetPassword(dto);
+  async resetPassword(
+    @Headers('x-reset-token') token: string,
+    @Body() dto: ResetPasswordBodyDto,
+  ): Promise<{ message: string }> {
+    return this.authService.resetPassword({
+      token,
+      password: dto.password,
+      confirmPassword: dto.confirmPassword,
+    });
   }
 
   @Post('refresh')
   @ApiOperation({
     summary: 'Refresh access token',
     description:
-      'Generate a new access token using a valid refresh token. Access tokens expire after 24 hours.',
+      'Generate a new access token using a valid refresh token. Send refresh token in x-refresh-token header.',
   })
-  @ApiBody({ type: RefreshTokenDto })
+  @ApiHeader({
+    name: 'x-refresh-token',
+    description: 'Refresh token to generate a new access token',
+    required: true,
+  })
   @ApiResponse({
     status: 200,
     description: 'New access token generated successfully',
@@ -253,48 +270,27 @@ export class AuthController {
       },
     },
   })
-  async refresh(@Body() dto: RefreshTokenDto) {
-    return this.authService.refreshToken(dto.refreshToken);
-  }
-
-  @ApiBearerAuth()
-  @Post('admin-data')
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin')
-  @Permissions('manage_users')
-  getAdminData() {
-    return { message: 'Only Admin can access this route' };
-  }
-
-  @ApiBearerAuth()
-  @Get('test-permissions')
-  @UseGuards(JwtAuthGuard)
-  async testPermissions(@Req() req: any) {
-    return {
-      message: 'Permissions test endpoint',
-      user: {
-        id: req.user.id,
-        email: req.user.email,
-        role: req.user.role,
-        tenant_id: req.user.tenant_id,
-        permissions: req.user.permissions,
-      },
-    };
+  async refresh(@Headers('x-refresh-token') refreshToken: string): Promise<TokenPair> {
+    return this.authService.refreshToken(refreshToken);
   }
 
   @ApiBearerAuth()
   @Post('logout')
   @ApiOperation({
     summary: 'Logout user',
-    description: 'Invalidate the refresh token to log out the user',
+    description: 'Invalidate the refresh token. Send refresh token in x-refresh-token header.',
   })
-  @ApiBody({ type: LogoutDto })
+  @ApiHeader({
+    name: 'x-refresh-token',
+    description: 'Refresh token to invalidate',
+    required: true,
+  })
   @ApiResponse({
     status: 200,
     description: 'User logged out successfully',
     schema: {
       example: {
-        message: 'Successfully logged out',
+        message: AUTH_MESSAGES.SUCCESSFULLY_LOGGED_OUT,
       },
     },
   })
@@ -303,12 +299,12 @@ export class AuthController {
     description: 'Refresh token missing or invalid',
     schema: {
       example: {
-        message: 'Refresh token is required',
+        message: AUTH_MESSAGES.REFRESH_TOKEN_REQUIRED,
       },
     },
   })
-  async logout(@Body() dto: LogoutDto) {
-    return this.authService.logout(dto.refreshToken);
+  async logout(@Headers('x-refresh-token') refreshToken: string): Promise<{ message: string }> {
+    return this.authService.logout(refreshToken);
   }
 
   @ApiBearerAuth()
@@ -327,25 +323,22 @@ export class AuthController {
         user: {
           id: 'user-id',
           email: 'user@example.com',
-          role: 'admin',
-          tenant_id: 'tenant-id'
-        }
-      }
-    }
+          role: UserRole.ADMIN,
+          tenant_id: 'tenant-id',
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 401,
     description: 'Token is invalid or user not found',
     schema: {
       example: {
-        message: 'User not found or has been deleted'
-      }
-    }
+        message: AUTH_MESSAGES.USER_NOT_FOUND_OR_DELETED,
+      },
+    },
   })
-  async validateToken(@Req() req: any) {
-    return this.authService.validateToken(req.user.id);
+  async validateUser(@Req() req: AuthenticatedRequest): Promise<ValidatedUser> {
+    return this.authService.validateUser(req.user.id);
   }
-
-
-
 }

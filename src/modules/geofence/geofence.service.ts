@@ -62,11 +62,12 @@ export class GeofenceService {
   }
 
   async create(
-    tenant_id: string,
+    tenant_id: string | null,
     dto: CreateGeofenceDto,
     user_id?: string,
     user_role?: string,
   ): Promise<Geofence> {
+    if (tenant_id == null || tenant_id === '') throw new BadRequestException('Tenant context is required');
     // Verify team exists and belongs to tenant
     const team = await this.teamRepo.findOne({
       where: { id: dto.team_id },
@@ -181,11 +182,12 @@ export class GeofenceService {
   }
 
   async findAll(
-    tenant_id: string,
+    tenant_id: string | null,
     team_id?: string,
     user_id?: string,
     user_role?: string,
   ): Promise<Geofence[]> {
+    if (tenant_id == null || tenant_id === '') throw new BadRequestException('Tenant context is required');
     // If user is a manager, only show geofences for teams they manage
     if (user_role === 'manager' && user_id) {
       const managerTeams = await this.teamRepo.find({
@@ -270,11 +272,12 @@ export class GeofenceService {
   }
 
   async findOne(
-    tenant_id: string,
+    tenant_id: string | null,
     id: string,
     user_id?: string,
     user_role?: string,
   ): Promise<Geofence> {
+    if (tenant_id == null || tenant_id === '') throw new BadRequestException('Tenant context is required');
     const geofence = await this.repo.findOne({
       where: { id, tenant_id },
       relations: ['team', 'team.manager'],
@@ -297,12 +300,13 @@ export class GeofenceService {
   }
 
   async update(
-    tenant_id: string,
+    tenant_id: string | null,
     id: string,
     dto: UpdateGeofenceDto,
     user_id?: string,
     user_role?: string,
   ): Promise<Geofence> {
+    if (tenant_id == null || tenant_id === '') throw new BadRequestException('Tenant context is required');
     const geofence = await this.repo.findOne({
       where: { id, tenant_id },
       relations: ['team', 'team.manager'],
@@ -454,11 +458,12 @@ export class GeofenceService {
   }
 
   async remove(
-    tenant_id: string,
+    tenant_id: string | null,
     id: string,
     user_id?: string,
     user_role?: string,
   ): Promise<{ deleted: true; id: string }> {
+    if (tenant_id == null || tenant_id === '') throw new BadRequestException('Tenant context is required');
     const geofence = await this.repo.findOne({
       where: { id, tenant_id },
       relations: ['team', 'team.manager'],

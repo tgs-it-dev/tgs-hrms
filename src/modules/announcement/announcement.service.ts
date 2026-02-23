@@ -9,7 +9,7 @@ import { LessThanOrEqual, Repository } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Announcement } from '../../entities/announcement.entity';
 import { User } from '../../entities/user.entity';
-import { SendGridService } from '../../common/utils/email';
+import { EmailService, EmailTemplateService } from '../../common/utils/email';
 import { CreateAnnouncementDto } from './dto/create-announcement.dto';
 import { UpdateAnnouncementDto } from './dto/update-announcement.dto';
 import {
@@ -27,7 +27,8 @@ export class AnnouncementService {
     private readonly announcementRepo: Repository<Announcement>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
-    private readonly sendGridService: SendGridService,
+    private readonly emailService: EmailService,
+    private readonly emailTemplateService: EmailTemplateService,
   ) {}
 
   /**
@@ -35,10 +36,11 @@ export class AnnouncementService {
    * If send_now is true, sends immediately; otherwise saves as draft
    */
   async create(
-    tenant_id: string,
+    tenant_id: string | null,
     created_by: string,
     dto: CreateAnnouncementDto,
   ): Promise<Announcement> {
+    if (tenant_id == null || tenant_id === '') throw new BadRequestException('Tenant context is required');
     const status = dto.send_now
       ? AnnouncementStatus.SENT
       : dto.scheduled_at
@@ -69,7 +71,8 @@ export class AnnouncementService {
   /**
    * Get all announcements for a tenant (paginated)
    */
-  async findAll(tenant_id: string, page = 1) {
+  async findAll(tenant_id: string | null, page = 1) {
+    if (tenant_id == null || tenant_id === '') throw new BadRequestException('Tenant context is required');
     const limit = 25;
     const skip = (page - 1) * limit;
 
@@ -106,7 +109,8 @@ export class AnnouncementService {
   /**
    * Get single announcement by ID
    */
-  async findOne(tenant_id: string, id: string): Promise<Announcement> {
+  async findOne(tenant_id: string | null, id: string): Promise<Announcement> {
+    if (tenant_id == null || tenant_id === '') throw new BadRequestException('Tenant context is required');
     const announcement = await this.announcementRepo.findOne({
       where: { id, tenant_id },
       relations: ['creator'],
@@ -123,10 +127,11 @@ export class AnnouncementService {
    * Update an announcement (only if not sent)
    */
   async update(
-    tenant_id: string,
+    tenant_id: string | null,
     id: string,
     dto: UpdateAnnouncementDto,
   ): Promise<Announcement> {
+    if (tenant_id == null || tenant_id === '') throw new BadRequestException('Tenant context is required');
     const announcement = await this.findOne(tenant_id, id);
 
     if (announcement.status === AnnouncementStatus.SENT) {
@@ -159,9 +164,10 @@ export class AnnouncementService {
    * Soft delete an announcement
    */
   async softDelete(
-    tenant_id: string,
+    tenant_id: string | null,
     id: string,
   ): Promise<{ deleted: boolean; id: string }> {
+    if (tenant_id == null || tenant_id === '') throw new BadRequestException('Tenant context is required');
     const announcement = await this.findOne(tenant_id, id);
     await this.announcementRepo.softDelete({ id: announcement.id, tenant_id });
     return { deleted: true, id };
@@ -170,7 +176,8 @@ export class AnnouncementService {
   /**
    * Send/publish a draft announcement immediately
    */
-  async send(tenant_id: string, id: string): Promise<Announcement> {
+  async send(tenant_id: string | null, id: string): Promise<Announcement> {
+    if (tenant_id == null || tenant_id === '') throw new BadRequestException('Tenant context is required');
     const announcement = await this.findOne(tenant_id, id);
 
     if (announcement.status === AnnouncementStatus.SENT) {
@@ -188,7 +195,8 @@ export class AnnouncementService {
   /**
    * Cancel a scheduled announcement
    */
-  async cancel(tenant_id: string, id: string): Promise<Announcement> {
+  async cancel(tenant_id: string | null, id: string): Promise<Announcement> {
+    if (tenant_id == null || tenant_id === '') throw new BadRequestException('Tenant context is required');
     const announcement = await this.findOne(tenant_id, id);
 
     if (announcement.status === AnnouncementStatus.SENT) {
@@ -202,6 +210,49 @@ export class AnnouncementService {
     await this.announcementRepo.save(announcement);
 
     return this.findOne(tenant_id, id);
+  }
+
+  /**
+   * Build and send a single announcement email using the common EmailService.
+   */
+  private async sendAnnouncementEmail(
+    recipientEmail: string,
+    recipientName: string,
+    title: string,
+    content: string,
+    category: string,
+    priority: string,
+  ): Promise<void> {
+    const from = this.emailService.getFromEmail();
+    if (!from) {
+      this.logger.warn('Email from address not configured.');
+      return;
+    }
+    const priorityStyles: Record<string, { color: string; badge: string }> = {
+      low: { color: '#28a745', badge: 'Low Priority' },
+      medium: { color: '#ffc107', badge: 'Medium Priority' },
+      high: { color: '#dc3545', badge: 'High Priority' },
+    };
+    const categoryLabels: Record<string, string> = {
+      general: 'General Announcement',
+      holiday: 'Holiday Notice',
+      policy: 'Policy Update',
+      event: 'Event Announcement',
+      urgent: 'Urgent Notice',
+    };
+    const style = priorityStyles[priority] ?? priorityStyles.medium;
+    const categoryLabel = categoryLabels[category] ?? 'Announcement';
+    const contentHtml = content.replace(/\n/g, '<br>');
+    const html = this.emailTemplateService.render('announcement', {
+      recipientName,
+      title,
+      contentHtml,
+      categoryLabel,
+      styleColor: style.color,
+      styleBadge: style.badge,
+    });
+    const subject = `${priority === 'high' ? '🔴 ' : ''}${categoryLabel}: ${title}`;
+    await this.emailService.send({ to: recipientEmail, from, subject, html });
   }
 
   /**
@@ -229,7 +280,7 @@ export class AnnouncementService {
 
       for (const user of tenantUsers) {
         try {
-          await this.sendGridService.sendAnnouncementEmail(
+          await this.sendAnnouncementEmail(
             user.email,
             `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Team Member',
             announcement.title,
@@ -312,12 +363,13 @@ export class AnnouncementService {
   /**
    * Get announcement statistics for dashboard
    */
-  async getStats(tenant_id: string): Promise<{
+  async getStats(tenant_id: string | null): Promise<{
     total: number;
     drafts: number;
     scheduled: number;
     sent: number;
   }> {
+    if (tenant_id == null || tenant_id === '') throw new BadRequestException('Tenant context is required');
     const qb = this.announcementRepo
       .createQueryBuilder('a')
       .where('a.tenant_id = :tenant_id', { tenant_id })

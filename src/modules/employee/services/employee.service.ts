@@ -15,11 +15,12 @@ import { Role } from '../../../entities/role.entity';
 import { Team } from '../../../entities/team.entity';
 import { CreateEmployeeDto, UpdateEmployeeDto, EmployeeQueryDto } from '../dto/employee.dto';
 import { RemoveEmployeeDocumentDto } from '../dto/update-employee.dto';
-import { SendGridService } from '../../../common/utils/email';
+import { EmailService, EmailTemplateService } from '../../../common/utils/email';
 import { InviteStatusService } from '../../invite-status/invite-status.service';
 import { EmployeeFileUploadService } from './employee-file-upload.service';
 import { EmployeeCreatedEvent } from '../../billing/events/employee-created.event';
 import { BillingService } from '../../billing/services/billing.service';
+import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 
@@ -48,7 +49,9 @@ export class EmployeeService implements OnModuleInit {
     private readonly roleRepo: Repository<Role>,
     @InjectRepository(Team)
     private readonly teamRepo: Repository<Team>,
-    private readonly sendGridService: SendGridService,
+    private readonly emailService: EmailService,
+    private readonly emailTemplateService: EmailTemplateService,
+    private readonly configService: ConfigService,
     private readonly inviteStatusService: InviteStatusService,
     private readonly employeeFileUploadService: EmployeeFileUploadService,
     private readonly eventEmitter: EventEmitter2,
@@ -1110,9 +1113,50 @@ export class EmployeeService implements OnModuleInit {
     ).join('');
   }
 
+  /** Welcome / set-password email for new employees. Uses common EmailService + EmailTemplateService. */
+  private async sendWelcomeEmail(email: string, resetToken: string, userName = ''): Promise<void> {
+    const from = this.emailService.getFromEmail();
+    if (!from) {
+      this.logger.warn('SENDGRID_FROM not configured. Skipping welcome email.');
+      return;
+    }
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL') ?? '';
+    const resetUrl = `${frontendUrl}/confirm-password?token=${resetToken}`;
+    const html = this.emailTemplateService.render('employee-welcome', { resetUrl, userName });
+    await this.emailService.send({
+      to: email,
+      from,
+      subject: 'Welcome to HRMS - Set Your Password',
+      html,
+    });
+  }
+
+  /** New team member announcement email. Uses common EmailService + EmailTemplateService. */
+  private async sendNewTeamMemberAnnouncementEmail(
+    recipientEmail: string,
+    newEmployeeName: string,
+    newEmployeeEmail: string,
+  ): Promise<void> {
+    const from = this.emailService.getFromEmail();
+    if (!from) {
+      this.logger.warn('SENDGRID_FROM not configured. Skipping new team member email.');
+      return;
+    }
+    const html = this.emailTemplateService.render('new-team-member', {
+      newEmployeeName,
+      newEmployeeEmail,
+    });
+    await this.emailService.send({
+      to: recipientEmail,
+      from,
+      subject: 'New Team Member Joined',
+      html,
+    });
+  }
+
   private async sendPasswordResetEmail(email: string, resetToken: string) {
     try {
-      await this.sendGridService.sendWelcomeEmail(email, resetToken);
+      await this.sendWelcomeEmail(email, resetToken);
     } catch (error) {
       this.logger.error(`Failed to send welcome email to ${email}: ${String((error as any)?.message || error)}`);
 
@@ -1142,7 +1186,7 @@ export class EmployeeService implements OnModuleInit {
       }
       for (const recipient of recipients) {
         try {
-          await this.sendGridService.sendNewTeamMemberAnnouncementEmail(
+          await this.sendNewTeamMemberAnnouncementEmail(
             recipient.email,
             newEmployeeName,
             newEmployeeEmail,

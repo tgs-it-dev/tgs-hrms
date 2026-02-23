@@ -1,17 +1,20 @@
 
 import { Module, Logger, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { DEFAULT_JWT_EXPIRES_IN } from './common/constants';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { typeOrmConfig } from './config/typeorm.config';
 import { ThrottlerModule } from '@nestjs/throttler';
-import { JwtModule } from '@nestjs/jwt';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { join } from 'path';
 import { MiddlewareConfigModule } from './common/middleware/middleware.config';
+import { LoggerModule } from './common/logger/logger.module';
+import { SharedJwtModule } from './common/modules/jwt.module';
+import { TokenValidationModule } from './common/modules/token-validation.module';
 import { EmailModule } from './common/utils/email/email.module';
 import { UserModule } from './modules/user/user.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -47,15 +50,22 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { GeofenceModule } from './modules/geofence/geofence.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { AnnouncementModule } from './modules/announcement/announcement.module';
-import { APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { SystemLoggingInterceptor } from './common/interceptors/system-logging.interceptor';
 import { SystemLog } from './entities/system-log.entity';
 @Module({
   imports: [
     ScheduleModule.forRoot(),
     EventEmitterModule.forRoot(),
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      load: [() => ({ JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || DEFAULT_JWT_EXPIRES_IN })],
+    }),
     MiddlewareConfigModule,
+    LoggerModule,
+    SharedJwtModule,
+    TokenValidationModule,
     EmailModule,
 
     TypeOrmModule.forRootAsync({
@@ -74,23 +84,6 @@ import { SystemLog } from './entities/system-log.entity';
       ],
     }),
 
-    
-    JwtModule.registerAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: async (config: ConfigService) => {
-        const secret = config.get<string>('JWT_SECRET');
-        if (!secret) throw new Error('JWT_SECRET not found');
-        return {
-          secret,
-          signOptions: {
-            expiresIn: config.get<string>('JWT_EXPIRES_IN', '24h'),
-          },
-        };
-      },
-    }),
-
-  
     MailerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -184,10 +177,14 @@ import { SystemLog } from './entities/system-log.entity';
   ],
   providers: [
     {
+      provide: APP_FILTER,
+      useClass: HttpExceptionFilter,
+    },
+    {
       provide: APP_INTERCEPTOR,
       useClass: SystemLoggingInterceptor,
     },
-  ]
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

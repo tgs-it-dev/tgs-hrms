@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -16,7 +17,8 @@ export class PolicyService {
     private readonly repo: Repository<Policy>
   ) {}
 
-  async create(tenant_id: string, dto: CreatePolicyDto) {
+  async create(tenant_id: string | null, dto: CreatePolicyDto) {
+    if (tenant_id == null || tenant_id === '') throw new BadRequestException('Tenant context is required');
     const exists = await this.repo.findOne({
       where: { tenant_id, title: dto.title, category: dto.category },
       withDeleted: true,
@@ -31,7 +33,8 @@ export class PolicyService {
     return await this.repo.save(policy);
   }
 
-  async findAll(tenant_id: string, page = 1) {
+  async findAll(tenant_id: string | null, page = 1) {
+    if (tenant_id == null || tenant_id === '') throw new BadRequestException('Tenant context is required');
     const limit = 25;
     const skip = (page - 1) * limit;
     const [items, total] = await this.repo.findAndCount({
@@ -43,13 +46,15 @@ export class PolicyService {
     return { items, total, page, pageSize: limit, totalPages: Math.ceil(total / limit) };
   }
 
-  async findOne(tenant_id: string, id: string) {
+  async findOne(tenant_id: string | null, id: string) {
+    if (tenant_id == null || tenant_id === '') throw new BadRequestException('Tenant context is required');
     const policy = await this.repo.findOne({ where: { id, tenant_id } });
     if (!policy) throw new NotFoundException('Policy not found.');
     return policy;
   }
 
-  async update(tenant_id: string, id: string, dto: UpdatePolicyDto) {
+  async update(tenant_id: string | null, id: string, dto: UpdatePolicyDto) {
+    if (tenant_id == null || tenant_id === '') throw new BadRequestException('Tenant context is required');
     const policy = await this.findOne(tenant_id, id);
 
     if (dto.title || dto.category) {
@@ -69,7 +74,8 @@ export class PolicyService {
     return await this.repo.save(policy);
   }
 
-  async softDelete(tenant_id: string, id: string) {
+  async softDelete(tenant_id: string | null, id: string) {
+    if (tenant_id == null || tenant_id === '') throw new BadRequestException('Tenant context is required');
     const policy = await this.findOne(tenant_id, id);
     await this.repo.softDelete({ id: policy.id, tenant_id });
     return { deleted: true, id };

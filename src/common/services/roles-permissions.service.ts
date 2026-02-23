@@ -2,9 +2,10 @@
  * Roles and Permissions Configuration Service
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { ContextLogger, LoggerService } from '../logger/logger.service';
 
 export interface RoleConfig {
   name: string;
@@ -34,10 +35,11 @@ export interface RolesPermissionsConfig {
 
 @Injectable()
 export class RolesPermissionsService {
-  private readonly logger = new Logger(RolesPermissionsService.name);
+  private readonly logger: ContextLogger;
   private config: RolesPermissionsConfig;
 
-  constructor() {
+  constructor(private readonly loggerService: LoggerService) {
+    this.logger = this.loggerService.forChild(RolesPermissionsService.name);
     this.loadConfig();
   }
 
