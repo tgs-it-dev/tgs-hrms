@@ -18,6 +18,7 @@ import { SignupSession } from 'src/entities/signup-session.entity';
 import {
   AUTH_MESSAGES,
   BCRYPT_SALT_ROUNDS,
+  DEFAULT_JWT_REFRESH_EXPIRES_IN,
   GLOBAL_SYSTEM_TENANT_ID,
   RESET_TOKEN_EXPIRY_MS,
   UserRole,
@@ -226,7 +227,7 @@ export class AuthService {
     });
     const refreshToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_SECRET'),
-      expiresIn: '7d',
+      expiresIn: DEFAULT_JWT_REFRESH_EXPIRES_IN,
     });
     user.refresh_token = refreshToken;
     if (!user.first_login_time) {

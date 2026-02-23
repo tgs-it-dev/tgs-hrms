@@ -5,7 +5,6 @@ import { JwtPayload } from './interfaces';
 import { AUTH_MESSAGES } from '../constants';
 
 const BEARER_PREFIX = 'Bearer ';
-const DEFAULT_SECRET = 'default_secret';
 
 /**
  * JWT helper for non–request-auth flows.
@@ -18,11 +17,6 @@ export class JwtHelperService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
   ) {}
-
-  /** Get JWT secret from config */
-  getSecret(): string {
-    return this.configService.get<string>('JWT_SECRET') || DEFAULT_SECRET;
-  }
 
   /**
    * Extract Bearer token from Authorization header.
@@ -46,7 +40,7 @@ export class JwtHelperService {
   verifyToken<T extends object = JwtPayload>(token: string): T {
     try {
       const payload = this.jwtService.verify<T>(token, {
-        secret: this.getSecret(),
+        secret: this.configService.get<string>('JWT_SECRET'),
       });
       return payload;
     } catch {

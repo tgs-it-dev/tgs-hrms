@@ -48,7 +48,7 @@ export class EmailService {
       return;
     }
     const msg = { to: options.to, from, subject: options.subject, html: options.html };
-    await this.sendOrThrow(msg, `Email to ${Array.isArray(options.to) ? options.to.length : 1} recipient(s)`);
+    this.sendOrThrow(msg, `Email to ${Array.isArray(options.to) ? options.to.length : 1} recipient(s)`);
   }
 
   /**

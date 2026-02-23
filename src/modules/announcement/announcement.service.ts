@@ -225,7 +225,7 @@ export class AnnouncementService {
   ): Promise<void> {
     const from = this.emailService.getFromEmail();
     if (!from) {
-      this.logger.warn('SENDGRID_FROM not configured. Skipping announcement email.');
+      this.logger.warn('Email from address not configured.');
       return;
     }
     const priorityStyles: Record<string, { color: string; badge: string }> = {

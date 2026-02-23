@@ -26,8 +26,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
         _rawJwtToken: string,
         done: (err: Error | null, secret?: string) => void,
       ) => {
-        const secret = this.configService.get<string>('JWT_SECRET') || 'default_secret';
-        done(null, secret);
+        done(null, this.configService.get<string>('JWT_SECRET'));
       },
     });
   }

@@ -1,6 +1,7 @@
 
 import { Module, Logger, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { DEFAULT_JWT_EXPIRES_IN } from './common/constants';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { typeOrmConfig } from './config/typeorm.config';
@@ -59,7 +60,7 @@ import { SystemLog } from './entities/system-log.entity';
     EventEmitterModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [() => ({ JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '60m' })],
+      load: [() => ({ JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || DEFAULT_JWT_EXPIRES_IN })],
     }),
     MiddlewareConfigModule,
     LoggerModule,
