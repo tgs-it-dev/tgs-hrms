@@ -1,13 +1,6 @@
-import {
-  ExceptionFilter,
-  Catch,
-  ArgumentsHost,
-  HttpStatus,
-} from '@nestjs/common';
+import { ExceptionFilter, Catch, ArgumentsHost, HttpStatus } from '@nestjs/common';
 import { Request, Response } from 'express';
-import {
-  FILE_ERROR
-} from '../constants';
+import { FILE_ERROR } from '../constants';
 
 @Catch()
 export class MulterExceptionFilter implements ExceptionFilter {
@@ -17,17 +10,14 @@ export class MulterExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
 
     const status = HttpStatus.BAD_REQUEST;
-    let message = 'File upload error';
+    let message: string = FILE_ERROR.UPLOAD_ERROR_DEFAULT;
 
     // Handle Multer errors
     if (exception instanceof Error) {
       const errorMessage = exception.message.toLowerCase();
 
       // File size errors
-      if (
-        errorMessage.includes('file too large') ||
-        errorMessage.includes('limit exceeded')
-      ) {
+      if (errorMessage.includes('file too large') || errorMessage.includes('limit exceeded')) {
         message = FILE_ERROR.SIZE_EXCEEDED;
       }
       // File type errors
@@ -45,14 +35,10 @@ export class MulterExceptionFilter implements ExceptionFilter {
         errorMessage.includes('signature') ||
         errorMessage.includes('invalid')
       ) {
-        message =
-          exception.message || FILE_ERROR.FAILED_VALIDATION;
+        message = exception.message || FILE_ERROR.FAILED_VALIDATION;
       }
       // Generic file upload errors
-      else if (
-        errorMessage.includes('file') ||
-        errorMessage.includes('upload')
-      ) {
+      else if (errorMessage.includes('file') || errorMessage.includes('upload')) {
         message = exception.message || FILE_ERROR.UPLOAD_FAILED;
       }
       // Other errors

@@ -29,16 +29,12 @@ export class LoggerService {
   forChild(context: string): ContextLogger {
     const nestLogger = new Logger(context);
     return {
-      log: (message: any, ...optionalParams: any[]) =>
-        nestLogger.log(message, ...optionalParams),
+      log: (message: any, ...optionalParams: any[]) => nestLogger.log(message, ...optionalParams),
       error: (message: any, stack?: string, ...optionalParams: any[]) =>
         nestLogger.error(message, stack, ...optionalParams),
-      warn: (message: any, ...optionalParams: any[]) =>
-        nestLogger.warn(message, ...optionalParams),
-      debug: (message: any, ...optionalParams: any[]) =>
-        nestLogger.debug(message, ...optionalParams),
-      verbose: (message: any, ...optionalParams: any[]) =>
-        nestLogger.verbose(message, ...optionalParams),
+      warn: (message: any, ...optionalParams: any[]) => nestLogger.warn(message, ...optionalParams),
+      debug: (message: any, ...optionalParams: any[]) => nestLogger.debug(message, ...optionalParams),
+      verbose: (message: any, ...optionalParams: any[]) => nestLogger.verbose(message, ...optionalParams),
     };
   }
 }

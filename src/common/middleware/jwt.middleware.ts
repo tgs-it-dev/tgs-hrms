@@ -10,19 +10,11 @@ import { AUTH_MESSAGES } from 'src/common/constants';
 import type { AuthenticatedRequest } from 'src/modules/auth/interfaces';
 import type { JwtPayload } from 'src/common/jwt/interfaces';
 
-export function jwtMiddleware(
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction,
-): void {
-  passport.authenticate(
-    'jwt',
-    { session: false },
-    (err: Error | null, user: JwtPayload | false) => {
-      if (err) return next(err);
-      if (!user) return next(new UnauthorizedException(AUTH_MESSAGES.NO_TOKEN_PROVIDED));
-      req.user = user;
-      next();
-    },
-  )(req, res, next);
+export function jwtMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+  passport.authenticate('jwt', { session: false }, (err: Error | null, user: JwtPayload | false) => {
+    if (err) return next(err);
+    if (!user) return next(new UnauthorizedException(AUTH_MESSAGES.NO_TOKEN_PROVIDED));
+    req.user = user;
+    next();
+  })(req, res, next);
 }

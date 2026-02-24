@@ -40,6 +40,13 @@ export enum InviteStatus {
   DECLINED = 'Declined',
 }
 
+// Geofence shape type (used by common geofence util; entity uses same values)
+export enum GeofenceType {
+  POLYGON = 'polygon',
+  RECTANGLE = 'rectangle',
+  CIRCLE = 'circle',
+}
+
 // Attendance Enums
 export enum AttendanceType {
   CHECK_IN = 'check-in',

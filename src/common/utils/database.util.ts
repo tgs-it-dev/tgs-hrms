@@ -2,21 +2,10 @@
  * Enhanced Database Utility with Pagination
  */
 
-import {
-  Repository,
-  SelectQueryBuilder,
-  ObjectLiteral,
-  FindOptionsWhere,
-} from 'typeorm';
-import {
-  PaginationDto,
-  PaginationService,
-  PaginatedResponse,
-} from '../dto/pagination.dto';
+import { Repository, SelectQueryBuilder, ObjectLiteral, FindOptionsWhere } from 'typeorm';
+import { PaginationDto, PaginationService, PaginatedResponse } from '../dto/pagination.dto';
 import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
-import {
-  VALIDATION_ERROR,
-} from '../constants';
+import { VALIDATION_ERROR, DEFAULT_SORT_FIELD } from '../constants';
 
 interface SoftDeletable {
   deletedAt: Date | null;
@@ -34,20 +23,14 @@ export class DatabaseUtil {
     const query = repository.createQueryBuilder();
 
     // Apply pagination
-    const offset = PaginationService.calculateOffset(
-      paginationDto.page!,
-      paginationDto.limit!,
-    );
+    const offset = PaginationService.calculateOffset(paginationDto.page!, paginationDto.limit!);
     query.skip(offset).take(paginationDto.limit);
 
     // Apply sorting
-    if (
-      paginationDto.sortBy &&
-      allowedSortFields.includes(paginationDto.sortBy)
-    ) {
+    if (paginationDto.sortBy && allowedSortFields.includes(paginationDto.sortBy)) {
       query.orderBy(paginationDto.sortBy, paginationDto.sortOrder);
     } else {
-      query.orderBy('created_at', paginationDto.sortOrder);
+      query.orderBy(DEFAULT_SORT_FIELD, paginationDto.sortOrder);
     }
 
     return query;
@@ -62,12 +45,7 @@ export class DatabaseUtil {
   ): Promise<PaginatedResponse<T>> {
     const [items, total] = await queryBuilder.getManyAndCount();
 
-    return PaginationService.createPaginatedResponse(
-      items,
-      paginationDto.page!,
-      paginationDto.limit!,
-      total,
-    );
+    return PaginationService.createPaginatedResponse(items, paginationDto.page!, paginationDto.limit!, total);
   }
 
   /**
@@ -82,9 +60,7 @@ export class DatabaseUtil {
       return queryBuilder;
     }
 
-    const searchConditions = searchFields
-      .map((field) => `${field} ILIKE :searchTerm`)
-      .join(' OR ');
+    const searchConditions = searchFields.map((field) => `${field} ILIKE :searchTerm`).join(' OR ');
 
     queryBuilder.andWhere(`(${searchConditions})`, {
       searchTerm: `%${searchTerm}%`,
@@ -239,12 +215,7 @@ export class DatabaseUtil {
       tenantId?: string;
     } = {},
   ): SelectQueryBuilder<T> {
-    const {
-      allowedSortFields = [],
-      searchFields = [],
-      defaultSortField = 'created_at',
-      tenantId,
-    } = options;
+    const { allowedSortFields = [], searchFields = [], defaultSortField = DEFAULT_SORT_FIELD, tenantId } = options;
 
     let query = repository.createQueryBuilder();
 
@@ -265,16 +236,11 @@ export class DatabaseUtil {
     }
 
     // Apply pagination
-    const offset = PaginationService.calculateOffset(
-      paginationDto.page!,
-      paginationDto.limit!,
-    );
+    const offset = PaginationService.calculateOffset(paginationDto.page!, paginationDto.limit!);
     query.skip(offset).take(paginationDto.limit);
 
     // Apply sorting
-    const sortField = allowedSortFields.includes(paginationDto.sortBy!)
-      ? paginationDto.sortBy!
-      : defaultSortField;
+    const sortField = allowedSortFields.includes(paginationDto.sortBy!) ? paginationDto.sortBy! : defaultSortField;
 
     query.orderBy(sortField, paginationDto.sortOrder);
 

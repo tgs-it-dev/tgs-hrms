@@ -1,23 +1,20 @@
-import { Geofence, GeofenceType } from '../../entities/geofence.entity';
+import {
+  GeofenceType,
+  EARTH_RADIUS_METERS,
+  GEOFENCE_MARGIN_METERS,
+  GEOFENCE_DEFAULT_RADIUS_METERS,
+  METERS_PER_DEGREE_LAT,
+} from '../constants';
+import type { IGeofenceShape } from '../interfaces';
 
-const GEOFENCE_MARGIN_METERS = 20;
-
-function calculateDistance(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-): number {
-  const R = 6371000;
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = EARTH_RADIUS_METERS;
   const dLat = toRadians(lat2 - lat1);
   const dLon = toRadians(lon2 - lon1);
 
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRadians(lat1)) *
-      Math.cos(toRadians(lat2)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
+    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
 
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
@@ -64,11 +61,7 @@ function distanceToLineSegment(
   return calculateDistance(pointLat, pointLng, closestLat, closestLng);
 }
 
-function isPointInPolygon(
-  pointLat: number,
-  pointLng: number,
-  coordinates: number[][],
-): boolean {
+function isPointInPolygon(pointLat: number, pointLng: number, coordinates: number[][]): boolean {
   if (!coordinates || coordinates.length < 3) {
     return false;
   }
@@ -81,8 +74,7 @@ function isPointInPolygon(
     const edgeCrossesHorizontalLine = latI > pointLat !== latJ > pointLat;
 
     if (edgeCrossesHorizontalLine) {
-      const intersectionLng =
-        lngI + ((lngJ - lngI) * (pointLat - latI)) / (latJ - latI);
+      const intersectionLng = lngI + ((lngJ - lngI) * (pointLat - latI)) / (latJ - latI);
 
       if (intersectionLng > pointLng) {
         inside = !inside;
@@ -98,14 +90,7 @@ function isPointInPolygon(
     const [lat1, lng1] = coordinates[i];
     const [lat2, lng2] = coordinates[(i + 1) % coordinates.length];
 
-    const distanceToEdge = distanceToLineSegment(
-      pointLat,
-      pointLng,
-      lat1,
-      lng1,
-      lat2,
-      lng2,
-    );
+    const distanceToEdge = distanceToLineSegment(pointLat, pointLng, lat1, lng1, lat2, lng2);
 
     if (distanceToEdge <= GEOFENCE_MARGIN_METERS) {
       return true;
@@ -115,11 +100,7 @@ function isPointInPolygon(
   return false;
 }
 
-function isPointInRectangle(
-  pointLat: number,
-  pointLng: number,
-  coordinates: number[][],
-): boolean {
+function isPointInRectangle(pointLat: number, pointLng: number, coordinates: number[][]): boolean {
   if (!coordinates || coordinates.length < 4) {
     return false;
   }
@@ -132,10 +113,9 @@ function isPointInRectangle(
   const minLng = Math.min(...lngs);
   const maxLng = Math.max(...lngs);
 
-  const latMargin = GEOFENCE_MARGIN_METERS / 111000;
+  const latMargin = GEOFENCE_MARGIN_METERS / METERS_PER_DEGREE_LAT;
   const avgLat = (minLat + maxLat) / 2;
-  const lngMargin =
-    GEOFENCE_MARGIN_METERS / (111000 * Math.cos(toRadians(avgLat)));
+  const lngMargin = GEOFENCE_MARGIN_METERS / (METERS_PER_DEGREE_LAT * Math.cos(toRadians(avgLat)));
 
   return (
     pointLat >= minLat - latMargin &&
@@ -168,11 +148,7 @@ export interface GeofenceCheckResult {
 /**
  * Calculate minimum distance from a point to a polygon boundary
  */
-function distanceToPolygonBoundary(
-  pointLat: number,
-  pointLng: number,
-  coordinates: number[][],
-): number {
+function distanceToPolygonBoundary(pointLat: number, pointLng: number, coordinates: number[][]): number {
   if (!coordinates || coordinates.length < 3) {
     return Infinity;
   }
@@ -184,8 +160,7 @@ function distanceToPolygonBoundary(
     const [latJ, lngJ] = coordinates[j];
     const edgeCrossesHorizontalLine = latI > pointLat !== latJ > pointLat;
     if (edgeCrossesHorizontalLine) {
-      const intersectionLng =
-        lngI + ((lngJ - lngI) * (pointLat - latI)) / (latJ - latI);
+      const intersectionLng = lngI + ((lngJ - lngI) * (pointLat - latI)) / (latJ - latI);
       if (intersectionLng > pointLng) {
         inside = !inside;
       }
@@ -198,14 +173,7 @@ function distanceToPolygonBoundary(
     for (let i = 0; i < coordinates.length; i++) {
       const [lat1, lng1] = coordinates[i];
       const [lat2, lng2] = coordinates[(i + 1) % coordinates.length];
-      const distanceToEdge = distanceToLineSegment(
-        pointLat,
-        pointLng,
-        lat1,
-        lng1,
-        lat2,
-        lng2,
-      );
+      const distanceToEdge = distanceToLineSegment(pointLat, pointLng, lat1, lng1, lat2, lng2);
       minDistance = Math.min(minDistance, distanceToEdge);
     }
     return minDistance;
@@ -215,20 +183,8 @@ function distanceToPolygonBoundary(
     for (let i = 0; i < coordinates.length; i++) {
       const [lat1, lng1] = coordinates[i];
       const [lat2, lng2] = coordinates[(i + 1) % coordinates.length];
-      const distanceToEdge = distanceToLineSegment(
-        pointLat,
-        pointLng,
-        lat1,
-        lng1,
-        lat2,
-        lng2,
-      );
-      const distanceToVertex = calculateDistance(
-        pointLat,
-        pointLng,
-        lat1,
-        lng1,
-      );
+      const distanceToEdge = distanceToLineSegment(pointLat, pointLng, lat1, lng1, lat2, lng2);
+      const distanceToVertex = calculateDistance(pointLat, pointLng, lat1, lng1);
       minDistance = Math.min(minDistance, distanceToEdge, distanceToVertex);
     }
     return minDistance;
@@ -238,11 +194,7 @@ function distanceToPolygonBoundary(
 /**
  * Calculate minimum distance from a point to a rectangle boundary
  */
-function distanceToRectangleBoundary(
-  pointLat: number,
-  pointLng: number,
-  coordinates: number[][],
-): number {
+function distanceToRectangleBoundary(pointLat: number, pointLng: number, coordinates: number[][]): number {
   if (!coordinates || coordinates.length < 4) {
     return Infinity;
   }
@@ -255,11 +207,7 @@ function distanceToRectangleBoundary(
   const maxLng = Math.max(...lngs);
 
   // Check if point is inside
-  const isInside =
-    pointLat >= minLat &&
-    pointLat <= maxLat &&
-    pointLng >= minLng &&
-    pointLng <= maxLng;
+  const isInside = pointLat >= minLat && pointLat <= maxLat && pointLng >= minLng && pointLng <= maxLng;
 
   if (isInside) {
     // Point is inside, find distance to nearest edge
@@ -267,27 +215,15 @@ function distanceToRectangleBoundary(
     const distToBottom = pointLat - minLat;
     const distToRight = maxLng - pointLng;
     const distToLeft = pointLng - minLng;
-    return Math.min(distToTop, distToBottom, distToRight, distToLeft) * 111000; // Convert to meters
+    return Math.min(distToTop, distToBottom, distToRight, distToLeft) * METERS_PER_DEGREE_LAT;
   } else {
     // Point is outside, find distance to nearest edge or corner
     let minDistance = Infinity;
     for (let i = 0; i < coordinates.length; i++) {
       const [lat1, lng1] = coordinates[i];
       const [lat2, lng2] = coordinates[(i + 1) % coordinates.length];
-      const distanceToEdge = distanceToLineSegment(
-        pointLat,
-        pointLng,
-        lat1,
-        lng1,
-        lat2,
-        lng2,
-      );
-      const distanceToVertex = calculateDistance(
-        pointLat,
-        pointLng,
-        lat1,
-        lng1,
-      );
+      const distanceToEdge = distanceToLineSegment(pointLat, pointLng, lat1, lng1, lat2, lng2);
+      const distanceToVertex = calculateDistance(pointLat, pointLng, lat1, lng1);
       minDistance = Math.min(minDistance, distanceToEdge, distanceToVertex);
     }
     return minDistance;
@@ -301,15 +237,12 @@ function distanceToRectangleBoundary(
 export function checkPointWithinGeofence(
   pointLat: number,
   pointLng: number,
-  geofence: Geofence,
+  geofence: IGeofenceShape,
 ): GeofenceCheckResult {
   const geofenceLat = parseFloat(geofence.latitude);
   const geofenceLng = parseFloat(geofence.longitude);
 
   if (isNaN(geofenceLat) || isNaN(geofenceLng)) {
-    console.error(
-      `Invalid geofence coordinates: lat=${geofence.latitude}, lng=${geofence.longitude}`,
-    );
     return { isWithin: false, isNearBoundary: false };
   }
 
@@ -335,14 +268,8 @@ export function checkPointWithinGeofence(
   let distanceToBoundary: number;
 
   if (!geofence.type) {
-    // Legacy: default circle with 100m radius
-    const distance = calculateDistance(
-      pointLat,
-      pointLng,
-      geofenceLat,
-      geofenceLng,
-    );
-    distanceToBoundary = Math.abs(distance - 100);
+    const distance = calculateDistance(pointLat, pointLng, geofenceLat, geofenceLng);
+    distanceToBoundary = Math.abs(distance - GEOFENCE_DEFAULT_RADIUS_METERS);
   } else {
     switch (geofence.type) {
       case GeofenceType.CIRCLE: {
@@ -353,12 +280,7 @@ export function checkPointWithinGeofence(
         if (isNaN(radiusMeters)) {
           return { isWithin: false, isNearBoundary: false };
         }
-        const distance = calculateDistance(
-          pointLat,
-          pointLng,
-          geofenceLat,
-          geofenceLng,
-        );
+        const distance = calculateDistance(pointLat, pointLng, geofenceLat, geofenceLng);
         distanceToBoundary = Math.abs(distance - radiusMeters);
         break;
       }
@@ -376,11 +298,7 @@ export function checkPointWithinGeofence(
           }
           return coord;
         });
-        distanceToBoundary = distanceToRectangleBoundary(
-          pointLat,
-          pointLng,
-          normalizedRectCoords,
-        );
+        distanceToBoundary = distanceToRectangleBoundary(pointLat, pointLng, normalizedRectCoords);
         break;
       }
 
@@ -397,11 +315,7 @@ export function checkPointWithinGeofence(
           }
           return coord;
         });
-        distanceToBoundary = distanceToPolygonBoundary(
-          pointLat,
-          pointLng,
-          normalizedPolyCoords,
-        );
+        distanceToBoundary = distanceToPolygonBoundary(pointLat, pointLng, normalizedPolyCoords);
         break;
       }
 
@@ -419,29 +333,17 @@ export function checkPointWithinGeofence(
   };
 }
 
-export function isPointWithinGeofence(
-  pointLat: number,
-  pointLng: number,
-  geofence: Geofence,
-): boolean {
+export function isPointWithinGeofence(pointLat: number, pointLng: number, geofence: IGeofenceShape): boolean {
   const geofenceLat = parseFloat(geofence.latitude);
   const geofenceLng = parseFloat(geofence.longitude);
 
   if (isNaN(geofenceLat) || isNaN(geofenceLng)) {
-    console.error(
-      `Invalid geofence coordinates: lat=${geofence.latitude}, lng=${geofence.longitude}`,
-    );
     return false;
   }
 
   if (!geofence.type) {
-    const distance = calculateDistance(
-      pointLat,
-      pointLng,
-      geofenceLat,
-      geofenceLng,
-    );
-    return distance <= 100 + GEOFENCE_MARGIN_METERS;
+    const distance = calculateDistance(pointLat, pointLng, geofenceLat, geofenceLng);
+    return distance <= GEOFENCE_DEFAULT_RADIUS_METERS + GEOFENCE_MARGIN_METERS;
   }
 
   switch (geofence.type) {
@@ -453,13 +355,7 @@ export function isPointWithinGeofence(
       if (isNaN(radiusMeters)) {
         return false;
       }
-      return isPointInCircle(
-        pointLat,
-        pointLng,
-        geofenceLat,
-        geofenceLng,
-        radiusMeters,
-      );
+      return isPointInCircle(pointLat, pointLng, geofenceLat, geofenceLng, radiusMeters);
     }
 
     case GeofenceType.RECTANGLE: {
@@ -487,10 +383,6 @@ export function isPointWithinGeofence(
           !isNaN(coord[1]),
       );
       if (!validRectCoords) {
-        console.error(
-          'Invalid rectangle coordinates format:',
-          geofence.coordinates,
-        );
         return false;
       }
       return isPointInRectangle(pointLat, pointLng, normalizedRectCoords);
@@ -521,10 +413,6 @@ export function isPointWithinGeofence(
           !isNaN(coord[1]),
       );
       if (!validPolyCoords) {
-        console.error(
-          'Invalid polygon coordinates format:',
-          geofence.coordinates,
-        );
         return false;
       }
       return isPointInPolygon(pointLat, pointLng, normalizedPolyCoords);

@@ -1,27 +1,27 @@
-import {
-  CallHandler,
-  ExecutionContext,
-  Injectable,
-  NestInterceptor,
-} from '@nestjs/common';
+import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Observable } from 'rxjs';
 import { SystemLog } from 'src/entities/system-log.entity';
 import { Repository } from 'typeorm';
 import { sanitizeRequestBody } from '../utils/sanitize-request-body';
 import { AuthenticatedRequest } from 'src/modules/auth/interfaces';
+import { LOGGING_DEFAULT_ENTITY } from '../constants';
+import { ContextLogger, LoggerService } from '../logger/logger.service';
 
 @Injectable()
 export class SystemLoggingInterceptor implements NestInterceptor {
+  private readonly logger: ContextLogger;
+
   constructor(
     @InjectRepository(SystemLog)
     private readonly logRepo: Repository<SystemLog>,
-  ) {}
+    private readonly loggerService: LoggerService,
+  ) {
+    this.logger = this.loggerService.forChild(SystemLoggingInterceptor.name);
+  }
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    const req: AuthenticatedRequest = context
-      .switchToHttp()
-      .getRequest<AuthenticatedRequest>();
+    const req: AuthenticatedRequest = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const { user } = req;
     if (!user) {
       // If there's no authenticated user, we can choose to skip logging or log with null user info
@@ -33,12 +33,11 @@ export class SystemLoggingInterceptor implements NestInterceptor {
 
     const routeWithPath = req.route as { path?: string } | undefined;
 
-    const path =
-      typeof routeWithPath?.path === 'string' ? routeWithPath.path : req.url;
+    const path = typeof routeWithPath?.path === 'string' ? routeWithPath.path : req.url;
 
     const log = this.logRepo.create({
       action: `${req.method} ${path}`,
-      entityType: this.extractEntityFromPath(path),
+      entityType: this.extractEntityFromPath(path) || LOGGING_DEFAULT_ENTITY,
       userId: user?.id || null,
       userRole: user?.role || null,
       tenantId: user?.tenant_id || null,
@@ -52,17 +51,15 @@ export class SystemLoggingInterceptor implements NestInterceptor {
       },
     });
 
-    // Fire-and-forget: logging shouldn't block requests
-    this.logRepo.save(log).catch(() => {
-      // Silently fail - logging failures shouldn't break the app
-      // Consider using a proper logger here if needed
+    this.logRepo.save(log).catch((err) => {
+      this.logger.warn('System log save failed', err instanceof Error ? err.message : String(err));
     });
 
     return next.handle();
   }
 
-  private extractEntityFromPath(path: string): string {
+  private extractEntityFromPath(path: string): string | null {
     const match = path?.split('/')?.[1];
-    return match ? match.replace(/s$/, '') : 'Unknown';
+    return match ? match.replace(/s$/, '') : null;
   }
 }

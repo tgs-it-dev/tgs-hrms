@@ -1,6 +1,7 @@
 import { Response } from 'express';
+import { CSV_HEADER } from '../constants';
 
-export function toCsv(rows: Array<Record<string, any>>): string {
+export function toCsv(rows: Array<Record<string, unknown>>): string {
   if (!rows || rows.length === 0) {
     return '';
   }
@@ -11,10 +12,9 @@ export function toCsv(rows: Array<Record<string, any>>): string {
   }, new Set<string>());
   const headers = Array.from(headerSet);
 
-  const escape = (value: any): string => {
+  const escape = (value: unknown): string => {
     if (value === null || value === undefined) return '';
     const str = String(value);
-
     const needsQuotes = /[",\n\r]/.test(str) || str.includes(',');
     const escaped = str.replace(/"/g, '""');
     return needsQuotes ? `"${escaped}"` : escaped;
@@ -25,13 +25,9 @@ export function toCsv(rows: Array<Record<string, any>>): string {
   return [headerLine, ...lines].join('\n');
 }
 
-export function sendCsvResponse(
-  res: Response,
-  filename: string,
-  rows: Array<Record<string, any>>,
-): void {
+export function sendCsvResponse(res: Response, filename: string, rows: Array<Record<string, unknown>>): void {
   const csv = toCsv(rows);
-  res.setHeader('Content-Type', 'text/csv');
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.setHeader(CSV_HEADER.CONTENT_TYPE, CSV_HEADER.CONTENT_TYPE_VALUE);
+  res.setHeader(CSV_HEADER.CONTENT_DISPOSITION, `${CSV_HEADER.ATTACHMENT_PREFIX}${filename}"`);
   res.send(csv);
 }

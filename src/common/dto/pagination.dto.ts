@@ -2,16 +2,10 @@
  * Pagination DTOs and utilities
  */
 
-import {
-  IsOptional,
-  IsNumber,
-  Min,
-  Max,
-  IsString,
-  IsEnum,
-} from 'class-validator';
+import { IsOptional, IsNumber, Min, Max, IsString, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { PAGINATION_VALIDATION } from '../constants';
 
 export enum SortOrder {
   ASC = 'ASC',
@@ -95,11 +89,7 @@ export class PaginationService {
   /**
    * Calculate pagination metadata
    */
-  static calculateMeta(
-    page: number,
-    limit: number,
-    total: number,
-  ): PaginationMeta {
+  static calculateMeta(page: number, limit: number, total: number): PaginationMeta {
     const totalPages = Math.ceil(total / limit);
 
     return {
@@ -136,18 +126,15 @@ export class PaginationService {
   /**
    * Validate pagination parameters
    */
-  static validatePagination(
-    page: number,
-    limit: number,
-  ): { isValid: boolean; errors: string[] } {
+  static validatePagination(page: number, limit: number): { isValid: boolean; errors: string[] } {
     const errors: string[] = [];
 
     if (page < 1) {
-      errors.push('Page must be greater than 0');
+      errors.push(PAGINATION_VALIDATION.PAGE_GREATER_THAN_ZERO);
     }
 
     if (limit < 1 || limit > 100) {
-      errors.push('Limit must be between 1 and 100');
+      errors.push(PAGINATION_VALIDATION.LIMIT_BETWEEN_1_AND_100);
     }
 
     return {
@@ -159,12 +146,7 @@ export class PaginationService {
   /**
    * Create paginated response
    */
-  static createPaginatedResponse<T>(
-    data: T[],
-    page: number,
-    limit: number,
-    total: number,
-  ): PaginatedResponse<T> {
+  static createPaginatedResponse<T>(data: T[], page: number, limit: number, total: number): PaginatedResponse<T> {
     const meta = this.calculateMeta(page, limit, total);
 
     return {

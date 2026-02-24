@@ -38,4 +38,11 @@ export const AUTH_MESSAGES = {
 
   // Permissions
   PERMISSION_DENIED: 'You do not have the required permissions',
+
+  // JWT / Interceptor
+  UNAUTHORIZED: 'Unauthorized',
+  ACCESS_TOKEN_EXPIRED: 'Access token expired',
+  TOKEN_EXPIRED: 'TOKEN_EXPIRED',
+  INVALID_ACCESS_TOKEN: 'Invalid access token',
+  INVALID_TOKEN_CODE: 'INVALID_TOKEN',
 } as const;

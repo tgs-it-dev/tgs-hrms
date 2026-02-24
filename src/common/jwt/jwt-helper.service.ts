@@ -2,9 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { JwtPayload } from './interfaces';
-import { AUTH_MESSAGES } from '../constants';
-
-const BEARER_PREFIX = 'Bearer ';
+import { AUTH_MESSAGES, BEARER_PREFIX } from '../constants';
 
 /**
  * JWT helper for non–request-auth flows.

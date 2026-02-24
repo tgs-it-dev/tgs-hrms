@@ -17,9 +17,7 @@ export const getPostgresErrorCode = (error: unknown): string | undefined => {
   return undefined;
 };
 
-export const getPostgresErrorConstraint = (
-  error: unknown,
-): string | undefined => {
+export const getPostgresErrorConstraint = (error: unknown): string | undefined => {
   if (isPostgresError(error)) {
     return error.constraint;
   }

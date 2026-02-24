@@ -1,9 +1,10 @@
 /**
- * File validation utility with magic number/file signature checks
- * Provides enhanced security beyond MIME type validation
+ * File validation utility with magic number/file signature checks.
+ * Provides enhanced security beyond MIME type validation.
  */
 
 import { BadRequestException } from '@nestjs/common';
+import { FILE_ERROR, DEFAULT_MAX_FILE_SIZE } from '../constants';
 
 /**
  * File signatures (magic numbers) for common image formats
@@ -31,31 +32,20 @@ const FILE_SIGNATURES: Record<string, number[][]> = {
 /**
  * Allowed MIME types for image uploads
  */
-const ALLOWED_IMAGE_MIME_TYPES = [
-  'image/jpeg',
-  'image/jpg',
-  'image/png',
-  'image/gif',
-  'image/webp',
-];
+const ALLOWED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
 
 /**
  * Allowed file extensions
  */
 const ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
 
-/**
- * Maximum file size (5MB)
- */
-const MAX_FILE_SIZE = 5 * 1024 * 1024;
+/** Maximum file size default (use DEFAULT_MAX_FILE_SIZE from config when available). */
+const MAX_FILE_SIZE = DEFAULT_MAX_FILE_SIZE;
 
 /**
  * Validates file signature (magic number) against expected MIME type
  */
-function validateFileSignature(
-  buffer: Buffer,
-  expectedMimeType: string,
-): boolean {
+function validateFileSignature(buffer: Buffer, expectedMimeType: string): boolean {
   const signatures = FILE_SIGNATURES[expectedMimeType.toLowerCase()];
   if (!signatures || signatures.length === 0) {
     // If no signature defined for this type, skip signature validation
@@ -98,9 +88,7 @@ function validateWebPSignature(buffer: Buffer): boolean {
  * - File signature (magic number)
  */
 export function validateImageFile(
-  file:
-    | Express.Multer.File
-    | { buffer: Buffer; mimetype: string; originalname: string; size: number },
+  file: Express.Multer.File | { buffer: Buffer; mimetype: string; originalname: string; size: number },
   options: {
     maxSize?: number;
     allowedMimeTypes?: string[];
@@ -109,33 +97,22 @@ export function validateImageFile(
 ): void {
   const maxSize = options.maxSize || MAX_FILE_SIZE;
   const allowedMimeTypes = options.allowedMimeTypes || ALLOWED_IMAGE_MIME_TYPES;
-  const allowedExtensions =
-    options.allowedExtensions || ALLOWED_IMAGE_EXTENSIONS;
+  const allowedExtensions = options.allowedExtensions || ALLOWED_IMAGE_EXTENSIONS;
 
-  // Validate file size
   if (file.size > maxSize) {
-    throw new BadRequestException(
-      `File size exceeds maximum allowed size of ${maxSize / 1024 / 1024}MB`,
-    );
+    throw new BadRequestException(FILE_ERROR.SIZE_EXCEEDED);
   }
 
   // Validate file extension
-  const fileExtension = file.originalname
-    .substring(file.originalname.lastIndexOf('.'))
-    .toLowerCase();
+  const fileExtension = file.originalname.substring(file.originalname.lastIndexOf('.')).toLowerCase();
 
   if (!allowedExtensions.includes(fileExtension)) {
-    throw new BadRequestException(
-      `Invalid file extension. Allowed extensions: ${allowedExtensions.join(', ')}`,
-    );
+    throw new BadRequestException(FILE_ERROR.INVALID_TYPE);
   }
 
-  // Validate MIME type
   const mimeType = file.mimetype.toLowerCase();
   if (!allowedMimeTypes.includes(mimeType)) {
-    throw new BadRequestException(
-      `Invalid file type. Allowed types: ${allowedMimeTypes.join(', ')}`,
-    );
+    throw new BadRequestException(FILE_ERROR.INVALID_TYPE);
   }
 
   // Validate file signature (magic number) - most important security check
@@ -144,17 +121,13 @@ export function validateImageFile(
     return;
   }
 
-  // Special handling for WebP
   if (mimeType === 'image/webp') {
     if (!validateWebPSignature(file.buffer)) {
-      throw new BadRequestException('Invalid WebP file signature');
+      throw new BadRequestException(FILE_ERROR.INVALID_WEBP_SIGNATURE);
     }
   } else {
-    // Validate signature for other image types
     if (!validateFileSignature(file.buffer, mimeType)) {
-      throw new BadRequestException(
-        `File signature does not match declared MIME type: ${mimeType}`,
-      );
+      throw new BadRequestException(FILE_ERROR.SIGNATURE_MISMATCH);
     }
   }
 }
@@ -169,10 +142,7 @@ export function getFileExtension(filename: string): string {
 /**
  * Check if file extension is allowed
  */
-export function isAllowedExtension(
-  filename: string,
-  allowedExtensions: string[],
-): boolean {
+export function isAllowedExtension(filename: string, allowedExtensions: string[]): boolean {
   const ext = getFileExtension(filename);
   return allowedExtensions.includes(ext);
 }

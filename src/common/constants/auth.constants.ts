@@ -34,3 +34,6 @@ export const AUTH_THROTTLE_LOGIN_TTL_MS = 60_000;
 export const AUTH_THROTTLE_RESET_LIMIT = 5;
 /** Auth throttle: reset-password – window in ms (5 min). */
 export const AUTH_THROTTLE_RESET_TTL_MS = 300_000;
+
+/** Bearer token prefix in Authorization header. */
+export const BEARER_PREFIX = 'Bearer ';
