@@ -14,6 +14,7 @@ import { SystemPerformanceService } from "./system-performance.service";
 @ApiTags("System (Performance)")
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
+@Roles("system-admin")
 @Controller("system/performance")
 export class SystemPerformanceController {
   constructor(private readonly performanceService: SystemPerformanceService) {}
@@ -23,7 +24,6 @@ export class SystemPerformanceController {
    * GET /system/performance/kpis
    */
   @Get("kpis")
-  @Roles("system-admin")
   @ApiOperation({
     summary: "View KPI categories and scoring trends across tenants",
   })
@@ -52,7 +52,6 @@ export class SystemPerformanceController {
    * GET /system/performance/records
    */
   @Get("records")
-  @Roles("system-admin")
   @ApiOperation({
     summary: "Fetch summarized performance reviews per employee (Paginated)",
   })
@@ -104,7 +103,6 @@ export class SystemPerformanceController {
    * GET /system/performance/promotions
    */
   @Get("promotions")
-  @Roles("system-admin")
   @ApiOperation({
     summary: "Track vertical promotions and pending evaluations (Paginated)",
   })
