@@ -89,7 +89,7 @@ async function bootstrap(): Promise<void> {
   const swaggerUser = process.env.SWAGGER_USER ?? 'admin';
   if (swaggerPassword) {
     app.use(
-      '/api/docs',
+      '/api',
       basicAuth({
         users: { [swaggerUser]: swaggerPassword },
         challenge: true,
@@ -106,7 +106,7 @@ async function bootstrap(): Promise<void> {
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('docs', app, document, {
+  SwaggerModule.setup('api', app, document, {
     swaggerOptions: { docExpansion: 'none' },
   });
 
