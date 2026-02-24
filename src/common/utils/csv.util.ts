@@ -14,7 +14,19 @@ export function toCsv(rows: Array<Record<string, unknown>>): string {
 
   const escape = (value: unknown): string => {
     if (value === null || value === undefined) return '';
-    const str = String(value);
+    let str: string;
+    if (typeof value === 'object') {
+      str = JSON.stringify(value);
+    } else if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      str = String(value);
+    } else if (typeof value === 'symbol') {
+      str = value.description ?? '';
+    } else if (typeof value === 'bigint') {
+      str = value.toString();
+    } else {
+      // function or other: use toString (object already handled above)
+      str = (value as (...args: unknown[]) => unknown).toString();
+    }
     const needsQuotes = /[",\n\r]/.test(str) || str.includes(',');
     const escaped = str.replace(/"/g, '""');
     return needsQuotes ? `"${escaped}"` : escaped;

@@ -51,11 +51,20 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
       logger.log(`Inserted/Updated permission: ${permission}`);
     }
 
-    const roleRows = await dataSource.query('SELECT id, name FROM roles');
-    const permissionRows = await dataSource.query('SELECT id, name FROM permissions');
+    interface RoleRow {
+      id: string;
+      name: string;
+    }
+    interface PermissionRow {
+      id: string;
+      name: string;
+    }
 
-    const roleNameToId = new Map(roleRows.map((r: any) => [r.name, r.id]));
-    const permNameToId = new Map(permissionRows.map((r: any) => [r.name, r.id]));
+    const roleRows = await dataSource.query<RoleRow[]>('SELECT id, name FROM roles');
+    const permissionRows = await dataSource.query<PermissionRow[]>('SELECT id, name FROM permissions');
+
+    const roleNameToId = new Map(roleRows.map((r) => [r.name, r.id] as const));
+    const permNameToId = new Map(permissionRows.map((p) => [p.name, p.id] as const));
 
     const roleToPermissions: Record<string, string[]> = {
       'system-admin': [

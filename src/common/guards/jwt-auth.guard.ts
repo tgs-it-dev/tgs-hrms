@@ -12,7 +12,8 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     return super.canActivate(context);
   }
 
-  handleRequest<TUser>(err: Error | null, user: TUser, _info: unknown): TUser {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- signature required by Passport
+  handleRequest<TUser>(err: Error | null, user: TUser, _info?: unknown): TUser {
     if (err) throw err;
     if (!user) {
       throw new UnauthorizedException(AUTH_MESSAGES.NO_TOKEN_PROVIDED);

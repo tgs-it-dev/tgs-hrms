@@ -94,7 +94,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
     } else if (typeof message === 'object' && message !== null) {
       const msgObj = message as Record<string, unknown>;
       messageText = String(msgObj.message) || HTTP_ERROR.INTERNAL_SERVER_ERROR;
-      const { message: _m, ...rest } = msgObj;
+      const { message: _omit, ...rest } = msgObj;
+      void _omit;
       additionalProps = rest;
     } else {
       messageText = HTTP_ERROR.INTERNAL_SERVER_ERROR;

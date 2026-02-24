@@ -16,7 +16,7 @@ export class JwtRefreshInterceptor implements NestInterceptor {
     return next.handle().pipe(
       catchError((error: unknown) => {
         if (error instanceof UnauthorizedException && error.message === AUTH_MESSAGES.UNAUTHORIZED) {
-          const request = context.switchToHttp().getRequest();
+          const request = context.switchToHttp().getRequest<{ headers?: { authorization?: string } }>();
           const token = this.jwtHelper.extractBearerToken(request.headers?.authorization);
 
           if (token) {

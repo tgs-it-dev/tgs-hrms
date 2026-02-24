@@ -271,7 +271,8 @@ export function checkPointWithinGeofence(
     const distance = calculateDistance(pointLat, pointLng, geofenceLat, geofenceLng);
     distanceToBoundary = Math.abs(distance - GEOFENCE_DEFAULT_RADIUS_METERS);
   } else {
-    switch (geofence.type) {
+    const type = geofence.type as GeofenceType;
+    switch (type) {
       case GeofenceType.CIRCLE: {
         if (!geofence.radius) {
           return { isWithin: false, isNearBoundary: false };
@@ -346,7 +347,8 @@ export function isPointWithinGeofence(pointLat: number, pointLng: number, geofen
     return distance <= GEOFENCE_DEFAULT_RADIUS_METERS + GEOFENCE_MARGIN_METERS;
   }
 
-  switch (geofence.type) {
+  const type = geofence.type as GeofenceType;
+  switch (type) {
     case GeofenceType.CIRCLE: {
       if (!geofence.radius) {
         return false;

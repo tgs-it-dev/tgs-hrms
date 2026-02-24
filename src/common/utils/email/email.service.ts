@@ -66,8 +66,9 @@ export class EmailService {
     try {
       await sgMail.send(msg);
       this.logger.log(`${description} ${EMAIL_MESSAGE.SENT_SUCCESS}`);
-    } catch (error) {
-      this.logger.error(`${EMAIL_MESSAGE.SEND_FAILED} ${description}:`, error);
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error(`${EMAIL_MESSAGE.SEND_FAILED} ${description}:`, errMsg);
       throw new Error(`${EMAIL_MESSAGE.SEND_FAILED} ${description}`);
     }
   }

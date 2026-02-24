@@ -22,7 +22,7 @@ import { UserGender, UserStatus } from '../constants/enums';
 export class BaseQueryDto {
   @ApiPropertyOptional({ description: 'Page number', example: 1, minimum: 1 })
   @IsOptional()
-  @Transform(({ value }) => parseInt(value))
+  @Transform(({ value }) => parseInt(String(value), 10))
   @IsNumber()
   @Min(1)
   page?: number = 1;
@@ -34,7 +34,7 @@ export class BaseQueryDto {
     maximum: 100,
   })
   @IsOptional()
-  @Transform(({ value }) => parseInt(value))
+  @Transform(({ value }) => parseInt(String(value), 10))
   @IsNumber()
   @Min(1)
   @Max(100)

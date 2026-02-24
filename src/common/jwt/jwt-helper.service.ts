@@ -52,7 +52,7 @@ export class JwtHelperService {
    */
   decodeToken<T = JwtPayload>(token: string): T | null {
     try {
-      const decoded = this.jwtService.decode(token);
+      const decoded: unknown = this.jwtService.decode(token);
       if (decoded && typeof decoded === 'object' && !Array.isArray(decoded)) {
         return decoded as T;
       }
