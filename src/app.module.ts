@@ -1,20 +1,26 @@
 import { Module, Logger, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { DEFAULT_JWT_EXPIRES_IN } from './common/constants';
-import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { typeOrmConfig } from './config/typeorm.config';
 import { ThrottlerModule } from '@nestjs/throttler';
-import { MailerModule } from '@nestjs-modules/mailer';
-import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { MailerModule } from '@nestjs-modules/mailer';
+import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { join } from 'path';
+
+import { DEFAULT_JWT_EXPIRES_IN } from './common/constants';
+import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { MiddlewareConfigModule } from './common/middleware/middleware.config';
 import { LoggerModule } from './common/logger/logger.module';
 import { SharedJwtModule } from './common/modules/jwt.module';
 import { TokenValidationModule } from './common/modules/token-validation.module';
 import { EmailModule } from './common/utils/email/email.module';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { SystemLoggingInterceptor } from './common/interceptors/system-logging.interceptor';
+import { SystemLog } from './entities/system-log.entity';
+import { typeOrmConfig } from './config/typeorm.config';
+
 import { UserModule } from './modules/user/user.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { DepartmentModule } from './modules/department/department.module';
@@ -49,10 +55,9 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { GeofenceModule } from './modules/geofence/geofence.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { AnnouncementModule } from './modules/announcement/announcement.module';
-import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
-import { HttpExceptionFilter } from './common/filters/http-exception.filter';
-import { SystemLoggingInterceptor } from './common/interceptors/system-logging.interceptor';
-import { SystemLog } from './entities/system-log.entity';
+
+const THROTTLE_TTL_SECONDS = 900;
+const THROTTLE_LIMIT = 100;
 
 @Module({
   imports: [
@@ -60,54 +65,45 @@ import { SystemLog } from './entities/system-log.entity';
     EventEmitterModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [() => ({ JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || DEFAULT_JWT_EXPIRES_IN })],
+      load: [
+        () => ({
+          JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN ?? DEFAULT_JWT_EXPIRES_IN,
+        }),
+      ],
     }),
     MiddlewareConfigModule,
     LoggerModule,
     SharedJwtModule,
     TokenValidationModule,
     EmailModule,
-
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: typeOrmConfig,
       inject: [ConfigService],
     }),
     TypeOrmModule.forFeature([SystemLog]),
-
-    // Global throttling: ttl in seconds (900 = 15 minutes)
-    ThrottlerModule.forRoot([{ ttl: 900, limit: 100 }]),
-
+    ThrottlerModule.forRoot([{ ttl: THROTTLE_TTL_SECONDS, limit: THROTTLE_LIMIT }]),
     MailerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (config: ConfigService) => {
+      useFactory: (config: ConfigService) => {
         const logger = new Logger('MailerModule');
         const sendgridApiKey = config.get<string>('SENDGRID_API_KEY');
         const sendgridFrom = config.get<string>('SENDGRID_FROM');
 
-        
         if (!sendgridApiKey || !sendgridFrom) {
           logger.warn('SendGrid configuration incomplete. Using fallback configuration.');
           logger.warn('Required: SENDGRID_API_KEY, SENDGRID_FROM');
-          
-          
           return {
             transport: {
               service: 'sendgrid',
-              auth: {
-                api_key: 'dummy-key',
-              },
+              auth: { api_key: 'dummy-key' },
             },
-            defaults: {
-              from: 'noreply@example.com',
-            },
+            defaults: { from: 'noreply@example.com' },
             template: {
               dir: join(process.cwd(), 'src', 'templates'),
               adapter: new HandlebarsAdapter(),
-              options: {
-                strict: true,
-              },
+              options: { strict: true },
             },
           };
         }
@@ -115,25 +111,17 @@ import { SystemLog } from './entities/system-log.entity';
         return {
           transport: {
             service: 'sendgrid',
-            auth: {
-              api_key: sendgridApiKey,
-            },
+            auth: { api_key: sendgridApiKey },
           },
-          defaults: {
-            from: sendgridFrom,
-          },
+          defaults: { from: sendgridFrom },
           template: {
             dir: join(process.cwd(), 'src', 'templates'),
             adapter: new HandlebarsAdapter(),
-            options: {
-              strict: true,
-            },
+            options: { strict: true },
           },
         };
       },
     }),
-
-    
     UserModule,
     AuthModule,
     DepartmentModule,
@@ -170,18 +158,12 @@ import { SystemLog } from './entities/system-log.entity';
     AnnouncementModule,
   ],
   providers: [
-    {
-      provide: APP_FILTER,
-      useClass: HttpExceptionFilter,
-    },
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: SystemLoggingInterceptor,
-    },
+    { provide: APP_FILTER, useClass: HttpExceptionFilter },
+    { provide: APP_INTERCEPTOR, useClass: SystemLoggingInterceptor },
   ],
 })
 export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
+  configure(consumer: MiddlewareConsumer): void {
     consumer.apply(CorrelationIdMiddleware).forRoutes('*');
   }
 }

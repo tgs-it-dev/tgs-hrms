@@ -1,5 +1,14 @@
 import { Controller, Get } from '@nestjs/common';
+
 import { AppService } from './app.service';
+
+export interface HealthCheckResponse {
+  status: string;
+  timestamp: string;
+  uptime: number;
+  pid: number | undefined;
+  memory: NodeJS.MemoryUsage;
+}
 
 @Controller()
 export class AppController {
@@ -11,7 +20,7 @@ export class AppController {
   }
 
   @Get('health')
-  health() {
+  getHealth(): HealthCheckResponse {
     return {
       status: 'ok',
       timestamp: new Date().toISOString(),

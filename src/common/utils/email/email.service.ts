@@ -48,7 +48,7 @@ export class EmailService {
       return;
     }
     const msg = { to: options.to, from, subject: options.subject, html: options.html };
-    this.sendOrThrow(msg, `Email to ${Array.isArray(options.to) ? options.to.length : 1} recipient(s)`);
+    return this.sendOrThrow(msg, `Email to ${Array.isArray(options.to) ? options.to.length : 1} recipient(s)`);
   }
 
   /**
