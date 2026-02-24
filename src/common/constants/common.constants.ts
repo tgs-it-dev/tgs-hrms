@@ -1,5 +1,6 @@
 export const VALIDATION_ERROR = {
   ENTITY_NOT_FOUND: 'Entity not found',
+  TENANT_ID_REQUIRED: 'Tenant context is required. Ensure the route is protected by JWT and tenant guards.',
 };
 
 /** Keys in request body that are redacted when logging. */

@@ -69,7 +69,11 @@ export class EmailService {
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(`${EMAIL_MESSAGE.SEND_FAILED} ${description}:`, errMsg);
-      throw new Error(`${EMAIL_MESSAGE.SEND_FAILED} ${description}`);
+      const wrapped = new Error(`${EMAIL_MESSAGE.SEND_FAILED} ${description}`);
+      if (error instanceof Error) {
+        wrapped.cause = error;
+      }
+      throw wrapped;
     }
   }
 }

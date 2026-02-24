@@ -63,6 +63,10 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
     const roleRows = await dataSource.query<RoleRow[]>('SELECT id, name FROM roles');
     const permissionRows = await dataSource.query<PermissionRow[]>('SELECT id, name FROM permissions');
 
+    if (!Array.isArray(roleRows) || !Array.isArray(permissionRows)) {
+      throw new Error('Seed query returned unexpected result shape (expected arrays)');
+    }
+
     const roleNameToId = new Map(roleRows.map((r) => [r.name, r.id] as const));
     const permNameToId = new Map(permissionRows.map((p) => [p.name, p.id] as const));
 
