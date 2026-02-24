@@ -7,6 +7,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as sgMail from '@sendgrid/mail';
 import { ContextLogger, LoggerService } from '../../logger/logger.service';
+import { EMAIL_MESSAGE } from '../../constants';
 
 export interface SendMailOptions {
   to: string | string[];
@@ -27,9 +28,9 @@ export class EmailService {
     const apiKey = this.configService.get<string>('SENDGRID_API_KEY');
     if (apiKey) {
       sgMail.setApiKey(apiKey);
-      this.logger.log('SendGrid API key configured successfully');
+      this.logger.log(EMAIL_MESSAGE.SENDGRID_CONFIGURED);
     } else {
-      this.logger.warn('SENDGRID_API_KEY not found. Email functionality will be disabled.');
+      this.logger.warn(EMAIL_MESSAGE.SENDGRID_KEY_NOT_FOUND);
     }
   }
 
@@ -41,21 +42,21 @@ export class EmailService {
   /**
    * Send a single or multiple recipients. Uses SENDGRID_FROM when from is omitted.
    */
-  async send(options: SendMailOptions): Promise<void> {
+  send(options: SendMailOptions): void {
     const from = options.from ?? this.getFromEmail();
     if (!from) {
-      this.logger.warn('SENDGRID_FROM not configured. Skipping email send.');
+      this.logger.warn(EMAIL_MESSAGE.SENDGRID_FROM_NOT_CONFIGURED);
       return;
     }
     const msg = { to: options.to, from, subject: options.subject, html: options.html };
-    this.sendOrThrow(msg, `Email to ${Array.isArray(options.to) ? options.to.length : 1} recipient(s)`);
+    void this.sendOrThrow(msg, `Email to ${Array.isArray(options.to) ? options.to.length : 1} recipient(s)`);
   }
 
   /**
    * Send the same email to multiple recipients (convenience for to[]).
    */
-  async sendBulk(to: string[], subject: string, html: string, from?: string): Promise<void> {
-    await this.send({ to, subject, html, from });
+  sendBulk(to: string[], subject: string, html: string, from?: string): void {
+    this.send({ to, subject, html, from });
   }
 
   private async sendOrThrow(
@@ -64,10 +65,15 @@ export class EmailService {
   ): Promise<void> {
     try {
       await sgMail.send(msg);
-      this.logger.log(`${description} sent successfully`);
-    } catch (error) {
-      this.logger.error(`Failed to send ${description}:`, error);
-      throw new Error(`Failed to send ${description}`);
+      this.logger.log(`${description} ${EMAIL_MESSAGE.SENT_SUCCESS}`);
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error(`${EMAIL_MESSAGE.SEND_FAILED} ${description}:`, errMsg);
+      const wrapped = new Error(`${EMAIL_MESSAGE.SEND_FAILED} ${description}`);
+      if (error instanceof Error) {
+        wrapped.cause = error;
+      }
+      throw wrapped;
     }
   }
 }

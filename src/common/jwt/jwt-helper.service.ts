@@ -2,9 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { JwtPayload } from './interfaces';
-import { AUTH_MESSAGES } from '../constants';
-
-const BEARER_PREFIX = 'Bearer ';
+import { AUTH_MESSAGES, BEARER_PREFIX } from '../constants';
 
 /**
  * JWT helper for non–request-auth flows.
@@ -54,7 +52,7 @@ export class JwtHelperService {
    */
   decodeToken<T = JwtPayload>(token: string): T | null {
     try {
-      const decoded = this.jwtService.decode(token);
+      const decoded: unknown = this.jwtService.decode(token);
       if (decoded && typeof decoded === 'object' && !Array.isArray(decoded)) {
         return decoded as T;
       }

@@ -1,13 +1,8 @@
-import {
-  Injectable,
-  NestInterceptor,
-  ExecutionContext,
-  CallHandler,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, NestInterceptor, ExecutionContext, CallHandler, UnauthorizedException } from '@nestjs/common';
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { JwtHelperService } from 'src/common/jwt';
+import { AUTH_MESSAGES } from '../constants';
 
 interface DecodedPayload {
   exp?: number;
@@ -20,9 +15,9 @@ export class JwtRefreshInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     return next.handle().pipe(
       catchError((error: unknown) => {
-        if (error instanceof UnauthorizedException && error.message === 'Unauthorized') {
-          const request = context.switchToHttp().getRequest();
-          const token = this.jwtHelper.extractBearerToken(request.headers.authorization);
+        if (error instanceof UnauthorizedException && error.message === AUTH_MESSAGES.UNAUTHORIZED) {
+          const request = context.switchToHttp().getRequest<{ headers?: { authorization?: string } }>();
+          const token = this.jwtHelper.extractBearerToken(request.headers?.authorization);
 
           if (token) {
             const decoded = this.jwtHelper.decodeToken<DecodedPayload>(token);
@@ -32,8 +27,8 @@ export class JwtRefreshInterceptor implements NestInterceptor {
                 return throwError(
                   () =>
                     new UnauthorizedException({
-                      message: 'Access token expired',
-                      code: 'TOKEN_EXPIRED',
+                      message: AUTH_MESSAGES.ACCESS_TOKEN_EXPIRED,
+                      code: AUTH_MESSAGES.TOKEN_EXPIRED,
                       shouldRefresh: true,
                     }),
                 );
@@ -42,8 +37,8 @@ export class JwtRefreshInterceptor implements NestInterceptor {
               return throwError(
                 () =>
                   new UnauthorizedException({
-                    message: 'Invalid access token',
-                    code: 'INVALID_TOKEN',
+                    message: AUTH_MESSAGES.INVALID_ACCESS_TOKEN,
+                    code: AUTH_MESSAGES.INVALID_TOKEN_CODE,
                   }),
               );
             }

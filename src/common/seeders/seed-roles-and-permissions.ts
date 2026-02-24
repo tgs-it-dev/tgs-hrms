@@ -7,7 +7,6 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
   try {
     logger.log('Starting to seed roles and permissions...');
 
-    
     const permissions = [
       'manage_users',
       'manage_roles',
@@ -47,22 +46,32 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
         `INSERT INTO permissions (id, name, description) 
          VALUES (uuid_generate_v4(), $1, $2) 
          ON CONFLICT (name) DO UPDATE SET description = EXCLUDED.description`,
-        [permission, permission.replace(/_/g, ' ')]
+        [permission, permission.replace(/_/g, ' ')],
       );
       logger.log(`Inserted/Updated permission: ${permission}`);
     }
 
-  
-    const roleRows = await dataSource.query(`SELECT id, name FROM roles`);
-    const permissionRows = await dataSource.query(`SELECT id, name FROM permissions`);
+    interface RoleRow {
+      id: string;
+      name: string;
+    }
+    interface PermissionRow {
+      id: string;
+      name: string;
+    }
 
-    const roleNameToId = new Map(roleRows.map((r: any) => [r.name, r.id]));
-    const permNameToId = new Map(permissionRows.map((r: any) => [r.name, r.id]));
+    const roleRows = await dataSource.query<RoleRow[]>('SELECT id, name FROM roles');
+    const permissionRows = await dataSource.query<PermissionRow[]>('SELECT id, name FROM permissions');
 
-    
+    if (!Array.isArray(roleRows) || !Array.isArray(permissionRows)) {
+      throw new Error('Seed query returned unexpected result shape (expected arrays)');
+    }
+
+    const roleNameToId = new Map(roleRows.map((r) => [r.name, r.id] as const));
+    const permNameToId = new Map(permissionRows.map((p) => [p.name, p.id] as const));
+
     const roleToPermissions: Record<string, string[]> = {
       'system-admin': [
-    
         'manage_users',
         'manage_roles',
         'manage_permissions',
@@ -91,7 +100,6 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
         'manage_company',
       ],
       admin: [
-      
         'manage_users',
         'manage_roles',
         'manage_permissions',
@@ -119,7 +127,6 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
         'manage_company',
       ],
       'network-admin': [
-        
         'manage_users',
         'manage_roles',
         'manage_permissions',
@@ -147,16 +154,15 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
         'manage_company',
       ],
       'hr-admin': [
-    
         'view_self_attendance',
         'view_self_leaves',
         'create_self_timesheet',
         'view_self_reports',
         'request_leave',
         'view_self_schedule',
-        'manage_attendance', 
-        'create_self_attendance', 
-        'manage_leaves', 
+        'manage_attendance',
+        'create_self_attendance',
+        'manage_leaves',
         'manage_geofences',
       ],
       manager: [
@@ -188,11 +194,9 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
       user: ['view_self_attendance', 'view_self_leaves', 'view_self_reports'],
     };
 
-    
-    await dataSource.query(`DELETE FROM role_permissions`);
+    await dataSource.query('DELETE FROM role_permissions');
     logger.log('Cleared existing role_permissions');
 
-    
     for (const [roleName, perms] of Object.entries(roleToPermissions)) {
       const roleId = roleNameToId.get(roleName);
       if (!roleId) {
@@ -210,7 +214,7 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
         await dataSource.query(
           `INSERT INTO role_permissions (id, role_id, permission_id)
            VALUES (uuid_generate_v4(), $1, $2)`,
-          [roleId, permId]
+          [roleId, permId],
         );
       }
       logger.log(`Inserted permissions for role: ${roleName}`);

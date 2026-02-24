@@ -23,4 +23,3 @@ export const getPostgresErrorConstraint = (error: unknown): string | undefined =
   }
   return undefined;
 };
-

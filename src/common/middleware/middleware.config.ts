@@ -6,45 +6,42 @@
 import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { jwtMiddleware } from './jwt.middleware';
 import { TokenValidationModule } from '../modules/token-validation.module';
+import { AUTH_ROUTES, PUBLIC_ROUTES } from '../constants';
 
 @Module({
   imports: [TokenValidationModule],
 })
 export class MiddlewareConfigModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    // Apply JWT middleware (Passport JwtStrategy) to all routes except auth/public
+  configure(consumer: MiddlewareConsumer): void {
     consumer
       .apply(jwtMiddleware)
       .exclude(
-        'auth/login',
-        'auth/register',
-        'auth/forgot-password',
-        'auth/reset-password',
-        'auth/verify-email',
-        'auth/resend-verification',
-        'auth/refresh',
-        'auth/logout',
-        { path: 'users/:id/profile-picture', method: RequestMethod.GET },
-        // Public static assets (serve without auth)
-        { path: 'profile-pictures/(.*)', method: RequestMethod.GET },
-        { path: 'cnic-pictures/(.*)', method: RequestMethod.GET },
-        { path: 'cnic-back-pictures/(.*)', method: RequestMethod.GET },
-        { path: 'company-logos/(.*)', method: RequestMethod.GET },
-        // Allow unauthenticated access to signup flow
-        'signup/personal-details',
-        'signup/company-details',
-        'signup/upload-logo',
-        'signup/payment',
-        'signup/payment/confirm',
-        'signup/complete',
-        'signup/google-init',
-        'subscription-plans',
-        'subscription-plans/prices',
-        'health',
-        'docs',
-        'api-docs',
+        AUTH_ROUTES.LOGIN,
+        AUTH_ROUTES.REGISTER,
+        AUTH_ROUTES.FORGOT_PASSWORD,
+        AUTH_ROUTES.RESET_PASSWORD,
+        AUTH_ROUTES.VERIFY_EMAIL,
+        AUTH_ROUTES.RESEND_VERIFICATION,
+        AUTH_ROUTES.REFRESH,
+        AUTH_ROUTES.LOGOUT,
+        { path: PUBLIC_ROUTES.PROFILE_PICTURE_GET, method: RequestMethod.GET },
+        { path: PUBLIC_ROUTES.PROFILE_PICTURES, method: RequestMethod.GET },
+        { path: PUBLIC_ROUTES.CNIC_PICTURES, method: RequestMethod.GET },
+        { path: PUBLIC_ROUTES.CNIC_BACK_PICTURES, method: RequestMethod.GET },
+        { path: PUBLIC_ROUTES.COMPANY_LOGOS, method: RequestMethod.GET },
+        PUBLIC_ROUTES.SIGNUP_PERSONAL,
+        PUBLIC_ROUTES.SIGNUP_COMPANY,
+        PUBLIC_ROUTES.SIGNUP_UPLOAD_LOGO,
+        PUBLIC_ROUTES.SIGNUP_PAYMENT,
+        PUBLIC_ROUTES.SIGNUP_PAYMENT_CONFIRM,
+        PUBLIC_ROUTES.SIGNUP_COMPLETE,
+        PUBLIC_ROUTES.SIGNUP_GOOGLE,
+        PUBLIC_ROUTES.SUBSCRIPTION_PLANS,
+        PUBLIC_ROUTES.SUBSCRIPTION_PLANS_PRICES,
+        PUBLIC_ROUTES.HEALTH,
+        PUBLIC_ROUTES.DOCS,
+        PUBLIC_ROUTES.API_DOCS,
       )
       .forRoutes('*');
   }
 }
- 

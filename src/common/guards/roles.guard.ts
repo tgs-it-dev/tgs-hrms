@@ -1,7 +1,7 @@
 import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../decorators/roles.decorator';
-import { AuthenticatedRequest, JwtPayload } from 'src/modules/auth/interfaces';
+import type { AuthenticatedRequest } from 'src/modules/auth/interfaces';
 import { isAdminEquivalentRole, normalizeRole } from './guard-helpers';
 
 @Injectable()
@@ -13,7 +13,7 @@ export class RolesGuard implements CanActivate {
     if (!requiredRoles?.length) return true;
 
     const request = ctx.switchToHttp().getRequest<AuthenticatedRequest>();
-    const userRole = normalizeRole((request.user as JwtPayload)?.role);
+    const userRole = normalizeRole(request.user?.role);
     const normalizedRequired = requiredRoles.map((r) => normalizeRole(r));
 
     if (normalizedRequired.includes(userRole)) return true;

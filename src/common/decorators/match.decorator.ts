@@ -1,16 +1,23 @@
-import { registerDecorator, ValidationOptions, ValidationArguments } from 'class-validator';
+import { registerDecorator } from 'class-validator';
+import type { ValidationArguments, ValidationOptions } from 'class-validator';
 
-export function Match(property: string, validationOptions?: ValidationOptions) {
-  return (object: any, propertyName: string) => {
+export function Match<T extends object>(property: keyof T, validationOptions?: ValidationOptions) {
+  return (object: T, propertyName: string) => {
     registerDecorator({
       target: object.constructor,
       propertyName,
       options: validationOptions,
       constraints: [property],
       validator: {
-        validate(value: any, args: ValidationArguments) {
-          const [relatedPropertyName] = args.constraints;
-          const relatedValue = (args.object as any)[relatedPropertyName];
+        validate(value: unknown, args: ValidationArguments): boolean {
+          const relatedPropertyName = args.constraints[0] as keyof T | undefined;
+
+          if (!relatedPropertyName) {
+            return false;
+          }
+
+          const relatedValue = (args.object as T)[relatedPropertyName];
+
           return value === relatedValue;
         },
       },

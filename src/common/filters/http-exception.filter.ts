@@ -1,12 +1,7 @@
-import {
-  ExceptionFilter,
-  Catch,
-  ArgumentsHost,
-  HttpException,
-  HttpStatus,
-} from '@nestjs/common';
+import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { ContextLogger, LoggerService } from '../logger/logger.service';
+import { FILE_ERROR, HTTP_ERROR, HTTP_HEADER } from '../constants';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -22,13 +17,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
 
     // Handle CORS errors specifically - they should return 403, not 500
-    if (exception instanceof Error && exception.message.includes('Not allowed by CORS')) {
-      const correlationId = (request.headers['x-correlation-id'] as string) || 'unknown';
+    if (exception instanceof Error && exception.message.includes(HTTP_ERROR.CORS_NOT_ALLOWED)) {
+      const correlationId =
+        (request.headers[HTTP_HEADER.CORRELATION_ID] as string) || HTTP_ERROR.CORRELATION_ID_UNKNOWN;
       // Only log CORS errors in development, not in production to avoid clutter
       if (process.env.NODE_ENV !== 'production') {
-        this.logger.warn(
-          `CORS rejection: ${exception.message} from origin: ${request.headers.origin || 'unknown'}`,
-        );
+        this.logger.warn(`CORS rejection: ${exception.message} from origin: ${request.headers.origin || 'unknown'}`);
       }
       response.status(HttpStatus.FORBIDDEN).json({
         statusCode: HttpStatus.FORBIDDEN,
@@ -44,21 +38,22 @@ export class HttpExceptionFilter implements ExceptionFilter {
     // Handle Multer file upload errors
     if (exception instanceof Error) {
       const errorMessage = exception.message.toLowerCase();
-      
+
       // File size errors from Multer
       if (
         errorMessage.includes('file too large') ||
         errorMessage.includes('limit exceeded') ||
         errorMessage.includes('file size')
       ) {
-        const correlationId = (request.headers['x-correlation-id'] as string) || 'unknown';
+        const correlationId =
+          (request.headers[HTTP_HEADER.CORRELATION_ID] as string) || HTTP_ERROR.CORRELATION_ID_UNKNOWN;
         response.status(HttpStatus.BAD_REQUEST).json({
           statusCode: HttpStatus.BAD_REQUEST,
           timestamp: new Date().toISOString(),
           path: request.url,
           method: request.method,
           correlationId,
-          message: 'File size exceeds the maximum allowed limit of 5MB',
+          message: FILE_ERROR.SIZE_EXCEEDED,
         });
         return;
       }
@@ -70,45 +65,38 @@ export class HttpExceptionFilter implements ExceptionFilter {
         errorMessage.includes('invalid file') ||
         (errorMessage.includes('image') && errorMessage.includes('not allowed'))
       ) {
-        const correlationId = (request.headers['x-correlation-id'] as string) || 'unknown';
+        const correlationId =
+          (request.headers[HTTP_HEADER.CORRELATION_ID] as string) || HTTP_ERROR.CORRELATION_ID_UNKNOWN;
         response.status(HttpStatus.BAD_REQUEST).json({
           statusCode: HttpStatus.BAD_REQUEST,
           timestamp: new Date().toISOString(),
           path: request.url,
           method: request.method,
           correlationId,
-          message: 'Invalid file type. Only image files are allowed (JPG, JPEG, PNG, GIF, WebP)',
+          message: FILE_ERROR.INVALID_TYPE,
         });
         return;
       }
     }
 
-    const status =
-      exception instanceof HttpException
-        ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+    const status = exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    const message =
-      exception instanceof HttpException
-        ? exception.getResponse()
-        : 'Internal server error';
+    const message = exception instanceof HttpException ? exception.getResponse() : HTTP_ERROR.INTERNAL_SERVER_ERROR;
 
-    const correlationId = (request.headers['x-correlation-id'] as string) || 'unknown';
+    const correlationId = (request.headers[HTTP_HEADER.CORRELATION_ID] as string) || HTTP_ERROR.CORRELATION_ID_UNKNOWN;
 
     // Extract message text and preserve additional properties
     let messageText: string;
-    let additionalProps: Record<string, any> = {};
-    
+    let additionalProps: Record<string, unknown> = {};
+
     if (typeof message === 'string') {
       messageText = message;
     } else if (typeof message === 'object' && message !== null) {
-      const msgObj = message as Record<string, any>;
-      messageText = msgObj.message || 'Internal server error';
-      // Extract all properties except 'message' to preserve additional data like checkoutUrl
-      const { message: _, ...rest } = msgObj;
-      additionalProps = rest;
+      const msgObj = message as Record<string, unknown>;
+      messageText = String(msgObj.message) || HTTP_ERROR.INTERNAL_SERVER_ERROR;
+      additionalProps = Object.fromEntries(Object.entries(msgObj).filter(([key]) => key !== 'message'));
     } else {
-      messageText = 'Internal server error';
+      messageText = HTTP_ERROR.INTERNAL_SERVER_ERROR;
     }
 
     const errorResponse = {
@@ -132,5 +120,3 @@ export class HttpExceptionFilter implements ExceptionFilter {
     response.status(status).json(errorResponse);
   }
 }
-
-

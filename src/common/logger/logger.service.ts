@@ -5,11 +5,11 @@ import { Injectable, Logger } from '@nestjs/common';
  * Use this instead of creating new Logger(ClassName.name) in each service.
  */
 export interface ContextLogger {
-  log(message: any, ...optionalParams: any[]): void;
-  error(message: any, stack?: string, ...optionalParams: any[]): void;
-  warn(message: any, ...optionalParams: any[]): void;
-  debug(message: any, ...optionalParams: any[]): void;
-  verbose(message: any, ...optionalParams: any[]): void;
+  log(message: unknown, ...optionalParams: unknown[]): void;
+  error(message: unknown, stack?: string, ...optionalParams: unknown[]): void;
+  warn(message: unknown, ...optionalParams: unknown[]): void;
+  debug(message: unknown, ...optionalParams: unknown[]): void;
+  verbose(message: unknown, ...optionalParams: unknown[]): void;
 }
 
 /**
@@ -29,16 +29,12 @@ export class LoggerService {
   forChild(context: string): ContextLogger {
     const nestLogger = new Logger(context);
     return {
-      log: (message: any, ...optionalParams: any[]) =>
-        nestLogger.log(message, ...optionalParams),
-      error: (message: any, stack?: string, ...optionalParams: any[]) =>
+      log: (message: unknown, ...optionalParams: unknown[]) => nestLogger.log(message, ...optionalParams),
+      error: (message: unknown, stack?: string, ...optionalParams: unknown[]) =>
         nestLogger.error(message, stack, ...optionalParams),
-      warn: (message: any, ...optionalParams: any[]) =>
-        nestLogger.warn(message, ...optionalParams),
-      debug: (message: any, ...optionalParams: any[]) =>
-        nestLogger.debug(message, ...optionalParams),
-      verbose: (message: any, ...optionalParams: any[]) =>
-        nestLogger.verbose(message, ...optionalParams),
+      warn: (message: unknown, ...optionalParams: unknown[]) => nestLogger.warn(message, ...optionalParams),
+      debug: (message: unknown, ...optionalParams: unknown[]) => nestLogger.debug(message, ...optionalParams),
+      verbose: (message: unknown, ...optionalParams: unknown[]) => nestLogger.verbose(message, ...optionalParams),
     };
   }
 }
