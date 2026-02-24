@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsOptional, IsEnum, MinLength, ValidateIf, IsUUID } from 'class-validator';
+import { DEFAULT_SEARCH_LIMIT, MIN_SEARCH_QUERY_LENGTH, SEARCH_MESSAGES } from '../../../common/constants';
 
 export enum SearchModule {
   ALL = 'all',
@@ -17,12 +18,12 @@ export class GlobalSearchDto {
   @ApiPropertyOptional({
     description: 'Search query string (optional - if not provided, returns all results)',
     example: 'John Doe',
-    minLength: 2,
+    minLength: MIN_SEARCH_QUERY_LENGTH,
   })
   @IsOptional()
-  @ValidateIf((o) => o.query !== undefined && o.query !== null && o.query !== '')
+  @ValidateIf((o: GlobalSearchDto) => o.query !== undefined && o.query !== null && o.query !== '')
   @IsString()
-  @MinLength(2, { message: 'Search query must be at least 2 characters long' })
+  @MinLength(MIN_SEARCH_QUERY_LENGTH, { message: SEARCH_MESSAGES.QUERY_MIN_LENGTH })
   query?: string;
 
   @ApiPropertyOptional({
@@ -36,14 +37,15 @@ export class GlobalSearchDto {
 
   @ApiPropertyOptional({
     description: 'Limit number of results per module',
-    example: 10,
-    default: 10,
+    example: DEFAULT_SEARCH_LIMIT,
+    default: DEFAULT_SEARCH_LIMIT,
   })
   @IsOptional()
-  limit?: number = 10;
+  limit?: number = DEFAULT_SEARCH_LIMIT;
 
   @ApiPropertyOptional({
-    description: 'Tenant ID to filter by (System Admin only - if not provided, searches all tenants). Regular users cannot override their tenant.',
+    description:
+      'Tenant ID to filter by (System Admin only - if not provided, searches all tenants). Regular users cannot override their tenant.',
     example: 'uuid-123',
   })
   @IsOptional()
@@ -65,7 +67,7 @@ export class SearchResultItem {
   module: string;
 
   @ApiProperty({ description: 'Additional metadata' })
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export class GlobalSearchResponseDto {
@@ -102,4 +104,3 @@ export class GlobalSearchResponseDto {
     payroll: number;
   };
 }
-

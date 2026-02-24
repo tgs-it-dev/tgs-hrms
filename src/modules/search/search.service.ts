@@ -10,8 +10,10 @@ import { Attendance } from '../../entities/attendance.entity';
 import { EmployeeBenefit } from '../../entities/employee-benefit.entity';
 import { PayrollRecord } from '../../entities/payroll-record.entity';
 import { User } from '../../entities/user.entity';
-import { GLOBAL_SYSTEM_TENANT_ID } from '../../common/constants/enums';
-import { GlobalSearchDto, SearchModule, SearchResultItem, GlobalSearchResponseDto } from './dto/search.dto';
+import { GLOBAL_SYSTEM_TENANT_ID, UserRole } from '../../common/constants';
+import { DEFAULT_SEARCH_LIMIT } from '../../common/constants/search.constants';
+import { SearchModule, SearchResultItem, GlobalSearchResponseDto } from './dto/search.dto';
+import type { EmployeeLikeForSearch } from './interfaces';
 
 @Injectable()
 export class SearchService {
@@ -36,7 +38,7 @@ export class SearchService {
     private readonly payrollRecordRepository: Repository<PayrollRecord>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
-  ) { }
+  ) {}
 
   /**
    * Global search across all modules with tenant and role filtering
@@ -46,7 +48,7 @@ export class SearchService {
     tenantId: string,
     userRole: string,
     module: SearchModule = SearchModule.ALL,
-    limit: number = 10,
+    limit: number = DEFAULT_SEARCH_LIMIT,
     currentUserId?: string,
     currentUserEmail?: string,
     teamIds?: string[], // For manager role: filter by team IDs
@@ -55,14 +57,15 @@ export class SearchService {
 
     // System-admin and network-admin can search across all tenants if tenantId is GLOBAL_SYSTEM_TENANT_ID
     // Otherwise, filter by the provided tenantId (even for admin roles)
-    const isSystemAdmin = userRole === 'system-admin';
-    const isNetworkAdmin = userRole === 'network-admin';
+    const role = userRole as UserRole;
+    const isSystemAdmin = role === UserRole.SYSTEM_ADMIN;
+    const isNetworkAdmin = role === UserRole.NETWORK_ADMIN;
     const isAdminRole = isSystemAdmin || isNetworkAdmin;
     const searchAllTenants = isAdminRole && tenantId === GLOBAL_SYSTEM_TENANT_ID;
     const searchTerm = query ? `%${query}%` : '%';
 
     const results: GlobalSearchResponseDto['results'] = {};
-    const counts = {
+    const counts: GlobalSearchResponseDto['counts'] = {
       employees: 0,
       leaves: 0,
       assets: 0,
@@ -90,25 +93,14 @@ export class SearchService {
 
     // Search Leaves
     if (module === SearchModule.ALL || module === SearchModule.LEAVES) {
-      const leaveResults = await this.searchLeaves(
-        searchTerm,
-        tenantId,
-        searchAllTenants,
-        limit,
-        teamIds,
-      );
+      const leaveResults = await this.searchLeaves(searchTerm, tenantId, searchAllTenants, limit, teamIds);
       results.leaves = leaveResults.items;
       counts.leaves = leaveResults.total;
     }
 
     // Search Assets
     if (module === SearchModule.ALL || module === SearchModule.ASSETS) {
-      const assetResults = await this.searchAssets(
-        searchTerm,
-        tenantId,
-        searchAllTenants,
-        limit,
-      );
+      const assetResults = await this.searchAssets(searchTerm, tenantId, searchAllTenants, limit);
       results.assets = assetResults.items;
       counts.assets = assetResults.total;
     }
@@ -128,56 +120,33 @@ export class SearchService {
 
     // Search Teams
     if (module === SearchModule.ALL || module === SearchModule.TEAMS) {
-      const teamResults = await this.searchTeams(
-        searchTerm,
-        tenantId,
-        searchAllTenants,
-        limit,
-      );
+      const teamResults = await this.searchTeams(searchTerm, tenantId, searchAllTenants, limit);
       results.teams = teamResults.items;
       counts.teams = teamResults.total;
     }
 
     // Search Attendance
     if (module === SearchModule.ALL || module === SearchModule.ATTENDANCE) {
-      const attendanceResults = await this.searchAttendance(
-        searchTerm,
-        tenantId,
-        searchAllTenants,
-        limit,
-        teamIds,
-      );
+      const attendanceResults = await this.searchAttendance(searchTerm, tenantId, searchAllTenants, limit, teamIds);
       results.attendance = attendanceResults.items;
       counts.attendance = attendanceResults.total;
     }
 
     // Search Benefits
     if (module === SearchModule.ALL || module === SearchModule.BENEFITS) {
-      const benefitResults = await this.searchBenefits(
-        searchTerm,
-        tenantId,
-        searchAllTenants,
-        limit,
-        teamIds,
-      );
+      const benefitResults = await this.searchBenefits(searchTerm, tenantId, searchAllTenants, limit, teamIds);
       results.benefits = benefitResults.items;
       counts.benefits = benefitResults.total;
     }
 
     // Search Payroll
     if (module === SearchModule.ALL || module === SearchModule.PAYROLL) {
-      const payrollResults = await this.searchPayroll(
-        searchTerm,
-        tenantId,
-        searchAllTenants,
-        limit,
-        teamIds,
-      );
+      const payrollResults = await this.searchPayroll(searchTerm, tenantId, searchAllTenants, limit, teamIds);
       results.payroll = payrollResults.items;
       counts.payroll = payrollResults.total;
     }
 
-    const totalResults = Object.values(counts).reduce((sum, count) => sum + count, 0);
+    const totalResults = Object.values(counts).reduce((sum: number, count: number) => sum + count, 0);
 
     return {
       query: query || '',
@@ -226,12 +195,10 @@ export class SearchService {
       queryBuilder.andWhere('employee.team_id IN (:...teamIds)', { teamIds });
     }
 
-    const [employees, total] = await queryBuilder
-      .take(limit)
-      .getManyAndCount();
+    const [employees, total] = await queryBuilder.take(limit).getManyAndCount();
 
     // Ensure current user's data is included and prioritized if they match the search term
-    let finalEmployees = [...employees];
+    const finalEmployees: EmployeeLikeForSearch[] = [...employees];
     if (currentUserId && searchTerm !== '%') {
       const searchLower = searchTerm.replace(/%/g, '').toLowerCase().trim();
       const currentUserEmployee = await this.employeeRepository.findOne({
@@ -241,7 +208,7 @@ export class SearchService {
 
       if (currentUserEmployee) {
         const empUserEmail = currentUserEmployee.user.email.toLowerCase().trim();
-        const currentUserInResults = employees.some(emp => emp.user_id === currentUserId);
+        const currentUserInResults = employees.some((emp) => emp.user_id === currentUserId);
 
         // Check if search term matches current user's email exactly or partially
         const isExactEmailMatch = currentUserEmail && searchLower === currentUserEmail.toLowerCase().trim();
@@ -269,7 +236,7 @@ export class SearchService {
           } else {
             // If current user is already in results, prioritize them by moving to top
             // This ensures when HR admin searches by their own email, their data appears first
-            const currentUserIndex = finalEmployees.findIndex(emp => emp.user_id === currentUserId);
+            const currentUserIndex = finalEmployees.findIndex((emp) => emp.user_id === currentUserId);
             if (currentUserIndex >= 0 && currentUserIndex > 0) {
               const [currentUserEmp] = finalEmployees.splice(currentUserIndex, 1);
               finalEmployees.unshift(currentUserEmp);
@@ -294,19 +261,15 @@ export class SearchService {
           });
 
           if (currentUser) {
-            // Create a pseudo-employee object with user data so it can be processed like other employees
-            const pseudoEmployee = {
-              id: currentUser.id, // Use user ID as employee ID
+            const pseudoEmployee: EmployeeLikeForSearch = {
+              id: currentUser.id,
               user_id: currentUser.id,
               user: currentUser,
               designation: null,
               team: null,
               cnic_number: null,
-              // profile_picture: null,
               status: null,
-            } as any;
-
-            // Add to results at the top
+            };
             finalEmployees.unshift(pseudoEmployee);
           }
         }
@@ -339,9 +302,8 @@ export class SearchService {
     });
 
     // Update total count if we added the current user to results
-    const adjustedTotal = finalEmployees.length > employees.length
-      ? total + (finalEmployees.length - employees.length)
-      : total;
+    const adjustedTotal =
+      finalEmployees.length > employees.length ? total + (finalEmployees.length - employees.length) : total;
 
     return { items, total: adjustedTotal };
   }
@@ -389,7 +351,7 @@ export class SearchService {
       });
 
       if (teamEmployees.length > 0) {
-        const userIds = teamEmployees.map(emp => emp.user_id);
+        const userIds = teamEmployees.map((emp) => emp.user_id);
         queryBuilder.andWhere('leave.employeeId IN (:...userIds)', { userIds });
       } else {
         // If no employees in team, return no results
@@ -397,20 +359,18 @@ export class SearchService {
       }
     }
 
-    const [leaves, total] = await queryBuilder
-      .orderBy('leave.createdAt', 'DESC')
-      .take(limit)
-      .getManyAndCount();
+    const [leaves, total] = await queryBuilder.orderBy('leave.createdAt', 'DESC').take(limit).getManyAndCount();
 
     // Get employee IDs for all leaves (employeeId in Leave is actually userId)
-    const userIds = [...new Set(leaves.map(l => l.employeeId))];
-    const employees = userIds.length > 0
-      ? await this.employeeRepository.find({
-        where: userIds.map(userId => ({ user_id: userId })),
-        select: ['id', 'user_id'],
-      })
-      : [];
-    const userToEmployeeMap = new Map(employees.map(emp => [emp.user_id, emp.id]));
+    const userIds = [...new Set(leaves.map((l) => l.employeeId))];
+    const employees =
+      userIds.length > 0
+        ? await this.employeeRepository.find({
+            where: userIds.map((userId) => ({ user_id: userId })),
+            select: ['id', 'user_id'],
+          })
+        : [];
+    const userToEmployeeMap = new Map(employees.map((emp) => [emp.user_id, emp.id]));
 
     const items: SearchResultItem[] = leaves.map((leave) => {
       const employeeId = userToEmployeeMap.get(leave.employeeId);
@@ -467,10 +427,7 @@ export class SearchService {
       queryBuilder.andWhere('asset.tenant_id = :tenantId', { tenantId });
     }
 
-    const [assets, total] = await queryBuilder
-      .orderBy('asset.created_at', 'DESC')
-      .take(limit)
-      .getManyAndCount();
+    const [assets, total] = await queryBuilder.orderBy('asset.created_at', 'DESC').take(limit).getManyAndCount();
 
     const items: SearchResultItem[] = assets.map((asset) => ({
       id: asset.id,
@@ -482,7 +439,9 @@ export class SearchService {
         category: asset.category?.name,
         subcategory: asset.subcategory?.name,
         status: asset.status,
-        assignedTo: asset.assignedToUser ? `${asset.assignedToUser.first_name} ${asset.assignedToUser.last_name}` : null,
+        assignedTo: asset.assignedToUser
+          ? `${asset.assignedToUser.first_name} ${asset.assignedToUser.last_name}`
+          : null,
         purchaseDate: asset.purchase_date,
       },
     }));
@@ -534,7 +493,7 @@ export class SearchService {
       });
 
       if (teamEmployees.length > 0) {
-        const userIds = teamEmployees.map(emp => emp.user_id);
+        const userIds = teamEmployees.map((emp) => emp.user_id);
         queryBuilder.andWhere('assetRequest.requested_by IN (:...userIds)', { userIds });
       } else {
         // If no employees in team, return no results
@@ -565,7 +524,9 @@ export class SearchService {
           status: request.status,
           requestedDate: request.requested_date,
           approvedDate: request.approved_date,
-          approver: request.approvedByUser ? `${request.approvedByUser.first_name} ${request.approvedByUser.last_name}` : null,
+          approver: request.approvedByUser
+            ? `${request.approvedByUser.first_name} ${request.approvedByUser.last_name}`
+            : null,
           remarks: request.remarks,
           rejectionReason: request.rejection_reason,
         },
@@ -606,10 +567,7 @@ export class SearchService {
       queryBuilder.andWhere('manager.tenant_id = :tenantId', { tenantId });
     }
 
-    const [teams, total] = await queryBuilder
-      .orderBy('team.created_at', 'DESC')
-      .take(limit)
-      .getManyAndCount();
+    const [teams, total] = await queryBuilder.orderBy('team.created_at', 'DESC').take(limit).getManyAndCount();
 
     const items: SearchResultItem[] = teams.map((team) => ({
       id: team.id,
@@ -667,7 +625,7 @@ export class SearchService {
       });
 
       if (teamEmployees.length > 0) {
-        const userIds = teamEmployees.map(emp => emp.user_id);
+        const userIds = teamEmployees.map((emp) => emp.user_id);
         queryBuilder.andWhere('attendance.user_id IN (:...userIds)', { userIds });
       } else {
         // If no employees in team, return no results
@@ -742,13 +700,12 @@ export class SearchService {
       .getManyAndCount();
 
     const items: SearchResultItem[] = employeeBenefits.map((eb) => {
-      const startDate = eb.startDate instanceof Date
-        ? eb.startDate.toLocaleDateString()
-        : new Date(eb.startDate).toLocaleDateString();
+      const startDate =
+        eb.startDate instanceof Date ? eb.startDate.toLocaleDateString() : new Date(eb.startDate).toLocaleDateString();
       const endDate = eb.endDate
-        ? (eb.endDate instanceof Date
+        ? eb.endDate instanceof Date
           ? eb.endDate.toLocaleDateString()
-          : new Date(eb.endDate).toLocaleDateString())
+          : new Date(eb.endDate).toLocaleDateString()
         : null;
 
       return {
