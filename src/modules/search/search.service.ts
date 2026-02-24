@@ -11,7 +11,22 @@ import { EmployeeBenefit } from '../../entities/employee-benefit.entity';
 import { PayrollRecord } from '../../entities/payroll-record.entity';
 import { User } from '../../entities/user.entity';
 import { GLOBAL_SYSTEM_TENANT_ID } from '../../common/constants/enums';
-import { GlobalSearchDto, SearchModule, SearchResultItem, GlobalSearchResponseDto } from './dto/search.dto';
+import { SearchModule, SearchResultItem, GlobalSearchResponseDto } from './dto/search.dto';
+import { RolesPermissionsService } from '../../common/services/roles-permissions.service';
+
+/** RBAC: each search module requires this permission to be included in search results */
+const MODULE_READ_PERMISSION: Record<Exclude<SearchModule, SearchModule.ALL>, string> = {
+  [SearchModule.EMPLOYEES]: 'employee.read',
+  [SearchModule.LEAVES]: 'leave.read',
+  [SearchModule.ASSETS]: 'asset.read',
+  [SearchModule.ASSET_REQUESTS]: 'asset-request.read',
+  [SearchModule.TEAMS]: 'team.read',
+  [SearchModule.ATTENDANCE]: 'attendance.read',
+  [SearchModule.BENEFITS]: 'employee.read',
+  [SearchModule.PAYROLL]: 'employee.read',
+};
+
+const ALL_MODULES = Object.keys(MODULE_READ_PERMISSION) as Exclude<SearchModule, SearchModule.ALL>[];
 
 @Injectable()
 export class SearchService {
@@ -36,10 +51,39 @@ export class SearchService {
     private readonly payrollRecordRepository: Repository<PayrollRecord>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
-  ) { }
+    private readonly rolesPermissions: RolesPermissionsService,
+  ) {}
 
   /**
-   * Global search across all modules with tenant and role filtering
+   * Returns empty search response (e.g. for manager with no teams).
+   */
+  buildEmptyResponse(query: string): GlobalSearchResponseDto {
+    const results: GlobalSearchResponseDto['results'] = {
+      employees: [],
+      leaves: [],
+      assets: [],
+      assetRequests: [],
+      teams: [],
+      attendance: [],
+      benefits: [],
+      payroll: [],
+    };
+    const counts = {
+      employees: 0,
+      leaves: 0,
+      assets: 0,
+      assetRequests: 0,
+      teams: 0,
+      attendance: 0,
+      benefits: 0,
+      payroll: 0,
+    };
+    return { query, totalResults: 0, results, counts };
+  }
+
+  /**
+   * Global search: tenant-scoped and RBAC-filtered.
+   * Only modules the user has read permission for are searched and returned.
    */
   async globalSearch(
     query: string | undefined,
@@ -49,18 +93,18 @@ export class SearchService {
     limit: number = 10,
     currentUserId?: string,
     currentUserEmail?: string,
-    teamIds?: string[], // For manager role: filter by team IDs
+    teamIds?: string[],
   ): Promise<GlobalSearchResponseDto> {
-    this.logger.log(`Global search: query="${query}", tenantId="${tenantId}", role="${userRole}", module="${module}"`);
+    this.logger.log(
+      `Global search: query="${query}", tenantId="${tenantId}", role="${userRole}", module="${module}"`,
+    );
 
-    // System-admin and network-admin can search across all tenants if tenantId is GLOBAL_SYSTEM_TENANT_ID
-    // Otherwise, filter by the provided tenantId (even for admin roles)
-    const isSystemAdmin = userRole === 'system-admin';
-    const isNetworkAdmin = userRole === 'network-admin';
-    const isAdminRole = isSystemAdmin || isNetworkAdmin;
+    const isAdminRole =
+      userRole === 'system-admin' || userRole === 'network-admin';
     const searchAllTenants = isAdminRole && tenantId === GLOBAL_SYSTEM_TENANT_ID;
     const searchTerm = query ? `%${query}%` : '%';
 
+    const allowedModules = this.getAllowedModules(userRole, module);
     const results: GlobalSearchResponseDto['results'] = {};
     const counts = {
       employees: 0,
@@ -73,118 +117,134 @@ export class SearchService {
       payroll: 0,
     };
 
-    // Search Employees
     if (module === SearchModule.ALL || module === SearchModule.EMPLOYEES) {
-      const employeeResults = await this.searchEmployees(
-        searchTerm,
-        tenantId,
-        searchAllTenants,
-        limit,
-        currentUserId,
-        currentUserEmail,
-        teamIds,
-      );
-      results.employees = employeeResults.items;
-      counts.employees = employeeResults.total;
+      if (allowedModules.includes(SearchModule.EMPLOYEES)) {
+        const r = await this.searchEmployees(
+          searchTerm,
+          tenantId,
+          searchAllTenants,
+          limit,
+          currentUserId,
+          currentUserEmail,
+          teamIds,
+        );
+        results.employees = r.items;
+        counts.employees = r.total;
+      }
     }
-
-    // Search Leaves
     if (module === SearchModule.ALL || module === SearchModule.LEAVES) {
-      const leaveResults = await this.searchLeaves(
-        searchTerm,
-        tenantId,
-        searchAllTenants,
-        limit,
-        teamIds,
-      );
-      results.leaves = leaveResults.items;
-      counts.leaves = leaveResults.total;
+      if (allowedModules.includes(SearchModule.LEAVES)) {
+        const r = await this.searchLeaves(
+          searchTerm,
+          tenantId,
+          searchAllTenants,
+          limit,
+          teamIds,
+        );
+        results.leaves = r.items;
+        counts.leaves = r.total;
+      }
     }
-
-    // Search Assets
     if (module === SearchModule.ALL || module === SearchModule.ASSETS) {
-      const assetResults = await this.searchAssets(
-        searchTerm,
-        tenantId,
-        searchAllTenants,
-        limit,
-      );
-      results.assets = assetResults.items;
-      counts.assets = assetResults.total;
+      if (allowedModules.includes(SearchModule.ASSETS)) {
+        const r = await this.searchAssets(
+          searchTerm,
+          tenantId,
+          searchAllTenants,
+          limit,
+        );
+        results.assets = r.items;
+        counts.assets = r.total;
+      }
     }
-
-    // Search Asset Requests
     if (module === SearchModule.ALL || module === SearchModule.ASSET_REQUESTS) {
-      const assetRequestResults = await this.searchAssetRequests(
-        searchTerm,
-        tenantId,
-        searchAllTenants,
-        limit,
-        teamIds,
-      );
-      results.assetRequests = assetRequestResults.items;
-      counts.assetRequests = assetRequestResults.total;
+      if (allowedModules.includes(SearchModule.ASSET_REQUESTS)) {
+        const r = await this.searchAssetRequests(
+          searchTerm,
+          tenantId,
+          searchAllTenants,
+          limit,
+          teamIds,
+        );
+        results.assetRequests = r.items;
+        counts.assetRequests = r.total;
+      }
     }
-
-    // Search Teams
     if (module === SearchModule.ALL || module === SearchModule.TEAMS) {
-      const teamResults = await this.searchTeams(
-        searchTerm,
-        tenantId,
-        searchAllTenants,
-        limit,
-      );
-      results.teams = teamResults.items;
-      counts.teams = teamResults.total;
+      if (allowedModules.includes(SearchModule.TEAMS)) {
+        const r = await this.searchTeams(
+          searchTerm,
+          tenantId,
+          searchAllTenants,
+          limit,
+        );
+        results.teams = r.items;
+        counts.teams = r.total;
+      }
     }
-
-    // Search Attendance
     if (module === SearchModule.ALL || module === SearchModule.ATTENDANCE) {
-      const attendanceResults = await this.searchAttendance(
-        searchTerm,
-        tenantId,
-        searchAllTenants,
-        limit,
-        teamIds,
-      );
-      results.attendance = attendanceResults.items;
-      counts.attendance = attendanceResults.total;
+      if (allowedModules.includes(SearchModule.ATTENDANCE)) {
+        const r = await this.searchAttendance(
+          searchTerm,
+          tenantId,
+          searchAllTenants,
+          limit,
+          teamIds,
+        );
+        results.attendance = r.items;
+        counts.attendance = r.total;
+      }
     }
-
-    // Search Benefits
     if (module === SearchModule.ALL || module === SearchModule.BENEFITS) {
-      const benefitResults = await this.searchBenefits(
-        searchTerm,
-        tenantId,
-        searchAllTenants,
-        limit,
-        teamIds,
-      );
-      results.benefits = benefitResults.items;
-      counts.benefits = benefitResults.total;
+      if (allowedModules.includes(SearchModule.BENEFITS)) {
+        const r = await this.searchBenefits(
+          searchTerm,
+          tenantId,
+          searchAllTenants,
+          limit,
+          teamIds,
+        );
+        results.benefits = r.items;
+        counts.benefits = r.total;
+      }
     }
-
-    // Search Payroll
     if (module === SearchModule.ALL || module === SearchModule.PAYROLL) {
-      const payrollResults = await this.searchPayroll(
-        searchTerm,
-        tenantId,
-        searchAllTenants,
-        limit,
-        teamIds,
-      );
-      results.payroll = payrollResults.items;
-      counts.payroll = payrollResults.total;
+      if (allowedModules.includes(SearchModule.PAYROLL)) {
+        const r = await this.searchPayroll(
+          searchTerm,
+          tenantId,
+          searchAllTenants,
+          limit,
+          teamIds,
+        );
+        results.payroll = r.items;
+        counts.payroll = r.total;
+      }
     }
 
-    const totalResults = Object.values(counts).reduce((sum, count) => sum + count, 0);
-
+    const totalResults = Object.values(counts).reduce((s, c) => s + c, 0);
     return {
-      query: query || '',
+      query: query ?? '',
       totalResults,
       results,
       counts,
     };
+  }
+
+  private getAllowedModules(
+    userRole: string,
+    requestedModule: SearchModule,
+  ): Exclude<SearchModule, SearchModule.ALL>[] {
+    const role = userRole.toLowerCase();
+    if (requestedModule !== SearchModule.ALL) {
+      const perm = MODULE_READ_PERMISSION[requestedModule as Exclude<SearchModule, SearchModule.ALL>];
+      return perm && this.rolesPermissions.hasPermission(role, perm)
+        ? [requestedModule as Exclude<SearchModule, SearchModule.ALL>]
+        : [];
+    }
+    return ALL_MODULES.filter((m) =>
+      this.rolesPermissions.hasPermission(role, MODULE_READ_PERMISSION[m]),
+    );
   }
 
   /**

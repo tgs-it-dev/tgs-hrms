@@ -20,6 +20,12 @@ export class RolesGuard implements CanActivate {
     const userRole = (user?.role || '').toLowerCase();
     const normalizedRequired = (requiredRoles || []).map((r) => (r || '').toLowerCase());
 
+    // System-admin-only routes: require exact role (no admin/network-admin equivalence)
+    const onlySystemAdminRequired =
+      normalizedRequired.length === 1 && normalizedRequired[0] === 'system-admin';
+    if (onlySystemAdminRequired) {
+      return userRole === 'system-admin';
+    }
 
     const isAdminEquivalent = (role: string) =>
       role === 'admin' || role === 'system-admin' || role === 'network-admin' || role === 'hr-admin';

@@ -97,7 +97,9 @@
         "timesheet.approve",
         "timesheet.reject",
         "announcement.read",
-        "reports.read"
+        "reports.read",
+        "asset-request.create",
+        "asset-request.read"
       ],
       "isAdmin": false,
       "priority": 5
@@ -118,7 +120,9 @@
         "task.update",
         "policy.read",
         "team.read",
-        "announcement.read"
+        "announcement.read",
+        "asset-request.create",
+        "asset-request.read"
       ],
       "isAdmin": false,
       "priority": 6

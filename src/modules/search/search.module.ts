@@ -12,6 +12,7 @@ import { EmployeeBenefit } from '../../entities/employee-benefit.entity';
 import { PayrollRecord } from '../../entities/payroll-record.entity';
 import { User } from '../../entities/user.entity';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
+import { RolesPermissionsService } from '../../common/services/roles-permissions.service';
 
 @Module({
   imports: [
@@ -29,7 +30,7 @@ import { SharedJwtModule } from '../../common/modules/jwt.module';
     SharedJwtModule,
   ],
   controllers: [SearchController],
-  providers: [SearchService],
+  providers: [SearchService, RolesPermissionsService],
   exports: [SearchService],
 })
 export class SearchModule {}

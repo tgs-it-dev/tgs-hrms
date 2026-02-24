@@ -15,6 +15,7 @@ import { SystemAssetService } from "./system-asset.service";
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller("system/assets")
+@Roles("system-admin")
 export class SystemAssetController {
   constructor(private readonly assetService: SystemAssetService) {}
 
@@ -23,7 +24,6 @@ export class SystemAssetController {
    * GET /system/assets
    */
   @Get()
-  @Roles("system-admin")
   @ApiOperation({
     summary:
       "List all assets across tenants with optional filters (category, tenant, assignment status). Paginated response.",
@@ -80,7 +80,6 @@ export class SystemAssetController {
    * GET /system/assets/summary
    */
   @Get("summary")
-  @Roles("system-admin")
   @ApiOperation({
     summary:
       "View total assets, assigned vs available stats aggregated by tenant.",
