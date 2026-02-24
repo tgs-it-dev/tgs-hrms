@@ -1,13 +1,10 @@
 /**
- * Enhanced application configuration with validation
+ * Application configuration with environment validation.
  */
 
 import { ConfigService } from '@nestjs/config';
-import {
-  DEFAULT_JWT_EXPIRES_IN,
-  DEFAULT_JWT_SECRET,
-  DEFAULT_SENDGRID_FROM,
-} from '../common/constants';
+
+import { DEFAULT_JWT_EXPIRES_IN, DEFAULT_JWT_SECRET, DEFAULT_SENDGRID_FROM } from '../common/constants';
 import { validateEnvironment } from './env.validation';
 
 export interface AppConfig {
@@ -55,15 +52,15 @@ export interface AppConfig {
   };
 }
 
-export const getAppConfig = (_configService: ConfigService): AppConfig => {
-  // Validate environment variables
-  const envVars = validateEnvironment(process.env);
-  
+/** ConfigService kept for API consistency; env is read via validateEnvironment(process.env). */
+/* eslint-disable-next-line @typescript-eslint/no-unused-vars */
+export function getAppConfig(_configService: ConfigService): AppConfig {
+  const envVars = validateEnvironment(process.env as Record<string, unknown>);
+
   return {
     port: envVars.PORT,
     host: envVars.HOST,
     nodeEnv: envVars.NODE_ENV,
-    
     database: {
       host: envVars.DB_HOST,
       port: envVars.DB_PORT,
@@ -72,25 +69,21 @@ export const getAppConfig = (_configService: ConfigService): AppConfig => {
       database: envVars.DB_NAME,
       ssl: envVars.DB_SSL,
     },
-    
     jwt: {
-      secret: envVars.JWT_SECRET || DEFAULT_JWT_SECRET,
-      expiresIn: envVars.JWT_EXPIRES_IN || DEFAULT_JWT_EXPIRES_IN,
-      refreshSecret: envVars.JWT_REFRESH_SECRET || envVars.JWT_SECRET,
+      secret: envVars.JWT_SECRET ?? DEFAULT_JWT_SECRET,
+      expiresIn: envVars.JWT_EXPIRES_IN ?? DEFAULT_JWT_EXPIRES_IN,
+      refreshSecret: envVars.JWT_REFRESH_SECRET ?? envVars.JWT_SECRET,
       refreshExpiresIn: envVars.JWT_REFRESH_EXPIRES_IN,
     },
-    
     email: {
-      sendgridApiKey: envVars.SENDGRID_API_KEY || '',
-      sendgridFrom: envVars.SENDGRID_FROM || DEFAULT_SENDGRID_FROM,
+      sendgridApiKey: envVars.SENDGRID_API_KEY ?? '',
+      sendgridFrom: envVars.SENDGRID_FROM ?? DEFAULT_SENDGRID_FROM,
     },
-    
     fileUpload: {
       maxFileSize: envVars.MAX_FILE_SIZE,
       allowedImageTypes: envVars.ALLOWED_IMAGE_TYPES.split(','),
       allowedDocumentTypes: envVars.ALLOWED_DOCUMENT_TYPES.split(','),
     },
-    
     security: {
       corsOrigins: envVars.CORS_ORIGINS.split(','),
       rateLimit: {
@@ -98,18 +91,14 @@ export const getAppConfig = (_configService: ConfigService): AppConfig => {
         maxRequests: envVars.RATE_LIMIT_MAX_REQUESTS,
       },
     },
-    
     logging: {
       level: envVars.LOG_LEVEL,
       enableFileLogging: envVars.ENABLE_FILE_LOGGING,
       logDirectory: envVars.LOG_DIRECTORY,
     },
-    
     stripe: {
-      secretKey: envVars.STRIPE_SECRET_KEY || '',
-      webhookSecret: envVars.STRIPE_WEBHOOK_SECRET || '',
+      secretKey: envVars.STRIPE_SECRET_KEY ?? '',
+      webhookSecret: envVars.STRIPE_WEBHOOK_SECRET ?? '',
     },
   };
-};
-
-
+}
