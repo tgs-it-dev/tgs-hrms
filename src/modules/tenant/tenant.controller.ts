@@ -6,245 +6,265 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
+  HttpStatus,
   NotFoundException,
   BadRequestException,
-  Query,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiBody, ApiQuery } from '@nestjs/swagger';
+
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { Permissions } from '../../common/decorators/permissions.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { PaginationResponse } from '../../common/interfaces/pagination.interface';
+import { Tenant } from '../../entities/tenant.entity';
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-  ApiParam,
-  ApiBody,
-  ApiQuery,
-} from '@nestjs/swagger';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
-import { RolesGuard } from 'src/common/guards/roles.guard';
-import { Roles } from 'src/common/decorators/roles.decorator';
-import { Permissions } from 'src/common/decorators/permissions.decorator';
-import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+  TENANT_ADMIN_ROLE,
+  TENANT_MANAGE_PERMISSION,
+  TENANT_PAGINATION,
+  TENANT_MESSAGES,
+  TENANT_API,
+  TENANT_SWAGGER,
+  TENANT_OPERATIONS,
+  TENANT_API_RESPONSES,
+  PARSE_INT_RADIX,
+} from './constants/tenant.constants';
 import { TenantService } from './tenant.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 
-@ApiTags('Tenants')
+interface TenantListResponse extends PaginationResponse<Tenant> {
+  statusCode: number;
+  message: string;
+}
+
+interface TenantSingleResponse {
+  statusCode: number;
+  message: string;
+  data: Tenant;
+}
+
+interface TenantDeleteResponse {
+  statusCode: number;
+  message: string;
+  id: string;
+}
+
+@ApiTags(TENANT_API.TAG)
 @ApiBearerAuth()
-@Controller('tenants')
+@Controller(TENANT_API.ROUTE_PREFIX)
 export class TenantController {
   constructor(private readonly tenantService: TenantService) {}
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles('system-admin')
-  @Permissions('manage_tenants')
-  @ApiOperation({ summary: 'Get all tenants (Admin only) - Paginated' })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 25, max: 100)' })
-  @ApiResponse({
-    status: 200,
-    description: 'List of tenants retrieved successfully.',
+  @Roles(TENANT_ADMIN_ROLE)
+  @Permissions(TENANT_MANAGE_PERMISSION)
+  @ApiOperation({ summary: TENANT_OPERATIONS.GET_ALL })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: `Page number (default: ${TENANT_PAGINATION.DEFAULT_PAGE})`,
   })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized - Invalid or missing JWT token',
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: `Items per page (default: ${TENANT_PAGINATION.DEFAULT_LIMIT}, max: ${TENANT_PAGINATION.MAX_LIMIT})`,
   })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden - Insufficient permissions',
-  })
-  async getTenants(@Query('page') page?: string, @Query('limit') limit?: string) {
+  @ApiResponse({ status: HttpStatus.OK, description: TENANT_MESSAGES.LIST_SUCCESS })
+  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: TENANT_API_RESPONSES.UNAUTHORIZED })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: TENANT_API_RESPONSES.FORBIDDEN })
+  async getTenants(@Query('page') page?: string, @Query('limit') limit?: string): Promise<TenantListResponse> {
     try {
-      const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-      const limitNumber = Math.min(100, Math.max(1, parseInt(limit || '25', 10) || 25));
+      const { pageNumber, limitNumber } = this.parsePagination(page, limit);
       const result = await this.tenantService.findAll(pageNumber, limitNumber);
       return {
-        statusCode: 200,
-        message: 'List of tenants retrieved successfully.',
+        statusCode: HttpStatus.OK,
+        message: TENANT_MESSAGES.LIST_SUCCESS,
         ...result,
       };
     } catch (err) {
-      throw new BadRequestException('Failed to fetch tenants');
+      if (err instanceof NotFoundException || err instanceof BadRequestException) {
+        throw err;
+      }
+      throw new BadRequestException(TENANT_MESSAGES.FETCH_FAILED);
     }
   }
 
-  @Get(':id')
+  @Get(`:${TENANT_API.ID_PARAM}`)
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles('system-admin')
-  @Permissions('manage_tenants')
-  @ApiOperation({ summary: 'Get tenant by ID (Admin only)' })
+  @Roles(TENANT_ADMIN_ROLE)
+  @Permissions(TENANT_MANAGE_PERMISSION)
+  @ApiOperation({ summary: TENANT_OPERATIONS.GET_BY_ID })
   @ApiParam({
-    name: 'id',
-    description: 'Tenant UUID',
-    example: '550e8400-e29b-41d4-a716-446655440000',
+    name: TENANT_API.ID_PARAM,
+    description: TENANT_SWAGGER.PARAM_UUID_DESCRIPTION,
+    example: TENANT_SWAGGER.EXAMPLE_UUID,
   })
   @ApiResponse({
-    status: 200,
-    description: 'Tenant retrieved successfully.',
+    status: HttpStatus.OK,
+    description: TENANT_MESSAGES.GET_SUCCESS,
     schema: {
       example: {
-        id: '550e8400-e29b-41d4-a716-446655440000',
-        name: 'Default Company',
-        createdAt: '2024-01-01T00:00:00.000Z',
+        id: TENANT_SWAGGER.EXAMPLE_UUID,
+        name: TENANT_SWAGGER.EXAMPLE_NAME,
+        createdAt: TENANT_SWAGGER.EXAMPLE_CREATED_AT,
       },
     },
   })
-  @ApiResponse({
-    status: 404,
-    description: 'Tenant not found',
-  })
-  async getTenantById(@Param('id') id: string) {
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: TENANT_MESSAGES.FETCH_ONE_FAILED })
+  async getTenantById(@Param(TENANT_API.ID_PARAM) id: string): Promise<TenantSingleResponse> {
     try {
       const tenant = await this.tenantService.findOne(id);
       return {
-        statusCode: 200,
-        message: 'Tenant retrieved successfully.',
+        statusCode: HttpStatus.OK,
+        message: TENANT_MESSAGES.GET_SUCCESS,
         data: tenant,
       };
     } catch (err) {
-      if (err instanceof NotFoundException) throw err;
-      throw new BadRequestException('Failed to fetch tenant');
+      if (err instanceof NotFoundException) {
+        throw err;
+      }
+      throw new BadRequestException(TENANT_MESSAGES.FETCH_ONE_FAILED);
     }
   }
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles('system-admin')
-  @Permissions('manage_tenants')
-  @ApiOperation({ summary: 'Create a new tenant (Admin only)' })
+  @Roles(TENANT_ADMIN_ROLE)
+  @Permissions(TENANT_MANAGE_PERMISSION)
+  @ApiOperation({ summary: TENANT_OPERATIONS.CREATE })
   @ApiBody({ type: CreateTenantDto })
   @ApiResponse({
-    status: 201,
-    description: 'Tenant created successfully.',
+    status: HttpStatus.CREATED,
+    description: TENANT_MESSAGES.CREATE_SUCCESS,
     schema: {
       example: {
-        id: '550e8400-e29b-41d4-a716-446655440000',
-        name: 'New Company',
-        createdAt: '2024-01-01T00:00:00.000Z',
+        id: TENANT_SWAGGER.EXAMPLE_UUID,
+        name: TENANT_SWAGGER.EXAMPLE_NAME_NEW,
+        createdAt: TENANT_SWAGGER.EXAMPLE_CREATED_AT,
       },
     },
   })
-  @ApiResponse({
-    status: 400,
-    description: 'Bad Request - Invalid tenant data',
-  })
-  async createTenant(@Body() createTenantDto: CreateTenantDto) {
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: TENANT_API_RESPONSES.BAD_REQUEST_INVALID_DATA })
+  async createTenant(@Body() createTenantDto: CreateTenantDto): Promise<TenantSingleResponse> {
     try {
       const tenant = await this.tenantService.create(createTenantDto);
       return {
-        statusCode: 201,
-        message: 'Tenant created successfully.',
+        statusCode: HttpStatus.CREATED,
+        message: TENANT_MESSAGES.CREATE_SUCCESS,
         data: tenant,
       };
-    } catch (err) {
-      throw new BadRequestException('Failed to create tenant');
+    } catch {
+      throw new BadRequestException(TENANT_MESSAGES.CREATE_FAILED);
     }
   }
 
-  @Put(':id')
+  @Put(`:${TENANT_API.ID_PARAM}`)
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles('system-admin')
-  @Permissions('manage_tenants')
-  @ApiOperation({ summary: 'Update tenant by ID (Admin only)' })
+  @Roles(TENANT_ADMIN_ROLE)
+  @Permissions(TENANT_MANAGE_PERMISSION)
+  @ApiOperation({ summary: TENANT_OPERATIONS.UPDATE })
   @ApiParam({
-    name: 'id',
-    description: 'Tenant UUID',
-    example: '550e8400-e29b-41d4-a716-446655440000',
+    name: TENANT_API.ID_PARAM,
+    description: TENANT_SWAGGER.PARAM_UUID_DESCRIPTION,
+    example: TENANT_SWAGGER.EXAMPLE_UUID,
   })
   @ApiBody({ type: UpdateTenantDto })
-  @ApiResponse({
-    status: 200,
-    description: 'Tenant updated successfully.',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Tenant not found',
-  })
-  async updateTenant(@Param('id') id: string, @Body() updateTenantDto: UpdateTenantDto) {
+  @ApiResponse({ status: HttpStatus.OK, description: TENANT_MESSAGES.UPDATE_SUCCESS })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: TENANT_MESSAGES.FETCH_ONE_FAILED })
+  async updateTenant(
+    @Param(TENANT_API.ID_PARAM) id: string,
+    @Body() updateTenantDto: UpdateTenantDto,
+  ): Promise<TenantSingleResponse> {
     try {
       const tenant = await this.tenantService.update(id, updateTenantDto);
       return {
-        statusCode: 200,
-        message: 'Tenant updated successfully.',
+        statusCode: HttpStatus.OK,
+        message: TENANT_MESSAGES.UPDATE_SUCCESS,
         data: tenant,
       };
     } catch (err) {
-      if (err instanceof NotFoundException) throw err;
-      throw new BadRequestException('Failed to update tenant');
+      if (err instanceof NotFoundException || err instanceof BadRequestException) {
+        throw err;
+      }
+      throw new BadRequestException(TENANT_MESSAGES.UPDATE_FAILED);
     }
   }
 
-  @Delete(':id')
+  @Delete(`:${TENANT_API.ID_PARAM}`)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('system-admin')
-  @ApiOperation({ summary: 'Delete tenant by ID (Admin only)' })
+  @Roles(TENANT_ADMIN_ROLE)
+  @ApiOperation({ summary: TENANT_OPERATIONS.DELETE })
   @ApiParam({
-    name: 'id',
-    description: 'Tenant UUID',
-    example: '550e8400-e29b-41d4-a716-446655440000',
+    name: TENANT_API.ID_PARAM,
+    description: TENANT_SWAGGER.PARAM_UUID_DESCRIPTION,
+    example: TENANT_SWAGGER.EXAMPLE_UUID,
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Tenant deleted successfully.',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Tenant not found',
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Bad Request - Tenant already deleted',
-  })
-  async deleteTenant(@Param('id') id: string) {
+  @ApiResponse({ status: HttpStatus.OK, description: TENANT_MESSAGES.DELETE_SUCCESS })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: TENANT_MESSAGES.FETCH_ONE_FAILED })
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: TENANT_API_RESPONSES.BAD_REQUEST_ALREADY_DELETED })
+  async deleteTenant(@Param(TENANT_API.ID_PARAM) id: string): Promise<TenantDeleteResponse> {
     try {
       await this.tenantService.remove(id);
       return {
-        statusCode: 200,
-        message: 'Tenant deleted successfully.',
+        statusCode: HttpStatus.OK,
+        message: TENANT_MESSAGES.DELETE_SUCCESS,
         id,
       };
     } catch (err) {
-      if (err instanceof NotFoundException) throw err;
-      if (err instanceof BadRequestException) throw err; // Already deleted case
-      throw new BadRequestException('Failed to delete tenant');
+      if (err instanceof NotFoundException || err instanceof BadRequestException) {
+        throw err;
+      }
+      throw new BadRequestException(TENANT_MESSAGES.DELETE_FAILED);
     }
   }
 
-  @Post(':id/restore')
+  @Post(`:${TENANT_API.ID_PARAM}/${TENANT_API.RESTORE_PATH}`)
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles('system-admin')
-  @Permissions('manage_tenants')
-  @ApiOperation({ summary: 'Restore a deleted tenant (Admin only)' })
+  @Roles(TENANT_ADMIN_ROLE)
+  @Permissions(TENANT_MANAGE_PERMISSION)
+  @ApiOperation({ summary: TENANT_OPERATIONS.RESTORE })
   @ApiParam({
-    name: 'id',
-    description: 'Tenant UUID',
-    example: '550e8400-e29b-41d4-a716-446655440000',
+    name: TENANT_API.ID_PARAM,
+    description: TENANT_SWAGGER.PARAM_UUID_DESCRIPTION,
+    example: TENANT_SWAGGER.EXAMPLE_UUID,
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Tenant restored successfully.',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Tenant not found',
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Bad Request - Tenant is not deleted',
-  })
-  async restoreTenant(@Param('id') id: string) {
+  @ApiResponse({ status: HttpStatus.OK, description: TENANT_MESSAGES.RESTORE_SUCCESS })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: TENANT_MESSAGES.FETCH_ONE_FAILED })
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: TENANT_API_RESPONSES.BAD_REQUEST_NOT_DELETED })
+  async restoreTenant(@Param(TENANT_API.ID_PARAM) id: string): Promise<TenantSingleResponse> {
     try {
       const tenant = await this.tenantService.restore(id);
       return {
-        statusCode: 200,
-        message: 'Tenant restored successfully.',
+        statusCode: HttpStatus.OK,
+        message: TENANT_MESSAGES.RESTORE_SUCCESS,
         data: tenant,
       };
     } catch (err) {
-      if (err instanceof NotFoundException) throw err;
-      if (err instanceof BadRequestException) throw err;
-      throw new BadRequestException('Failed to restore tenant');
+      if (err instanceof NotFoundException || err instanceof BadRequestException) {
+        throw err;
+      }
+      throw new BadRequestException(TENANT_MESSAGES.RESTORE_FAILED);
     }
+  }
+
+  private parsePagination(page?: string, limit?: string): { pageNumber: number; limitNumber: number } {
+    const rawPage = parseInt(page ?? String(TENANT_PAGINATION.DEFAULT_PAGE), PARSE_INT_RADIX);
+    const rawLimit = parseInt(limit ?? String(TENANT_PAGINATION.DEFAULT_LIMIT), PARSE_INT_RADIX);
+    const pageNumber = Math.max(
+      TENANT_PAGINATION.DEFAULT_PAGE,
+      Number.isNaN(rawPage) ? TENANT_PAGINATION.DEFAULT_PAGE : rawPage,
+    );
+    const limitNumber = Math.min(
+      TENANT_PAGINATION.MAX_LIMIT,
+      Math.max(TENANT_PAGINATION.DEFAULT_LIMIT, Number.isNaN(rawLimit) ? TENANT_PAGINATION.DEFAULT_LIMIT : rawLimit),
+    );
+    return { pageNumber, limitNumber };
   }
 }

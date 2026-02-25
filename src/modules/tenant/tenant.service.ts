@@ -1,30 +1,30 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
+
 import { Tenant } from '../../entities/tenant.entity';
+import { PaginationResponse } from '../../common/interfaces/pagination.interface';
+import { TenantStatus, TENANT_PAGINATION, TENANT_ERRORS } from './constants/tenant.constants';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
-import { PaginationResponse } from '../../common/interfaces/pagination.interface';
 
 @Injectable()
 export class TenantService {
   constructor(
     @InjectRepository(Tenant)
-    private readonly tenantRepo: Repository<Tenant>
+    private readonly tenantRepo: Repository<Tenant>,
   ) {}
 
   /**
-   * Get all tenants with pagination
-   * @param page - Page number (default: 1)
-   * @param limit - Items per page (default: 25)
-   * @param includeDeleted - Include soft-deleted tenants (default: false)
-   * @returns Paginated list of tenants
+   * Get all tenants with pagination. Excludes soft-deleted by default.
    */
-  async findAll(page: number = 1, limit: number = 25, includeDeleted: boolean = false): Promise<PaginationResponse<Tenant>> {
+  async findAll(
+    page: number = TENANT_PAGINATION.DEFAULT_PAGE,
+    limit: number = TENANT_PAGINATION.DEFAULT_LIMIT,
+    includeDeleted: boolean = false,
+  ): Promise<PaginationResponse<Tenant>> {
     const skip = (page - 1) * limit;
-    
-    // Filter out deleted tenants by default (professional practice)
-    // TypeORM's DeleteDateColumn automatically excludes deleted records unless withDeleted is true
+
     const [items, total] = await this.tenantRepo.findAndCount({
       where: includeDeleted ? {} : { deleted_at: IsNull() },
       order: { created_at: 'DESC' },
@@ -33,39 +33,32 @@ export class TenantService {
       withDeleted: includeDeleted,
     });
 
-    const totalPages = Math.ceil(total / limit);
-
     return {
       items,
       total,
       page,
       limit,
-      totalPages,
+      totalPages: Math.ceil(total / limit),
     };
   }
 
   /**
-   * Find a tenant by ID
-   * @param id - Tenant UUID
-   * @param includeDeleted - Include soft-deleted tenants (default: false)
-   * @returns Tenant entity
-   * @throws NotFoundException if tenant not found or is deleted
+   * Find a tenant by ID. Excludes soft-deleted by default.
    */
   async findOne(id: string, includeDeleted: boolean = false): Promise<Tenant> {
-    const tenant = await this.tenantRepo.findOne({ 
+    const tenant = await this.tenantRepo.findOne({
       where: { id },
       withDeleted: includeDeleted,
     });
-    
+
     if (!tenant) {
-      throw new NotFoundException('Tenant not found');
+      throw new NotFoundException(TENANT_ERRORS.NOT_FOUND);
     }
-    
-    // Additional check: if tenant is deleted and we're not including deleted
+
     if (tenant.deleted_at && !includeDeleted) {
-      throw new NotFoundException('Tenant has been deleted');
+      throw new NotFoundException(TENANT_ERRORS.DELETED);
     }
-    
+
     return tenant;
   }
 
@@ -75,76 +68,63 @@ export class TenantService {
   }
 
   /**
-   * Update a tenant
-   * @param id - Tenant UUID
-   * @param dto - Update data
-   * @returns Updated tenant
-   * @throws NotFoundException if tenant not found
-   * @throws BadRequestException if trying to update deleted tenant
+   * Update a tenant. Rejects if tenant is soft-deleted.
    */
   async update(id: string, dto: UpdateTenantDto): Promise<Tenant> {
     const tenant = await this.findOne(id);
-    
-    // Prevent updating deleted tenants
+
     if (tenant.deleted_at) {
-      throw new BadRequestException('Cannot update a deleted tenant. Please restore it first.');
+      throw new BadRequestException(TENANT_ERRORS.CANNOT_UPDATE_DELETED);
     }
-    
+
     Object.assign(tenant, dto);
     return this.tenantRepo.save(tenant);
   }
 
   /**
-   * Soft delete a tenant
-   * @param id - Tenant UUID
-   * @returns Deletion confirmation
-   * @throws NotFoundException if tenant not found
-   * @throws BadRequestException if tenant is already deleted
+   * Soft-delete a tenant. Sets status to suspended.
    */
   async remove(id: string): Promise<{ deleted: true; id: string }> {
-    // Find tenant including deleted ones to check status
-    const tenant = await this.tenantRepo.findOne({ where: { id } });
-    
+    const tenant = await this.tenantRepo.findOne({
+      where: { id },
+      withDeleted: true,
+    });
+
     if (!tenant) {
-      throw new NotFoundException('Tenant not found');
+      throw new NotFoundException(TENANT_ERRORS.NOT_FOUND);
     }
-    
-    // Check if already deleted (professional error handling)
+
     if (tenant.deleted_at) {
-      throw new BadRequestException('Tenant is already deleted');
+      throw new BadRequestException(TENANT_ERRORS.ALREADY_DELETED);
     }
-    
-    // Soft delete: Mark tenant as deleted instead of hard delete
-    // This preserves employee data for import info while preventing login
+
     tenant.deleted_at = new Date();
-    tenant.status = 'suspended';
-    
+    tenant.status = TenantStatus.SUSPENDED;
     await this.tenantRepo.save(tenant);
+
     return { deleted: true, id };
   }
 
   /**
-   * Restore a soft-deleted tenant
-   * @param id - Tenant UUID
-   * @returns Restored tenant
-   * @throws NotFoundException if tenant not found
-   * @throws BadRequestException if tenant is not deleted
+   * Restore a soft-deleted tenant. Sets status to active.
    */
   async restore(id: string): Promise<Tenant> {
-    const tenant = await this.tenantRepo.findOne({ where: { id } });
-    
+    const tenant = await this.tenantRepo.findOne({
+      where: { id },
+      withDeleted: true,
+    });
+
     if (!tenant) {
-      throw new NotFoundException('Tenant not found');
+      throw new NotFoundException(TENANT_ERRORS.NOT_FOUND);
     }
-    
+
     if (!tenant.deleted_at) {
-      throw new BadRequestException('Tenant is not deleted');
+      throw new BadRequestException(TENANT_ERRORS.NOT_DELETED);
     }
-    
-    // Restore tenant
+
     tenant.deleted_at = null;
-    tenant.status = 'active';
-    
+    tenant.status = TenantStatus.ACTIVE;
+
     return this.tenantRepo.save(tenant);
   }
 }
