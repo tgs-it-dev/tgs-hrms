@@ -1,151 +1,214 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-  ApiParam,
-  ApiBody,
-} from '@nestjs/swagger';
-import { RolesGuard } from 'src/common/guards/roles.guard';
-import { Roles } from 'src/common/decorators/roles.decorator';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
-import { Permissions } from 'src/common/decorators/permissions.decorator';
-import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+  HttpStatus,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiBody } from '@nestjs/swagger';
+
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { Permissions } from '../../common/decorators/permissions.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { Role } from '../../entities/role.entity';
+import {
+  ROLE_MANAGE_ROLES,
+  ROLE_MANAGE_ROLES_STRICT,
+  ROLE_MANAGE_PERMISSION,
+  ROLE_API,
+  ROLE_SWAGGER,
+  ROLE_OPERATIONS,
+  ROLE_API_RESPONSES,
+  ROLE_MESSAGES,
+} from './constants/role.constants';
+import { RoleService, RoleListItem } from './role.service';
 import { CreateRoleDto } from './dto/create-role.dto';
-import { RoleService } from './role.service';
 import { UpdateRoleDto } from './dto/update-role.dto';
 
-@ApiTags('Roles')
+interface RoleListResponse {
+  statusCode: number;
+  message: string;
+  data: RoleListItem[];
+}
+
+interface RoleSingleResponse {
+  statusCode: number;
+  message: string;
+  data: Role;
+}
+
+interface RoleDeleteResponse {
+  statusCode: number;
+  message: string;
+  id: string;
+}
+
+@ApiTags(ROLE_API.TAG)
 @ApiBearerAuth()
-@Controller('roles')
+@Controller(ROLE_API.ROUTE_PREFIX)
 export class RoleController {
   constructor(private readonly roleService: RoleService) {}
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin', 'hr-admin')
-  @Permissions('manage_roles')
-  @ApiOperation({ summary: 'Get all roles (Admin only)' })
+  @Roles(...ROLE_MANAGE_ROLES)
+  @Permissions(ROLE_MANAGE_PERMISSION)
+  @ApiOperation({ summary: ROLE_OPERATIONS.GET_ALL })
   @ApiResponse({
-    status: 200,
-    description: 'List of roles retrieved successfully.',
+    status: HttpStatus.OK,
+    description: ROLE_MESSAGES.LIST_SUCCESS,
     schema: {
-      example: [
-        {
-          
-          name: 'admin',
-         
-        },
-      ],
+      example: [{ name: ROLE_SWAGGER.EXAMPLE_NAME }],
     },
   })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized - Invalid or missing JWT token',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden - Insufficient permissions',
-  })
-  async getRoles() {
-    return this.roleService.findAll();
+  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: ROLE_API_RESPONSES.UNAUTHORIZED })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: ROLE_API_RESPONSES.FORBIDDEN })
+  async getRoles(): Promise<RoleListResponse> {
+    try {
+      const data = await this.roleService.findAll();
+      return {
+        statusCode: HttpStatus.OK,
+        message: ROLE_MESSAGES.LIST_SUCCESS,
+        data,
+      };
+    } catch (err) {
+      if (err instanceof NotFoundException || err instanceof BadRequestException) {
+        throw err;
+      }
+      throw new BadRequestException(ROLE_MESSAGES.FETCH_FAILED);
+    }
   }
 
-  @Get(':id')
+  @Get(`:${ROLE_API.ID_PARAM}`)
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin' ,'hr-admin')
-  @Permissions('manage_roles')
-  @ApiOperation({ summary: 'Get role by ID (Admin only)' })
+  @Roles(...ROLE_MANAGE_ROLES)
+  @Permissions(ROLE_MANAGE_PERMISSION)
+  @ApiOperation({ summary: ROLE_OPERATIONS.GET_BY_ID })
   @ApiParam({
-    name: 'id',
-    description: 'Role UUID',
-    example: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+    name: ROLE_API.ID_PARAM,
+    description: ROLE_SWAGGER.PARAM_UUID_DESCRIPTION,
+    example: ROLE_SWAGGER.EXAMPLE_UUID,
   })
   @ApiResponse({
-    status: 200,
-    description: 'Role retrieved successfully.',
+    status: HttpStatus.OK,
+    description: ROLE_MESSAGES.GET_SUCCESS,
     schema: {
-      example: {
-        name: 'admin',
-      },
+      example: { name: ROLE_SWAGGER.EXAMPLE_NAME },
     },
   })
-  @ApiResponse({
-    status: 404,
-    description: 'Role not found',
-  })
-  async getRoleById(@Param('id') id: string) {
-    return this.roleService.findOne(id);
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: ROLE_API_RESPONSES.NOT_FOUND })
+  async getRoleById(@Param(ROLE_API.ID_PARAM) id: string): Promise<RoleSingleResponse> {
+    try {
+      const data = await this.roleService.findOne(id);
+      return {
+        statusCode: HttpStatus.OK,
+        message: ROLE_MESSAGES.GET_SUCCESS,
+        data,
+      };
+    } catch (err) {
+      if (err instanceof NotFoundException) {
+        throw err;
+      }
+      throw new BadRequestException(ROLE_MESSAGES.FETCH_ONE_FAILED);
+    }
   }
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin')
-  @Permissions('manage_roles')
-  @ApiOperation({ summary: 'Create a new role (Admin only)' })
+  @Roles(...ROLE_MANAGE_ROLES_STRICT)
+  @Permissions(ROLE_MANAGE_PERMISSION)
+  @ApiOperation({ summary: ROLE_OPERATIONS.CREATE })
   @ApiBody({ type: CreateRoleDto })
   @ApiResponse({
-    status: 201,
-    description: 'Role created successfully.',
+    status: HttpStatus.CREATED,
+    description: ROLE_MESSAGES.CREATE_SUCCESS,
     schema: {
       example: {
-        id: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
-        name: 'manager',
-        description: 'Manager with department access',
+        id: ROLE_SWAGGER.EXAMPLE_UUID,
+        name: ROLE_SWAGGER.EXAMPLE_NAME_MANAGER,
+        description: ROLE_SWAGGER.EXAMPLE_DESCRIPTION,
       },
     },
   })
-  @ApiResponse({
-    status: 400,
-    description: 'Bad Request - Invalid role data',
-  })
-  createRole(@Body() _createRoleDto: CreateRoleDto) {
-    return { message: 'Create role - Implementation pending' };
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: ROLE_API_RESPONSES.BAD_REQUEST_INVALID_DATA })
+  async createRole(@Body() createRoleDto: CreateRoleDto): Promise<RoleSingleResponse> {
+    try {
+      const data = await this.roleService.create(createRoleDto);
+      return {
+        statusCode: HttpStatus.CREATED,
+        message: ROLE_MESSAGES.CREATE_SUCCESS,
+        data,
+      };
+    } catch {
+      throw new BadRequestException(ROLE_MESSAGES.CREATE_FAILED);
+    }
   }
 
-  @Put(':id')
+  @Put(`:${ROLE_API.ID_PARAM}`)
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin')
-  @Permissions('manage_roles')
-  @ApiOperation({ summary: 'Update role by ID (Admin only)' })
+  @Roles(...ROLE_MANAGE_ROLES_STRICT)
+  @Permissions(ROLE_MANAGE_PERMISSION)
+  @ApiOperation({ summary: ROLE_OPERATIONS.UPDATE })
   @ApiParam({
-    name: 'id',
-    description: 'Role UUID',
-    example: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+    name: ROLE_API.ID_PARAM,
+    description: ROLE_SWAGGER.PARAM_UUID_DESCRIPTION,
+    example: ROLE_SWAGGER.EXAMPLE_UUID,
   })
   @ApiBody({ type: UpdateRoleDto })
-  @ApiResponse({
-    status: 200,
-    description: 'Role updated successfully.',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Role not found',
-  })
-  updateRole(@Param('id') id: string, @Body() _updateRoleDto: UpdateRoleDto) {
-    return { message: `Update role: ${id} - Implementation pending` };
+  @ApiResponse({ status: HttpStatus.OK, description: ROLE_MESSAGES.UPDATE_SUCCESS })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: ROLE_API_RESPONSES.NOT_FOUND })
+  async updateRole(
+    @Param(ROLE_API.ID_PARAM) id: string,
+    @Body() updateRoleDto: UpdateRoleDto,
+  ): Promise<RoleSingleResponse> {
+    try {
+      const data = await this.roleService.update(id, updateRoleDto);
+      return {
+        statusCode: HttpStatus.OK,
+        message: ROLE_MESSAGES.UPDATE_SUCCESS,
+        data,
+      };
+    } catch (err) {
+      if (err instanceof NotFoundException || err instanceof BadRequestException) {
+        throw err;
+      }
+      throw new BadRequestException(ROLE_MESSAGES.UPDATE_FAILED);
+    }
   }
 
-  @Delete(':id')
+  @Delete(`:${ROLE_API.ID_PARAM}`)
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin')
-  @Permissions('manage_roles')
-  @ApiOperation({ summary: 'Delete role by ID (Admin only)' })
+  @Roles(...ROLE_MANAGE_ROLES_STRICT)
+  @Permissions(ROLE_MANAGE_PERMISSION)
+  @ApiOperation({ summary: ROLE_OPERATIONS.DELETE })
   @ApiParam({
-    name: 'id',
-    description: 'Role UUID',
-    example: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+    name: ROLE_API.ID_PARAM,
+    description: ROLE_SWAGGER.PARAM_UUID_DESCRIPTION,
+    example: ROLE_SWAGGER.EXAMPLE_UUID,
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Role deleted successfully.',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Role not found',
-  })
-  deleteRole(@Param('id') id: string) {
-    return { message: `Delete role: ${id} - Implementation pending` };
+  @ApiResponse({ status: HttpStatus.OK, description: ROLE_MESSAGES.DELETE_SUCCESS })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: ROLE_API_RESPONSES.NOT_FOUND })
+  async deleteRole(@Param(ROLE_API.ID_PARAM) id: string): Promise<RoleDeleteResponse> {
+    try {
+      await this.roleService.remove(id);
+      return {
+        statusCode: HttpStatus.OK,
+        message: ROLE_MESSAGES.DELETE_SUCCESS,
+        id,
+      };
+    } catch (err) {
+      if (err instanceof NotFoundException) {
+        throw err;
+      }
+      throw new BadRequestException(ROLE_MESSAGES.DELETE_FAILED);
+    }
   }
 }
