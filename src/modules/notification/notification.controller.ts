@@ -164,40 +164,5 @@ export class NotificationController {
     return { message: 'All notifications marked as read' };
   }
 
-  @Post('send')
-  @UseGuards(RolesGuard)
-  @Roles('admin', 'system-admin', 'hr-admin', 'manager')
-  @ApiOperation({ summary: 'Send notifications to multiple users' })
-  @ApiResponse({
-    status: 201,
-    description: 'Notifications sent successfully',
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Bad request - Invalid input',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'One or more users not found',
-  })
-  async sendNotifications(
-    @Body() dto: SendNotificationDto,
-    @Request() req: AuthenticatedRequest,
-  ) {
-    const notifications = await this.notificationService.sendToUsers(
-      dto.user_ids,
-      req.user.tenant_id,
-      dto.message,
-      dto.type,
-      dto.related_entity_type || dto.related_entity_id
-        ? { relatedEntityType: dto.related_entity_type, relatedEntityId: dto.related_entity_id }
-        : undefined,
-    );
-
-    return {
-      message: 'Notifications sent successfully',
-      count: notifications.length,
-      notifications,
-    };
-  }
+ 
 }

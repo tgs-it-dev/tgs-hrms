@@ -612,28 +612,13 @@ export class LeaveService {
         // Only admins get processing notification — manager must NOT get it (exclude approverId from list)
         const allAdminUserIds = await this.getTenantAdminAndHrAdminUserIds(tenantId);
         const adminUserIdsExcludingManager = allAdminUserIds.filter((id) => id !== approverId);
-        const { employeeNotification, adminNotifications } = await this.notificationService.notifyLeaveProcessing(
+        await this.notificationService.notifyLeaveProcessing(
           { id: saved.id, tenantId: saved.tenantId },
           approverId,
           employeePayload,
           adminUserIdsExcludingManager,
         );
-        this.notificationGateway.sendToUser(leave.employeeId, 'new_notification', {
-          id: employeeNotification.id,
-          message: employeeNotification.message,
-          type: employeeNotification.type,
-          ...payload,
-          created_at: employeeNotification.created_at,
-        });
-        for (const adminNotif of adminNotifications) {
-          this.notificationGateway.sendToUser(adminNotif.user_id, 'new_notification', {
-            id: adminNotif.id,
-            message: adminNotif.message,
-            type: adminNotif.type,
-            ...payload,
-            created_at: adminNotif.created_at,
-          });
-        }
+        // Not calling notificationGateway.sendToUser here — notification is created in DB only; avoids duplicate real-time push.
         // Mark manager's "leave applied" notification for this leave as read so it doesn't stay in their inbox
         await this.notificationService.markAsReadForRelatedEntity(
           approverId,
@@ -663,20 +648,13 @@ export class LeaveService {
         const employeePayload = employeeUser
           ? { id: employeeUser.id, first_name: employeeUser.first_name, last_name: employeeUser.last_name }
           : { id: leave.employeeId, first_name: '', last_name: '' };
-        const notification = await this.notificationService.notifyLeaveFinalDecision(
+        await this.notificationService.notifyLeaveFinalDecision(
           { id: saved.id, tenantId: saved.tenantId },
           approverId,
           employeePayload,
           true,
         );
-        this.notificationGateway.sendToUser(leave.employeeId, 'new_notification', {
-          id: notification.id,
-          message: notification.message,
-          type: notification.type,
-          related_entity_type: 'leave',
-          related_entity_id: saved.id,
-          created_at: notification.created_at,
-        });
+        // Not calling notificationGateway.sendToUser here — notification is created in DB only; avoids duplicate real-time push.
       } catch (error) {
         console.error('Failed to create leave approval notification:', error);
       }
