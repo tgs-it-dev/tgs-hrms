@@ -400,12 +400,16 @@ export class EmployeeBenefitsService {
   /**
    * Get all employees with benefits across all tenants (for system admin)
    * @param tenantId - Optional tenant ID to filter by
+   * @param departmentId - Optional department ID to filter employees by department
+   * @param designationId - Optional designation ID to filter employees by designation
    * @returns Employees grouped by tenant with all their benefits
    */
   async getAllEmployeesWithBenefitsAcrossTenants(
     tenantId?: string,
     page: number = 1,
     limit: number = 25,
+    departmentId?: string,
+    designationId?: string,
   ): Promise<{
     items: Array<{
       tenant_id: string;
@@ -483,14 +487,23 @@ export class EmployeeBenefitsService {
     }
 
     // Single query: all employees for this page's tenants (user.tenant_id IN (...))
-    const allEmployees = await this.employeeRepo
+    const empQb = this.employeeRepo
       .createQueryBuilder("employee")
       .leftJoinAndSelect("employee.employeeBenefits", "eb")
       .leftJoinAndSelect("eb.benefit", "benefit")
       .innerJoinAndSelect("employee.user", "user")
       .innerJoinAndSelect("employee.designation", "designation")
       .leftJoinAndSelect("designation.department", "department")
-      .where("user.tenant_id IN (:...tenantIds)", { tenantIds })
+      .where("user.tenant_id IN (:...tenantIds)", { tenantIds });
+
+    if (departmentId) {
+      empQb.andWhere("designation.department_id = :departmentId", { departmentId });
+    }
+    if (designationId) {
+      empQb.andWhere("employee.designation_id = :designationId", { designationId });
+    }
+
+    const allEmployees = await empQb
       .orderBy("user.tenant_id", "ASC")
       .addOrderBy("employee.id", "ASC")
       .getMany();
@@ -580,6 +593,122 @@ export class EmployeeBenefitsService {
       limit: effectiveLimit,
       totalPages,
     };
+  }
+
+  /**
+   * Get all employees with benefits across tenants for export (system admin).
+   * Same filters as getAllEmployeesWithBenefitsAcrossTenants; no pagination.
+   * @returns Flat rows for CSV: one row per benefit assignment
+   */
+  async getAllEmployeesWithBenefitsAcrossTenantsForExport(
+    tenantId?: string,
+    departmentId?: string,
+    designationId?: string,
+  ): Promise<
+    Array<{
+      tenant_name: string;
+      employee_name: string;
+      email: string;
+      department: string;
+      designation: string;
+      benefit_name: string;
+      benefit_type: string;
+      benefit_status: string;
+      assignment_status: string;
+      start_date: string;
+      end_date: string;
+    }>
+  > {
+    await this.expireAssignmentsPastEndDate();
+
+    const tenantWhere: any = { deleted_at: IsNull() };
+    if (tenantId) tenantWhere.id = tenantId;
+
+    const tenants = await this.tenantRepo.find({
+      where: tenantWhere,
+      order: { name: "ASC" },
+    });
+    const tenantIds = tenants.map((t) => t.id);
+    if (tenantIds.length === 0) return [];
+
+    const empQb = this.employeeRepo
+      .createQueryBuilder("employee")
+      .leftJoinAndSelect("employee.employeeBenefits", "eb")
+      .leftJoinAndSelect("eb.benefit", "benefit")
+      .innerJoinAndSelect("employee.user", "user")
+      .innerJoinAndSelect("employee.designation", "designation")
+      .leftJoinAndSelect("designation.department", "department")
+      .where("user.tenant_id IN (:...tenantIds)", { tenantIds });
+
+    if (departmentId) {
+      empQb.andWhere("designation.department_id = :departmentId", { departmentId });
+    }
+    if (designationId) {
+      empQb.andWhere("employee.designation_id = :designationId", { designationId });
+    }
+
+    const employees = await empQb
+      .orderBy("user.tenant_id", "ASC")
+      .addOrderBy("employee.id", "ASC")
+      .getMany();
+
+    const tenantMap = new Map(tenants.map((t) => [t.id, t.name]));
+    const rows: Array<{
+      tenant_name: string;
+      employee_name: string;
+      email: string;
+      department: string;
+      designation: string;
+      benefit_name: string;
+      benefit_type: string;
+      benefit_status: string;
+      assignment_status: string;
+      start_date: string;
+      end_date: string;
+    }> = [];
+
+    for (const emp of employees) {
+      const tenantName = (emp.user?.tenant_id && tenantMap.get(emp.user.tenant_id)) || "";
+      const employeeName = [emp.user?.first_name, emp.user?.last_name].filter(Boolean).join(" ").trim() || "";
+      const email = emp.user?.email ?? "";
+      const department = emp.designation?.department?.name ?? "";
+      const designation = emp.designation?.title ?? "";
+
+      const benefits = emp.employeeBenefits || [];
+      if (benefits.length === 0) {
+        rows.push({
+          tenant_name: tenantName,
+          employee_name: employeeName,
+          email,
+          department,
+          designation,
+          benefit_name: "",
+          benefit_type: "",
+          benefit_status: "",
+          assignment_status: "",
+          start_date: "",
+          end_date: "",
+        });
+      } else {
+        for (const b of benefits) {
+          rows.push({
+            tenant_name: tenantName,
+            employee_name: employeeName,
+            email,
+            department,
+            designation,
+            benefit_name: b.benefit?.name ?? "",
+            benefit_type: b.benefit?.type ?? "",
+            benefit_status: b.benefit?.status ?? "",
+            assignment_status: b.status ?? "",
+            start_date: b.startDate ? new Date(b.startDate).toISOString().split("T")[0] : "",
+            end_date: b.endDate ? new Date(b.endDate).toISOString().split("T")[0] : "",
+          });
+        }
+      }
+    }
+
+    return rows;
   }
 
 }

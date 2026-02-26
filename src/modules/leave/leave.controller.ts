@@ -395,6 +395,7 @@ export class LeaveController {
   @ApiQuery({ name: 'status', required: false, description: 'Filter by leave status', type: String })
   @ApiQuery({ name: 'month', required: false, description: 'Filter by month (1-12)', type: Number })
   @ApiQuery({ name: 'year', required: false, description: 'Filter by year (defaults to current year if month is provided)', type: Number })
+  @ApiQuery({ name: 'name', required: false, description: 'Filter by employee name (partial match on first/last name)', type: String })
   @ApiResponse({ status: 200, description: 'Returns all leave requests' })
   async findAllForAdmin(
     @Request() req: any,
@@ -402,11 +403,12 @@ export class LeaveController {
     @Query('status') status?: string,
     @Query('month') month?: string,
     @Query('year') year?: string,
+    @Query('name') name?: string,
   ) {
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
     const monthNumber = month ? parseInt(month, 10) : undefined;
     const yearNumber = year ? parseInt(year, 10) : undefined;
-    return this.leaveService.getAllLeaves(req.user.tenant_id, pageNumber, status, monthNumber, yearNumber);
+    return this.leaveService.getAllLeaves(req.user.tenant_id, pageNumber, status, monthNumber, yearNumber, name);
   }
 
   @Get(':id')
@@ -821,11 +823,15 @@ export class LeaveController {
   @ApiOperation({ summary: 'Download all leave requests for tenant as CSV (Admin/HR Admin/Network Admin only)' })
   @ApiQuery({ name: 'month', required: false, description: 'Filter by month (1-12)', type: Number })
   @ApiQuery({ name: 'year', required: false, description: 'Filter by year (defaults to current year if month is provided)', type: Number })
+  @ApiQuery({ name: 'status', required: false, description: 'Filter by leave status', type: String })
+  @ApiQuery({ name: 'name', required: false, description: 'Filter by employee name (partial match)', type: String })
   async exportAll(
     @Request() req: any,
     @Res() res: Response,
     @Query('month') month?: string,
     @Query('year') year?: string,
+    @Query('status') status?: string,
+    @Query('name') name?: string,
   ) {
     let page = 1;
     const rows: any[] = [];
@@ -835,14 +841,13 @@ export class LeaveController {
       const { items, total, limit } = await this.leaveService.getAllLeaves(
         req.user.tenant_id,
         page,
-        undefined,
+        status,
         monthNumber,
         yearNumber,
+        name,
       );
       for (const l of items) {
         rows.push({
-          id: l.id,
-          user_id: l.employeeId,
           first_name: l.employee?.first_name || '',
           last_name: l.employee?.last_name || '',
           user_name: `${l.employee?.first_name || ''} ${l.employee?.last_name || ''}`.trim(),

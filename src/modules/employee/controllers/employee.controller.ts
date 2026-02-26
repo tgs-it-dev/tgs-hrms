@@ -398,8 +398,7 @@ export class EmployeeController {
     }
 
     const rows = (allItems || []).map((e: any) => ({
-      id: e.id,
-      user_id: e.user_id,
+    
       first_name: e.user?.first_name,
       last_name: e.user?.last_name,
       email: e.user?.email,
@@ -421,18 +420,31 @@ export class EmployeeController {
     description: 'Optional tenant ID to filter employees for a specific tenant',
     example: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
   })
+  @ApiQuery({
+    name: 'departmentId',
+    required: false,
+    description: 'Optional department ID to filter employees by department',
+  })
+  @ApiQuery({
+    name: 'designationId',
+    required: false,
+    description: 'Optional designation ID to filter employees by designation',
+  })
   async exportForSystemAdmin(
     @Query('tenantId') tenantId: string | undefined,
+    @Query('departmentId') departmentId: string | undefined,
+    @Query('designationId') designationId: string | undefined,
     @Res() res: Response,
   ) {
-    const items = await this.service.getAllEmployeesForSystemAdmin(tenantId);
+    const items = await this.service.getAllEmployeesForSystemAdmin({
+      tenantId,
+      departmentId,
+      designationId,
+    });
 
     const rows = (items || []).map((e: any) => ({
-      tenant_id: e.user?.tenant?.id,
       tenant_name: e.user?.tenant?.name,
       tenant_status: e.user?.tenant?.status,
-      employee_id: e.id,
-      user_id: e.user_id,
       first_name: e.user?.first_name,
       last_name: e.user?.last_name,
       email: e.user?.email,

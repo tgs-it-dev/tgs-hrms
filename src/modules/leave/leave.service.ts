@@ -485,7 +485,8 @@ export class LeaveService {
     page: number = 1,
     status?: string,
     month?: number,
-    year?: number
+    year?: number,
+    name?: string
   ): Promise<{
     items: Leave[];
     total: number;
@@ -510,6 +511,15 @@ export class LeaveService {
       queryBuilder.andWhere('leave.status IN (:...statuses)', {
         statuses: [LeaveStatus.PROCESSING, LeaveStatus.APPROVED, LeaveStatus.REJECTED],
       });
+    }
+
+    // Filter by employee name (partial match on first_name, last_name, or full name)
+    if (name && name.trim()) {
+      const namePattern = `%${name.trim()}%`;
+      queryBuilder.andWhere(
+        '(LOWER(employee.first_name) LIKE LOWER(:namePattern) OR LOWER(employee.last_name) LIKE LOWER(:namePattern) OR LOWER(CONCAT(COALESCE(employee.first_name, \'\'), \' \', COALESCE(employee.last_name, \'\'))) LIKE LOWER(:namePattern))',
+        { namePattern },
+      );
     }
 
     // Filter by month and year if provided
