@@ -317,6 +317,7 @@ export class SignupService {
         cancel_url:
           this.configService.get<string>('STRIPE_CANCEL_URL') ||
           'http://192.168.0.161:5173/signup/select-plan',
+          allow_promotion_codes: true,
         line_items: [{ price: priceId, quantity: 1 }],
         metadata: { signupSessionId: session.id, planId: plan.id },
       });
