@@ -130,7 +130,7 @@ export class EmployeeQueryDto extends BaseQueryDto {
   @ApiPropertyOptional({ description: 'Filter by designation ID', example: 'uuid-string' })
   @IsOptional()
   @IsUUID()
-  designation_id?: string ;
+  designation_id?: string;
 
   @ApiPropertyOptional({ description: 'Filter by team ID', example: 'uuid-string' })
   @IsOptional()

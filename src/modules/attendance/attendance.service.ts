@@ -441,13 +441,22 @@ export class AttendanceService {
     return { totalAttendance: result.length };
   }
 
+  /** Normalize date-only strings to UTC bounds for consistent filtering (timestamptz). */
+  private normalizeDateBounds(startDate?: string, endDate?: string): { start?: Date; end?: Date } {
+    const out: { start?: Date; end?: Date } = {};
+    if (startDate) out.start = startDate.includes('T') ? new Date(startDate) : new Date(startDate + 'T00:00:00.000Z');
+    if (endDate) out.end = endDate.includes('T') ? new Date(endDate) : new Date(endDate + 'T23:59:59.999Z');
+    return out;
+  }
+
   async getAllAttendance(tenantId: string, startDate?: string, endDate?: string) {
+    const { start, end } = this.normalizeDateBounds(startDate, endDate);
     const qb = this.attendanceRepo
       .createQueryBuilder('attendance')
       .leftJoinAndSelect('attendance.user', 'user')
       .where('user.tenant_id = :tenantId', { tenantId });
-    if (startDate) qb.andWhere('attendance.timestamp >= :start', { start: new Date(startDate) });
-    if (endDate) qb.andWhere('attendance.timestamp <= :end', { end: new Date(endDate + 'T23:59:59.999Z') });
+    if (start) qb.andWhere('attendance.timestamp >= :start', { start });
+    if (end) qb.andWhere('attendance.timestamp <= :end', { end });
     qb.orderBy('attendance.timestamp', 'DESC');
     const items = await qb.getMany();
     return { items, total: items.length };
@@ -460,25 +469,28 @@ export class AttendanceService {
     skip: number = 0,
     take: number = 1000
   ) {
+    const { start, end } = this.normalizeDateBounds(startDate, endDate);
     const qb = this.attendanceRepo
       .createQueryBuilder('attendance')
       .leftJoinAndSelect('attendance.user', 'user')
       .where('user.tenant_id = :tenantId', { tenantId });
-    if (startDate) qb.andWhere('attendance.timestamp >= :start', { start: new Date(startDate) });
-    if (endDate) qb.andWhere('attendance.timestamp <= :end', { end: new Date(endDate + 'T23:59:59.999Z') });
+    if (start) qb.andWhere('attendance.timestamp >= :start', { start });
+    if (end) qb.andWhere('attendance.timestamp <= :end', { end });
     qb.orderBy('attendance.timestamp', 'DESC')
       .skip(skip)
       .take(take);
     return await qb.getMany();
   }
+
   async findEvents(userId?: string, startDate?: string, endDate?: string) {
+    const { start, end } = this.normalizeDateBounds(startDate, endDate);
     const qb = this.attendanceRepo
       .createQueryBuilder('attendance')
       .leftJoinAndSelect('attendance.user', 'user')
       .orderBy('attendance.timestamp', 'DESC');
     if (userId) qb.where('attendance.user_id = :userId', { userId });
-    if (startDate) qb.andWhere('attendance.timestamp >= :start', { start: new Date(startDate) });
-    if (endDate) qb.andWhere('attendance.timestamp <= :end', { end: new Date(endDate + 'T23:59:59.999Z') });
+    if (start) qb.andWhere('attendance.timestamp >= :start', { start });
+    if (end) qb.andWhere('attendance.timestamp <= :end', { end });
     const items = await qb.getMany();
     return { items, total: items.length };
   }
@@ -662,12 +674,14 @@ export class AttendanceService {
    * @param tenantId - Optional tenant ID to filter by specific tenant
    * @param startDate - Optional start date filter
    * @param endDate - Optional end date filter
+   * @param name - Optional employee name filter (partial match on first/last name)
    * @returns Attendance grouped by tenant with user details
    */
   async getAttendanceByTenant(
     tenantId?: string,
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    name?: string
   ): Promise<{
     tenants: Array<{
       tenant_id: string;
@@ -715,6 +729,15 @@ export class AttendanceService {
     }
     if (endDate) {
       qb.andWhere('attendance.timestamp <= :end', { end: new Date(endDate + 'T23:59:59.999Z') });
+    }
+
+    // Filter by employee name (partial match on first_name, last_name, or full name)
+    if (name && name.trim()) {
+      const namePattern = `%${name.trim()}%`;
+      qb.andWhere(
+        '(LOWER(COALESCE(user.first_name, \'\')) LIKE LOWER(:namePattern) OR LOWER(COALESCE(user.last_name, \'\')) LIKE LOWER(:namePattern) OR LOWER(CONCAT(COALESCE(user.first_name, \'\'), \' \', COALESCE(user.last_name, \'\'))) LIKE LOWER(:namePattern))',
+        { namePattern },
+      );
     }
 
     const attendanceRecords = await qb.getMany();

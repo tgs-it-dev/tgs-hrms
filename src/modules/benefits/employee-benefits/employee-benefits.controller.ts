@@ -7,9 +7,11 @@ import {
   Query,
   Put,
   Param,
+  Res,
   UseGuards,
   BadRequestException,
 } from "@nestjs/common";
+import { Response } from "express";
 import { EmployeeBenefitsService } from "./employee-benefits.service";
 import {
   ApiBearerAuth,
@@ -28,6 +30,7 @@ import { EmployeeBenefitSummaryDto } from "../dto/employee-benefit/employee-bene
 import {
   PaginatedGetAllEmployeesWithBenefitsResponseDto,
 } from "../dto/employee-benefit/get-all-employees-with-benefits.dto";
+import { sendCsvResponse } from "src/common/utils/csv.util";
 
 @ApiTags("Employee Benefits")
 @Controller("employee-benefits")
@@ -205,6 +208,18 @@ export class EmployeeBenefitsController {
     description: "Items per page (default: 25, max: 100)",
     type: Number,
   })
+  @ApiQuery({
+    name: "department_id",
+    required: false,
+    description: "Filter employees by department ID",
+    type: String,
+  })
+  @ApiQuery({
+    name: "designation_id",
+    required: false,
+    description: "Filter employees by designation ID",
+    type: String,
+  })
   @ApiOkResponse({
     description: "Returns paginated employees grouped by tenant with their benefits",
   })
@@ -212,6 +227,8 @@ export class EmployeeBenefitsController {
     @Query("tenant_id") tenantId?: string,
     @Query("page") page?: string,
     @Query("limit") limit?: string,
+    @Query("department_id") departmentId?: string,
+    @Query("designation_id") designationId?: string,
   ) {
     const pageNumber = Math.max(1, parseInt(page || "1", 10) || 1);
     const limitNumber = Math.min(100, Math.max(1, parseInt(limit || "25", 10) || 25));
@@ -220,6 +237,33 @@ export class EmployeeBenefitsController {
       tenantId,
       pageNumber,
       limitNumber,
+      departmentId,
+      designationId,
     );
+  }
+
+  @Get("export/all-tenants")
+  @Roles("system-admin")
+  @ApiOperation({
+    summary: "Export all employees with benefits across tenants as CSV (System Admin only)",
+    description: "Same filters as GET /employee-benefits/all-tenants (tenant_id, department_id, designation_id). Downloads CSV with one row per benefit assignment.",
+  })
+  @ApiQuery({ name: "tenant_id", required: false, description: "Filter by tenant ID", type: String })
+  @ApiQuery({ name: "department_id", required: false, description: "Filter employees by department ID", type: String })
+  @ApiQuery({ name: "designation_id", required: false, description: "Filter employees by designation ID", type: String })
+  @ApiOkResponse({ description: "CSV file download" })
+  async exportAllTenants(
+    @Res() res: Response,
+    @Query("tenant_id") tenantId?: string,
+    @Query("department_id") departmentId?: string,
+    @Query("designation_id") designationId?: string,
+  ) {
+    const rows = await this.employeeBenefitsService.getAllEmployeesWithBenefitsAcrossTenantsForExport(
+      tenantId,
+      departmentId,
+      designationId,
+    );
+    const filename = tenantId ? `employee-benefits-tenant-${tenantId}.csv` : "employee-benefits-all-tenants.csv";
+    return sendCsvResponse(res, filename, rows);
   }
 }

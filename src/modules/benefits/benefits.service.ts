@@ -98,16 +98,28 @@ export class BenefitsService {
   async findAllByTenant(
     tenant_id: string,
     page = 1,
+    type?: string,
+    status?: "active" | "inactive",
   ): Promise<PaginationResponse<Benefit>> {
     const limit = 25;
     const skip = (page - 1) * limit;
 
-    const [items, total] = await this.benefitRepo.findAndCount({
-      where: { tenant_id },
-      order: { createdAt: "DESC" },
-      skip,
-      take: limit,
-    });
+    const qb = this.benefitRepo
+      .createQueryBuilder("benefit")
+      .where("benefit.tenant_id = :tenant_id", { tenant_id });
+
+    if (type && type.trim()) {
+      qb.andWhere("benefit.type = :type", { type: type.trim() });
+    }
+    if (status === "active" || status === "inactive") {
+      qb.andWhere("benefit.status = :status", { status });
+    }
+
+    const [items, total] = await qb
+      .orderBy("benefit.created_at", "DESC")
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
 
     return {
       items,
@@ -116,6 +128,26 @@ export class BenefitsService {
       limit,
       totalPages: Math.ceil(total / limit),
     };
+  }
+
+  /** Get all benefits for export (same filters as list, no pagination). */
+  async findAllForExport(
+    tenant_id: string,
+    type?: string,
+    status?: "active" | "inactive",
+  ): Promise<Benefit[]> {
+    const qb = this.benefitRepo
+      .createQueryBuilder("benefit")
+      .where("benefit.tenant_id = :tenant_id", { tenant_id });
+
+    if (type && type.trim()) {
+      qb.andWhere("benefit.type = :type", { type: type.trim() });
+    }
+    if (status === "active" || status === "inactive") {
+      qb.andWhere("benefit.status = :status", { status });
+    }
+
+    return qb.orderBy("benefit.created_at", "DESC").getMany();
   }
 
   async findOne(tenant_id: string, id: string) {

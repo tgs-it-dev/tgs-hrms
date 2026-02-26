@@ -86,19 +86,18 @@ export class SystemController {
   async exportSystemLogs(@Res() res: Response) {
     const csv = await this.systemService.exportSystemLogs();
 
-    if (!csv) {
+    if (!csv || csv.length === 0) {
       throw new NotFoundException("No system logs available for export");
     }
 
-    res.setHeader("Content-Type", "text/csv");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename=system-logs-${Date.now()}.csv`,
-    );
-    res.send(csv);
+    const filename = `system-logs-${Date.now()}.csv`;
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    return res.status(200).send(csv);
   }
 
   @Get("tenant-growth")
+  @Roles("system-admin", "admin")
   @ApiOperation({
     summary: "Get tenant growth overview with month-wise cumulative counts",
   })

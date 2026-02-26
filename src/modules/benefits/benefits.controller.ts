@@ -8,14 +8,17 @@ import {
   Put,
   Query,
   Req,
+  Res,
   UseGuards,
 } from "@nestjs/common";
 import {
   ApiTags,
   ApiBearerAuth,
   ApiOperation,
+  ApiQuery,
   ApiResponse,
 } from "@nestjs/swagger";
+import { Response } from "express";
 import { BenefitsService } from "./benefits.service";
 import { CreateBenefitDto } from "./dto/benefit/create-benefit.dto";
 import { UpdateBenefitDto } from "./dto/benefit/update-benefit.dto";
@@ -25,6 +28,7 @@ import { Roles } from "../../common/decorators/roles.decorator";
 import { TenantGuard } from "../../common/guards/tenant.guard";
 import { TenantId } from "../../common/decorators/company.deorator";
 import { JwtUserPayloadDto } from "../auth/dto/jwt-payload.dto";
+import { sendCsvResponse } from "../../common/utils/csv.util";
 
 @ApiTags("Benefits")
 @ApiBearerAuth()
@@ -88,13 +92,48 @@ export class BenefitsController {
   @ApiOperation({
     summary: "List all benefits for a tenant (accessible to all roles)",
   })
+  @ApiQuery({ name: "page", required: false, description: "Page number (default: 1)", type: String })
+  @ApiQuery({ name: "type", required: false, description: "Filter by benefit type", type: String })
+  @ApiQuery({ name: "status", required: false, description: "Filter by status: active | inactive", enum: ["active", "inactive"] })
   @ApiResponse({
     status: 200,
     description: "List of all benefits for this tenant.",
   })
-  async findAll(@TenantId() tenant_id: string, @Query("page") page?: string) {
+  async findAll(
+    @TenantId() tenant_id: string,
+    @Query("page") page?: string,
+    @Query("type") type?: string,
+    @Query("status") status?: "active" | "inactive",
+  ) {
     const pageNumber = Math.max(1, parseInt(page || "1", 10) || 1);
-    return this.benefitService.findAllByTenant(tenant_id, pageNumber);
+    return this.benefitService.findAllByTenant(tenant_id, pageNumber, type, status);
+  }
+
+  @Get("export")
+  @Roles("hr-admin", "admin", "system-admin", "network-admin")
+  @ApiOperation({
+    summary: "Export benefits as CSV (Admin only)",
+    description: "Download all benefits for the tenant as CSV. Same filters as GET /benefits (type, status) apply.",
+  })
+  @ApiQuery({ name: "type", required: false, description: "Filter by benefit type", type: String })
+  @ApiQuery({ name: "status", required: false, description: "Filter by status: active | inactive", enum: ["active", "inactive"] })
+  @ApiResponse({ status: 200, description: "CSV file of benefits." })
+  async exportAll(
+    @TenantId() tenant_id: string,
+    @Res() res: Response,
+    @Query("type") type?: string,
+    @Query("status") status?: "active" | "inactive",
+  ) {
+    const items = await this.benefitService.findAllForExport(tenant_id, type, status);
+    const rows = (items || []).map((b) => ({
+      name: b.name,
+      type: b.type,
+      status: b.status,
+      description: b.description || "",
+      eligibility_criteria: b.eligibilityCriteria || "",
+      created_at: b.createdAt,
+    }));
+    return sendCsvResponse(res, "benefits.csv", rows);
   }
 
   @Get(":id")

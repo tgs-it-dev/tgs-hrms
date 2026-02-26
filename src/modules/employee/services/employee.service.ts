@@ -1517,7 +1517,11 @@ export class EmployeeService implements OnModuleInit {
     return contentTypes[ext] || 'application/octet-stream';
   }
 
-  async getAllEmployeesForSystemAdmin(tenantId?: string) {
+  async getAllEmployeesForSystemAdmin(filters?: {
+    tenantId?: string;
+    departmentId?: string;
+    designationId?: string;
+  }) {
     const qb = this.employeeRepo
       .createQueryBuilder('employee')
       .leftJoinAndSelect('employee.user', 'user')
@@ -1526,8 +1530,18 @@ export class EmployeeService implements OnModuleInit {
       .leftJoinAndSelect('designation.department', 'department')
       .leftJoinAndSelect('employee.team', 'team');
 
-    if (tenantId) {
-      qb.where('user.tenant_id = :tenantId', { tenantId });
+    if (filters?.tenantId) {
+      qb.andWhere('user.tenant_id = :tenantId', { tenantId: filters.tenantId });
+    }
+    if (filters?.departmentId) {
+      qb.andWhere('department.id = :departmentId', {
+        departmentId: filters.departmentId,
+      });
+    }
+    if (filters?.designationId) {
+      qb.andWhere('designation.id = :designationId', {
+        designationId: filters.designationId,
+      });
     }
 
     const items = await qb

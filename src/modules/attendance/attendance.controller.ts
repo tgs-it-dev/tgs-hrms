@@ -226,7 +226,10 @@ export class AttendanceController {
 
   
   @Get('export/self')
-  @ApiOperation({ summary: 'Download your attendance events as CSV' })
+  @ApiOperation({
+    summary: 'Download your own attendance as CSV',
+    description: 'Exports only the logged-in user\'s attendance. For admin to export all employees\' attendance, use GET /attendance/export/all with date filters instead.',
+  })
   @ApiQuery({
     name: 'startDate',
     required: false,
@@ -352,18 +355,21 @@ export class AttendanceController {
   @UseGuards(RolesGuard, PermissionsGuard)
   @Roles('hr-admin', 'admin', 'system-admin', 'network-admin')
   @Permissions('manage_attendance')
-  @ApiOperation({ summary: 'Download all attendance for tenant as CSV (Admin only)' })
+  @ApiOperation({
+    summary: 'Download all attendance for tenant as CSV (Admin only)',
+    description: 'Use this API for admin/HR to export all employees\' attendance for the tenant. Date filters (startDate, endDate) apply. For own attendance only, use GET /attendance/export/self instead.',
+  })
   @ApiQuery({
     name: 'startDate',
     required: false,
     type: String,
-    description: 'Optional start date filter (ISO date string, e.g., 2024-01-01)',
+    description: 'Start date filter (e.g. 2026-01-01). Applied as UTC start of day.',
   })
   @ApiQuery({
     name: 'endDate',
     required: false,
     type: String,
-    description: 'Optional end date filter (ISO date string, e.g., 2024-01-31)',
+    description: 'End date filter (e.g. 2026-02-28). Applied as UTC end of day.',
   })
   async exportAll(
     @Req() req: any,
@@ -473,10 +479,12 @@ export class AttendanceController {
     rows.sort((a, b) => {
       const dateCompare = new Date(b.date).getTime() - new Date(a.date).getTime();
       if (dateCompare !== 0) return dateCompare;
-      return a.user_name.localeCompare(b.user_name);
+      return (a.user_name || '').localeCompare(b.user_name || '');
     });
-    
-    return sendCsvResponse(res, 'attendance-all.csv', rows);
+
+    // Headers even when no data (e.g. no records in date range)
+    const csvRows = rows.length > 0 ? rows : [{ date: '', user_id: '', user_name: '', check_in: '', check_out: '', worked_hours: '' }];
+    return sendCsvResponse(res, 'attendance-all.csv', csvRows);
   }
 
   @Get('export/system')
@@ -504,16 +512,24 @@ export class AttendanceController {
     type: String,
     description: 'Optional end date filter (ISO date string, e.g., 2024-01-31)',
   })
+  @ApiQuery({
+    name: 'name',
+    required: false,
+    type: String,
+    description: 'Optional employee name filter (partial match on first/last name)',
+  })
   async exportSystem(
     @Res() res: Response,
     @Query('tenantId') tenantId?: string,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('name') name?: string
   ) {
     const { tenants } = await this.attendanceService.getAttendanceByTenant(
       tenantId,
       startDate,
       endDate,
+      name,
     );
 
     const rows: any[] = [];
@@ -523,10 +539,8 @@ export class AttendanceController {
         const userName = `${employee.first_name || ''} ${employee.last_name || ''}`.trim();
         for (const record of employee.attendance || []) {
           rows.push({
-            tenant_id: tenant.tenant_id,
             tenant_name: tenant.tenant_name,
             tenant_status: tenant.tenant_status,
-            user_id: employee.user_id,
             user_name: userName,
             first_name: employee.first_name,
             last_name: employee.last_name,
