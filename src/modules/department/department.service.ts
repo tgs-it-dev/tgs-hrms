@@ -212,9 +212,9 @@ export class DepartmentService {
     }> = [];
 
     for (const tenant of tenants) {
-      // Get all departments for this tenant
+      // Get tenant's departments + global departments (tenant_id = GLOBAL)
       const departments = await this.repo.find({
-        where: { tenant_id: tenant.id },
+        where: [{ tenant_id: tenant.id }, { tenant_id: GLOBAL }],
         order: { name: 'ASC' },
       });
 

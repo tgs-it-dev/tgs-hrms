@@ -246,11 +246,13 @@ export class DesignationService {
     }> = [];
 
       for (const tenant of tenants) {
-        // Get all designations for this tenant (explicitly tenant-based)
+        // Get designations for this tenant + global designations (tenant_id = GLOBAL)
         const designations = await this.designationRepo
           .createQueryBuilder('designation')
           .leftJoinAndSelect('designation.department', 'department')
-          .where('designation.tenant_id = :tenant_id', { tenant_id: tenant.id })
+          .where('designation.tenant_id IN (:...tenantIds)', {
+            tenantIds: [tenant.id, GLOBAL],
+          })
           .orderBy('department.name', 'ASC')
           .addOrderBy('designation.title', 'ASC')
           .getMany();
