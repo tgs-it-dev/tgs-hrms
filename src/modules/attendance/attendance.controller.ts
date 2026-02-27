@@ -249,7 +249,10 @@ export class AttendanceController {
     @Query('endDate') endDate?: string
   ) {
     const userId = req.user.id;
-    const userName = `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim();
+    let userName = `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim();
+    if (!userName) {
+      userName = await this.attendanceService.getUserDisplayName(userId);
+    }
     const { items } = await this.attendanceService.findEvents(userId, startDate, endDate);
     
     // Group events by date and combine check-in/check-out
