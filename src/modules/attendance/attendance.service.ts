@@ -13,6 +13,7 @@ import { Repository, In } from 'typeorm';
 import { Attendance } from '../../entities/attendance.entity';
 import { Geofence, GeofenceStatus } from '../../entities/geofence.entity';
 import { Employee } from '../../entities/employee.entity';
+import { User } from '../../entities/user.entity';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
 import { TimesheetService } from '../timesheet/timesheet.service';
@@ -31,6 +32,8 @@ export class AttendanceService {
     private readonly geofenceRepo: Repository<Geofence>,
     @InjectRepository(Employee)
     private readonly employeeRepo: Repository<Employee>,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
     private readonly timesheetService: TimesheetService,
     private readonly teamService: TeamService,
     private readonly notificationGateway: NotificationGateway,
@@ -480,6 +483,16 @@ export class AttendanceService {
       .skip(skip)
       .take(take);
     return await qb.getMany();
+  }
+
+  /** Returns display name (first_name + last_name) for export/self when JWT has no name. */
+  async getUserDisplayName(userId: string): Promise<string> {
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      select: ['first_name', 'last_name'],
+    });
+    if (!user) return '';
+    return `${user.first_name || ''} ${user.last_name || ''}`.trim();
   }
 
   async findEvents(userId?: string, startDate?: string, endDate?: string) {

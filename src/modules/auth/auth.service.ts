@@ -337,6 +337,8 @@ export class AuthService {
       role: user.role.name.toLowerCase(),
       tenant_id: tenantId,
       permissions,
+      first_name: user.first_name,
+      last_name: user.last_name,
     };
 
     this.logger.log(`JWT payload for user ${user.email}: ${JSON.stringify(payload)}`);
@@ -573,6 +575,8 @@ export class AuthService {
         role: user.role.name.toLowerCase(),
         tenant_id: tenantId,
         permissions,
+        first_name: user.first_name,
+        last_name: user.last_name,
       };
 
       this.logger.log(`Refresh: JWT payload for user ${user.email}: ${JSON.stringify(newPayload)}`);

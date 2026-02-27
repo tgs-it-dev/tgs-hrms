@@ -87,6 +87,47 @@ export class EmployeeBenefitsController {
     return this.employeeBenefitsService.findAll(tenant_id, employeeId, page);
   }
 
+  @Get("export")
+  @Roles("hr-admin", "network-admin", "employee", "manager")
+  @ApiOperation({
+    summary: "Export benefits for an employee as CSV",
+    description: "Same data as GET /employee-benefits?employeeId=... but as CSV (all pages).",
+  })
+  @ApiQuery({
+    name: "employeeId",
+    required: true,
+    description: "Employee ID (use same as in GET /employee-benefits)",
+  })
+  async exportForEmployee(
+    @TenantId() tenant_id: string,
+    @Res() res: Response,
+    @Query("employeeId") employeeId: string,
+  ) {
+    if (!employeeId?.trim()) {
+      throw new BadRequestException("employeeId is required");
+    }
+    const rows = await this.employeeBenefitsService.findAllForExport(
+      tenant_id,
+      employeeId.trim(),
+    );
+    const csvRows =
+      rows.length > 0
+        ? rows
+        : [
+            {
+              employee_name: "",
+              department: "",
+              designation: "",
+              benefit_name: "",
+              benefit_type: "",
+              assignment_status: "",
+              start_date: "",
+              end_date: "",
+            },
+          ];
+    return sendCsvResponse(res, "employee-benefits.csv", csvRows);
+  }
+
   @Get("eligible-for-reimbursement")
   @Roles("employee", "manager", "hr-admin", "admin")
   @ApiOperation({

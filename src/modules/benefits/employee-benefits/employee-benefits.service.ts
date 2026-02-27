@@ -175,6 +175,42 @@ export class EmployeeBenefitsService {
   }
 
   /**
+   * Returns all benefit assignments for one employee as flat rows for CSV export (no pagination).
+   */
+  async findAllForExport(tenant_id: string, employeeId: string) {
+    await this.expireAssignmentsPastEndDate();
+
+    const results = await this.employeeBenefitRepo
+      .createQueryBuilder("eb")
+      .leftJoinAndSelect("eb.employee", "employee")
+      .leftJoinAndSelect("employee.user", "user")
+      .leftJoinAndSelect("employee.designation", "designation")
+      .leftJoinAndSelect("designation.department", "department")
+      .leftJoinAndSelect("eb.benefit", "benefit")
+      .where("user.tenant_id = :tenant_id", { tenant_id })
+      .andWhere("employee.id = :employeeId", { employeeId })
+      .orderBy("eb.createdAt", "DESC")
+      .getMany();
+
+    return results.map((record) => {
+      const emp = record.employee;
+      const user = emp?.user;
+      const designation = emp?.designation;
+      const department = designation?.department;
+      return {
+        employee_name: user ? `${user.first_name || ""} ${user.last_name || ""}`.trim() : "",
+        department: department?.name ?? "",
+        designation: designation?.title ?? "",
+        benefit_name: record.benefit?.name ?? "",
+        benefit_type: record.benefit?.type ?? "",
+        assignment_status: record.status,
+        start_date: record.startDate,
+        end_date: record.endDate ?? "",
+      };
+    });
+  }
+
+  /**
    * Returns only benefit assignments eligible for reimbursement: active assignment + active benefit + not expired.
    * Use this for reimbursement form dropdown so employee cannot pick inactive/expired benefits.
    */
