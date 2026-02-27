@@ -229,18 +229,23 @@ export class EmployeeBenefitsService {
     tenant_id: string,
     page: number = 1,
     limit: number = 25,
+    status?: "active" | "expired" | "cancelled",
   ) {
     await this.expireAssignmentsPastEndDate();
 
     const qb = this.employeeRepo
       .createQueryBuilder("employee")
-      .leftJoinAndSelect("employee.employeeBenefits", "eb")
-      .leftJoinAndSelect("eb.benefit", "benefit")
       .innerJoinAndSelect("employee.user", "user")
       .innerJoinAndSelect("employee.designation", "designation")
       .innerJoinAndSelect("designation.department", "department")
-      .where("user.tenant_id = :tenant_id", { tenant_id })
-      .orderBy("employee.id", "ASC");
+      .where("user.tenant_id = :tenant_id", { tenant_id });
+
+    if (status) {
+      qb.leftJoinAndSelect("employee.employeeBenefits", "eb", "eb.status = :status", { status });
+    } else {
+      qb.leftJoinAndSelect("employee.employeeBenefits", "eb");
+    }
+    qb.leftJoinAndSelect("eb.benefit", "benefit").orderBy("employee.id", "ASC");
 
     const skip = (page - 1) * limit;
     qb.skip(skip).take(limit);
@@ -252,17 +257,16 @@ export class EmployeeBenefitsService {
       employeeName: `${e.user.first_name} ${e.user.last_name}`,
       department: e.designation?.department?.name,
       designation: e.designation?.title,
-      benefits: e.employeeBenefits.map((b) => ({
-        id: b.benefit.id,
-        name: b.benefit.name,
-        description: b.benefit.description,
-        type: b.benefit.type,
-        eligibilityCriteria: b.benefit.eligibilityCriteria,
-        status: b.benefit.status,
-        tenant_id: b.benefit.tenant_id,
-        createdBy: b.benefit.createdBy,
-        createdAt: b.benefit.createdAt,
-        // Assignment details:
+      benefits: (e.employeeBenefits || []).map((b) => ({
+        id: b.benefit?.id,
+        name: b.benefit?.name,
+        description: b.benefit?.description,
+        type: b.benefit?.type,
+        eligibilityCriteria: b.benefit?.eligibilityCriteria,
+        status: b.benefit?.status,
+        tenant_id: b.benefit?.tenant_id,
+        createdBy: b.benefit?.createdBy,
+        createdAt: b.benefit?.createdAt,
         benefitAssignmentId: b.id,
         statusOfAssignment: b.status,
         startDate: b.startDate,
@@ -281,6 +285,98 @@ export class EmployeeBenefitsService {
       limit,
       totalPages,
     };
+  }
+
+  /**
+   * Get all employees with benefits for export (same filters as list, no pagination).
+   */
+  async getAllEmployeesWithBenefitsForExport(
+    tenant_id: string,
+    status?: "active" | "expired" | "cancelled",
+  ): Promise<
+    Array<{
+      employee_name: string;
+      email: string;
+      department: string;
+      designation: string;
+      benefit_name: string;
+      benefit_type: string;
+      benefit_status: string;
+      assignment_status: string;
+      start_date: string;
+      end_date: string;
+    }>
+  > {
+    await this.expireAssignmentsPastEndDate();
+
+    const qb = this.employeeRepo
+      .createQueryBuilder("employee")
+      .innerJoinAndSelect("employee.user", "user")
+      .innerJoinAndSelect("employee.designation", "designation")
+      .innerJoinAndSelect("designation.department", "department")
+      .where("user.tenant_id = :tenant_id", { tenant_id });
+
+    if (status) {
+      qb.leftJoinAndSelect("employee.employeeBenefits", "eb", "eb.status = :status", { status });
+    } else {
+      qb.leftJoinAndSelect("employee.employeeBenefits", "eb");
+    }
+    qb.leftJoinAndSelect("eb.benefit", "benefit").orderBy("employee.id", "ASC");
+
+    const employees = await qb.getMany();
+
+    const rows: Array<{
+      employee_name: string;
+      email: string;
+      department: string;
+      designation: string;
+      benefit_name: string;
+      benefit_type: string;
+      benefit_status: string;
+      assignment_status: string;
+      start_date: string;
+      end_date: string;
+    }> = [];
+
+    for (const emp of employees) {
+      const employeeName = [emp.user?.first_name, emp.user?.last_name].filter(Boolean).join(" ").trim() || "";
+      const email = emp.user?.email ?? "";
+      const department = emp.designation?.department?.name ?? "";
+      const designation = emp.designation?.title ?? "";
+      const benefits = emp.employeeBenefits || [];
+
+      if (benefits.length === 0) {
+        rows.push({
+          employee_name: employeeName,
+          email,
+          department,
+          designation,
+          benefit_name: "",
+          benefit_type: "",
+          benefit_status: "",
+          assignment_status: "",
+          start_date: "",
+          end_date: "",
+        });
+      } else {
+        for (const b of benefits) {
+          rows.push({
+            employee_name: employeeName,
+            email,
+            department,
+            designation,
+            benefit_name: b.benefit?.name ?? "",
+            benefit_type: b.benefit?.type ?? "",
+            benefit_status: b.benefit?.status ?? "",
+            assignment_status: b.status ?? "",
+            start_date: b.startDate ? new Date(b.startDate).toISOString().split("T")[0] : "",
+            end_date: b.endDate ? new Date(b.endDate).toISOString().split("T")[0] : "",
+          });
+        }
+      }
+    }
+
+    return rows;
   }
 
   async getSummary(tenant_id: string) {

@@ -120,6 +120,14 @@ export class EmployeeBenefitsController {
     summary:
       "Get all employees with their assigned benefits (HR Admin/System Admin view)",
   })
+  @ApiQuery({ name: "page", required: false, description: "Page number (default: 1)", type: Number })
+  @ApiQuery({ name: "limit", required: false, description: "Items per page (default: 25)", type: Number })
+  @ApiQuery({
+    name: "status",
+    required: false,
+    description: "Filter by benefit assignment status: active | expired | cancelled",
+    enum: ["active", "expired", "cancelled"],
+  })
   @ApiOkResponse({
     type: PaginatedGetAllEmployeesWithBenefitsResponseDto,
     description: "List of all employees with their assigned benefits",
@@ -128,12 +136,39 @@ export class EmployeeBenefitsController {
     @TenantId() tenant_id: string,
     @Query("page") page: number = 1,
     @Query("limit") limit: number = 25,
+    @Query("status") status?: "active" | "expired" | "cancelled",
   ) {
     return this.employeeBenefitsService.getAllEmployeesWithBenefits(
       tenant_id,
       page,
       limit,
+      status,
     );
+  }
+
+  @Get("export/employees")
+  @Roles("hr-admin", "network-admin", "system-admin")
+  @ApiOperation({
+    summary: "Export employees with benefits as CSV",
+    description: "Same filters as GET /employee-benefits/employees (status). Downloads CSV with one row per benefit assignment.",
+  })
+  @ApiQuery({
+    name: "status",
+    required: false,
+    description: "Filter by benefit assignment status: active | expired | cancelled",
+    enum: ["active", "expired", "cancelled"],
+  })
+  @ApiOkResponse({ description: "CSV file download" })
+  async exportEmployees(
+    @TenantId() tenant_id: string,
+    @Res() res: Response,
+    @Query("status") status?: "active" | "expired" | "cancelled",
+  ) {
+    const rows = await this.employeeBenefitsService.getAllEmployeesWithBenefitsForExport(
+      tenant_id,
+      status,
+    );
+    return sendCsvResponse(res, "employee-benefits.csv", rows);
   }
 
   @Get("summary")

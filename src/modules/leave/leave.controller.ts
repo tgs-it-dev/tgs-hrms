@@ -315,15 +315,26 @@ export class LeaveController {
       },
     },
   })
-  async getTeamLeaves(@Request() req: any, @Query('page') page?: string) {
+  @ApiQuery({ name: 'page', required: false, description: 'Page number (default: 1)', type: Number })
+  @ApiQuery({ name: 'limit', required: false, description: 'Items per page (default: 25, max: 100)', type: Number })
+  @ApiQuery({ name: 'name', required: false, description: 'Filter by team member name (partial match on first/last name)', type: String })
+  async getTeamLeaves(
+    @Request() req: any,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('name') name?: string,
+  ) {
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-
+    const limitNumber = limit ? Math.min(100, Math.max(1, parseInt(limit, 10) || 25)) : undefined;
 
     if (req.user.role !== 'manager') {
       throw new ForbiddenException('Access denied. Manager role required.');
     }
 
-    return this.leaveService.getTeamLeaves(req.user.id, req.user.tenant_id, pageNumber);
+    return this.leaveService.getTeamLeaves(req.user.id, req.user.tenant_id, pageNumber, {
+      name: name?.trim() || undefined,
+      limit: limitNumber,
+    });
   }
 
   @Get('team/members')
@@ -737,8 +748,6 @@ export class LeaveController {
         const empFirstName = l.employee?.first_name || req.user.first_name || '';
         const empLastName = l.employee?.last_name || req.user.last_name || '';
         rows.push({
-          id: l.id,
-          user_id: req.user.id,
           first_name: empFirstName,
           last_name: empLastName,
           user_name: `${empFirstName} ${empLastName}`.trim(),
@@ -767,16 +776,24 @@ export class LeaveController {
   @Permissions('manage_team_leaves')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Download team leave requests as CSV (Manager only)' })
-  async exportTeam(@Request() req: any, @Res() res: Response, @Query('page') _page?: string) {
+  @ApiQuery({ name: 'name', required: false, description: 'Filter by team member name (partial match)', type: String })
+  async exportTeam(
+    @Request() req: any,
+    @Res() res: Response,
+    @Query('page') _page?: string,
+    @Query('name') name?: string,
+  ) {
     // Fetch all pages of team leaves so CSV includes complete dataset (no pagination)
     let currentPage = 1;
     const rows: any[] = [];
+    const options = { name: name?.trim() || undefined, limit: 25 };
 
     while (true) {
       const { items, total, limit } = await this.leaveService.getTeamLeaves(
         req.user.id,
         req.user.tenant_id,
-        currentPage
+        currentPage,
+        options,
       );
 
       for (const l of items || []) {

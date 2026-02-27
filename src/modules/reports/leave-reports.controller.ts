@@ -186,10 +186,9 @@ export class LeaveReportsController {
       yearNumber,
       monthNumber,
     );
-    const rows = (data.balances || []).map(row => ({
-      employeeId: data.employeeId,
+    const rows = (data.balances || []).map(({ leaveTypeId, ...rest }) => ({
       year: data.year,
-      ...row
+      ...rest,
     }));
     return sendCsvResponse(res, 'leave-balance.csv', rows);
   }
@@ -302,5 +301,33 @@ export class LeaveReportsController {
       parsedYear,
       employeeName,
     );
+  }
+
+  @Get('export/all-leave-reports')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('admin', 'hr-admin', 'system-admin')
+  @Permissions('view_leave_reports')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Export all leave reports as CSV',
+    description: 'Same filters as GET /reports/all-leave-reports (year, employeeName). No pagination; all matching records exported.',
+  })
+  @ApiQuery({ name: 'year', required: false, type: Number, description: 'Filter by year (default: current year)' })
+  @ApiQuery({ name: 'employeeName', required: false, type: String, description: 'Filter by employee full name (e.g. Ramish Munawar)' })
+  @ApiResponse({ status: 200, description: 'CSV file download' })
+  async exportAllLeaveReports(
+    @Request() req: any,
+    @Res() res: Response,
+    @Query('year') year?: string,
+    @Query('employeeName') employeeName?: string,
+  ) {
+    const parsedYear = year ? parseInt(year, 10) : undefined;
+    const rows = await this.leaveReportsService.getAllLeaveReportsForExport(
+      req.user.tenant_id,
+      parsedYear,
+      employeeName,
+    );
+    const filename = `leave-reports-${parsedYear ?? new Date().getFullYear()}.csv`;
+    return sendCsvResponse(res, filename, rows);
   }
 }
