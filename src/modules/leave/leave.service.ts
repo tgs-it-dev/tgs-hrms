@@ -1154,7 +1154,8 @@ export class LeaveService {
   async getTeamLeaves(
     managerId: string,
     tenantId: string,
-    page: number = 1
+    page: number = 1,
+    options?: { name?: string; limit?: number }
   ): Promise<{
     items: Leave[];
     total: number;
@@ -1162,19 +1163,29 @@ export class LeaveService {
     limit: number;
     totalPages: number;
   }> {
-    const limit = 25;
+    const limit = Math.min(Math.max(1, options?.limit ?? 25), 100);
     const skip = (page - 1) * limit;
 
     // Fetch team members - same approach as attendance service
-    const teamMembers = await this.employeeRepo
+    const teamMembersQb = this.employeeRepo
       .createQueryBuilder('employee')
       .leftJoin('employee.user', 'user')
       .leftJoin('employee.team', 'team')
       .where('user.tenant_id = :tenantId', { tenantId })
       .andWhere('team.manager_id = :managerId', { managerId })
       .andWhere('employee.user_id != :managerId', { managerId })
-      .andWhere('employee.team_id IS NOT NULL')
-      .getMany();
+      .andWhere('employee.team_id IS NOT NULL');
+
+    // Filter by team member name (partial match on first_name, last_name, or full name)
+    if (options?.name?.trim()) {
+      const namePattern = `%${options.name.trim()}%`;
+      teamMembersQb.andWhere(
+        '(user.first_name ILIKE :namePattern OR user.last_name ILIKE :namePattern OR CONCAT(COALESCE(user.first_name, \'\'), \' \', COALESCE(user.last_name, \'\')) ILIKE :namePattern)',
+        { namePattern },
+      );
+    }
+
+    const teamMembers = await teamMembersQb.getMany();
 
     const userIds = teamMembers.map((member) => member.user_id);
 

@@ -345,6 +345,144 @@ export class LeaveReportsService {
     };
   }
 
+  /**
+   * Get all leave reports for export (same filters as getAllLeaveReports: year, employeeName). No pagination.
+   * Returns flat rows: one per leave record, with employee info.
+   */
+  async getAllLeaveReportsForExport(
+    tenantId: string,
+    year?: number,
+    employeeName?: string,
+  ): Promise<
+    Array<{
+      year: number;
+      employee_name: string;
+      email: string;
+      department: string;
+      designation: string;
+      leave_type: string;
+      start_date: string;
+      end_date: string;
+      total_days: number;
+      status: string;
+      reason: string;
+      applied_date: string;
+      approved_by: string;
+      approved_date: string;
+    }>
+  > {
+    const targetYear = year ?? new Date().getFullYear();
+    const startDate = new Date(targetYear, 0, 1, 0, 0, 0, 0);
+    const endDate = new Date(targetYear, 11, 31, 23, 59, 59, 999);
+
+    const employeeQuery = this.employeeRepo
+      .createQueryBuilder('employee')
+      .leftJoinAndSelect('employee.user', 'user')
+      .leftJoinAndSelect('employee.designation', 'designation')
+      .leftJoinAndSelect('designation.department', 'department')
+      .where('user.tenant_id = :tenantId', { tenantId });
+
+    if (employeeName?.trim()) {
+      const trimmedName = employeeName.trim().replace(/\s+/g, ' ');
+      employeeQuery.andWhere(
+        `LOWER(TRIM(CONCAT(COALESCE(user.first_name, ''), ' ', COALESCE(user.last_name, '')))) = LOWER(:name)`,
+        { name: trimmedName },
+      );
+    }
+
+    const allEmployees = await employeeQuery
+      .orderBy('user.first_name', 'ASC')
+      .getMany();
+
+    const employeeIds = allEmployees.map((e) => e.user_id);
+    let leavesByEmployee: Record<string, Leave[]> = {};
+
+    if (employeeIds.length > 0) {
+      const leaves = await this.leaveRepo
+        .createQueryBuilder('leave')
+        .leftJoinAndSelect('leave.leaveType', 'leaveType')
+        .where('leave.employeeId IN (:...employeeIds)', { employeeIds })
+        .andWhere('leave.startDate <= :endDate', { endDate })
+        .andWhere('leave.endDate >= :startDate', { startDate })
+        .getMany();
+
+      leaves.forEach((leave) => {
+        if (!leavesByEmployee[leave.employeeId]) leavesByEmployee[leave.employeeId] = [];
+        leavesByEmployee[leave.employeeId].push(leave);
+      });
+    }
+
+    const leaveTypes = await this.leaveTypeRepo.find({
+      where: { tenantId, status: 'active' },
+    });
+
+    const rows: Array<{
+      year: number;
+      employee_name: string;
+      email: string;
+      department: string;
+      designation: string;
+      leave_type: string;
+      start_date: string;
+      end_date: string;
+      total_days: number;
+      status: string;
+      reason: string;
+      applied_date: string;
+      approved_by: string;
+      approved_date: string;
+    }> = [];
+
+    for (const employee of allEmployees) {
+      const employeeYearLeaves = leavesByEmployee[employee.user_id] || [];
+      const employeeNameStr = `${employee.user?.first_name ?? ''} ${employee.user?.last_name ?? ''}`.trim();
+      const email = employee.user?.email ?? '';
+      const department = employee.designation?.department?.name ?? 'N/A';
+      const designation = employee.designation?.title ?? 'N/A';
+
+      if (employeeYearLeaves.length === 0) {
+        rows.push({
+          year: targetYear,
+          employee_name: employeeNameStr,
+          email,
+          department,
+          designation,
+          leave_type: '',
+          start_date: '',
+          end_date: '',
+          total_days: 0,
+          status: '',
+          reason: '',
+          applied_date: '',
+          approved_by: '',
+          approved_date: '',
+        });
+      } else {
+        for (const leave of employeeYearLeaves) {
+          const totalDays = this.calculateWorkingDaysInRange(leave.startDate, leave.endDate, startDate, endDate);
+          rows.push({
+            year: targetYear,
+            employee_name: employeeNameStr,
+            email,
+            department,
+            designation,
+            leave_type: leave.leaveType?.name ?? 'Unknown',
+            start_date: leave.startDate instanceof Date ? leave.startDate.toISOString().split('T')[0] : String(leave.startDate).split('T')[0],
+            end_date: leave.endDate instanceof Date ? leave.endDate.toISOString().split('T')[0] : String(leave.endDate).split('T')[0],
+            total_days: totalDays,
+            status: leave.status,
+            reason: leave.reason ?? '',
+            applied_date: leave.createdAt ? new Date(leave.createdAt).toISOString() : '',
+            approved_by: leave.approvedBy ?? '',
+            approved_date: leave.approvedAt ? new Date(leave.approvedAt).toISOString() : '',
+          });
+        }
+      }
+    }
+
+    return rows;
+  }
+
   // Shared calculation method - Single Source of Truth
   private async calculateEmployeeLeaveBalance(
     employeeId: string,

@@ -295,7 +295,6 @@ export class AttendanceController {
       
       rows.push({
         date: date,
-        user_id: userId,
         user_name: userName,
         check_in: checkIn?.timestamp || '',
         check_out: (checkOut && checkIn && new Date(checkOut.timestamp) > new Date(checkIn.timestamp))
@@ -307,8 +306,9 @@ export class AttendanceController {
     
     // Sort by date descending
     rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    
-    return sendCsvResponse(res, 'attendance-self.csv', rows);
+
+    const csvRows = rows.length > 0 ? rows : [{ date: '', user_name: '', check_in: '', check_out: '', worked_hours: '' }];
+    return sendCsvResponse(res, 'attendance-self.csv', csvRows);
   }
 
   @Get('export/team')
