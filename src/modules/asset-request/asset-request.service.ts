@@ -282,7 +282,8 @@ export class AssetRequestService {
     const limit = 25;
     const skip = (page - 1) * limit;
 
-    // Build query for team members' requests
+
+    // Build query for team members' requests, including comments
     const qb = this.reqRepo
       .createQueryBuilder('r')
       .leftJoinAndSelect('r.requestedByUser', 'requestedByUser')
@@ -290,6 +291,7 @@ export class AssetRequestService {
       .leftJoinAndSelect('r.category', 'category')
       .leftJoinAndSelect('r.subcategory', 'subcategory')
       .leftJoinAndSelect('r.asset', 'asset')
+      .leftJoinAndSelect('r.comments', 'comments')
       .where('r.tenant_id = :tenantId', { tenantId })
       .andWhere('r.requested_by IN (:...employeeUserIds)', { employeeUserIds })
       .orderBy('r.created_at', 'DESC');
@@ -348,6 +350,7 @@ export class AssetRequestService {
           : null,
         subcategoryName: r.subcategory?.name ?? null,
         assetName: r.asset?.name ?? null,
+        comments: r.comments ?? [],
       })),
       total,
       page,
