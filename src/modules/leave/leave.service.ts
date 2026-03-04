@@ -927,6 +927,7 @@ export class LeaveService {
 
     // Check ownership - allow if employee owns it OR if requester is admin/hr-admin
     const isAdminOrHrAdmin = requesterRole && ['admin', 'hr-admin', 'system-admin'].includes(requesterRole.toLowerCase());
+    const isEmployee = leave.employeeId === employeeId;
 
     if (leave.employeeId !== employeeId && !isAdminOrHrAdmin) {
       throw new ForbiddenException('You can only edit your own leave requests');
@@ -970,6 +971,10 @@ export class LeaveService {
         relations: ['leaveType', 'employee', 'approver'],
       });
       return updatedLeave || savedLeave;
+    }
+
+    if (isEmployee && leave.status === LeaveStatus.PROCESSING) {
+      throw new ForbiddenException('You cannot edit the leave while it is awaiting admin approval');
     }
 
     // For non-approved leaves, allow editing all fields
