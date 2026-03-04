@@ -47,8 +47,10 @@ export class AssetRequestService {
       .leftJoinAndSelect('r.approvedByUser', 'approvedByUser')
       .leftJoinAndSelect('r.category', 'category')
       .leftJoinAndSelect('r.subcategory', 'subcategory')
+      .leftJoinAndSelect('r.comments', 'comments')
       .where('r.tenant_id = :tenantId', { tenantId })
-      .orderBy('r.created_at', 'DESC');
+      .orderBy('r.created_at', 'DESC')
+      .addOrderBy('comments.created_at', 'DESC');
 
     // Admin roles ko sab ki requests dikhani chahiye (approve/reject ke liye)
     const adminRoles = ['network-admin', 'system-admin', 'admin', 'hr-admin'];
@@ -292,6 +294,7 @@ export class AssetRequestService {
       .leftJoinAndSelect('r.subcategory', 'subcategory')
       .leftJoinAndSelect('r.asset', 'asset')
       .leftJoinAndSelect('r.comments', 'comments')
+      .leftJoinAndSelect('comments.commentedByUser', 'commentedByUser')
       .where('r.tenant_id = :tenantId', { tenantId })
       .andWhere('r.requested_by IN (:...employeeUserIds)', { employeeUserIds })
       .orderBy('r.created_at', 'DESC');

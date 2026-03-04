@@ -273,10 +273,32 @@ export class AuthService {
 
     if (!users || users.length === 0) {
       this.logger.warn(`Login failed: user not found for email: ${normalizedEmail}`);
-      throw new BadRequestException({
-        field: 'email',
-        message: 'Email not found',
-      });
+      const sessionUser = await this.signupSessionRepository.findOne({ where: { email: normalizedEmail } });
+      if (!sessionUser) {
+        this.logger.warn(`Signup session not found for email: ${normalizedEmail}`);
+        throw new BadRequestException({
+          field: 'email',
+          message: 'Email not found',
+        });
+      }
+
+      const isPasswordValid = await bcrypt.compare(password, sessionUser.password_hash);
+
+      if (!isPasswordValid)
+        throw new BadRequestException({
+          field: 'password',
+          message: 'Incorrect password',
+        });
+
+      return {
+        signupSessionId: sessionUser.id,
+        resumed: false,
+        status: 'personal_completed',
+        nextStep: 'company-details',
+        companyDetailsCompleted: false,
+        paymentCompleted: false,
+        message: 'Personal details fetched successfully. Continue with company details.',
+      };
     }
 
     let user: User | null = null;
