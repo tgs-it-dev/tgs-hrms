@@ -6,7 +6,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Employee } from '../../../entities/employee.entity';
 import { User } from '../../../entities/user.entity';
@@ -866,7 +866,8 @@ export class EmployeeService implements OnModuleInit {
       .leftJoinAndSelect('employee.designation', 'designation')
       .leftJoinAndSelect('designation.department', 'department')
       .leftJoinAndSelect('employee.team', 'team')
-      .where('user.tenant_id = :tenant_id', { tenant_id });
+      .where('user.tenant_id = :tenant_id', { tenant_id })
+      .andWhere('employee.deleted_at IS NULL');
 
     if (query.department_id) {
       qb.andWhere('designation.department_id = :department_id', {
@@ -932,7 +933,7 @@ export class EmployeeService implements OnModuleInit {
 
   async findOne(tenant_id: string, id: string) {
     const employee = await this.employeeRepo.findOne({
-      where: { id },
+      where: { id, deleted_at: IsNull() },
       relations: ['user', 'user.role', 'designation', 'designation.department', 'team'],
     });
 
@@ -1135,7 +1136,7 @@ export class EmployeeService implements OnModuleInit {
 
   async remove(tenant_id: string, id: string): Promise<{ deleted: true; id: string }> {
     const employee = await this.employeeRepo.findOne({
-      where: { id },
+      where: { id, deleted_at: IsNull() },
       relations: ['user'],
     });
 
@@ -1143,28 +1144,14 @@ export class EmployeeService implements OnModuleInit {
       throw new NotFoundException('Employee not found');
     }
 
-    try {
-      await this.employeeRepo.manager.transaction(async (manager) => {
-        const employeeRepo = manager.getRepository(Employee);
-        const userRepo = manager.getRepository(User);
-
-        await employeeRepo.delete(employee.id);
-        await userRepo.delete(employee.user.id);
-      });
-    } catch (err) {
-      const errorCode = getPostgresErrorCode(err);
-      if (errorCode === '23503') {
-        throw new BadRequestException('Employee cannot be deleted because it has related records');
-      }
-      throw err;
-    }
+    await this.employeeRepo.update(employee.id, { deleted_at: new Date() });
 
     return { deleted: true, id };
   }
 
   async removeDocument(tenant_id: string, id: string, dto: RemoveEmployeeDocumentDto): Promise<Employee> {
     const employee = await this.employeeRepo.findOne({
-      where: { id, user: { tenant_id } },
+      where: { id, deleted_at: IsNull(), user: { tenant_id } },
       relations: ['user'],
     });
 
@@ -1282,12 +1269,14 @@ export class EmployeeService implements OnModuleInit {
       .createQueryBuilder('employee')
       .leftJoin('employee.user', 'user')
       .where('user.tenant_id = :tenant_id', { tenant_id })
+      .andWhere('employee.deleted_at IS NULL')
       .getCount();
 
     const activeEmployees = await this.employeeRepo
       .createQueryBuilder('employee')
       .leftJoin('employee.user', 'user')
       .where('user.tenant_id = :tenant_id', { tenant_id })
+      .andWhere('employee.deleted_at IS NULL')
       .andWhere('employee.status = :status', { status: EmployeeStatus.ACTIVE })
       .getCount();
 
@@ -1295,6 +1284,7 @@ export class EmployeeService implements OnModuleInit {
       .createQueryBuilder('employee')
       .leftJoin('employee.user', 'user')
       .where('user.tenant_id = :tenant_id', { tenant_id })
+      .andWhere('employee.deleted_at IS NULL')
       .andWhere('employee.status = :status', { status: EmployeeStatus.INACTIVE })
       .getCount();
 
@@ -1302,6 +1292,7 @@ export class EmployeeService implements OnModuleInit {
       .createQueryBuilder('employee')
       .leftJoin('employee.user', 'user')
       .where('user.tenant_id = :tenant_id', { tenant_id })
+      .andWhere('employee.deleted_at IS NULL')
       .andWhere('user.gender = :gender', { gender: UserGender.MALE })
       .andWhere('employee.status = :status', { status: EmployeeStatus.ACTIVE })
       .getCount();
@@ -1310,6 +1301,7 @@ export class EmployeeService implements OnModuleInit {
       .createQueryBuilder('employee')
       .leftJoin('employee.user', 'user')
       .where('user.tenant_id = :tenant_id', { tenant_id })
+      .andWhere('employee.deleted_at IS NULL')
       .andWhere('user.gender = :gender', { gender: UserGender.FEMALE })
       .andWhere('employee.status = :status', { status: EmployeeStatus.ACTIVE })
       .getCount();
@@ -1326,11 +1318,12 @@ export class EmployeeService implements OnModuleInit {
   async getEmployeeJoiningReport(tenant_id: string): Promise<any[]> {
     const results = await this.employeeRepo
       .createQueryBuilder('employee')
-      .leftJoinAndSelect('employee.user', 'user')
+      .leftJoin('employee.user', 'user')
       .select('EXTRACT(MONTH FROM employee.created_at) AS month')
       .addSelect('EXTRACT(YEAR FROM employee.created_at) AS year')
       .addSelect('COUNT(employee.id) AS total')
       .where('user.tenant_id = :tenant_id', { tenant_id })
+      .andWhere('employee.deleted_at IS NULL')
       .groupBy('EXTRACT(MONTH FROM employee.created_at)')
       .addGroupBy('EXTRACT(YEAR FROM employee.created_at)')
       .orderBy('year', 'ASC')
@@ -1352,7 +1345,7 @@ export class EmployeeService implements OnModuleInit {
   async refreshInviteStatus(tenant_id: string, employee_id: string) {
 
     const employee = await this.employeeRepo.findOne({
-      where: { id: employee_id },
+      where: { id: employee_id, deleted_at: IsNull() },
       relations: ['user'],
     });
     if (!employee || employee.user.tenant_id !== tenant_id) {
@@ -1379,7 +1372,7 @@ export class EmployeeService implements OnModuleInit {
 
   async getProfilePictureFile(tenant_id: string, employee_id: string, res: Response) {
     const employee = await this.employeeRepo.findOne({
-      where: { id: employee_id },
+      where: { id: employee_id, deleted_at: IsNull() },
       relations: ['user'],
     });
 
@@ -1424,7 +1417,7 @@ export class EmployeeService implements OnModuleInit {
 
   async getCnicPictureFile(tenant_id: string, employee_id: string, res: Response) {
     const employee = await this.employeeRepo.findOne({
-      where: { id: employee_id },
+      where: { id: employee_id, deleted_at: IsNull() },
       relations: ['user'],
     });
 
@@ -1464,7 +1457,7 @@ export class EmployeeService implements OnModuleInit {
 
   async getCnicBackPictureFile(tenant_id: string, employee_id: string, res: Response) {
     const employee = await this.employeeRepo.findOne({
-      where: { id: employee_id },
+      where: { id: employee_id, deleted_at: IsNull() },
       relations: ['user'],
     });
 
@@ -1528,7 +1521,8 @@ export class EmployeeService implements OnModuleInit {
       .leftJoinAndSelect('user.tenant', 'tenant')
       .leftJoinAndSelect('employee.designation', 'designation')
       .leftJoinAndSelect('designation.department', 'department')
-      .leftJoinAndSelect('employee.team', 'team');
+      .leftJoinAndSelect('employee.team', 'team')
+      .andWhere('employee.deleted_at IS NULL');
 
     if (filters?.tenantId) {
       qb.andWhere('user.tenant_id = :tenantId', { tenantId: filters.tenantId });

@@ -347,6 +347,11 @@ export class AuthService {
 
     const employee = await this.employeeRepository.findOne({ where: { user_id: user.id } });
 
+    if (employee?.deleted_at) {
+      this.logger.warn(`Login failed: employee is deleted for email: ${normalizedEmail}`);
+      throw new UnauthorizedException('Your employee account has been deactivated. Please contact your administrator.');
+    }
+
     const companyDetails = await this.getCompanyDetails(tenantId);
     const requiresPayment = companyDetails ? !companyDetails.is_paid : false;
 
@@ -579,6 +584,12 @@ export class AuthService {
           this.logger.warn(`Refresh token failed: tenant is suspended for user: ${user.email}`);
           throw new UnauthorizedException('Your organization account has been suspended. Please contact support.');
         }
+      }
+
+      const employee = await this.employeeRepository.findOne({ where: { user_id: user.id } });
+      if (employee?.deleted_at) {
+        this.logger.warn(`Refresh token failed: employee is deleted for user: ${user.email}`);
+        throw new UnauthorizedException('Your employee account has been deactivated. Please contact your administrator.');
       }
 
       if (user.refresh_token !== refreshToken) {
