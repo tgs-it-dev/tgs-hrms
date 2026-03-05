@@ -398,14 +398,14 @@ export class EmployeeController {
     }
 
     const rows = (allItems || []).map((e: any) => ({
-    
       first_name: e.user?.first_name,
       last_name: e.user?.last_name,
       email: e.user?.email,
+      phone: e.user?.phone ?? '',
       designation: e.designation?.title,
       department: e.designation?.department?.name,
       team: e.team?.name,
-      status: e.status,
+      status: e.status ?? '',
     }));
     return sendCsvResponse(res, 'employees.csv', rows);
   }
