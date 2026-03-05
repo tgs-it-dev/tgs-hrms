@@ -527,6 +527,12 @@ export class AuthService {
         reset_token: null,
         reset_token_expiry: null,
       });
+      this.inviteStatusService.updateInviteStatusOnLogin(user.id).catch((error) => {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger.error(
+          `Failed to update invite status after password reset for user ${user.email}: ${errorMessage}`,
+        );
+      });
     }
 
     const firstUser = matchingUsers[0];
