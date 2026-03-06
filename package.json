@@ -1,6 +1,6 @@
 {
   "name": "nestjs-boilerplate",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "",
   "author": "",
   "private": true,
@@ -22,6 +22,7 @@
     "migration:generate": "npm run typeorm -- migration:generate -d data-source.ts",
     "migration:run": "npm run typeorm -- migration:run -d data-source.ts",
     "migration:revert": "npm run typeorm -- migration:revert -d data-source.ts",
+    "db:clean": "ts-node -r tsconfig-paths/register scripts/clean-database.ts",
     "seed": "ts-node -r tsconfig-paths/register seed-database.ts",
     "seed:role-permissions": "ts-node -r tsconfig-paths/register src/common/seeders/seed-missing-role-permissions.ts"
   },
