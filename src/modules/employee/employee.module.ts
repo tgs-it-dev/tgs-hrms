@@ -19,10 +19,20 @@ import { SharedJwtModule } from '../../common/modules/jwt.module';
 import { EmployeeFileUploadService } from './services/employee-file-upload.service';
 import { BillingModule } from '../billing/billing.module';
 import { PayrollModule } from '../payroll/payroll.module';
+import { Tenant } from 'src/entities/tenant.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Employee, User, Designation, Role, Team, Attendance, Leave]),
+    TypeOrmModule.forFeature([
+      Employee,
+      User,
+      Designation,
+      Role,
+      Team,
+      Attendance,
+      Leave,
+      Tenant,
+    ]),
     AttendanceModule,
     LeaveModule,
     InviteStatusModule,

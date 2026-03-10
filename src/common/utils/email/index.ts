@@ -4,4 +4,7 @@
  */
 
 export { EmailService } from './email.service';
-export { SendGridService } from './sendgrid.service';
+export {
+  SendGridService,
+  type NewTeamMemberAnnouncementPayload,
+} from './sendgrid.service';

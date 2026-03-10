@@ -15,7 +15,7 @@ import { Role } from '../../../entities/role.entity';
 import { Team } from '../../../entities/team.entity';
 import { CreateEmployeeDto, UpdateEmployeeDto, EmployeeQueryDto } from '../dto/employee.dto';
 import { RemoveEmployeeDocumentDto } from '../dto/update-employee.dto';
-import { SendGridService } from '../../../common/utils/email';
+import { SendGridService } from '../../../common/utils/email/sendgrid.service';
 import { InviteStatusService } from '../../invite-status/invite-status.service';
 import { EmployeeFileUploadService } from './employee-file-upload.service';
 import { EmployeeCreatedEvent } from '../../billing/events/employee-created.event';
@@ -33,6 +33,7 @@ import { getPostgresErrorCode, getPostgresErrorConstraint } from '../../../commo
 import { EmployeeSalaryService } from '../../payroll/services/employee-salary.service';
 import { CreateEmployeeSalaryDto } from '../../payroll/dto/employee-salary.dto';
 import { SalaryStatus } from '../../../common/constants/enums';
+import { Tenant } from 'src/entities/tenant.entity';
 
 @Injectable()
 export class EmployeeService implements OnModuleInit {
@@ -42,6 +43,8 @@ export class EmployeeService implements OnModuleInit {
     private readonly employeeRepo: Repository<Employee>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    @InjectRepository(Tenant)
+    private readonly tenantRepo: Repository<Tenant>,
     @InjectRepository(Designation)
     private readonly designationRepo: Repository<Designation>,
     @InjectRepository(Role)
@@ -1224,25 +1227,92 @@ export class EmployeeService implements OnModuleInit {
     newEmployeeEmail: string,
   ): Promise<void> {
     try {
-      const tenantUsers = await this.userRepo.find({
-        where: { tenant_id },
-        select: ['id', 'email'],
-      });
+      const [tenantResult, tenantUsersResult, newEmployeeResult] = await Promise.allSettled([
+          this.tenantRepo.findOne({
+            where: { id: tenant_id },
+            select: ["name"],
+          }),
+          this.userRepo.find({
+            where: { tenant_id },
+            select: ["id", "email", "first_name", "last_name"],
+          }),
+          this.employeeRepo
+            .createQueryBuilder("employee")
+            .leftJoinAndSelect("employee.user", "user")
+            .leftJoinAndSelect("employee.designation", "designation")
+            .leftJoinAndSelect("designation.department", "department")
+            .where("employee.user_id = :excludeUserId", { excludeUserId })
+            .getOne(),
+        ]);
+
+      if (tenantResult.status === "rejected") {
+        this.logger.warn(
+          `Tenant fetch failed for announcement (tenant: ${tenant_id}): ${String(tenantResult.reason)}`,
+        );
+      }
+      if (tenantUsersResult.status === "rejected") {
+        this.logger.warn(
+          `Tenant users fetch failed for announcement (tenant: ${tenant_id}): ${String(tenantUsersResult.reason)}`,
+        );
+      }
+      if (newEmployeeResult.status === "rejected") {
+        this.logger.warn(
+          `New employee fetch failed for announcement (tenant: ${tenant_id}): ${String(newEmployeeResult.reason)}`,
+        );
+      }
+
+      const tenant =
+        tenantResult.status === "fulfilled" ? tenantResult.value : null;
+      const tenantUsers =
+        tenantUsersResult.status === "fulfilled" ? tenantUsersResult.value : [];
+      const newEmployee =
+        newEmployeeResult.status === "fulfilled"
+          ? newEmployeeResult.value
+          : null;
+
+      if (!tenant) {
+        this.logger.log(
+          `Skipping new employee announcement: tenant not found or failed (tenant: ${tenant_id})`,
+        );
+        return;
+      }
+
       const recipients = tenantUsers.filter((u) => u.id !== excludeUserId && u.email);
       if (recipients.length === 0) {
         this.logger.log(`No other tenant users to notify for new employee (tenant: ${tenant_id})`);
         return;
       }
+
+      const recipientDisplayName = (
+        first: string | null | undefined,
+        last: string | null | undefined,
+      ) => `${first ?? ""} ${last ?? ""}`.trim() || "there";
+
       for (const recipient of recipients) {
         try {
-          await this.sendGridService.sendNewTeamMemberAnnouncementEmail(
-            recipient.email,
-            newEmployeeName,
-            newEmployeeEmail,
-          );
+          await this.sendGridService.sendNewTeamMemberAnnouncementEmail({
+            recipientEmail: recipient.email,
+            recipientName: recipientDisplayName(
+              recipient.first_name,
+              recipient.last_name,
+            ),
+            newMember: {
+              name: newEmployeeName,
+              email: newEmployeeEmail,
+              department: newEmployee?.designation?.department?.name ?? "-",
+              jobTitle: newEmployee?.designation?.title ?? "-",
+              joinedDate:
+                newEmployee?.created_at?.toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                }) ?? "-",
+            },
+            companyName: tenant.name,
+          });
         } catch (err) {
           this.logger.error(
-            `Failed to send new employee announcement to ${recipient.email}: ${String((err as any)?.message || err)}`,
+            `Failed to send new employee announcement to ${recipient.email}: ${String((err as Error)?.message ?? err)}`,
           );
           // Continue with other recipients; do not throw
         }
@@ -1252,7 +1322,7 @@ export class EmployeeService implements OnModuleInit {
       );
     } catch (error) {
       this.logger.error(
-        `Failed to send new employee announcement to tenant ${tenant_id}: ${String((error as any)?.message || error)}`,
+        `Failed to send new employee announcement to tenant ${tenant_id}: ${String((error as Error)?.message ?? error)}`,
       );
       // Do not throw - announcement failure should not affect employee creation
     }
