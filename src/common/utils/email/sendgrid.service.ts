@@ -64,6 +64,7 @@ export class SendGridService {
     email: string,
     resetToken: string,
     userName: string,
+    companyName: string,
   ): Promise<void> {
     const frontendUrl = this.configService.get<string>("FRONTEND_URL");
     const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
@@ -74,29 +75,19 @@ export class SendGridService {
       return;
     }
 
+    const context = {
+      userName,
+      resetUrl,
+      companyName: companyName ?? "your organization",
+    };
+
+    const html = this.renderTemplate("password-reset", context);
+
     const msg = {
       to: email,
       from: fromEmail,
       subject: "Password Reset Request",
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>Password Reset Request</h2>
-          <p>Hello ${userName},</p>
-          <p>You have requested to reset your password. Click the button below to reset your password:</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${resetUrl}" 
-               style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
-              Reset Password
-            </a>
-          </div>
-          <p>If the button doesn't work, copy and paste this link into your browser:</p>
-          <p style="word-break: break-all; color: #666;">${resetUrl}</p>
-          <p>This link will expire in 24 hours.</p>
-          <p>If you didn't request this password reset, please ignore this email.</p>
-          <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
-          <p style="color: #666; font-size: 12px;">This is an automated message, please do not reply.</p>
-        </div>
-      `,
+      html,
     };
 
     try {
