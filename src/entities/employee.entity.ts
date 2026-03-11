@@ -54,6 +54,9 @@ export class Employee {
   @CreateDateColumn()
   created_at: Date;
 
+  @Column({ type: 'timestamptz', nullable: true })
+  deleted_at: Date | null;
+
   @ManyToOne(() => User, (user) => user.employees, {
     nullable: false,
     onDelete: 'CASCADE' // When user is deleted, employee should also be deleted

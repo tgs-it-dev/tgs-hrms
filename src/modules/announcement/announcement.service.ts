@@ -16,6 +16,7 @@ import {
   AnnouncementStatus,
   AnnouncementCategory,
   AnnouncementPriority,
+  GLOBAL_SYSTEM_TENANT_ID,
 } from '../../common/constants/enums';
 
 @Injectable()
@@ -73,8 +74,14 @@ export class AnnouncementService {
     const limit = 25;
     const skip = (page - 1) * limit;
 
+    const where = {};
+    if (tenant_id !== GLOBAL_SYSTEM_TENANT_ID) {
+      // No filtering needed for global tenant
+      where['tenant_id'] = tenant_id;
+    }
+
     const [items, total] = await this.announcementRepo.findAndCount({
-      where: { tenant_id },
+      where,
       relations: ['creator'],
       order: { created_at: 'DESC' },
       skip,

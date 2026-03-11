@@ -273,10 +273,32 @@ export class AuthService {
 
     if (!users || users.length === 0) {
       this.logger.warn(`Login failed: user not found for email: ${normalizedEmail}`);
-      throw new BadRequestException({
-        field: 'email',
-        message: 'Email not found',
-      });
+      const sessionUser = await this.signupSessionRepository.findOne({ where: { email: normalizedEmail } });
+      if (!sessionUser) {
+        this.logger.warn(`Signup session not found for email: ${normalizedEmail}`);
+        throw new BadRequestException({
+          field: 'email',
+          message: 'Email not found',
+        });
+      }
+
+      const isPasswordValid = await bcrypt.compare(password, sessionUser.password_hash);
+
+      if (!isPasswordValid)
+        throw new BadRequestException({
+          field: 'password',
+          message: 'Incorrect password',
+        });
+
+      return {
+        signupSessionId: sessionUser.id,
+        resumed: false,
+        status: 'personal_completed',
+        nextStep: 'company-details',
+        companyDetailsCompleted: false,
+        paymentCompleted: false,
+        message: 'Personal details fetched successfully. Continue with company details.',
+      };
     }
 
     let user: User | null = null;
@@ -324,6 +346,11 @@ export class AuthService {
     const permissions = await this.getUserPermissions(user.id);
 
     const employee = await this.employeeRepository.findOne({ where: { user_id: user.id } });
+
+    if (employee?.deleted_at) {
+      this.logger.warn(`Login failed: employee is deleted for email: ${normalizedEmail}`);
+      throw new UnauthorizedException('Your employee account has been deactivated. Please contact your administrator.');
+    }
 
     const companyDetails = await this.getCompanyDetails(tenantId);
     const requiresPayment = companyDetails ? !companyDetails.is_paid : false;
@@ -500,6 +527,12 @@ export class AuthService {
         reset_token: null,
         reset_token_expiry: null,
       });
+      this.inviteStatusService.updateInviteStatusOnLogin(user.id).catch((error) => {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger.error(
+          `Failed to update invite status after password reset for user ${user.email}: ${errorMessage}`,
+        );
+      });
     }
 
     const firstUser = matchingUsers[0];
@@ -557,6 +590,12 @@ export class AuthService {
           this.logger.warn(`Refresh token failed: tenant is suspended for user: ${user.email}`);
           throw new UnauthorizedException('Your organization account has been suspended. Please contact support.');
         }
+      }
+
+      const employee = await this.employeeRepository.findOne({ where: { user_id: user.id } });
+      if (employee?.deleted_at) {
+        this.logger.warn(`Refresh token failed: employee is deleted for user: ${user.email}`);
+        throw new UnauthorizedException('Your employee account has been deactivated. Please contact your administrator.');
       }
 
       if (user.refresh_token !== refreshToken) {

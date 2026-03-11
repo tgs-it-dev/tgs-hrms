@@ -137,6 +137,7 @@ export class TeamService {
     const unassignedEmployees = await this.employeeRepo.find({
       where: {
         team_id: IsNull(),
+        deleted_at: IsNull(),
         user: { tenant_id: tenantId },
         status: EmployeeStatus.ACTIVE,
       },
@@ -375,6 +376,7 @@ export class TeamService {
     const [items, total] = await this.employeeRepo.findAndCount({
       where: {
         team_id: teamId,
+        deleted_at: IsNull(),
         user: { tenant_id: tenantId },
       },
       relations: ['user', 'designation', 'designation.department'],
@@ -410,6 +412,7 @@ export class TeamService {
     const employee = await this.employeeRepo.findOne({
       where: {
         id: employeeId,
+        deleted_at: IsNull(),
         user: { tenant_id: tenantId },
       },
     });
@@ -433,6 +436,7 @@ export class TeamService {
       where: {
         id: employeeId,
         team_id: teamId,
+        deleted_at: IsNull(),
         user: { tenant_id: tenantId },
       },
     });
@@ -473,6 +477,7 @@ export class TeamService {
       .leftJoinAndSelect('e.designation', 'd')
       .leftJoinAndSelect('d.department', 'dep')
       .where('u.tenant_id = :tenantId', { tenantId })
+      .andWhere('e.deleted_at IS NULL')
       .andWhere('dep.id = :deptId', { deptId: manager.designation.department.id })
       .andWhere('e.team_id IS NULL')
       .andWhere('e.user_id != :managerId', { managerId });

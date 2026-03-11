@@ -107,6 +107,7 @@ export class ReportsService {
       .createQueryBuilder('employee')
       .leftJoin('employee.user', 'user')
       .where('user.tenant_id = :tenantId', { tenantId })
+      .andWhere('employee.deleted_at IS NULL')
       .andWhere('employee.status = :status', { status: EmployeeStatus.ACTIVE });
 
     const total = await totalQuery.getCount();
@@ -118,6 +119,7 @@ export class ReportsService {
       .leftJoinAndSelect('employee.designation', 'designation')
       .leftJoinAndSelect('designation.department', 'department')
       .where('user.tenant_id = :tenantId', { tenantId })
+      .andWhere('employee.deleted_at IS NULL')
       .andWhere('employee.status = :status', { status: EmployeeStatus.ACTIVE })
       .orderBy('user.first_name', 'ASC')
       .addOrderBy('user.last_name', 'ASC')
@@ -259,6 +261,7 @@ export class ReportsService {
       .leftJoinAndSelect('employee.designation', 'designation')
       .leftJoinAndSelect('designation.department', 'department')
       .where('user.tenant_id = :tenantId', { tenantId })
+      .andWhere('employee.deleted_at IS NULL')
       .andWhere('employee.status = :status', { status: EmployeeStatus.ACTIVE })
       .orderBy('user.first_name', 'ASC')
       .addOrderBy('user.last_name', 'ASC')
@@ -372,6 +375,7 @@ export class ReportsService {
       .leftJoinAndSelect('employee.designation', 'designation')
       .leftJoinAndSelect('designation.department', 'department')
       .where('user.tenant_id = :tenantId', { tenantId })
+      .andWhere('employee.deleted_at IS NULL')
       .andWhere('employee.status = :status', { status: EmployeeStatus.ACTIVE })
       .orderBy('user.first_name', 'ASC')
       .addOrderBy('user.last_name', 'ASC')
@@ -629,6 +633,7 @@ export class ReportsService {
       .createQueryBuilder('employee')
       .leftJoin('employee.designation', 'designation')
       .leftJoin('designation.department', 'department')
+      .where('employee.deleted_at IS NULL')
       .select('department.name', 'department')
       .addSelect('COUNT(employee.id)', 'count')
       .groupBy('department.name');
@@ -644,6 +649,7 @@ export class ReportsService {
     const byDesignationQuery = this.employeeRepo
       .createQueryBuilder('employee')
       .leftJoin('employee.designation', 'designation')
+      .where('employee.deleted_at IS NULL')
       .select('designation.title', 'designation')
       .addSelect('COUNT(employee.id)', 'count')
       .groupBy('designation.title');
@@ -660,6 +666,7 @@ export class ReportsService {
       .createQueryBuilder('employee')
       .leftJoin('employee.user', 'user')
       .leftJoin('user.tenant', 'tenant')
+      .where('employee.deleted_at IS NULL')
       .select('tenant.id', 'tenantId')
       .addSelect('COUNT(employee.id)', 'count')
       .groupBy('tenant.id');

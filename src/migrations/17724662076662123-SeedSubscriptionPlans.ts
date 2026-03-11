@@ -1,10 +1,11 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class SeedSubscriptionPlans20260302000000 implements MigrationInterface {
+export class SeedSubscriptionPlans17724662076662123 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // Empty the table
+    const hasTable = await queryRunner.hasTable('subscription_plans');
+    if (!hasTable) return;
+
     await queryRunner.query(`DELETE FROM "subscription_plans"`);
-    // Insert new entries
     await queryRunner.query(`
             INSERT INTO "subscription_plans" ("id", "name", "stripePriceId", "description", "created_at", "updated_at") VALUES
             ('b90b5233-33e4-42ef-8e03-4b2c54b0e981', 'Basic Plan', 'price_1SuFmoP6LvaPqz5tlhGBirzs', 'Basic HRMS features.Employee profile management with essential details.Department and designation setup.Leave request and approval workflow (basic).Attendance tracking (manual entry).Standard reports (PDF/Excel export)', '2025-09-20T20:53:19.549Z', '2025-09-20T20:53:19.549Z'),
@@ -15,7 +16,7 @@ export class SeedSubscriptionPlans20260302000000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    // Optionally, you can restore previous data or just clear the table
+    if (!(await queryRunner.hasTable('subscription_plans'))) return;
     await queryRunner.query(`DELETE FROM "subscription_plans"`);
   }
 }

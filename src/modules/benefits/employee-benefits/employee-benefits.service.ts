@@ -265,7 +265,7 @@ export class EmployeeBenefitsService {
     tenant_id: string,
     page: number = 1,
     limit: number = 25,
-    status?: "active" | "expired" | "cancelled",
+    status?: 'active' | 'expired' | 'cancelled' | 'inactive',
   ) {
     await this.expireAssignmentsPastEndDate();
 

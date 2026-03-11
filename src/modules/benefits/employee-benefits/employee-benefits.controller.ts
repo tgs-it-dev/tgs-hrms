@@ -167,7 +167,7 @@ export class EmployeeBenefitsController {
     name: "status",
     required: false,
     description: "Filter by benefit assignment status: active | expired | cancelled",
-    enum: ["active", "expired", "cancelled"],
+    enum: ["active", "expired", "cancelled", "inactive"],
   })
   @ApiOkResponse({
     type: PaginatedGetAllEmployeesWithBenefitsResponseDto,

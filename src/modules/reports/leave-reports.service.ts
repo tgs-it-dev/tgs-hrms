@@ -89,6 +89,7 @@ export class LeaveReportsService {
       .leftJoinAndSelect('designation.department', 'department')
       .leftJoin('employee.team', 'team')
       .where('user.tenant_id = :tenantId', { tenantId })
+      .andWhere('employee.deleted_at IS NULL')
       .andWhere('team.manager_id = :managerId', { managerId })
       .andWhere('employee.user_id != :managerId', { managerId })
       .getMany();
@@ -204,7 +205,8 @@ export class LeaveReportsService {
       .leftJoinAndSelect('employee.user', 'user')
       .leftJoinAndSelect('employee.designation', 'designation')
       .leftJoinAndSelect('designation.department', 'department')
-      .where('user.tenant_id = :tenantId', { tenantId });
+      .where('user.tenant_id = :tenantId', { tenantId })
+      .andWhere('employee.deleted_at IS NULL');
 
     if (employeeName) {
       // Match by full name (first + last) so "Alex Parker" returns only that employee, not "Alex Pen"
@@ -380,7 +382,8 @@ export class LeaveReportsService {
       .leftJoinAndSelect('employee.user', 'user')
       .leftJoinAndSelect('employee.designation', 'designation')
       .leftJoinAndSelect('designation.department', 'department')
-      .where('user.tenant_id = :tenantId', { tenantId });
+      .where('user.tenant_id = :tenantId', { tenantId })
+      .andWhere('employee.deleted_at IS NULL');
 
     if (employeeName?.trim()) {
       const trimmedName = employeeName.trim().replace(/\s+/g, ' ');

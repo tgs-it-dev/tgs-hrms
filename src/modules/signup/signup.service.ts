@@ -69,7 +69,7 @@ export class SignupService {
       const { nextStep, companyDetailsCompleted, paymentCompleted } = await this.computeNextStep(existingSession.id);
       const message =
         nextStep === 'company-details'
-          ? 'Personal details already completed. Continue with company details.'
+          ? 'Signup already completed. Please re-login'
           : nextStep === 'payment'
           ? 'Personal and company details already completed. Continue with payment.'
           : nextStep === 'complete'

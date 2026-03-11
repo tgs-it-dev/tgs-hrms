@@ -7,6 +7,7 @@ import {
 import {
   AttendanceType,
   CheckInApprovalStatus,
+  UserRole,
 } from '../../common/constants/enums';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
@@ -113,15 +114,22 @@ export class AttendanceService {
       relations: ['user', 'team'],
     });
 
-    // Managers: auto-approve their own check-in (no one approves them). Team members: PENDING (need manager approval).
+    // Managers and network-admins: auto-approve their own check-in. Team members: PENDING (need manager approval).
     let approvalStatus: CheckInApprovalStatus | null = null;
     let approvedBy: string | null = null;
     let approvedAt: Date | null = null;
     if (dto.type === AttendanceType.CHECK_IN) {
-      const isManager =
-        tenantId &&
-        (await this.teamService.getManagerTeams(userId, tenantId)).length > 0;
-      if (isManager) {
+      const [managerResult, userResult] = await Promise.allSettled([
+        tenantId ? this.teamService.getManagerTeams(userId, tenantId) : Promise.resolve([]),
+        this.userRepo.findOne({
+          where: { id: userId },
+          relations: ['role'],
+        }),
+      ]);
+      const isManager = tenantId && managerResult.status === 'fulfilled' && (managerResult.value?.length ?? 0) > 0;
+      const isNetworkAdmin =
+        userResult.status === 'fulfilled' && userResult.value?.role?.name?.toLowerCase() === UserRole.NETWORK_ADMIN.toLowerCase();
+      if (isManager || isNetworkAdmin) {
         approvalStatus = CheckInApprovalStatus.APPROVED;
         approvedBy = userId;
         approvedAt = now;

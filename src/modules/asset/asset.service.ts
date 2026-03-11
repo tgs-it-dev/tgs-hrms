@@ -212,6 +212,10 @@ export class AssetService {
       throw new NotFoundException('Asset not found');
     }
 
+    if (asset.status === AssetStatus.RETIRED) {
+      throw new ForbiddenException('Cannot update a retired asset');
+    }
+
     // Update fields
     if (dto.name !== undefined) {
       asset.name = dto.name;

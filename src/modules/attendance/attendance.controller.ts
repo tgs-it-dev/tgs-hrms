@@ -467,13 +467,13 @@ export class AttendanceController {
         
         rows.push({
           date: date,
-          user_id: userId,
-          user_name: userName,
+          employee_name: userName,
           check_in: checkIn?.timestamp || '',
           check_out: (checkOut && checkIn && new Date(checkOut.timestamp) > new Date(checkIn.timestamp))
             ? checkOut.timestamp
             : '',
           worked_hours: workedHours,
+          status: checkIn?.approval_status ?? '',
         });
       }
     }
@@ -482,11 +482,11 @@ export class AttendanceController {
     rows.sort((a, b) => {
       const dateCompare = new Date(b.date).getTime() - new Date(a.date).getTime();
       if (dateCompare !== 0) return dateCompare;
-      return (a.user_name || '').localeCompare(b.user_name || '');
+      return (a.employee_name || '').localeCompare(b.employee_name || '');
     });
 
     // Headers even when no data (e.g. no records in date range)
-    const csvRows = rows.length > 0 ? rows : [{ date: '', user_id: '', user_name: '', check_in: '', check_out: '', worked_hours: '' }];
+    const csvRows = rows.length > 0 ? rows : [{ date: '', employee_name: '', check_in: '', check_out: '', worked_hours: '', status: '' }];
     return sendCsvResponse(res, 'attendance-all.csv', csvRows);
   }
 
