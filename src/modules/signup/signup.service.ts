@@ -17,6 +17,11 @@ import { SubscriptionPlan } from '../../entities/subscription-plan.entity';
 import axios from 'axios';
 import { GoogleSignupInitDto, GoogleSignupInitResponse } from './dto/google-signup-init.dto';
 import { JwtService } from '@nestjs/jwt';
+import { S3StorageService } from "../storage";
+import * as fs from 'fs';
+import * as path from 'path';
+
+const PREFIX_COMPANY_LOGOS = 'company-logos';
 
 @Injectable()
 export class SignupService {
@@ -38,6 +43,7 @@ export class SignupService {
     private readonly planRepo: Repository<SubscriptionPlan>,
     private readonly configService: ConfigService,
     private readonly jwtService: JwtService,
+    private readonly s3: S3StorageService,
   ) {
     const stripeKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (stripeKey) {
@@ -252,15 +258,30 @@ export class SignupService {
   }
 
   async saveCompanyLogo(signupSessionId: string, file: Express.Multer.File) {
-    if (!file) {
+    if (!file || !file.buffer) {
       throw new BadRequestException('No file uploaded');
     }
     const session = await this.signupSessionRepo.findOne({ where: { id: signupSessionId } });
     if (!session) throw new NotFoundException('Signup session not found');
-    let details = await this.companyDetailsRepo.findOne({ where: { signup_session_id: session.id } });
+    const details = await this.companyDetailsRepo.findOne({ where: { signup_session_id: session.id } });
     if (!details) throw new NotFoundException('Company details not found');
-    
-    const logoUrl = `/company-logos/${file.filename}`;
+
+    const ext = path.extname(file.originalname || '') || '.png';
+    const fileName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+    const key = `${PREFIX_COMPANY_LOGOS}/${fileName}`;
+
+    let logoUrl: string;
+    if (this.s3.isEnabled()) {
+      const result = await this.s3.upload(file.buffer, key, file.mimetype);
+      logoUrl = result.url;
+    } else {
+      const uploadDir = path.join(process.cwd(), 'public', PREFIX_COMPANY_LOGOS);
+      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+      const filePath = path.join(uploadDir, fileName);
+      fs.writeFileSync(filePath, file.buffer);
+      logoUrl = `/${PREFIX_COMPANY_LOGOS}/${fileName}`;
+    }
+
     details.logo_url = logoUrl;
     await this.companyDetailsRepo.save(details);
     return { logoUrl, signupSessionId };

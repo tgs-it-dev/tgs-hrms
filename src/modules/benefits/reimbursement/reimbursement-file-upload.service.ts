@@ -2,45 +2,35 @@ import { Injectable } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import { validateImageFile } from '../../../common/utils/file-validation.util';
+import { S3StorageService } from "../../storage/storage.service";
+
+const PREFIX_REIMBURSEMENT = 'reimbursement-documents';
 
 @Injectable()
 export class ReimbursementFileUploadService {
-  /**
-   * Upload a single proof document for reimbursement request
-   */
+  constructor(private readonly s3: S3StorageService) {}
+
   async uploadReimbursementDocument(
     file: Express.Multer.File,
     requestId: string,
   ): Promise<string> {
-    // Validate the image file
     validateImageFile(file);
+    const ext = path.extname(file.originalname);
+    const fileName = `${requestId}-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+    const key = `${PREFIX_REIMBURSEMENT}/${fileName}`;
 
-    const uploadDir = path.join(
-      process.cwd(),
-      'public',
-      'reimbursement-documents',
-    );
-
-    // Create directory if it doesn't exist
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
+    if (this.s3.isEnabled()) {
+      const result = await this.s3.upload(file.buffer, key, file.mimetype);
+      return result.url;
     }
 
-    // Generate unique filename
-    const fileExtension = path.extname(file.originalname);
-    const fileName = `${requestId}-${Date.now()}-${Math.round(Math.random() * 1e9)}${fileExtension}`;
+    const uploadDir = path.join(process.cwd(), 'public', PREFIX_REIMBURSEMENT);
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
     const filePath = path.join(uploadDir, fileName);
-
-    // Save file
     fs.writeFileSync(filePath, file.buffer);
-
-    // Return the URL path
-    return `/reimbursement-documents/${fileName}`;
+    return `/${PREFIX_REIMBURSEMENT}/${fileName}`;
   }
 
-  /**
-   * Upload multiple proof documents for reimbursement request
-   */
   async uploadReimbursementDocuments(
     files: Express.Multer.File[],
     requestId: string,
@@ -51,38 +41,23 @@ export class ReimbursementFileUploadService {
     return Promise.all(uploadPromises);
   }
 
-  /**
-   * Delete a reimbursement document
-   */
   async deleteReimbursementDocument(documentPath: string): Promise<void> {
-    if (!documentPath) {
+    if (!documentPath) return;
+
+    if (this.s3.isEnabled() && this.s3.isS3Url(documentPath)) {
+      await this.s3.deleteByUrl(documentPath);
       return;
     }
 
-    // Extract filename from path
     const fileName = documentPath.split('/').pop();
-    if (!fileName) {
-      return;
-    }
-
-    const filePath = path.join(
-      process.cwd(),
-      'public',
-      'reimbursement-documents',
-      fileName,
-    );
-
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
+    if (!fileName) return;
+    const filePath = path.join(process.cwd(), 'public', PREFIX_REIMBURSEMENT, fileName);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   }
 
-  /**
-   * Delete multiple reimbursement documents
-   */
   async deleteReimbursementDocuments(documentPaths: string[]): Promise<void> {
-    const deletePromises = documentPaths.map((path) =>
-      this.deleteReimbursementDocument(path),
+    const deletePromises = documentPaths.map((docPath) =>
+      this.deleteReimbursementDocument(docPath),
     );
     await Promise.all(deletePromises);
   }

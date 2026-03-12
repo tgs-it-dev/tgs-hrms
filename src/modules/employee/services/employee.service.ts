@@ -1461,6 +1461,10 @@ export class EmployeeService implements OnModuleInit {
       throw new NotFoundException('No profile picture available');
     }
 
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      res.redirect(302, imagePath);
+      return;
+    }
 
     const fileName = imagePath.split('/').pop();
     if (!fileName) {
@@ -1472,7 +1476,6 @@ export class EmployeeService implements OnModuleInit {
     if (!fs.existsSync(filePath)) {
       throw new NotFoundException('Profile picture file not found');
     }
-
 
     const ext = path.extname(fileName).toLowerCase();
     const contentType = this.getContentType(ext);
@@ -1499,19 +1502,22 @@ export class EmployeeService implements OnModuleInit {
       throw new NotFoundException('No CNIC picture available');
     }
 
+    const cnicPath = employee.cnic_picture;
+    if (cnicPath.startsWith('http://') || cnicPath.startsWith('https://')) {
+      res.redirect(302, cnicPath);
+      return;
+    }
 
-    const fileName = employee.cnic_picture.split('/').pop();
+    const fileName = cnicPath.split('/').pop();
     if (!fileName) {
       throw new NotFoundException('Invalid CNIC image path');
     }
 
     const filePath = path.join(process.cwd(), 'public', 'cnic-pictures', fileName);
 
-
     if (!fs.existsSync(filePath)) {
       throw new NotFoundException('CNIC picture file not found');
     }
-
 
     const ext = path.extname(fileName).toLowerCase();
     const contentType = this.getContentType(ext);
@@ -1539,19 +1545,22 @@ export class EmployeeService implements OnModuleInit {
       throw new NotFoundException('No CNIC back picture available');
     }
 
+    const cnicBackPath = employee.cnic_back_picture;
+    if (cnicBackPath.startsWith('http://') || cnicBackPath.startsWith('https://')) {
+      res.redirect(302, cnicBackPath);
+      return;
+    }
 
-    const fileName = employee.cnic_back_picture.split('/').pop();
+    const fileName = cnicBackPath.split('/').pop();
     if (!fileName) {
       throw new NotFoundException('Invalid CNIC back image path');
     }
 
     const filePath = path.join(process.cwd(), 'public', 'cnic-back-pictures', fileName);
 
-
     if (!fs.existsSync(filePath)) {
       throw new NotFoundException('CNIC back picture file not found');
     }
-
 
     const ext = path.extname(fileName).toLowerCase();
     const contentType = this.getContentType(ext);
