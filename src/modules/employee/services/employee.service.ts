@@ -18,6 +18,7 @@ import { RemoveEmployeeDocumentDto } from '../dto/update-employee.dto';
 import { SendGridService } from '../../../common/utils/email/sendgrid.service';
 import { InviteStatusService } from '../../invite-status/invite-status.service';
 import { EmployeeFileUploadService } from './employee-file-upload.service';
+import { S3StorageService } from '../../storage/storage.service';
 import { EmployeeCreatedEvent } from '../../billing/events/employee-created.event';
 import { BillingService } from '../../billing/services/billing.service';
 import * as crypto from 'crypto';
@@ -54,6 +55,7 @@ export class EmployeeService implements OnModuleInit {
     private readonly sendGridService: SendGridService,
     private readonly inviteStatusService: InviteStatusService,
     private readonly employeeFileUploadService: EmployeeFileUploadService,
+    private readonly storage: S3StorageService,
     private readonly eventEmitter: EventEmitter2,
     private readonly billingService: BillingService,
     private readonly employeeSalaryService: EmployeeSalaryService,
@@ -1166,16 +1168,25 @@ export class EmployeeService implements OnModuleInit {
     let fieldToUpdate: string | null = null;
     let isUserProfilePic = false;
 
-    if (employee.user.profile_pic === documentUrl) {
+    if (
+      employee.user.profile_pic &&
+      this.storage.sameObject(employee.user.profile_pic, documentUrl)
+    ) {
       isUserProfilePic = true;
       await this.employeeFileUploadService.deleteProfilePicture(documentUrl);
       employee.user.profile_pic = null;
       await this.userRepo.save(employee.user);
-    } else if (employee.cnic_picture === documentUrl) {
-      fieldToUpdate = 'cnic_picture';
+    } else if (
+      employee.cnic_picture &&
+      this.storage.sameObject(employee.cnic_picture, documentUrl)
+    ) {
+      fieldToUpdate = "cnic_picture";
       await this.employeeFileUploadService.deleteCnicPicture(documentUrl);
-    } else if (employee.cnic_back_picture === documentUrl) {
-      fieldToUpdate = 'cnic_back_picture';
+    } else if (
+      employee.cnic_back_picture &&
+      this.storage.sameObject(employee.cnic_back_picture, documentUrl)
+    ) {
+      fieldToUpdate = "cnic_back_picture";
       await this.employeeFileUploadService.deleteCnicBackPicture(documentUrl);
     }
 

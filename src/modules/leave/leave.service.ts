@@ -10,6 +10,7 @@ import { EditLeaveDto } from './dto/update-leave.dto';
 import { User } from '../../entities/user.entity';
 import { Employee } from 'src/entities/employee.entity';
 import { LeaveFileUploadService } from './services/leave-file-upload.service';
+import { S3StorageService } from '../storage/storage.service';
 import { NotificationService } from '../notification/notification.service';
 import { NotificationGateway } from '../notification/notification.gateway';
 import { Team } from '../../entities/team.entity';
@@ -28,6 +29,7 @@ export class LeaveService {
     @InjectRepository(Team)
     private readonly teamRepo: Repository<Team>,
     private readonly leaveFileUploadService: LeaveFileUploadService,
+    private readonly storage: S3StorageService,
     private readonly notificationService: NotificationService,
     private readonly notificationGateway: NotificationGateway,
   ) { }
@@ -888,11 +890,14 @@ export class LeaveService {
     }
 
     const docs = leave.documents || [];
-    if (!docs.includes(documentUrl)) {
+    const matchedIndex = docs.findIndex((d) =>
+      this.storage.sameObject(d, documentUrl),
+    );
+    if (matchedIndex === -1) {
       throw new NotFoundException('Document not found on this leave');
     }
 
-    leave.documents = docs.filter((d) => d !== documentUrl);
+    leave.documents = docs.filter((_, i) => i !== matchedIndex);
     await this.leaveFileUploadService.deleteLeaveDocument(documentUrl);
     const saved = await this.leaveRepo.save(leave);
     const updated = await this.leaveRepo.findOne({
@@ -944,7 +949,9 @@ export class LeaveService {
 
       // Handle document update/removal
       if (dto.documentsToRemove && Array.isArray(dto.documentsToRemove) && dto.documentsToRemove.length > 0) {
-        leave.documents = (leave.documents || []).filter(doc => !dto.documentsToRemove!.includes(doc));
+        leave.documents = (leave.documents || []).filter(
+          (doc) => !dto.documentsToRemove!.some((remove) => this.storage.sameObject(doc, remove)),
+        );
         await this.leaveFileUploadService.deleteLeaveDocuments(dto.documentsToRemove);
       }
       // If provided, replace all documents (edit to keep only provided), instead of just adding new files
@@ -1069,7 +1076,9 @@ export class LeaveService {
 
     // Remove documents if requested
     if (dto.documentsToRemove && Array.isArray(dto.documentsToRemove) && dto.documentsToRemove.length > 0) {
-      leave.documents = (leave.documents || []).filter(doc => !dto.documentsToRemove!.includes(doc));
+      leave.documents = (leave.documents || []).filter(
+        (doc) => !dto.documentsToRemove!.some((remove) => this.storage.sameObject(doc, remove)),
+      );
       await this.leaveFileUploadService.deleteLeaveDocuments(dto.documentsToRemove);
     }
 

@@ -85,7 +85,7 @@ export class S3StorageService {
 
   async deleteByUrl(url: string): Promise<void> {
     if (!url || !this.enabled || !this.client) return;
-    const key = this.urlToKey(url);
+    const key = this.urlToKey(url) ?? this.getKeyFromUrlOrPath(url);
     if (key) await this.deleteByKey(key);
   }
 
@@ -97,12 +97,15 @@ export class S3StorageService {
     return `https://${this.bucket}.s3.${this.region}.amazonaws.com/${key}`;
   }
 
+  /**
+   * Extract S3 key from a full URL (stored or signed; query string is ignored).
+   */
   urlToKey(url: string): string | null {
     try {
       if (this.publicUrlBase) {
         const base = this.publicUrlBase.replace(/\/$/, "");
         if (url.startsWith(base + "/") || url === base) {
-          const key = url.slice(base.length).replace(/^\/+/, "");
+          const key = url.slice(base.length).replace(/^\/+/, "").split("?")[0];
           return key || null;
         }
       }
@@ -124,13 +127,33 @@ export class S3StorageService {
     }
   }
 
+  /**
+   * Normalize stored URL, signed URL, or path-style value to S3 key for matching and delete.
+   * Use when comparing frontend-supplied URL (signed) with DB-stored URL.
+   */
+  getKeyFromUrlOrPath(urlOrPath: string): string | null {
+    if (!urlOrPath || typeof urlOrPath !== "string") return null;
+    const key = this.urlToKey(urlOrPath);
+    if (key) return key;
+    const pathStyle = urlOrPath.replace(/^\/+/, "").split("?")[0].trim();
+    return pathStyle || null;
+  }
+
+  /**
+   * Return true if two URLs or paths refer to the same S3 object (for matching frontend signed URL to stored URL).
+   */
+  sameObject(urlOrPathA: string, urlOrPathB: string): boolean {
+    const keyA = this.getKeyFromUrlOrPath(urlOrPathA);
+    const keyB = this.getKeyFromUrlOrPath(urlOrPathB);
+    if (!keyA || !keyB) return urlOrPathA === urlOrPathB;
+    return keyA === keyB;
+  }
+
   isS3Url(url: string): boolean {
     return this.urlToKey(url) !== null;
   }
 
-  async getObjectStream(
-    key: string,
-  ): Promise<NodeJS.ReadableStream | null> {
+  async getObjectStream(key: string): Promise<NodeJS.ReadableStream | null> {
     if (!this.enabled || !this.client) return null;
     try {
       const res = await this.client.send(

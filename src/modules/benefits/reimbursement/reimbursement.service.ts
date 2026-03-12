@@ -16,6 +16,7 @@ import { CreateReimbursementRequestDto } from '../dto/reimbursement/create-reimb
 import { UpdateReimbursementRequestDto } from '../dto/reimbursement/update-reimbursement-request.dto';
 import { ReviewReimbursementRequestDto } from '../dto/reimbursement/review-reimbursement-request.dto';
 import { ReimbursementFileUploadService } from './reimbursement-file-upload.service';
+import { S3StorageService } from '../../storage/storage.service';
 
 @Injectable()
 export class ReimbursementService {
@@ -33,6 +34,7 @@ export class ReimbursementService {
     private readonly tenantRepo: Repository<Tenant>,
 
     private readonly fileUploadService: ReimbursementFileUploadService,
+    private readonly storage: S3StorageService,
   ) {}
 
   /**
@@ -274,13 +276,16 @@ export class ReimbursementService {
       request.details = dto.details;
     }
 
-    // Handle document removal
+    // Handle document removal (match by key so signed URLs from frontend work)
     if (documentsToRemove && documentsToRemove.length > 0) {
       await this.fileUploadService.deleteReimbursementDocuments(
         documentsToRemove,
       );
       request.proofDocuments = request.proofDocuments.filter(
-        (doc) => !documentsToRemove.includes(doc),
+        (doc) =>
+          !documentsToRemove.some((remove) =>
+            this.storage.sameObject(doc, remove),
+          ),
       );
     }
 
