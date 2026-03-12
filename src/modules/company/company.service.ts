@@ -169,20 +169,25 @@ export class CompanyService {
     const randomNum = Math.floor(Math.random() * 1000000000);
     const fileExtension = path.extname(file.originalname);
     const fileName = `${timestamp}-${randomNum}${fileExtension}`;
-    const key = `${PREFIX_COMPANY_LOGOS}/${fileName}`;
+    const key = `${PREFIX_COMPANY_LOGOS}/${tenantId}/${fileName}`;
 
     let logoUrl: string;
     if (this.s3.isEnabled()) {
       const result = await this.s3.upload(file.buffer, key, file.mimetype);
       logoUrl = result.url;
     } else {
-      const uploadsDir = path.join(process.cwd(), 'public', PREFIX_COMPANY_LOGOS);
+      const uploadsDir = path.join(
+        process.cwd(),
+        "public",
+        PREFIX_COMPANY_LOGOS,
+        tenantId,
+      );
       if (!fs.existsSync(uploadsDir)) {
         await fs.promises.mkdir(uploadsDir, { recursive: true });
       }
       const filePath = path.join(uploadsDir, fileName);
       await fs.promises.writeFile(filePath, file.buffer);
-      logoUrl = `/${PREFIX_COMPANY_LOGOS}/${fileName}?v=${Date.now()}`;
+      logoUrl = `/${PREFIX_COMPANY_LOGOS}/${tenantId}/${fileName}?v=${Date.now()}`;
     }
 
     if (company.logo_url) {
@@ -190,14 +195,16 @@ export class CompanyService {
         await this.s3.deleteByUrl(company.logo_url);
         this.logger.log('Deleted old logo from S3');
       } else {
-        const oldFileName = company.logo_url.split('/').pop()?.split('?')[0];
-        if (oldFileName) {
-          const uploadsDir = path.join(process.cwd(), 'public', PREFIX_COMPANY_LOGOS);
-          const oldFilePath = path.join(uploadsDir, oldFileName);
+        const relative = (company.logo_url.split("?")[0] || "").replace(
+          /^\/+/,
+          "",
+        );
+        if (relative.startsWith(PREFIX_COMPANY_LOGOS + "/")) {
+          const oldFilePath = path.join(process.cwd(), "public", relative);
           try {
             if (fs.existsSync(oldFilePath)) {
               await fs.promises.unlink(oldFilePath);
-              this.logger.log(`Deleted old logo: ${oldFileName}`);
+              this.logger.log(`Deleted old logo: ${relative}`);
             }
           } catch (err) {
             const errorMessage = err instanceof Error ? err.message : String(err);

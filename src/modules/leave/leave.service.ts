@@ -140,6 +140,7 @@ export class LeaveService {
       const documentUrls = await this.leaveFileUploadService.uploadLeaveDocuments(
         files,
         savedLeave.id,
+        savedLeave.employeeId,
       );
       savedLeave.documents = documentUrls;
       await this.leaveRepo.save(savedLeave);
@@ -326,6 +327,7 @@ export class LeaveService {
       const documentUrls = await this.leaveFileUploadService.uploadLeaveDocuments(
         files,
         savedLeave.id,
+        savedLeave.employeeId,
       );
       savedLeave.documents = documentUrls;
       await this.leaveRepo.save(savedLeave);
@@ -969,6 +971,7 @@ export class LeaveService {
         const newDocumentUrls = await this.leaveFileUploadService.uploadLeaveDocuments(
           files,
           leave.id,
+          leave.employeeId,
         );
         leave.documents = [...(leave.documents || []), ...newDocumentUrls];
       }
@@ -1099,6 +1102,7 @@ export class LeaveService {
       const newDocumentUrls = await this.leaveFileUploadService.uploadLeaveDocuments(
         files,
         leave.id,
+        leave.employeeId,
       );
       leave.documents = [...(leave.documents || []), ...newDocumentUrls];
     }

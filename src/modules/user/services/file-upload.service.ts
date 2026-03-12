@@ -14,18 +14,29 @@ export class FileUploadService {
     validateImageFile(file);
     const ext = path.extname(file.originalname);
     const fileName = `${userId}-${Date.now()}${ext}`;
-    const key = `${PREFIX_PROFILE}/${fileName}`;
+    const key = `${PREFIX_PROFILE}/${userId}/${fileName}`;
 
     if (this.s3.isEnabled()) {
       const result = await this.s3.upload(file.buffer, key, file.mimetype);
       return result.url;
     }
 
-    const uploadDir = path.join(process.cwd(), 'public', PREFIX_PROFILE);
+    const uploadDir = path.join(
+      process.cwd(),
+      "public",
+      PREFIX_PROFILE,
+      userId,
+    );
     if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-    const filePath = path.join(uploadDir, fileName);
-    fs.writeFileSync(filePath, file.buffer);
-    return `/${PREFIX_PROFILE}/${fileName}`;
+    fs.writeFileSync(path.join(uploadDir, fileName), file.buffer);
+    return `/${PREFIX_PROFILE}/${userId}/${fileName}`;
+  }
+
+  private localPathFromStoredUrl(prefix: string, storedUrl: string): string {
+    const relative = storedUrl.replace(/^\/+/, "").split("?")[0];
+    if (!relative || !relative.startsWith(prefix + "/"))
+      return path.join(process.cwd(), "public", prefix, relative || "");
+    return path.join(process.cwd(), "public", relative);
   }
 
   async deleteProfilePicture(profilePicUrl: string): Promise<void> {
@@ -36,9 +47,7 @@ export class FileUploadService {
       return;
     }
 
-    const fileName = profilePicUrl.split('/').pop();
-    if (!fileName) return;
-    const filePath = path.join(process.cwd(), 'public', PREFIX_PROFILE, fileName);
+    const filePath = this.localPathFromStoredUrl(PREFIX_PROFILE, profilePicUrl);
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   }
 }

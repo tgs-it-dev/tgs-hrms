@@ -116,10 +116,12 @@ export class ReimbursementService {
     // Upload proof documents if provided (using actual request ID)
     let proofDocuments: string[] = [];
     if (files && files.length > 0) {
-      proofDocuments = await this.fileUploadService.uploadReimbursementDocuments(
-        files,
-        saved.id,
-      );
+      proofDocuments =
+        await this.fileUploadService.uploadReimbursementDocuments(
+          files,
+          saved.id,
+          saved.employeeId,
+        );
       saved.proofDocuments = proofDocuments;
       await this.reimbursementRepo.save(saved);
     }
@@ -301,6 +303,7 @@ export class ReimbursementService {
         await this.fileUploadService.uploadReimbursementDocuments(
           files,
           request.id,
+          request.employeeId,
         );
       request.proofDocuments = newDocuments;
     }

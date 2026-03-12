@@ -266,20 +266,26 @@ export class SignupService {
     const details = await this.companyDetailsRepo.findOne({ where: { signup_session_id: session.id } });
     if (!details) throw new NotFoundException('Company details not found');
 
-    const ext = path.extname(file.originalname || '') || '.png';
+    const ext = path.extname(file.originalname || "") || ".png";
     const fileName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
-    const key = `${PREFIX_COMPANY_LOGOS}/${fileName}`;
+    const key = `${PREFIX_COMPANY_LOGOS}/signup/${signupSessionId}/${fileName}`;
 
     let logoUrl: string;
     if (this.s3.isEnabled()) {
       const result = await this.s3.upload(file.buffer, key, file.mimetype);
       logoUrl = result.url;
     } else {
-      const uploadDir = path.join(process.cwd(), 'public', PREFIX_COMPANY_LOGOS);
-      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-      const filePath = path.join(uploadDir, fileName);
-      fs.writeFileSync(filePath, file.buffer);
-      logoUrl = `/${PREFIX_COMPANY_LOGOS}/${fileName}`;
+      const uploadDir = path.join(
+        process.cwd(),
+        "public",
+        PREFIX_COMPANY_LOGOS,
+        "signup",
+        signupSessionId,
+      );
+      if (!fs.existsSync(uploadDir))
+        fs.mkdirSync(uploadDir, { recursive: true });
+      fs.writeFileSync(path.join(uploadDir, fileName), file.buffer);
+      logoUrl = `/${PREFIX_COMPANY_LOGOS}/signup/${signupSessionId}/${fileName}`;
     }
 
     details.logo_url = logoUrl;

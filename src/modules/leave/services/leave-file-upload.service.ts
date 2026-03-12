@@ -10,27 +10,49 @@ const PREFIX_LEAVE = 'leave-documents';
 export class LeaveFileUploadService {
   constructor(private readonly s3: S3StorageService) {}
 
-  async uploadLeaveDocument(file: Express.Multer.File, leaveId: string): Promise<string> {
+  /** employeeId = user id of the employee who applied for leave */
+  async uploadLeaveDocument(
+    file: Express.Multer.File,
+    leaveId: string,
+    employeeId: string,
+  ): Promise<string> {
     validateImageFile(file);
     const ext = path.extname(file.originalname);
     const fileName = `${leaveId}-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
-    const key = `${PREFIX_LEAVE}/${fileName}`;
+    const key = `${PREFIX_LEAVE}/${employeeId}/${fileName}`;
 
     if (this.s3.isEnabled()) {
       const result = await this.s3.upload(file.buffer, key, file.mimetype);
       return result.url;
     }
 
-    const uploadDir = path.join(process.cwd(), 'public', PREFIX_LEAVE);
+    const uploadDir = path.join(
+      process.cwd(),
+      "public",
+      PREFIX_LEAVE,
+      employeeId,
+    );
     if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-    const filePath = path.join(uploadDir, fileName);
-    fs.writeFileSync(filePath, file.buffer);
-    return `/${PREFIX_LEAVE}/${fileName}`;
+    fs.writeFileSync(path.join(uploadDir, fileName), file.buffer);
+    return `/${PREFIX_LEAVE}/${employeeId}/${fileName}`;
   }
 
-  async uploadLeaveDocuments(files: Express.Multer.File[], leaveId: string): Promise<string[]> {
-    const uploadPromises = files.map((file) => this.uploadLeaveDocument(file, leaveId));
+  async uploadLeaveDocuments(
+    files: Express.Multer.File[],
+    leaveId: string,
+    employeeId: string,
+  ): Promise<string[]> {
+    const uploadPromises = files.map((file) =>
+      this.uploadLeaveDocument(file, leaveId, employeeId),
+    );
     return Promise.all(uploadPromises);
+  }
+
+  private localPathFromStoredUrl(prefix: string, storedUrl: string): string {
+    const relative = storedUrl.replace(/^\/+/, "").split("?")[0];
+    if (!relative || !relative.startsWith(prefix + "/"))
+      return path.join(process.cwd(), "public", prefix, relative || "");
+    return path.join(process.cwd(), "public", relative);
   }
 
   async deleteLeaveDocument(documentUrl: string): Promise<void> {
@@ -41,15 +63,15 @@ export class LeaveFileUploadService {
       return;
     }
 
-    const fileName = documentUrl.split('/').pop();
-    if (!fileName) return;
-    const filePath = path.join(process.cwd(), 'public', PREFIX_LEAVE, fileName);
+    const filePath = this.localPathFromStoredUrl(PREFIX_LEAVE, documentUrl);
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   }
 
   async deleteLeaveDocuments(documentUrls: string[]): Promise<void> {
     if (!documentUrls || documentUrls.length === 0) return;
-    const deletePromises = documentUrls.map((url) => this.deleteLeaveDocument(url));
+    const deletePromises = documentUrls.map((url) =>
+      this.deleteLeaveDocument(url),
+    );
     await Promise.all(deletePromises);
   }
 }

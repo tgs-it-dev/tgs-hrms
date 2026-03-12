@@ -71,29 +71,34 @@ export class SystemTenantService {
       throw new BadRequestException("Admin name cannot be empty");
     }
 
-    // Handle file upload if provided
+    // Handle file upload if provided (no tenant yet → system-tenant folder)
     let logoUrl: string | null = null;
     if (file) {
       validateImageFile(file);
-      const ext = (path.extname(file.originalname || '') || '').toLowerCase();
+      const ext = (path.extname(file.originalname || "") || "").toLowerCase();
       const timestamp = Date.now();
       const randomNum = Math.floor(Math.random() * 1000000000);
       const fileExtension = ext || path.extname(file.originalname);
       const fileName = `${timestamp}-${randomNum}${fileExtension}`;
-      const key = `${PREFIX_COMPANY_LOGOS}/${fileName}`;
+      const key = `${PREFIX_COMPANY_LOGOS}/system-tenant/${fileName}`;
 
       if (this.s3.isEnabled()) {
         const result = await this.s3.upload(file.buffer, key, file.mimetype);
         logoUrl = result.url;
         this.logger.log(`Logo uploaded to S3: ${fileName}`);
       } else {
-        const uploadsDir = path.join(process.cwd(), 'public', PREFIX_COMPANY_LOGOS);
+        const uploadsDir = path.join(
+          process.cwd(),
+          "public",
+          PREFIX_COMPANY_LOGOS,
+          "system-tenant",
+        );
         if (!fs.existsSync(uploadsDir)) {
           await fs.promises.mkdir(uploadsDir, { recursive: true });
         }
         const filePath = path.join(uploadsDir, fileName);
         await fs.promises.writeFile(filePath, file.buffer);
-        logoUrl = `/${PREFIX_COMPANY_LOGOS}/${fileName}`;
+        logoUrl = `/${PREFIX_COMPANY_LOGOS}/system-tenant/${fileName}`;
         this.logger.log(`Logo file saved: ${fileName}`);
       }
     } else if (dto.logo?.trim()) {
@@ -550,30 +555,32 @@ export class SystemTenantService {
       where: { tenant_id: tenant.id },
     });
 
-    // Handle file upload if provided
+    // Handle file upload if provided (tenant exists → company-logos/tenantId)
+    const tenantId = tenant.id;
     let logoUrl: string | null = null;
     if (file) {
       validateImageFile(file);
-      const ext = (path.extname(file.originalname || '') || '').toLowerCase();
+      const ext = (path.extname(file.originalname || "") || "").toLowerCase();
       const timestamp = Date.now();
       const randomNum = Math.floor(Math.random() * 1000000000);
       const fileExtension = ext || path.extname(file.originalname);
       const fileName = `${timestamp}-${randomNum}${fileExtension}`;
-      const key = `${PREFIX_COMPANY_LOGOS}/${fileName}`;
+      const key = `${PREFIX_COMPANY_LOGOS}/${tenantId}/${fileName}`;
 
       if (companyDetails?.logo_url) {
         if (this.s3.isEnabled() && this.s3.isS3Url(companyDetails.logo_url)) {
           await this.s3.deleteByUrl(companyDetails.logo_url);
           this.logger.log("Deleted old logo from S3");
         } else {
-          const oldFileName = companyDetails.logo_url.split('/').pop()?.split('?')[0];
-          if (oldFileName) {
-            const uploadsDir = path.join(process.cwd(), 'public', PREFIX_COMPANY_LOGOS);
-            const oldFilePath = path.join(uploadsDir, oldFileName);
+          const relative = (
+            companyDetails.logo_url.split("?")[0] || ""
+          ).replace(/^\/+/, "");
+          if (relative.startsWith(PREFIX_COMPANY_LOGOS + "/")) {
+            const oldFilePath = path.join(process.cwd(), "public", relative);
             try {
               if (fs.existsSync(oldFilePath)) {
                 await fs.promises.unlink(oldFilePath);
-                this.logger.log(`Deleted old logo: ${oldFileName}`);
+                this.logger.log(`Deleted old logo: ${relative}`);
               }
             } catch (err) {
               this.logger.error(`Failed to delete old logo: ${String((err as Error)?.message || err)}`);
@@ -587,13 +594,18 @@ export class SystemTenantService {
         logoUrl = result.url;
         this.logger.log(`Logo uploaded to S3: ${fileName}`);
       } else {
-        const uploadsDir = path.join(process.cwd(), 'public', PREFIX_COMPANY_LOGOS);
+        const uploadsDir = path.join(
+          process.cwd(),
+          "public",
+          PREFIX_COMPANY_LOGOS,
+          tenantId,
+        );
         if (!fs.existsSync(uploadsDir)) {
           await fs.promises.mkdir(uploadsDir, { recursive: true });
         }
         const filePath = path.join(uploadsDir, fileName);
         await fs.promises.writeFile(filePath, file.buffer);
-        logoUrl = `/${PREFIX_COMPANY_LOGOS}/${fileName}`;
+        logoUrl = `/${PREFIX_COMPANY_LOGOS}/${tenantId}/${fileName}`;
         this.logger.log(`Logo file saved: ${fileName}`);
       }
     } else if (dto.logo !== undefined) {
