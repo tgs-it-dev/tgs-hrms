@@ -44,9 +44,19 @@ export class EmailService {
     }
   }
 
-  async sendWelcomeEmail(email: string, resetToken: string): Promise<void> {
+  async sendWelcomeEmail(
+    email: string,
+    resetToken: string,
+    userName: string,
+    companyName: string,
+  ): Promise<void> {
     try {
-      await this.sendGridService.sendWelcomeEmail(email, resetToken);
+      await this.sendGridService.sendWelcomeEmail(
+        email,
+        resetToken,
+        userName,
+        companyName,
+      );
     } catch (error) {
       this.logger.error(`Failed to send welcome email to ${email}:`, error);
       throw new Error('Failed to send welcome email');

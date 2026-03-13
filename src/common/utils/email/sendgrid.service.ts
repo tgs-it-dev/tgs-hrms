@@ -141,7 +141,12 @@ export class SendGridService {
     }
   }
 
-  async sendWelcomeEmail(email: string, resetToken: string): Promise<void> {
+  async sendWelcomeEmail(
+    email: string,
+    resetToken: string,
+    userName: string,
+    companyName: string,
+  ): Promise<void> {
     const frontendUrl = this.configService.get<string>("FRONTEND_URL");
     const resetUrl = `${frontendUrl}/confirm-password?token=${resetToken}`;
     const fromEmail = this.configService.get<string>("SENDGRID_FROM");
@@ -151,30 +156,19 @@ export class SendGridService {
       return;
     }
 
+    const context = {
+      userName,
+      resetUrl,
+      companyName: companyName ?? "your organization",
+    };
+
+    const html = this.renderTemplate("employee-welcome", context);
+
     const msg = {
       to: email,
       from: fromEmail,
       subject: "Welcome to HRMS - Set Your Password",
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>Welcome to HRMS!</h2>
-          <p>Hello,</p>
-          <p>Welcome to our Human Resource Management System. Your account has been created successfully.</p>
-          <p>To get started, please set your password by clicking the button below:</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${resetUrl}" 
-               style="background-color: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
-              Set Password
-            </a>
-          </div>
-          <p>If the button doesn't work, copy and paste this link into your browser:</p>
-          <p style="word-break: break-all; color: #666;">${resetUrl}</p>
-          <p>This link will expire in 24 hours.</p>
-          <p>If you have any questions, please contact your administrator.</p>
-          <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
-          <p style="color: #666; font-size: 12px;">This is an automated message, please do not reply.</p>
-        </div>
-      `,
+      html,
     };
 
     try {

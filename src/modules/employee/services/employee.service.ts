@@ -320,8 +320,13 @@ export class EmployeeService implements OnModuleInit {
         }
       }
 
-
-      await this.sendPasswordResetEmail(dto.email, resetToken);
+      await this.sendPasswordWelcomeEmail(
+        dto.email,
+        resetToken,
+        `${dto.first_name} ${dto.last_name}`.trim() || dto.email,
+        (await this.tenantRepo.findOne({ where: { id: tenant_id } }))?.name ||
+          "your organization",
+      );
 
       // Notify all other employees in the same tenant (tenant isolation)
       const newManagerUser = await this.userRepo.findOne({ where: { id: result.user_id }, select: ['id', 'email', 'first_name', 'last_name'] });
@@ -615,7 +620,13 @@ export class EmployeeService implements OnModuleInit {
       }
 
       // 4. Send invitation and post-creation steps
-      await this.sendPasswordResetEmail(dto.email, resetToken);
+      await this.sendPasswordWelcomeEmail(
+        dto.email,
+        resetToken,
+        employeeName,
+        (await this.tenantRepo.findOne({ where: { id: tenant_id } }))?.name ||
+          "your organization",
+      );
 
       // Notify all other employees in the same tenant (tenant isolation)
       await this.sendNewEmployeeAnnouncementToTenant(
@@ -806,7 +817,13 @@ export class EmployeeService implements OnModuleInit {
       }
 
       // Send invitation email
-      await this.sendPasswordResetEmail(dto.email, resetToken);
+      await this.sendPasswordWelcomeEmail(
+        dto.email,
+        resetToken,
+        `${dto.first_name} ${dto.last_name}`.trim() || dto.email,
+        (await this.tenantRepo.findOne({ where: { id: tenant_id } }))?.name ||
+          "your organization",
+      );
 
       // Notify all other employees in the same tenant (tenant isolation)
       const newEmployeeName = `${dto.first_name} ${dto.last_name}`.trim();
@@ -1206,9 +1223,19 @@ export class EmployeeService implements OnModuleInit {
     ).join('');
   }
 
-  private async sendPasswordResetEmail(email: string, resetToken: string) {
+  private async sendPasswordWelcomeEmail(
+    email: string,
+    resetToken: string,
+    userName: string,
+    companyName: string,
+  ) {
     try {
-      await this.sendGridService.sendWelcomeEmail(email, resetToken);
+      await this.sendGridService.sendWelcomeEmail(
+        email,
+        resetToken,
+        userName,
+        companyName,
+      );
     } catch (error) {
       this.logger.error(`Failed to send welcome email to ${email}: ${String((error as any)?.message || error)}`);
 
@@ -1416,7 +1443,7 @@ export class EmployeeService implements OnModuleInit {
 
     const employee = await this.employeeRepo.findOne({
       where: { id: employee_id, deleted_at: IsNull() },
-      relations: ['user'],
+      relations: ["user", "user.tenant"],
     });
     if (!employee || employee.user.tenant_id !== tenant_id) {
       throw new NotFoundException('Employee not found for this tenant');
@@ -1436,7 +1463,12 @@ export class EmployeeService implements OnModuleInit {
     await this.userRepo.save(employee.user);
     await this.employeeRepo.save(employee);
 
-    await this.sendPasswordResetEmail(employee.user.email, resetToken);
+    await this.sendPasswordWelcomeEmail(
+      employee.user.email,
+      resetToken,
+      `${employee.user.first_name} ${employee.user.last_name}`.trim() || employee.user.email,
+      employee.user.tenant.name,
+    );
     return { message: 'Invite resent successfully' };
   }
 
