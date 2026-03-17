@@ -36,9 +36,17 @@ export class EmailService {
     }
   }
 
-  async sendPasswordResetSuccessEmail(email: string, userName: string): Promise<void> {
+  async sendPasswordResetSuccessEmail(
+    email: string,
+    userName: string,
+    companyName: string,
+  ): Promise<void> {
     try {
-      await this.sendGridService.sendPasswordResetSuccessEmail(email, userName);
+      await this.sendGridService.sendPasswordResetSuccessEmail(
+        email,
+        userName,
+        companyName,
+      );
     } catch (error) {
       this.logger.error(`Failed to send password reset success email to ${email}:`, error);
     }
