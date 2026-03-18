@@ -1,0 +1,63 @@
+import {
+  Injectable,
+  NestInterceptor,
+  ExecutionContext,
+  CallHandler,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { Observable, throwError } from 'rxjs';
+import { catchError } from 'rxjs/operators';
+import { JwtService } from '@nestjs/jwt';
+
+@Injectable()
+export class JwtRefreshInterceptor implements NestInterceptor {
+  constructor(
+    private jwtService: JwtService,
+  ) {}
+
+  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+    return next.handle().pipe(
+      catchError((error) => {
+      
+        if (error instanceof UnauthorizedException && error.message === 'Unauthorized') {
+          const request = context.switchToHttp().getRequest();
+          const authHeader = request.headers.authorization;
+
+          if (authHeader && authHeader.startsWith('Bearer ')) {
+            const token = authHeader.substring(7);
+
+            try {
+              
+              const decoded = this.jwtService.decode(token);
+              if (decoded && typeof decoded === 'object' && decoded.exp) {
+                const currentTime = Math.floor(Date.now() / 1000);
+                if (decoded.exp < currentTime) {
+                
+                  return throwError(
+                    () =>
+                      new UnauthorizedException({
+                        message: 'Access token expired',
+                        code: 'TOKEN_EXPIRED',
+                        shouldRefresh: true,
+                      })
+                  );
+                }
+              }
+            } catch (decodeError) {
+        
+              return throwError(
+                () =>
+                  new UnauthorizedException({
+                    message: 'Invalid access token',
+                    code: 'INVALID_TOKEN',
+                  })
+              );
+            }
+          }
+        }
+
+        return throwError(() => error);
+      })
+    );
+  }
+}
