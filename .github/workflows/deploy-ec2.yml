@@ -27,7 +27,7 @@ jobs:
 
       - name: Prepare .env from secret
         run: |
-          echo "${{ secrets.APP_ENV_BASE64 }}" | base64 -d > .env || true
+          echo "${{ secrets.APP_ENV_BASE64 }}" | tr -d ' \n\r\t' | base64 -d > .env 2>/dev/null || true
 
       - name: Create deployment zip
         run: |
@@ -51,6 +51,8 @@ jobs:
           port: ${{ secrets.EC2_SSH_PORT || 22 }}
           script: |
             set -e
+            export PATH="/usr/local/bin:/usr/bin:$PATH"
+            [ -s "$HOME/.nvm/nvm.sh" ] && . "$HOME/.nvm/nvm.sh"
             cd ${{ secrets.EC2_APP_PATH }}
             mv deploy.zip /tmp/deploy.zip
             find . -mindepth 1 -maxdepth 1 -exec rm -rf {} +
