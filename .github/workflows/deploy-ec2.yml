@@ -27,8 +27,8 @@ jobs:
 
       - name: Prepare .env from secret
         run: |
-          if [ -n "${{ secrets.APP_ENV }}" ]; then
-            printf '%s' "${{ secrets.APP_ENV }}" > .env
+          if [ -n "${{ secrets.APP_ENV_BASE64 }}" ]; then
+            printf '%s' "${{ secrets.APP_ENV_BASE64 }}" > .env
           fi
 
       - name: Create deployment zip
