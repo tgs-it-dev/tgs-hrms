@@ -9,14 +9,10 @@ import {
 } from "typeorm";
 import { User } from "./user.entity";
 import { Department } from "./department.entity";
-import { Benefit } from "./benefit.entity";
-import { EmployeeBenefit } from "./employee-benefit.entity";
 import { Kpi } from "./kpi.entity";
 import { EmployeeKpi } from "./employee-kpi.entity";
 import { PerformanceReview } from "./performance-review.entity";
 import { Promotion } from "./promotion.entity";
-import { Asset } from "./asset.entity";
-import { AssetComment } from "./asset-comment.entity";
 import { Leave } from "./leave.entity";
 import { Designation } from "./designation.entity";
 import { Task } from "./task.entity";
@@ -52,12 +48,6 @@ export class Tenant {
   @OneToMany(() => Designation, (designation) => designation.tenant)
   designations: Designation[];
 
-  @OneToMany(() => Benefit, (benefit) => benefit.tenant)
-  benefits: Benefit[];
-
-  @OneToMany(() => EmployeeBenefit, (employeeBenefit) => employeeBenefit.tenant)
-  employeeBenefits: EmployeeBenefit[];
-
   @OneToMany(() => Kpi, (kpi) => kpi.tenant)
   kpis: Kpi[];
 
@@ -73,17 +63,11 @@ export class Tenant {
   @OneToMany(() => Promotion, (promotion) => promotion.tenant)
   employeePromotions: Promotion[];
 
-  @OneToMany(() => Asset, (asset) => asset.tenant)
-  assets: Asset[];
-
   @OneToMany(() => Leave, (leave) => leave.tenant)
   leaves: Leave[];
 
   @OneToMany(() => Task, (task) => task.tenant)
   tasks: Task[];
-
-  @OneToMany(() => AssetComment, (comment) => comment.tenant)
-  assetComments: AssetComment[];
 
   @OneToMany(() => Geofence, (geofence) => geofence.tenant)
   geofences: Geofence[];

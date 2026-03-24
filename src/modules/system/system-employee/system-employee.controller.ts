@@ -115,12 +115,4 @@ export class SystemEmployeeController {
     return data;
   }
 
-  @Get(":id/assets")
-  @ApiOperation({
-    summary: "Get employee assigned assets (System Admin)",
-  })
-  async getAssets(@Param("id") id: string) {
-    const data = await this.systemEmployeeService.getAssets(id);
-    return data;
-  }
 }

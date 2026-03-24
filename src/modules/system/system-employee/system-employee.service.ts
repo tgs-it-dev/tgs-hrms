@@ -4,7 +4,6 @@ import { Repository } from "typeorm";
 import { Employee } from "src/entities/employee.entity";
 import { Leave } from "src/entities/leave.entity";
 import { EmployeeKpi } from "src/entities/employee-kpi.entity";
-import { Asset } from "src/entities/asset.entity";
 import { EmployeeStatus } from "src/common/constants/enums";
 
 @Injectable()
@@ -18,9 +17,6 @@ export class SystemEmployeeService {
 
     @InjectRepository(EmployeeKpi)
     private readonly employeeKpiRepo: Repository<EmployeeKpi>,
-
-    @InjectRepository(Asset)
-    private readonly assetRepo: Repository<Asset>,
   ) {}
 
   /**
@@ -110,8 +106,6 @@ export class SystemEmployeeService {
         "designation",
         "designation.department",
         "team",
-        "employeeBenefits",
-        "employeeBenefits.benefit",
         "employeeKpis",
         "employeeKpis.kpi",
         "employeePerformanceReviews",
@@ -144,7 +138,6 @@ export class SystemEmployeeService {
       team: employee.team?.name ?? null,
       status: employeeStatus,
       inviteStatus: employee.invite_status,
-      benefits: employee.employeeBenefits,
       kpis: employee.employeeKpis,
       promotions: employee.employeePromotions,
       performanceReviews: employee.employeePerformanceReviews,
@@ -209,15 +202,4 @@ export class SystemEmployeeService {
     return kpiRecords;
   }
 
-  /**
-   * GET /system/employees/:id/assets → Assigned assets
-   */
-  async getAssets(id: string) {
-    const assets = await this.assetRepo.find({
-      where: { assigned_to: id },
-      order: { created_at: "DESC" },
-    });
-
-    return assets;
-  }
 }

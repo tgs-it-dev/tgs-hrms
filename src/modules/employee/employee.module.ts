@@ -18,7 +18,6 @@ import { InviteStatusModule } from '../invite-status/invite-status.module';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
 import { EmployeeFileUploadService } from './services/employee-file-upload.service';
 import { BillingModule } from '../billing/billing.module';
-import { PayrollModule } from '../payroll/payroll.module';
 import { Tenant } from 'src/entities/tenant.entity';
 
 @Module({
@@ -38,7 +37,6 @@ import { Tenant } from 'src/entities/tenant.entity';
     InviteStatusModule,
     SharedJwtModule,
     forwardRef(() => BillingModule),
-    PayrollModule,
   ],
   controllers: [EmployeeController, EmployeeProfileController],
   providers: [EmployeeService, EmployeeProfileService, SendGridService, EmployeeFileUploadService],

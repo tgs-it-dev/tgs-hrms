@@ -31,13 +31,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { TeamModule } from './modules/team/team.module';
 import { SignupModule } from './modules/signup/signup.module';
 import { SubscriptionModule } from './modules/subscription/subscription.module';
-import { PayrollModule } from './modules/payroll/payroll.module';
 import { CompanyModule } from './modules/company/company.module';
-import { AssetModule } from './modules/asset/asset.module';
-import { AssetRequestModule } from './modules/asset-request/asset-request.module';
-import { AssetCategoryModule } from './modules/asset-category/asset-category.module';
-import { AssetSubcategoryModule } from './modules/asset-subcategory/asset-subcategory.module';
-import { BenefitsModule } from "./modules/benefits/benefits.module";
 import { PmsModule } from './modules/pms/pms.module';
 import { SystemModule } from './modules/system/system.module';
 import { SearchModule } from './modules/search/search.module';
@@ -166,14 +160,8 @@ import { SystemLog } from './entities/system-log.entity';
     SignupModule,
     SubscriptionModule,
     CompanyModule,
-    AssetModule,
-    AssetRequestModule,
-    AssetCategoryModule,
-    AssetSubcategoryModule,
-    BenefitsModule,
     PmsModule,
     SystemModule,
-    PayrollModule,
     SearchModule,
     BillingModule,
     TaskModule,

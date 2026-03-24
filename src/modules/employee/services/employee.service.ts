@@ -30,9 +30,6 @@ import { Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
 import { getPostgresErrorCode, getPostgresErrorConstraint } from '../../../common/types/database.types';
-import { EmployeeSalaryService } from '../../payroll/services/employee-salary.service';
-import { CreateEmployeeSalaryDto } from '../../payroll/dto/employee-salary.dto';
-import { SalaryStatus } from '../../../common/constants/enums';
 import { Tenant } from 'src/entities/tenant.entity';
 
 @Injectable()
@@ -56,7 +53,6 @@ export class EmployeeService implements OnModuleInit {
     private readonly employeeFileUploadService: EmployeeFileUploadService,
     private readonly eventEmitter: EventEmitter2,
     private readonly billingService: BillingService,
-    private readonly employeeSalaryService: EmployeeSalaryService,
   ) { }
 
   onModuleInit() {
@@ -335,29 +331,6 @@ export class EmployeeService implements OnModuleInit {
         );
       }
 
-      // Automatically create default salary structure for the new manager
-      try {
-        const defaults = await this.employeeSalaryService.getSalaryTemplateForTenant(tenant_id);
-        const today = new Date().toISOString().split('T')[0];
-
-        const salaryDto: CreateEmployeeSalaryDto = {
-          employee_id: result.id,
-          baseSalary: defaults.baseSalary,
-          allowances: defaults.allowances,
-          deductions: defaults.deductions,
-          effectiveDate: today,
-          status: SalaryStatus.ACTIVE,
-          notes: 'Auto-created default salary structure on manager creation',
-        };
-
-        await this.employeeSalaryService.create(tenant_id, createdByUserId, salaryDto);
-      } catch (salaryError) {
-        this.logger.error(
-          `Failed to create default salary for manager ${result.id}: ${salaryError instanceof Error ? salaryError.message : String(salaryError)
-          }`,
-        );
-      }
-
       // Reload so response includes picture URLs persisted via update()
       const created = await this.employeeRepo.findOne({
         where: { id: result.id },
@@ -625,29 +598,6 @@ export class EmployeeService implements OnModuleInit {
         user.email,
       );
 
-      // Automatically create default salary structure for the new employee
-      try {
-        const defaults = await this.employeeSalaryService.getSalaryTemplateForTenant(tenant_id);
-        const today = new Date().toISOString().split('T')[0];
-
-        const salaryDto: CreateEmployeeSalaryDto = {
-          employee_id: result.id,
-          baseSalary: defaults.baseSalary,
-          allowances: defaults.allowances,
-          deductions: defaults.deductions,
-          effectiveDate: today,
-          status: SalaryStatus.ACTIVE,
-          notes: 'Auto-created default salary structure on employee creation',
-        };
-
-        await this.employeeSalaryService.create(tenant_id, createdByUserId, salaryDto);
-      } catch (salaryError) {
-        this.logger.error(
-          `Failed to create default salary for employee ${result.id}: ${salaryError instanceof Error ? salaryError.message : String(salaryError)
-          }`,
-        );
-      }
-
       // Emit event for audit/logging purposes (payment already processed above)
       try {
         this.eventEmitter.emit('employee.created', event);
@@ -816,30 +766,6 @@ export class EmployeeService implements OnModuleInit {
         newEmployeeName,
         dto.email,
       );
-
-      // Automatically create default salary structure for the new employee (created after payment)
-      try {
-        const defaults = await this.employeeSalaryService.getSalaryTemplateForTenant(tenant_id);
-        const today = new Date().toISOString().split('T')[0];
-
-        const salaryDto: CreateEmployeeSalaryDto = {
-          employee_id: result.id,
-          baseSalary: defaults.baseSalary,
-          allowances: defaults.allowances,
-          deductions: defaults.deductions,
-          effectiveDate: today,
-          status: SalaryStatus.ACTIVE,
-          notes: 'Auto-created default salary structure on employee creation after payment',
-        };
-
-        // Use the newly created employee's linked user as the actor for auditing purposes
-        await this.employeeSalaryService.create(tenant_id, result.user_id, salaryDto);
-      } catch (salaryError) {
-        this.logger.error(
-          `Failed to create default salary for employee ${result.id} after payment: ${salaryError instanceof Error ? salaryError.message : String(salaryError)
-          }`,
-        );
-      }
 
       // Note: Event is NOT emitted here because payment was already processed in confirmEmployeePayment
       // This prevents duplicate billing transaction creation
