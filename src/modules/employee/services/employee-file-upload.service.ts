@@ -1,119 +1,139 @@
-import { Injectable } from '@nestjs/common';
-import * as fs from 'fs';
-import * as path from 'path';
-import { validateImageFile } from '../../../common/utils/file-validation.util';
+import { Injectable } from "@nestjs/common";
+import * as fs from "fs";
+import * as path from "path";
+import { validateImageFile } from "../../../common/utils/file-validation.util";
+import { S3StorageService } from "../../storage/storage.service";
+
+const PREFIX_PROFILE = "profile-pictures";
+const PREFIX_CNIC = "cnic-pictures";
+const PREFIX_CNIC_BACK = "cnic-back-pictures";
 
 @Injectable()
 export class EmployeeFileUploadService {
-  async uploadProfilePicture(file: Express.Multer.File, employeeId: string): Promise<string> {
-    // Additional validation as a safety check
-    validateImageFile(file);
-    const uploadDir = path.join(process.cwd(), 'public', 'profile-pictures');
+  constructor(private readonly s3: S3StorageService) {}
 
-    // Create directory if it doesn't exist
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-
-    // Generate unique filename
-    const fileExtension = path.extname(file.originalname);
-    const fileName = `${employeeId}-${Date.now()}${fileExtension}`;
-    const filePath = path.join(uploadDir, fileName);
-
-    // Save file
-    fs.writeFileSync(filePath, file.buffer);
-
-    // Return the URL path
-    return `/profile-pictures/${fileName}`;
+  /** S3 key: prefix/userId/fileName (e.g. profile-pictures/userId/employeeId-timestamp.ext) */
+  private buildKey(prefix: string, userId: string, uniqueName: string): string {
+    return `${prefix}/${userId}/${uniqueName}`;
   }
 
-  async uploadCnicPicture(file: Express.Multer.File, employeeId: string): Promise<string> {
-    // Additional validation as a safety check
-    validateImageFile(file);
-    const uploadDir = path.join(process.cwd(), 'public', 'cnic-pictures');
-
-    // Create directory if it doesn't exist
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-
-    // Generate unique filename
-    const fileExtension = path.extname(file.originalname);
-    const fileName = `${employeeId}-${Date.now()}${fileExtension}`;
-    const filePath = path.join(uploadDir, fileName);
-
-    // Save file
-    fs.writeFileSync(filePath, file.buffer);
-
-    // Return the URL path
-    return `/cnic-pictures/${fileName}`;
+  private uniqueName(employeeId: string, ext: string): string {
+    return `${employeeId}-${Date.now()}${ext}`;
   }
 
-  async uploadCnicBackPicture(file: Express.Multer.File, employeeId: string): Promise<string> {
-    // Additional validation as a safety check
+  async uploadProfilePicture(
+    file: Express.Multer.File,
+    employeeId: string,
+    userId: string,
+  ): Promise<string> {
     validateImageFile(file);
-    const uploadDir = path.join(process.cwd(), 'public', 'cnic-back-pictures');
+    const ext = path.extname(file.originalname);
+    const fileName = this.uniqueName(employeeId, ext);
+    const key = this.buildKey(PREFIX_PROFILE, userId, fileName);
 
-    // Create directory if it doesn't exist
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
+    if (this.s3.isEnabled()) {
+      const result = await this.s3.upload(file.buffer, key, file.mimetype);
+      return result.url;
     }
 
-    // Generate unique filename
-    const fileExtension = path.extname(file.originalname);
-    const fileName = `${employeeId}-${Date.now()}${fileExtension}`;
-    const filePath = path.join(uploadDir, fileName);
+    const uploadDir = path.join(
+      process.cwd(),
+      "public",
+      PREFIX_PROFILE,
+      userId,
+    );
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+    fs.writeFileSync(path.join(uploadDir, fileName), file.buffer);
+    return `/${PREFIX_PROFILE}/${userId}/${fileName}`;
+  }
 
-    // Save file
-    fs.writeFileSync(filePath, file.buffer);
+  async uploadCnicPicture(
+    file: Express.Multer.File,
+    employeeId: string,
+    userId: string,
+  ): Promise<string> {
+    validateImageFile(file);
+    const ext = path.extname(file.originalname);
+    const fileName = this.uniqueName(employeeId, ext);
+    const key = this.buildKey(PREFIX_CNIC, userId, fileName);
 
-    // Return the URL path
-    return `/cnic-back-pictures/${fileName}`;
+    if (this.s3.isEnabled()) {
+      const result = await this.s3.upload(file.buffer, key, file.mimetype);
+      return result.url;
+    }
+
+    const uploadDir = path.join(process.cwd(), "public", PREFIX_CNIC, userId);
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+    fs.writeFileSync(path.join(uploadDir, fileName), file.buffer);
+    return `/${PREFIX_CNIC}/${userId}/${fileName}`;
+  }
+
+  async uploadCnicBackPicture(
+    file: Express.Multer.File,
+    employeeId: string,
+    userId: string,
+  ): Promise<string> {
+    validateImageFile(file);
+    const ext = path.extname(file.originalname);
+    const fileName = this.uniqueName(employeeId, ext);
+    const key = this.buildKey(PREFIX_CNIC_BACK, userId, fileName);
+
+    if (this.s3.isEnabled()) {
+      const result = await this.s3.upload(file.buffer, key, file.mimetype);
+      return result.url;
+    }
+
+    const uploadDir = path.join(
+      process.cwd(),
+      "public",
+      PREFIX_CNIC_BACK,
+      userId,
+    );
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+    fs.writeFileSync(path.join(uploadDir, fileName), file.buffer);
+    return `/${PREFIX_CNIC_BACK}/${userId}/${fileName}`;
+  }
+
+  private localPathFromStoredUrl(prefix: string, storedUrl: string): string {
+    const relative = storedUrl.replace(/^\/+/, "").split("?")[0];
+    if (!relative || !relative.startsWith(prefix + "/"))
+      return path.join(process.cwd(), "public", prefix, relative || "");
+    return path.join(process.cwd(), "public", relative);
   }
 
   async deleteProfilePicture(profilePicUrl: string): Promise<void> {
     if (!profilePicUrl) return;
-
-    const fileName = profilePicUrl.split('/').pop();
-    if (!fileName) return;
-
-    const filePath = path.join(process.cwd(), 'public', 'profile-pictures', fileName);
-
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    if (this.s3.isEnabled() && this.s3.isS3Url(profilePicUrl)) {
+      await this.s3.deleteByUrl(profilePicUrl);
+      return;
     }
+    const filePath = this.localPathFromStoredUrl(PREFIX_PROFILE, profilePicUrl);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   }
 
   async deleteCnicPicture(cnicPicUrl: string): Promise<void> {
     if (!cnicPicUrl) return;
-
-    const fileName = cnicPicUrl.split('/').pop();
-    if (!fileName) return;
-
-    const filePath = path.join(process.cwd(), 'public', 'cnic-pictures', fileName);
-
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    if (this.s3.isEnabled() && this.s3.isS3Url(cnicPicUrl)) {
+      await this.s3.deleteByUrl(cnicPicUrl);
+      return;
     }
+    const filePath = this.localPathFromStoredUrl(PREFIX_CNIC, cnicPicUrl);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   }
 
   async deleteCnicBackPicture(cnicBackPicUrl: string): Promise<void> {
     if (!cnicBackPicUrl) return;
-
-    const fileName = cnicBackPicUrl.split('/').pop();
-    if (!fileName) return;
-
-    const filePath = path.join(process.cwd(), 'public', 'cnic-back-pictures', fileName);
-
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    if (this.s3.isEnabled() && this.s3.isS3Url(cnicBackPicUrl)) {
+      await this.s3.deleteByUrl(cnicBackPicUrl);
+      return;
     }
+    const filePath = this.localPathFromStoredUrl(
+      PREFIX_CNIC_BACK,
+      cnicBackPicUrl,
+    );
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   }
 
-  /**
-   * Saves files to temp folder for checkout flow (payment redirect).
-   * Called before redirect when PAYMENT_METHOD_REQUIRED - files persist until createAfterPayment.
-   */
   saveToTempForCheckout(
     checkoutSessionId: string,
     files: {
@@ -122,10 +142,13 @@ export class EmployeeFileUploadService {
       cnic_back_picture?: Express.Multer.File[];
     },
   ): void {
-    const tempDir = path.join(process.cwd(), 'public', 'temp-employee-docs', checkoutSessionId);
-    if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true });
-    }
+    const tempDir = path.join(
+      process.cwd(),
+      "public",
+      "temp-employee-docs",
+      checkoutSessionId,
+    );
+    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 
     if (files.profile_picture?.[0]) {
       const ext = path.extname(files.profile_picture[0].originalname);
@@ -136,74 +159,133 @@ export class EmployeeFileUploadService {
     }
     if (files.cnic_picture?.[0]) {
       const ext = path.extname(files.cnic_picture[0].originalname);
-      fs.writeFileSync(path.join(tempDir, `cnic${ext}`), files.cnic_picture[0].buffer);
+      fs.writeFileSync(
+        path.join(tempDir, `cnic${ext}`),
+        files.cnic_picture[0].buffer,
+      );
     }
     if (files.cnic_back_picture?.[0]) {
       const ext = path.extname(files.cnic_back_picture[0].originalname);
-      fs.writeFileSync(path.join(tempDir, `cnic_back${ext}`), files.cnic_back_picture[0].buffer);
+      fs.writeFileSync(
+        path.join(tempDir, `cnic_back${ext}`),
+        files.cnic_back_picture[0].buffer,
+      );
     }
   }
 
-  /**
-   * Moves temp files to final locations and returns URLs.
-   * Called from createAfterPayment when payment was completed via checkout redirect.
-   */
   async moveTempToFinal(
     checkoutSessionId: string,
     employeeId: string,
+    userId: string,
   ): Promise<{ profilePic?: string; cnicPic?: string; cnicBackPic?: string }> {
-    const tempDir = path.join(process.cwd(), 'public', 'temp-employee-docs', checkoutSessionId);
-    if (!fs.existsSync(tempDir)) {
-      return {};
-    }
+    const tempDir = path.join(
+      process.cwd(),
+      "public",
+      "temp-employee-docs",
+      checkoutSessionId,
+    );
+    if (!fs.existsSync(tempDir)) return {};
 
-    const result: { profilePic?: string; cnicPic?: string; cnicBackPic?: string } = {};
+    const result: {
+      profilePic?: string;
+      cnicPic?: string;
+      cnicBackPic?: string;
+    } = {};
 
-    const profileFile = fs.readdirSync(tempDir).find((f) => f.startsWith('profile'));
+    const profileFile = fs
+      .readdirSync(tempDir)
+      .find((f) => f.startsWith("profile"));
     if (profileFile) {
       const src = path.join(tempDir, profileFile);
       const ext = path.extname(profileFile);
-      const destDir = path.join(process.cwd(), 'public', 'profile-pictures');
-      if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
-      const destFileName = `${employeeId}-${Date.now()}${ext}`;
-      const dest = path.join(destDir, destFileName);
-      fs.renameSync(src, dest);
-      result.profilePic = `/profile-pictures/${destFileName}`;
+      const buffer = fs.readFileSync(src);
+      const unique = this.uniqueName(employeeId, ext);
+
+      if (this.s3.isEnabled()) {
+        const uploadResult = await this.s3.upload(
+          buffer,
+          this.buildKey(PREFIX_PROFILE, userId, unique),
+          undefined,
+        );
+        result.profilePic = uploadResult.url;
+      } else {
+        const destDir = path.join(
+          process.cwd(),
+          "public",
+          PREFIX_PROFILE,
+          userId,
+        );
+        if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+        fs.renameSync(src, path.join(destDir, unique));
+        result.profilePic = `/${PREFIX_PROFILE}/${userId}/${unique}`;
+      }
     }
 
-    const cnicFile = fs.readdirSync(tempDir).find((f) => f.startsWith('cnic') && !f.startsWith('cnic_back'));
+    const cnicFile = fs
+      .readdirSync(tempDir)
+      .find((f) => f.startsWith("cnic") && !f.startsWith("cnic_back"));
     if (cnicFile) {
       const src = path.join(tempDir, cnicFile);
       const ext = path.extname(cnicFile);
-      const destDir = path.join(process.cwd(), 'public', 'cnic-pictures');
-      if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
-      const destFileName = `${employeeId}-${Date.now()}${ext}`;
-      const dest = path.join(destDir, destFileName);
-      fs.renameSync(src, dest);
-      result.cnicPic = `/cnic-pictures/${destFileName}`;
+      const unique = this.uniqueName(employeeId, ext);
+      const buffer = fs.readFileSync(src);
+
+      if (this.s3.isEnabled()) {
+        const uploadResult = await this.s3.upload(
+          buffer,
+          this.buildKey(PREFIX_CNIC, userId, unique),
+          undefined,
+        );
+        result.cnicPic = uploadResult.url;
+      } else {
+        const destDir = path.join(process.cwd(), "public", PREFIX_CNIC, userId);
+        if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+        fs.renameSync(src, path.join(destDir, unique));
+        result.cnicPic = `/${PREFIX_CNIC}/${userId}/${unique}`;
+      }
     }
 
-    const cnicBackFile = fs.readdirSync(tempDir).find((f) => f.startsWith('cnic_back'));
+    const cnicBackFile = fs
+      .readdirSync(tempDir)
+      .find((f) => f.startsWith("cnic_back"));
     if (cnicBackFile) {
       const src = path.join(tempDir, cnicBackFile);
       const ext = path.extname(cnicBackFile);
-      const destDir = path.join(process.cwd(), 'public', 'cnic-back-pictures');
-      if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
-      const destFileName = `${employeeId}-${Date.now()}${ext}`;
-      const dest = path.join(destDir, destFileName);
-      fs.renameSync(src, dest);
-      result.cnicBackPic = `/cnic-back-pictures/${destFileName}`;
+      const unique = this.uniqueName(employeeId, ext);
+      const buffer = fs.readFileSync(src);
+
+      if (this.s3.isEnabled()) {
+        const uploadResult = await this.s3.upload(
+          buffer,
+          this.buildKey(PREFIX_CNIC_BACK, userId, unique),
+          undefined,
+        );
+        result.cnicBackPic = uploadResult.url;
+      } else {
+        const destDir = path.join(
+          process.cwd(),
+          "public",
+          PREFIX_CNIC_BACK,
+          userId,
+        );
+        if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+        fs.renameSync(src, path.join(destDir, unique));
+        result.cnicBackPic = `/${PREFIX_CNIC_BACK}/${userId}/${unique}`;
+      }
     }
 
     fs.rmSync(tempDir, { recursive: true, force: true });
     return result;
   }
 
-  /** Removes temp folder if payment cancelled or failed (cleanup). */
   deleteTempForCheckout(checkoutSessionId: string): void {
-    const tempDir = path.join(process.cwd(), 'public', 'temp-employee-docs', checkoutSessionId);
-    if (fs.existsSync(tempDir)) {
+    const tempDir = path.join(
+      process.cwd(),
+      "public",
+      "temp-employee-docs",
+      checkoutSessionId,
+    );
+    if (fs.existsSync(tempDir))
       fs.rmSync(tempDir, { recursive: true, force: true });
-    }
   }
 }
