@@ -512,6 +512,7 @@ export class AuthService {
         reset_token: Not(IsNull()),
         reset_token_expiry: MoreThan(new Date()),
       },
+      relations: ["tenant"],
     });
 
     const matchingUsers: User[] = [];
@@ -546,7 +547,11 @@ export class AuthService {
     const firstUser = matchingUsers[0];
     const userName = `${firstUser.first_name} ${firstUser.last_name}`;
     const emailHash = this.sanitizeEmailForLogging(firstUser.email);
-    await this.emailService.sendPasswordResetSuccessEmail(firstUser.email, userName);
+    await this.emailService.sendPasswordResetSuccessEmail(
+      firstUser.email,
+      userName,
+      firstUser.tenant.name,
+    );
 
     this.logger.log(`Password reset successful for user: ${emailHash}`);
 
