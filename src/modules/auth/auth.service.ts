@@ -416,11 +416,13 @@ export class AuthService {
     const emailHash = this.sanitizeEmailForLogging(dto.email);
     this.logger.log(`Forgot password request for email: ${emailHash}`);
 
-    const users = await this.userRepository.find({
-      where: { email: dto.email.toLowerCase() },
-    });
+    const user = await this.userRepository
+      .createQueryBuilder("user")
+      .leftJoinAndSelect("user.tenant", "tenant")
+      .where("user.email = :email", { email: dto.email.toLowerCase() })
+      .getOne();
 
-    if (!users || users.length === 0) {
+    if (!user) {
       this.logger.warn(`Forgot password failed: user not found for email: ${emailHash}`);
       throw new BadRequestException('In Valid email address');
     }
@@ -430,16 +432,22 @@ export class AuthService {
     const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
 
     // Update all users with this email
-    for (const user of users) {
-      await this.userRepository.update(user.id, {
-        reset_token: hashedResetToken,
-        reset_token_expiry: resetTokenExpiry,
-      });
-    }
+    // for (const user of users) {
+    await this.userRepository.update(user.id, {
+      reset_token: hashedResetToken,
+      reset_token_expiry: resetTokenExpiry,
+    });
+    // }
 
-    const firstUser = users[0];
-    const userName = `${firstUser.first_name} ${firstUser.last_name}`;
-    await this.emailService.sendPasswordResetEmail(firstUser.email, resetToken, userName);
+    // const firstUser = users[0];
+    const userName = `${user.first_name} ${user.last_name}`;
+    const companyName = user.tenant.name;
+    await this.emailService.sendPasswordResetEmail(
+      user.email,
+      resetToken,
+      userName,
+      companyName,
+    );
 
     this.logger.log(`Password reset email sent to: ${emailHash}`);
 
@@ -504,6 +512,7 @@ export class AuthService {
         reset_token: Not(IsNull()),
         reset_token_expiry: MoreThan(new Date()),
       },
+      relations: ["tenant"],
     });
 
     const matchingUsers: User[] = [];
@@ -538,7 +547,11 @@ export class AuthService {
     const firstUser = matchingUsers[0];
     const userName = `${firstUser.first_name} ${firstUser.last_name}`;
     const emailHash = this.sanitizeEmailForLogging(firstUser.email);
-    await this.emailService.sendPasswordResetSuccessEmail(firstUser.email, userName);
+    await this.emailService.sendPasswordResetSuccessEmail(
+      firstUser.email,
+      userName,
+      firstUser.tenant.name,
+    );
 
     this.logger.log(`Password reset successful for user: ${emailHash}`);
 

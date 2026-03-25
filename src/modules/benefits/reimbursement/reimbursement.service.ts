@@ -16,6 +16,7 @@ import { CreateReimbursementRequestDto } from '../dto/reimbursement/create-reimb
 import { UpdateReimbursementRequestDto } from '../dto/reimbursement/update-reimbursement-request.dto';
 import { ReviewReimbursementRequestDto } from '../dto/reimbursement/review-reimbursement-request.dto';
 import { ReimbursementFileUploadService } from './reimbursement-file-upload.service';
+import { S3StorageService } from '../../storage/storage.service';
 
 @Injectable()
 export class ReimbursementService {
@@ -33,6 +34,7 @@ export class ReimbursementService {
     private readonly tenantRepo: Repository<Tenant>,
 
     private readonly fileUploadService: ReimbursementFileUploadService,
+    private readonly storage: S3StorageService,
   ) {}
 
   /**
@@ -114,10 +116,12 @@ export class ReimbursementService {
     // Upload proof documents if provided (using actual request ID)
     let proofDocuments: string[] = [];
     if (files && files.length > 0) {
-      proofDocuments = await this.fileUploadService.uploadReimbursementDocuments(
-        files,
-        saved.id,
-      );
+      proofDocuments =
+        await this.fileUploadService.uploadReimbursementDocuments(
+          files,
+          saved.id,
+          saved.employeeId,
+        );
       saved.proofDocuments = proofDocuments;
       await this.reimbursementRepo.save(saved);
     }
@@ -274,13 +278,16 @@ export class ReimbursementService {
       request.details = dto.details;
     }
 
-    // Handle document removal
+    // Handle document removal (match by key so signed URLs from frontend work)
     if (documentsToRemove && documentsToRemove.length > 0) {
       await this.fileUploadService.deleteReimbursementDocuments(
         documentsToRemove,
       );
       request.proofDocuments = request.proofDocuments.filter(
-        (doc) => !documentsToRemove.includes(doc),
+        (doc) =>
+          !documentsToRemove.some((remove) =>
+            this.storage.sameObject(doc, remove),
+          ),
       );
     }
 
@@ -296,6 +303,7 @@ export class ReimbursementService {
         await this.fileUploadService.uploadReimbursementDocuments(
           files,
           request.id,
+          request.employeeId,
         );
       request.proofDocuments = newDocuments;
     }

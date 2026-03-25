@@ -8,7 +8,7 @@ import { CompleteSignupDto } from './dto/complete-signup.dto';
 import { GoogleSignupInitDto } from './dto/google-signup-init.dto';
 import { CompanyLogoDto } from './dto/company-logo.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
+import { memoryStorage } from 'multer';
 import * as path from 'path';
 
 @ApiTags('Signup')
@@ -67,14 +67,7 @@ export class SignupController {
     },
   })
   @UseInterceptors(FileInterceptor('file', {
-    storage: diskStorage({
-      destination: './public/company-logos',
-      filename: (_req, file, cb) => {
-        const ext = path.extname(file.originalname);
-        const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-        cb(null, `${unique}${ext}`);
-      },
-    }),
+    storage: memoryStorage(),
     fileFilter: (_req, file, cb) => {
       const ext = (path.extname(file.originalname || '') || '').toLowerCase();
       const allowed = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
@@ -86,12 +79,15 @@ export class SignupController {
           false,
         );
       }
-      if (!file.mimetype.startsWith('image/')) {
+      const mimetype = (file.mimetype || '').toLowerCase();
+      const isImageMime = mimetype.startsWith('image/');
+      const isGenericMime = !mimetype || mimetype === 'application/octet-stream';
+      if (!isImageMime && !isGenericMime) {
         return cb(new BadRequestException('Only image files are allowed.'), false);
       }
       cb(null, true);
     },
-    limits: { fileSize: 5 * 1024 * 1024 }, 
+    limits: { fileSize: 5 * 1024 * 1024 },
   }))
   async uploadLogo(
     @UploadedFile() file: Express.Multer.File,

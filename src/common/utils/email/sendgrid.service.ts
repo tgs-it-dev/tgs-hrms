@@ -64,6 +64,7 @@ export class SendGridService {
     email: string,
     resetToken: string,
     userName: string,
+    companyName: string,
   ): Promise<void> {
     const frontendUrl = this.configService.get<string>("FRONTEND_URL");
     const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
@@ -74,29 +75,22 @@ export class SendGridService {
       return;
     }
 
+    const context = {
+      userName,
+      resetUrl,
+      privacyUrl: this.configService.get<string>("PRIVACY_POLICY_URL") ?? "#",
+      termsUrl: this.configService.get<string>("TERMS_URL") ?? "#",
+      unsubscribeUrl: this.configService.get<string>("UNSUBSCRIBE_URL") ?? "#",
+      companyName: companyName ?? "your organization",
+    };
+
+    const html = this.renderTemplate("password-reset", context);
+
     const msg = {
       to: email,
       from: fromEmail,
       subject: "Password Reset Request",
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>Password Reset Request</h2>
-          <p>Hello ${userName},</p>
-          <p>You have requested to reset your password. Click the button below to reset your password:</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${resetUrl}" 
-               style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
-              Reset Password
-            </a>
-          </div>
-          <p>If the button doesn't work, copy and paste this link into your browser:</p>
-          <p style="word-break: break-all; color: #666;">${resetUrl}</p>
-          <p>This link will expire in 24 hours.</p>
-          <p>If you didn't request this password reset, please ignore this email.</p>
-          <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
-          <p style="color: #666; font-size: 12px;">This is an automated message, please do not reply.</p>
-        </div>
-      `,
+      html,
     };
 
     try {
@@ -114,6 +108,7 @@ export class SendGridService {
   async sendPasswordResetSuccessEmail(
     email: string,
     userName: string,
+    companyName: string,
   ): Promise<void> {
     const fromEmail = this.configService.get<string>("SENDGRID_FROM");
 
@@ -122,21 +117,23 @@ export class SendGridService {
       return;
     }
 
+    const context = {
+      userName,
+      privacyPolicyUrl:
+        this.configService.get<string>("PRIVACY_POLICY_URL") ?? "#",
+      loginUrl: `${this.configService.get<string>("FRONTEND_URL")}`,
+      termsUrl: this.configService.get<string>("TERMS_URL") ?? "#",
+      unsubscribeUrl: this.configService.get<string>("UNSUBSCRIBE_URL") ?? "#",
+      companyName: companyName ?? "your organization",
+    };
+
+    const html = this.renderTemplate("password-reset-success", context);
+
     const msg = {
       to: email,
       from: fromEmail,
       subject: "Password Reset Successful",
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>Password Reset Successful</h2>
-          <p>Hello ${userName},</p>
-          <p>Your password has been successfully reset.</p>
-          <p>You can now log in to your account with your new password.</p>
-          <p>If you didn't make this change, please contact support immediately.</p>
-          <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
-          <p style="color: #666; font-size: 12px;">This is an automated message, please do not reply.</p>
-        </div>
-      `,
+      html,
     };
 
     try {
@@ -150,7 +147,12 @@ export class SendGridService {
     }
   }
 
-  async sendWelcomeEmail(email: string, resetToken: string): Promise<void> {
+  async sendWelcomeEmail(
+    email: string,
+    resetToken: string,
+    userName: string,
+    companyName: string,
+  ): Promise<void> {
     const frontendUrl = this.configService.get<string>("FRONTEND_URL");
     const resetUrl = `${frontendUrl}/confirm-password?token=${resetToken}`;
     const fromEmail = this.configService.get<string>("SENDGRID_FROM");
@@ -160,30 +162,22 @@ export class SendGridService {
       return;
     }
 
+    const context = {
+      userName,
+      resetUrl,
+      companyName: companyName ?? "your organization",
+      privacyUrl: this.configService.get<string>("PRIVACY_POLICY_URL") ?? "#",
+      termsUrl: this.configService.get<string>("TERMS_URL") ?? "#",
+      unsubscribeUrl: this.configService.get<string>("UNSUBSCRIBE_URL") ?? "#",
+    };
+
+    const html = this.renderTemplate("employee-welcome", context);
+
     const msg = {
       to: email,
       from: fromEmail,
       subject: "Welcome to HRMS - Set Your Password",
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>Welcome to HRMS!</h2>
-          <p>Hello,</p>
-          <p>Welcome to our Human Resource Management System. Your account has been created successfully.</p>
-          <p>To get started, please set your password by clicking the button below:</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${resetUrl}" 
-               style="background-color: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
-              Set Password
-            </a>
-          </div>
-          <p>If the button doesn't work, copy and paste this link into your browser:</p>
-          <p style="word-break: break-all; color: #666;">${resetUrl}</p>
-          <p>This link will expire in 24 hours.</p>
-          <p>If you have any questions, please contact your administrator.</p>
-          <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
-          <p style="color: #666; font-size: 12px;">This is an automated message, please do not reply.</p>
-        </div>
-      `,
+      html,
     };
 
     try {
@@ -290,6 +284,9 @@ export class SendGridService {
         }),
       companyName: payload.companyName ?? "your organization",
       viewTeamUrl: payload.viewTeamUrl ?? frontendUrl,
+      privacyUrl: this.configService.get<string>("PRIVACY_POLICY_URL") ?? "#",
+      termsUrl: this.configService.get<string>("TERMS_URL") ?? "#",
+      unsubscribeUrl: this.configService.get<string>("UNSUBSCRIBE_URL") ?? "#",
     };
 
     const html = this.renderTemplate("member-joined", context);
