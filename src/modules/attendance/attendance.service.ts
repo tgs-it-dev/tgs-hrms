@@ -1408,9 +1408,9 @@ private calculateTotalWorkHours(items: any[]): number {
   let totalHours = 0;
 
   for (const event of sorted) {
-    if (event.type === 'check-in') {
+    if (event.type === AttendanceType.CHECK_IN) {
       lastCheckIn = event;
-    } else if (event.type === 'check-out' && lastCheckIn) {
+    } else if (event.type === AttendanceType.CHECK_OUT && lastCheckIn) {
       const diffMs =
         new Date(event.timestamp).getTime() -
         new Date(lastCheckIn.timestamp).getTime();
