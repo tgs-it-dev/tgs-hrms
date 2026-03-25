@@ -48,6 +48,14 @@ export interface AppConfig {
     secretKey: string;
     webhookSecret: string;
   };
+  s3: {
+    bucket: string;
+    region: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+    endpoint?: string;
+    publicUrlBase?: string;
+  };
 }
 
 export const getAppConfig = (_configService: ConfigService): AppConfig => {
@@ -103,6 +111,14 @@ export const getAppConfig = (_configService: ConfigService): AppConfig => {
     stripe: {
       secretKey: envVars.STRIPE_SECRET_KEY || '',
       webhookSecret: envVars.STRIPE_WEBHOOK_SECRET || '',
+    },
+    s3: {
+      bucket: envVars.AWS_S3_BUCKET || '',
+      region: envVars.AWS_S3_REGION || '',
+      accessKeyId: envVars.AWS_ACCESS_KEY_ID || '',
+      secretAccessKey: envVars.AWS_SECRET_ACCESS_KEY || '',
+      endpoint: envVars.AWS_S3_ENDPOINT,
+      publicUrlBase: envVars.AWS_S3_PUBLIC_URL_BASE,
     },
   };
 };

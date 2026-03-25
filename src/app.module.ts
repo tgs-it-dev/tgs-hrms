@@ -12,6 +12,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { join } from 'path';
 import { MiddlewareConfigModule } from './common/middleware/middleware.config';
+import { StorageModule } from "./modules/storage/storage.module";
 import { EmailModule } from './common/utils/email/email.module';
 import { UserModule } from './modules/user/user.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -49,6 +50,7 @@ import { NotificationModule } from './modules/notification/notification.module';
 import { AnnouncementModule } from './modules/announcement/announcement.module';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { SystemLoggingInterceptor } from './common/interceptors/system-logging.interceptor';
+import { SignedFileUrlInterceptor } from "./modules/storage/signed-file-url.interceptor";
 import { SystemLog } from './entities/system-log.entity';
 @Module({
   imports: [
@@ -56,6 +58,7 @@ import { SystemLog } from './entities/system-log.entity';
     EventEmitterModule.forRoot(),
     ConfigModule.forRoot({ isGlobal: true }),
     MiddlewareConfigModule,
+    StorageModule,
     EmailModule,
 
     TypeOrmModule.forRootAsync({
@@ -186,6 +189,10 @@ import { SystemLog } from './entities/system-log.entity';
     {
       provide: APP_INTERCEPTOR,
       useClass: SystemLoggingInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: SignedFileUrlInterceptor,
     },
   ]
 })
