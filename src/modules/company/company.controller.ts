@@ -58,17 +58,22 @@ export class CompanyController {
     @Res() res: Response,
   ) {
     try {
-      const { fileStream, contentType, fileSize } = await this.companyService.getCompanyLogoStream(tenantId);
-      if (!fileStream) {
+      const result = await this.companyService.getCompanyLogoStream(tenantId);
+      if (result.redirectUrl) {
+        return res.redirect(302, result.redirectUrl);
+      }
+      if (!result.fileStream) {
         return res.status(404).json({ message: 'Logo not found' });
       }
-      res.setHeader('Content-Type', contentType);
-      res.setHeader('Content-Length', fileSize);
+      res.setHeader('Content-Type', result.contentType);
+      if (result.fileSize > 0) {
+        res.setHeader('Content-Length', result.fileSize);
+      }
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Methods', 'GET');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-      fileStream.pipe(res);
+      result.fileStream.pipe(res);
       return;
     } catch (e) {
       return res.status(500).json({ message: 'Error serving company logo' });
@@ -131,7 +136,9 @@ export class CompanyController {
       new ParseFilePipe({
         validators: [
           new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
-          new FileTypeValidator({ fileType: /^image\/(jpeg|jpg|png|gif|webp)$/ }),
+          new FileTypeValidator({
+            fileType: /^image\/(jpeg|jpg|png|gif|webp|x-png)$/,
+          }),
         ],
       }),
     )

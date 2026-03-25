@@ -16,6 +16,9 @@ const FILE_SIGNATURES: Record<string, number[][]> = {
   'image/png': [
     [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], // PNG standard
   ],
+  'image/x-png': [
+    [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], // PNG standard (same as image/png)
+  ],
   'image/gif': [
     [0x47, 0x49, 0x46, 0x38, 0x37, 0x61], // GIF87a
     [0x47, 0x49, 0x46, 0x38, 0x39, 0x61], // GIF89a
@@ -30,11 +33,13 @@ const FILE_SIGNATURES: Record<string, number[][]> = {
 
 /**
  * Allowed MIME types for image uploads
+ * Includes image/x-png (used by some clients for PNG)
  */
 const ALLOWED_IMAGE_MIME_TYPES = [
   'image/jpeg',
   'image/jpg',
   'image/png',
+  'image/x-png', // alternate PNG MIME type sent by some browsers/tools
   'image/gif',
   'image/webp',
 ];
