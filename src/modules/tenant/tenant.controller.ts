@@ -1,12 +1,33 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, NotFoundException, BadRequestException, Query } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiBody } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+  NotFoundException,
+  BadRequestException,
+  Query,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiParam,
+  ApiBody,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
-import { Roles } from 'src/common/guards/company.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
+import { Permissions } from 'src/common/decorators/permissions.decorator';
+import { PermissionsGuard } from 'src/common/guards/permissions.guard';
 import { TenantService } from './tenant.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
-
 
 @ApiTags('Tenants')
 @ApiBearerAuth()
@@ -15,38 +36,33 @@ export class TenantController {
   constructor(private readonly tenantService: TenantService) {}
 
   @Get()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles('system-admin')
-  @ApiOperation({ summary: 'Get all tenants (Admin only)' })
-  @ApiResponse({ 
-    status: 200, 
+  @Permissions('manage_tenants')
+  @ApiOperation({ summary: 'Get all tenants (Admin only) - Paginated' })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 25, max: 100)' })
+  @ApiResponse({
+    status: 200,
     description: 'List of tenants retrieved successfully.',
-    schema: {
-      example: [
-        {
-          id: '550e8400-e29b-41d4-a716-446655440000',
-          name: 'Default Company',
-          createdAt: '2024-01-01T00:00:00.000Z'
-        }
-      ]
-    }
   })
-  @ApiResponse({ 
-    status: 401, 
-    description: 'Unauthorized - Invalid or missing JWT token' 
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or missing JWT token',
   })
-  @ApiResponse({ 
-    status: 403, 
-    description: 'Forbidden - Insufficient permissions' 
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Insufficient permissions',
   })
-  async getTenants(@Query('page') page?: string) {
+  async getTenants(@Query('page') page?: string, @Query('limit') limit?: string) {
     try {
       const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-      const tenants = await this.tenantService.findAll(pageNumber);
+      const limitNumber = Math.min(100, Math.max(1, parseInt(limit || '25', 10) || 25));
+      const result = await this.tenantService.findAll(pageNumber, limitNumber);
       return {
         statusCode: 200,
         message: 'List of tenants retrieved successfully.',
-        data: tenants,
+        ...result,
       };
     } catch (err) {
       throw new BadRequestException('Failed to fetch tenants');
@@ -54,28 +70,29 @@ export class TenantController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles('system-admin')
+  @Permissions('manage_tenants')
   @ApiOperation({ summary: 'Get tenant by ID (Admin only)' })
-  @ApiParam({ 
-    name: 'id', 
+  @ApiParam({
+    name: 'id',
     description: 'Tenant UUID',
-    example: '550e8400-e29b-41d4-a716-446655440000'
+    example: '550e8400-e29b-41d4-a716-446655440000',
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Tenant retrieved successfully.',
     schema: {
       example: {
         id: '550e8400-e29b-41d4-a716-446655440000',
         name: 'Default Company',
-        createdAt: '2024-01-01T00:00:00.000Z'
-      }
-    }
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+    },
   })
-  @ApiResponse({ 
-    status: 404, 
-    description: 'Tenant not found' 
+  @ApiResponse({
+    status: 404,
+    description: 'Tenant not found',
   })
   async getTenantById(@Param('id') id: string) {
     try {
@@ -92,24 +109,25 @@ export class TenantController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles('system-admin')
+  @Permissions('manage_tenants')
   @ApiOperation({ summary: 'Create a new tenant (Admin only)' })
   @ApiBody({ type: CreateTenantDto })
-  @ApiResponse({ 
-    status: 201, 
+  @ApiResponse({
+    status: 201,
     description: 'Tenant created successfully.',
     schema: {
       example: {
         id: '550e8400-e29b-41d4-a716-446655440000',
         name: 'New Company',
-        createdAt: '2024-01-01T00:00:00.000Z'
-      }
-    }
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+    },
   })
-  @ApiResponse({ 
-    status: 400, 
-    description: 'Bad Request - Invalid tenant data' 
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request - Invalid tenant data',
   })
   async createTenant(@Body() createTenantDto: CreateTenantDto) {
     try {
@@ -125,22 +143,23 @@ export class TenantController {
   }
 
   @Put(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles('system-admin')
+  @Permissions('manage_tenants')
   @ApiOperation({ summary: 'Update tenant by ID (Admin only)' })
-  @ApiParam({ 
-    name: 'id', 
+  @ApiParam({
+    name: 'id',
     description: 'Tenant UUID',
-    example: '550e8400-e29b-41d4-a716-446655440000'
+    example: '550e8400-e29b-41d4-a716-446655440000',
   })
   @ApiBody({ type: UpdateTenantDto })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Tenant updated successfully.' 
+  @ApiResponse({
+    status: 200,
+    description: 'Tenant updated successfully.',
   })
-  @ApiResponse({ 
-    status: 404, 
-    description: 'Tenant not found' 
+  @ApiResponse({
+    status: 404,
+    description: 'Tenant not found',
   })
   async updateTenant(@Param('id') id: string, @Body() updateTenantDto: UpdateTenantDto) {
     try {
@@ -160,18 +179,22 @@ export class TenantController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('system-admin')
   @ApiOperation({ summary: 'Delete tenant by ID (Admin only)' })
-  @ApiParam({ 
-    name: 'id', 
+  @ApiParam({
+    name: 'id',
     description: 'Tenant UUID',
-    example: '550e8400-e29b-41d4-a716-446655440000'
+    example: '550e8400-e29b-41d4-a716-446655440000',
   })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Tenant deleted successfully.' 
+  @ApiResponse({
+    status: 200,
+    description: 'Tenant deleted successfully.',
   })
-  @ApiResponse({ 
-    status: 404, 
-    description: 'Tenant not found' 
+  @ApiResponse({
+    status: 404,
+    description: 'Tenant not found',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request - Tenant already deleted',
   })
   async deleteTenant(@Param('id') id: string) {
     try {
@@ -183,7 +206,45 @@ export class TenantController {
       };
     } catch (err) {
       if (err instanceof NotFoundException) throw err;
+      if (err instanceof BadRequestException) throw err; // Already deleted case
       throw new BadRequestException('Failed to delete tenant');
     }
   }
-} 
+
+  @Post(':id/restore')
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles('system-admin')
+  @Permissions('manage_tenants')
+  @ApiOperation({ summary: 'Restore a deleted tenant (Admin only)' })
+  @ApiParam({
+    name: 'id',
+    description: 'Tenant UUID',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Tenant restored successfully.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Tenant not found',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request - Tenant is not deleted',
+  })
+  async restoreTenant(@Param('id') id: string) {
+    try {
+      const tenant = await this.tenantService.restore(id);
+      return {
+        statusCode: 200,
+        message: 'Tenant restored successfully.',
+        data: tenant,
+      };
+    } catch (err) {
+      if (err instanceof NotFoundException) throw err;
+      if (err instanceof BadRequestException) throw err;
+      throw new BadRequestException('Failed to restore tenant');
+    }
+  }
+}

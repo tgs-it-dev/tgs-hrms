@@ -7,39 +7,59 @@ import {
   ManyToOne,
   JoinColumn,
   OneToMany,
+  Index,
 } from 'typeorm';
 import { Tenant } from './tenant.entity';
 import { Role } from './role.entity';
 import { Employee } from './employee.entity';
-import { Attendance } from './attendance.entity'; // ✅ Add this if not already
+import { Attendance } from './attendance.entity';
+import { Team } from './team.entity';
+import { UserGender } from '../common/constants/enums';
 
-@Entity('users')
+export enum UserRole {
+  ADMIN = 'admin',
+  USER = 'user',
+  MANAGER = 'manager',
+  HR = 'hr',
+  SYSTEM_ADMIN = 'system-admin',
+  NETWORK_ADMIN = 'network-admin',
+  HR_ADMIN = 'hr-admin',
+}
+
+@Index(['tenant_id'])
+@Index(['email'])
+@Index(['email', 'tenant_id'], { unique: true })
+@Index(['phone'], { unique: true })
+@Entity("users")
 export class User {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id: string;
 
-  @Column({ type: 'varchar' })
+  @Column({ type: "varchar" })
   email: string;
 
-  @Column({ type: 'varchar' })
+  @Column({ type: "varchar" })
   phone: string;
 
-  @Column({ type: 'varchar' })
+  @Column({ type: "varchar" })
   password: string;
 
-  @Column({ type: 'varchar' })
+  @Column({ type: "varchar" })
   first_name: string;
 
-  @Column({ type: 'varchar' })
+  @Column({ type: "varchar" })
   last_name: string;
 
-  @Column({ type: 'uuid' })
+  @Column({ type: "varchar", length: 500, nullable: true })
+  profile_pic: string | null;
+
+  @Column({ type: "uuid" })
   role_id: string;
 
   @Column({ type: 'varchar', length: 10, nullable: true })
-  gender: 'male' | 'female' | null; // Gender field, nullable
+  gender: UserGender | null;
 
-  @Column({ type: 'uuid' })
+  @Column({ type: "uuid" })
   tenant_id: string;
 
   @CreateDateColumn()
@@ -48,26 +68,39 @@ export class User {
   @UpdateDateColumn()
   updated_at: Date;
 
-  @ManyToOne(() => Role, (role) => role.users, { nullable: false })
-  @JoinColumn({ name: 'role_id' })
+  @Column({ type: "timestamptz", nullable: true })
+  first_login_time: Date;
+
+  @ManyToOne(() => Role, (role) => role.users, {
+    nullable: false,
+    onDelete: 'RESTRICT' // Prevent deletion if users exist
+  })
+  @JoinColumn({ name: "role_id" })
   role: Role;
 
-  @ManyToOne(() => Tenant, (tenant) => tenant.users, { nullable: false })
-  @JoinColumn({ name: 'tenant_id' })
+  @ManyToOne(() => Tenant, (tenant) => tenant.users, {
+    nullable: false,
+    onDelete: 'RESTRICT' // Prevent hard delete, use soft delete instead
+  })
+  @JoinColumn({ name: "tenant_id" })
   tenant: Tenant;
 
   @OneToMany(() => Employee, (employee) => employee.user)
   employees: Employee[];
 
-  @OneToMany(() => Attendance, (attendance) => attendance.user) // ✅ Add this
+  @OneToMany(() => Attendance, (attendance) => attendance.user)
   attendances: Attendance[];
 
-  @Column({ type: 'text', nullable: true })
-  refresh_token: string;
+  @OneToMany(() => Team, (team) => team.manager)
+  managedTeams: Team[];
 
   @Column({ type: 'text', nullable: true })
+  refresh_token: string | null;
+
+  @Column({ type: "text", nullable: true })
   reset_token: string | null;
 
-  @Column({ type: 'timestamptz', nullable: true })
+  @Column({ type: "timestamptz", nullable: true })
   reset_token_expiry: Date | null;
+
 }

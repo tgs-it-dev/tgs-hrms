@@ -1,5 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength, IsUUID ,IsEnum} from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MinLength,
+  IsUUID,
+  IsEnum,
+} from 'class-validator';
+import { UserGender } from '../../../common/constants/enums';
 
 export class CreateUserDto {
   @ApiProperty()
@@ -25,12 +34,12 @@ export class CreateUserDto {
   @IsString()
   phone?: string;
 
-  @ApiProperty({ enum: ['male', 'female'], required: false })
+  @ApiProperty({ enum: UserGender, required: false })
   @IsOptional()
-  @IsEnum(['male', 'female'])
-  gender?: 'male' | 'female'; // Adding gender to the DTO
+  @IsEnum(UserGender)
+  gender?: UserGender; 
 
   @ApiProperty()
-  @IsUUID()  
-  role_id: string; 
+  @IsUUID()
+  role_id: string;
 }

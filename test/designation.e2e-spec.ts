@@ -7,12 +7,12 @@ import { makeBearerToken } from './utils/auth-helper';
 import * as dotenv from 'dotenv';
 dotenv.config({ path: '.env.test' });
 
-const adminToken = makeBearerToken('admin');   // Bearer <jwt…>
-const userToken  = makeBearerToken('user');
+const adminToken = makeBearerToken('admin'); // Bearer <jwt…>
+const userToken = makeBearerToken('user');
 
 describe('DesignationController (e2e)', () => {
   let app: INestApplication<App>;
-  let departmentId: string;        // created once for all tests
+  let departmentId: string; // created once for all tests
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -101,7 +101,6 @@ describe('DesignationController (e2e)', () => {
       expect(res.body.some((d) => d.departmentId === departmentId)).toBe(true);
     });
   });
-
 
   describe('PUT /designations/:id and DELETE /designations/:id', () => {
     let designationId: string;

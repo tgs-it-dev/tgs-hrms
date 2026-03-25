@@ -8,7 +8,7 @@ export class TenantGuard implements CanActivate {
   }
 }
 export function Roles(...roles: string[]) {
-  return (target: any, key?: any, descriptor?: any) => {
+  return (target: any, _key?: any, descriptor?: any) => {
     Reflect.defineMetadata('roles', roles, descriptor ? descriptor.value : target);
     return descriptor || target;
   };

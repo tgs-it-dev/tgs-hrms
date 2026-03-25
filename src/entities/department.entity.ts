@@ -6,10 +6,14 @@ import {
   ManyToOne,
   JoinColumn,
   OneToMany,
+  Index,
 } from 'typeorm';
 import { Tenant } from './tenant.entity';
 import { Designation } from './designation.entity';
 
+@Index(['tenant_id'])
+@Index(['name'])
+@Index(['tenant_id', 'name'])
 @Entity('departments')
 export class Department {
   @PrimaryGeneratedColumn('uuid')
@@ -18,8 +22,8 @@ export class Department {
   @Column({ type: 'varchar' })
   name: string;
 
-  @Column({ type: 'text' })
-  description: string;
+  @Column({ type: 'text', nullable: true })
+  description: string | null;
 
   @Column({ type: 'uuid' })
   tenant_id: string;
@@ -27,7 +31,10 @@ export class Department {
   @CreateDateColumn()
   created_at: Date;
 
-  @ManyToOne(() => Tenant, (tenant) => tenant.departments, { nullable: false })
+  @ManyToOne(() => Tenant, (tenant) => tenant.departments, { 
+    nullable: false,
+    onDelete: 'RESTRICT' // Prevent hard delete, use soft delete instead
+  })
   @JoinColumn({ name: 'tenant_id' })
   tenant: Tenant;
 

@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -14,7 +13,7 @@ import { UpdatePolicyDto } from './dto/update-policy.dto';
 export class PolicyService {
   constructor(
     @InjectRepository(Policy)
-    private readonly repo: Repository<Policy>,
+    private readonly repo: Repository<Policy>
   ) {}
 
   async create(tenant_id: string, dto: CreatePolicyDto) {
@@ -24,11 +23,11 @@ export class PolicyService {
     });
     if (exists && !exists.deleted_at) {
       throw new ConflictException(
-        `Policy '${dto.title}' in category '${dto.category}' already exists for this tenant.`,
+        `Policy '${dto.title}' in category '${dto.category}' already exists for this tenant.`
       );
     }
 
-    const policy = this.repo.create({ ...dto, tenant_id, tenant: { id: tenant_id } as any });
+    const policy = this.repo.create({ ...dto, tenant_id });
     return await this.repo.save(policy);
   }
 
@@ -61,7 +60,7 @@ export class PolicyService {
       });
       if (conflict && conflict.id !== policy.id) {
         throw new ConflictException(
-          `Another policy with title '${nextTitle}' and category '${nextCategory}' already exists.`,
+          `Another policy with title '${nextTitle}' and category '${nextCategory}' already exists.`
         );
       }
     }
@@ -76,5 +75,3 @@ export class PolicyService {
     return { deleted: true, id };
   }
 }
-
-
