@@ -63,6 +63,7 @@ async function bootstrap() {
     ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
     : [
         'https://snazzy-raindrop-644615.netlify.app',
+        'https://deploy-preview-288--snazzy-raindrop-644615.netlify.app',
         'https://tgs-hrms.onrender.com',
         'http://localhost:5173',
         'http://localhost:3000',
