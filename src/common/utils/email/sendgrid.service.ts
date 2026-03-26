@@ -334,13 +334,12 @@ export class SendGridService {
       return;
     }
 
-    // design is pending so commenting below line.
     // Priority-based styling
-    // const priorityStyles: Record<string, { color: string; badge: string }> = {
-    //   low: { color: "#28a745", badge: "Low Priority" },
-    //   medium: { color: "#ffc107", badge: "Medium Priority" },
-    //   high: { color: "#dc3545", badge: "High Priority" },
-    // };
+    const priorityStyles: Record<string, { color: string; badge: string }> = {
+      low: { color: "#66FF99", badge: "Low Priority" },
+      medium: { color: "#FFCC66", badge: "Medium Priority" },
+      high: { color: "#FF6767", badge: "High Priority" },
+    };
 
     const categoryLabels: Record<string, string> = {
       general: "General Announcement",
@@ -349,15 +348,23 @@ export class SendGridService {
       event: "Event Announcement",
       urgent: "Urgent Notice",
     };
-    // design is pending so commenting below line.
-    // const style = priorityStyles[priority] || priorityStyles.medium;
+
+    const style = priorityStyles[priority] || priorityStyles.medium;
     const categoryLabel = categoryLabels[category] || "Announcement";
 
     const context = {
       name: recipientName,
       title,
       message: content,
+      category: categoryLabel,
       companyName,
+      style,
+      privacyUrl: this.configService.get<string>("PRIVACY_POLICY_URL") ?? "#",
+      termsUrl: this.configService.get<string>("TERMS_URL") ?? "#",
+      unsubscribeUrl: this.configService.get<string>("UNSUBSCRIBE_URL") ?? "#",
+      linkedinUrl: this.configService.get<string>("LINKEDIN_URL") ?? "#",
+      instagramUrl: this.configService.get<string>("INSTAGRAM_URL") ?? "#",
+      twitterUrl: this.configService.get<string>("TWITTER_URL") ?? "#",
     };
 
     const html = this.renderTemplate("announcement-mail", context);
