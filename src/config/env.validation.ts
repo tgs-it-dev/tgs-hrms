@@ -121,6 +121,33 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   STRIPE_WEBHOOK_SECRET: string;
+
+  // AWS S3 (file storage)
+  @IsString()
+  @IsOptional()
+  AWS_S3_BUCKET: string;
+
+  @IsString()
+  @IsOptional()
+  AWS_S3_REGION: string;
+
+  @IsString()
+  @IsOptional()
+  AWS_ACCESS_KEY_ID: string;
+
+  @IsString()
+  @IsOptional()
+  AWS_SECRET_ACCESS_KEY: string;
+
+  /** Optional: custom endpoint (e.g. MinIO). If not set, uses AWS. */
+  @IsString()
+  @IsOptional()
+  AWS_S3_ENDPOINT: string;
+
+  /** Optional: base URL for public file access (e.g. CloudFront). If not set, uses default bucket URL. */
+  @IsString()
+  @IsOptional()
+  AWS_S3_PUBLIC_URL_BASE: string;
 }
 
 export function validateEnvironment(config: Record<string, unknown>): EnvironmentVariables {

@@ -78,6 +78,9 @@ export class SendGridService {
     const context = {
       userName,
       resetUrl,
+      privacyUrl: this.configService.get<string>("PRIVACY_POLICY_URL") ?? "#",
+      termsUrl: this.configService.get<string>("TERMS_URL") ?? "#",
+      unsubscribeUrl: this.configService.get<string>("UNSUBSCRIBE_URL") ?? "#",
       companyName: companyName ?? "your organization",
     };
 
@@ -105,6 +108,7 @@ export class SendGridService {
   async sendPasswordResetSuccessEmail(
     email: string,
     userName: string,
+    companyName: string,
   ): Promise<void> {
     const fromEmail = this.configService.get<string>("SENDGRID_FROM");
 
@@ -113,21 +117,23 @@ export class SendGridService {
       return;
     }
 
+    const context = {
+      userName,
+      privacyPolicyUrl:
+        this.configService.get<string>("PRIVACY_POLICY_URL") ?? "#",
+      loginUrl: `${this.configService.get<string>("FRONTEND_URL")}`,
+      termsUrl: this.configService.get<string>("TERMS_URL") ?? "#",
+      unsubscribeUrl: this.configService.get<string>("UNSUBSCRIBE_URL") ?? "#",
+      companyName: companyName ?? "your organization",
+    };
+
+    const html = this.renderTemplate("password-reset-success", context);
+
     const msg = {
       to: email,
       from: fromEmail,
       subject: "Password Reset Successful",
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>Password Reset Successful</h2>
-          <p>Hello ${userName},</p>
-          <p>Your password has been successfully reset.</p>
-          <p>You can now log in to your account with your new password.</p>
-          <p>If you didn't make this change, please contact support immediately.</p>
-          <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
-          <p style="color: #666; font-size: 12px;">This is an automated message, please do not reply.</p>
-        </div>
-      `,
+      html,
     };
 
     try {
@@ -160,6 +166,9 @@ export class SendGridService {
       userName,
       resetUrl,
       companyName: companyName ?? "your organization",
+      privacyUrl: this.configService.get<string>("PRIVACY_POLICY_URL") ?? "#",
+      termsUrl: this.configService.get<string>("TERMS_URL") ?? "#",
+      unsubscribeUrl: this.configService.get<string>("UNSUBSCRIBE_URL") ?? "#",
     };
 
     const html = this.renderTemplate("employee-welcome", context);
@@ -275,6 +284,9 @@ export class SendGridService {
         }),
       companyName: payload.companyName ?? "your organization",
       viewTeamUrl: payload.viewTeamUrl ?? frontendUrl,
+      privacyUrl: this.configService.get<string>("PRIVACY_POLICY_URL") ?? "#",
+      termsUrl: this.configService.get<string>("TERMS_URL") ?? "#",
+      unsubscribeUrl: this.configService.get<string>("UNSUBSCRIBE_URL") ?? "#",
     };
 
     const html = this.renderTemplate("member-joined", context);
