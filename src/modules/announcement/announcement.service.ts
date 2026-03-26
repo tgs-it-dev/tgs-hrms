@@ -223,6 +223,7 @@ export class AnnouncementService {
       const tenantUsers = await this.userRepo.find({
         where: { tenant_id },
         select: ['id', 'email', 'first_name', 'last_name'],
+        relations: ["tenant"],
       });
 
       if (tenantUsers.length === 0) {
@@ -243,6 +244,7 @@ export class AnnouncementService {
             announcement.content,
             announcement.category,
             announcement.priority,
+            user.tenant?.name || "Your Company",
           );
           sentCount++;
         } catch (emailError) {
