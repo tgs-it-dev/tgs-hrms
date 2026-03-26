@@ -5,12 +5,8 @@ export enum SearchModule {
   ALL = 'all',
   EMPLOYEES = 'employees',
   LEAVES = 'leaves',
-  ASSETS = 'assets',
-  ASSET_REQUESTS = 'asset-requests',
   TEAMS = 'teams',
   ATTENDANCE = 'attendance',
-  BENEFITS = 'benefits',
-  PAYROLL = 'payroll',
 }
 
 export class GlobalSearchDto {
@@ -82,24 +78,16 @@ export class GlobalSearchResponseDto {
   results: {
     employees?: SearchResultItem[];
     leaves?: SearchResultItem[];
-    assets?: SearchResultItem[];
-    assetRequests?: SearchResultItem[];
     teams?: SearchResultItem[];
     attendance?: SearchResultItem[];
-    benefits?: SearchResultItem[];
-    payroll?: SearchResultItem[];
   };
 
   @ApiProperty({ description: 'Result counts per module' })
   counts: {
     employees: number;
     leaves: number;
-    assets: number;
-    assetRequests: number;
     teams: number;
     attendance: number;
-    benefits: number;
-    payroll: number;
   };
 }
 

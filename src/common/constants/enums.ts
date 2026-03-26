@@ -81,35 +81,6 @@ export enum LeaveStatus {
   CANCELLED = 'withdrawn',
 }
 
-// Asset Enums
-export enum AssetStatus {
-  AVAILABLE = 'available',
-  ASSIGNED = 'assigned',
-  UNDER_MAINTENANCE = 'under_maintenance',
-  RETIRED = 'retired',
-  LOST = 'lost',
-}
-
-// export enum AssetCategory {
-//   LAPTOP = 'laptop',
-//   DESKTOP = 'desktop',
-//   MOBILE = 'mobile',
-//   TABLET = 'tablet',
-//   MONITOR = 'monitor',
-//   KEYBOARD = 'keyboard',
-//   MOUSE = 'mouse',
-//   CHAIR = 'chair',
-//   DESK = 'desk',
-//   OTHER = 'other',
-// }
-
-export enum AssetRequestStatus {
-  PENDING = 'pending',
-  APPROVED = 'Approved',
-  REJECTED = 'Rejected',
-  CANCELLED = 'cancelled',
-}
-
 // // Team Enums
 // export enum TeamStatus {
 //   ACTIVE = 'active',
@@ -125,25 +96,6 @@ export enum PolicyCategory {
   CODE_OF_CONDUCT = 'code_of_conduct',
   PRIVACY_POLICY = 'privacy_policy',
   OTHER = 'other',
-}
-
-// Payroll Enums
-export enum PayrollStatus {
-  PENDING = 'pending',
-  APPROVED = 'approved',
-  PAID = 'paid',
-  REJECTED = 'rejected',
-}
-
-export enum SalaryCycle {
-  MONTHLY = 'monthly',
-  BI_WEEKLY = 'bi-weekly',
-  WEEKLY = 'weekly',
-}
-
-export enum SalaryStatus {
-  ACTIVE = 'active',
-  INACTIVE = 'inactive',
 }
 
 // export enum PolicyStatus {
@@ -319,14 +271,6 @@ export enum TaskStatus {
   PENDING = 'pending',
   IN_PROGRESS = 'in progress',
   COMPLETED = 'completed',
-  CANCELLED = 'cancelled',
-}
-
-// Benefit Reimbursement Enums
-export enum BenefitReimbursementStatus {
-  PENDING = 'pending',
-  APPROVED = 'approved',
-  REJECTED = 'rejected',
   CANCELLED = 'cancelled',
 }
 

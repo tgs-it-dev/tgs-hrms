@@ -3,12 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Employee } from '../../entities/employee.entity';
 import { Leave } from '../../entities/leave.entity';
-import { Asset } from '../../entities/asset.entity';
-import { AssetRequest } from '../../entities/asset-request.entity';
 import { Team } from '../../entities/team.entity';
 import { Attendance } from '../../entities/attendance.entity';
-import { EmployeeBenefit } from '../../entities/employee-benefit.entity';
-import { PayrollRecord } from '../../entities/payroll-record.entity';
 import { User } from '../../entities/user.entity';
 import { GLOBAL_SYSTEM_TENANT_ID } from '../../common/constants/enums';
 import { SearchModule, SearchResultItem, GlobalSearchResponseDto } from './dto/search.dto';
@@ -18,12 +14,8 @@ import { RolesPermissionsService } from '../../common/services/roles-permissions
 const MODULE_READ_PERMISSION: Record<Exclude<SearchModule, SearchModule.ALL>, string> = {
   [SearchModule.EMPLOYEES]: 'employee.read',
   [SearchModule.LEAVES]: 'leave.read',
-  [SearchModule.ASSETS]: 'asset.read',
-  [SearchModule.ASSET_REQUESTS]: 'asset-request.read',
   [SearchModule.TEAMS]: 'team.read',
   [SearchModule.ATTENDANCE]: 'attendance.read',
-  [SearchModule.BENEFITS]: 'employee.read',
-  [SearchModule.PAYROLL]: 'employee.read',
 };
 
 const ALL_MODULES = Object.keys(MODULE_READ_PERMISSION) as Exclude<SearchModule, SearchModule.ALL>[];
@@ -37,18 +29,10 @@ export class SearchService {
     private readonly employeeRepository: Repository<Employee>,
     @InjectRepository(Leave)
     private readonly leaveRepository: Repository<Leave>,
-    @InjectRepository(Asset)
-    private readonly assetRepository: Repository<Asset>,
-    @InjectRepository(AssetRequest)
-    private readonly assetRequestRepository: Repository<AssetRequest>,
     @InjectRepository(Team)
     private readonly teamRepository: Repository<Team>,
     @InjectRepository(Attendance)
     private readonly attendanceRepository: Repository<Attendance>,
-    @InjectRepository(EmployeeBenefit)
-    private readonly employeeBenefitRepository: Repository<EmployeeBenefit>,
-    @InjectRepository(PayrollRecord)
-    private readonly payrollRecordRepository: Repository<PayrollRecord>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly rolesPermissions: RolesPermissionsService,
@@ -61,22 +45,14 @@ export class SearchService {
     const results: GlobalSearchResponseDto['results'] = {
       employees: [],
       leaves: [],
-      assets: [],
-      assetRequests: [],
       teams: [],
       attendance: [],
-      benefits: [],
-      payroll: [],
     };
     const counts = {
       employees: 0,
       leaves: 0,
-      assets: 0,
-      assetRequests: 0,
       teams: 0,
       attendance: 0,
-      benefits: 0,
-      payroll: 0,
     };
     return { query, totalResults: 0, results, counts };
   }
@@ -109,12 +85,8 @@ export class SearchService {
     const counts = {
       employees: 0,
       leaves: 0,
-      assets: 0,
-      assetRequests: 0,
       teams: 0,
       attendance: 0,
-      benefits: 0,
-      payroll: 0,
     };
 
     if (module === SearchModule.ALL || module === SearchModule.EMPLOYEES) {
@@ -145,31 +117,6 @@ export class SearchService {
         counts.leaves = r.total;
       }
     }
-    if (module === SearchModule.ALL || module === SearchModule.ASSETS) {
-      if (allowedModules.includes(SearchModule.ASSETS)) {
-        const r = await this.searchAssets(
-          searchTerm,
-          tenantId,
-          searchAllTenants,
-          limit,
-        );
-        results.assets = r.items;
-        counts.assets = r.total;
-      }
-    }
-    if (module === SearchModule.ALL || module === SearchModule.ASSET_REQUESTS) {
-      if (allowedModules.includes(SearchModule.ASSET_REQUESTS)) {
-        const r = await this.searchAssetRequests(
-          searchTerm,
-          tenantId,
-          searchAllTenants,
-          limit,
-          teamIds,
-        );
-        results.assetRequests = r.items;
-        counts.assetRequests = r.total;
-      }
-    }
     if (module === SearchModule.ALL || module === SearchModule.TEAMS) {
       if (allowedModules.includes(SearchModule.TEAMS)) {
         const r = await this.searchTeams(
@@ -193,32 +140,6 @@ export class SearchService {
         );
         results.attendance = r.items;
         counts.attendance = r.total;
-      }
-    }
-    if (module === SearchModule.ALL || module === SearchModule.BENEFITS) {
-      if (allowedModules.includes(SearchModule.BENEFITS)) {
-        const r = await this.searchBenefits(
-          searchTerm,
-          tenantId,
-          searchAllTenants,
-          limit,
-          teamIds,
-        );
-        results.benefits = r.items;
-        counts.benefits = r.total;
-      }
-    }
-    if (module === SearchModule.ALL || module === SearchModule.PAYROLL) {
-      if (allowedModules.includes(SearchModule.PAYROLL)) {
-        const r = await this.searchPayroll(
-          searchTerm,
-          tenantId,
-          searchAllTenants,
-          limit,
-          teamIds,
-        );
-        results.payroll = r.items;
-        counts.payroll = r.total;
       }
     }
 
@@ -499,143 +420,6 @@ export class SearchService {
   }
 
   /**
-   * Search assets by name, category, subcategory, status
-   */
-  private async searchAssets(
-    searchTerm: string,
-    tenantId: string,
-    searchAllTenants: boolean,
-    limit: number,
-  ): Promise<{ items: SearchResultItem[]; total: number }> {
-    const queryBuilder = this.assetRepository
-      .createQueryBuilder('asset')
-      .leftJoinAndSelect('asset.category', 'category')
-      .leftJoinAndSelect('asset.subcategory', 'subcategory')
-      .leftJoinAndSelect('asset.assignedToUser', 'assignedUser')
-      .where(
-        `(
-          asset.name ILIKE :searchTerm OR
-          category.name ILIKE :searchTerm OR
-          subcategory.name ILIKE :searchTerm OR
-          asset.status ILIKE :searchTerm
-        )`,
-        { searchTerm },
-      );
-
-    // Apply tenant filter (skip if searching all tenants)
-    if (!searchAllTenants) {
-      queryBuilder.andWhere('asset.tenant_id = :tenantId', { tenantId });
-    }
-
-    const [assets, total] = await queryBuilder
-      .orderBy('asset.created_at', 'DESC')
-      .take(limit)
-      .getManyAndCount();
-
-    const items: SearchResultItem[] = assets.map((asset) => ({
-      id: asset.id,
-      title: asset.name,
-      description: `${asset.category?.name || 'No Category'} | ${asset.subcategory?.name || 'No Subcategory'} | Status: ${asset.status}${asset.assignedToUser ? ` | Assigned to: ${asset.assignedToUser.first_name} ${asset.assignedToUser.last_name}` : ''}`,
-      module: 'assets',
-      metadata: {
-        name: asset.name,
-        category: asset.category?.name,
-        subcategory: asset.subcategory?.name,
-        status: asset.status,
-        assignedTo: asset.assignedToUser ? `${asset.assignedToUser.first_name} ${asset.assignedToUser.last_name}` : null,
-        purchaseDate: asset.purchase_date,
-      },
-    }));
-
-    return { items, total };
-  }
-
-  /**
-   * Search asset requests by requester name, category, subcategory, status
-   */
-  private async searchAssetRequests(
-    searchTerm: string,
-    tenantId: string,
-    searchAllTenants: boolean,
-    limit: number,
-    teamIds?: string[],
-  ): Promise<{ items: SearchResultItem[]; total: number }> {
-    const queryBuilder = this.assetRequestRepository
-      .createQueryBuilder('assetRequest')
-      .leftJoinAndSelect('assetRequest.requestedByUser', 'requester')
-      .leftJoinAndSelect('assetRequest.category', 'category')
-      .leftJoinAndSelect('assetRequest.subcategory', 'subcategory')
-      .leftJoinAndSelect('assetRequest.approvedByUser', 'approver')
-      .where(
-        `(
-          requester.first_name ILIKE :searchTerm OR
-          requester.last_name ILIKE :searchTerm OR
-          CONCAT(requester.first_name, ' ', requester.last_name) ILIKE :searchTerm OR
-          category.name ILIKE :searchTerm OR
-          subcategory.name ILIKE :searchTerm OR
-          assetRequest.status ILIKE :searchTerm OR
-          assetRequest.remarks ILIKE :searchTerm OR
-          assetRequest.rejection_reason ILIKE :searchTerm
-        )`,
-        { searchTerm },
-      );
-
-    // Apply tenant filter (skip if searching all tenants)
-    if (!searchAllTenants) {
-      queryBuilder.andWhere('assetRequest.tenant_id = :tenantId', { tenantId });
-    }
-
-    // Apply team filter for manager role - only show asset requests of employees in manager's team(s)
-    if (teamIds && teamIds.length > 0) {
-      // Get user IDs of employees in the manager's team(s)
-      const teamEmployees = await this.employeeRepository.find({
-        where: { team_id: In(teamIds) },
-        select: ['user_id'],
-      });
-
-      if (teamEmployees.length > 0) {
-        const userIds = teamEmployees.map(emp => emp.user_id);
-        queryBuilder.andWhere('assetRequest.requested_by IN (:...userIds)', { userIds });
-      } else {
-        // If no employees in team, return no results
-        queryBuilder.andWhere('1 = 0');
-      }
-    }
-
-    const [assetRequests, total] = await queryBuilder
-      .orderBy('assetRequest.created_at', 'DESC')
-      .take(limit)
-      .getManyAndCount();
-
-    const items: SearchResultItem[] = assetRequests.map((request) => {
-      const requesterName = request.requestedByUser
-        ? `${request.requestedByUser.first_name} ${request.requestedByUser.last_name}`
-        : 'Unknown User';
-      const categoryName = request.category?.name || 'Unknown Category';
-
-      return {
-        id: request.id,
-        title: `${requesterName} - ${categoryName}`,
-        description: `${categoryName}${request.subcategory ? ` | ${request.subcategory.name}` : ''} | Status: ${request.status} | Requested: ${request.requested_date}`,
-        module: 'asset-requests',
-        metadata: {
-          requesterName,
-          category: categoryName,
-          subcategory: request.subcategory?.name,
-          status: request.status,
-          requestedDate: request.requested_date,
-          approvedDate: request.approved_date,
-          approver: request.approvedByUser ? `${request.approvedByUser.first_name} ${request.approvedByUser.last_name}` : null,
-          remarks: request.remarks,
-          rejectionReason: request.rejection_reason,
-        },
-      };
-    });
-
-    return { items, total };
-  }
-
-  /**
    * Search teams by name, description, manager name
    */
   private async searchTeams(
@@ -757,157 +541,4 @@ export class SearchService {
     return { items, total };
   }
 
-  /**
-   * Search employee benefits by employee name, benefit name, type, status
-   */
-  private async searchBenefits(
-    searchTerm: string,
-    tenantId: string,
-    searchAllTenants: boolean,
-    limit: number,
-    teamIds?: string[],
-  ): Promise<{ items: SearchResultItem[]; total: number }> {
-    const queryBuilder = this.employeeBenefitRepository
-      .createQueryBuilder('employeeBenefit')
-      .leftJoinAndSelect('employeeBenefit.employee', 'employee')
-      .leftJoinAndSelect('employee.user', 'user')
-      .leftJoinAndSelect('employeeBenefit.benefit', 'benefit')
-      .where(
-        `(
-          user.first_name ILIKE :searchTerm OR
-          user.last_name ILIKE :searchTerm OR
-          CONCAT(user.first_name, ' ', user.last_name) ILIKE :searchTerm OR
-          user.email ILIKE :searchTerm OR
-          benefit.name ILIKE :searchTerm OR
-          benefit.type ILIKE :searchTerm OR
-          benefit.description ILIKE :searchTerm OR
-          employeeBenefit.status ILIKE :searchTerm
-        )`,
-        { searchTerm },
-      );
-
-    // Apply tenant filter (skip if searching all tenants)
-    if (!searchAllTenants) {
-      queryBuilder.andWhere('employeeBenefit.tenant_id = :tenantId', { tenantId });
-    }
-
-    // Apply team filter for manager role - only show benefits of employees in manager's team(s)
-    if (teamIds && teamIds.length > 0) {
-      queryBuilder.andWhere('employee.team_id IN (:...teamIds)', { teamIds });
-    }
-
-    const [employeeBenefits, total] = await queryBuilder
-      .orderBy('employeeBenefit.createdAt', 'DESC')
-      .take(limit)
-      .getManyAndCount();
-
-    const items: SearchResultItem[] = employeeBenefits.map((eb) => {
-      const startDate = eb.startDate instanceof Date
-        ? eb.startDate.toLocaleDateString()
-        : new Date(eb.startDate).toLocaleDateString();
-      const endDate = eb.endDate
-        ? (eb.endDate instanceof Date
-          ? eb.endDate.toLocaleDateString()
-          : new Date(eb.endDate).toLocaleDateString())
-        : null;
-
-      return {
-        id: eb.id,
-        title: `${eb.employee.user.first_name} ${eb.employee.user.last_name} - ${eb.benefit.name}`,
-        description: `${eb.benefit.type} | Status: ${eb.status} | Start: ${startDate}${endDate ? ` | End: ${endDate}` : ''}`,
-        module: 'benefits',
-        metadata: {
-          benefitAssignmentId: eb.id,
-          employeeId: eb.employee.id,
-          userId: eb.employee.user_id,
-          employeeName: `${eb.employee.user.first_name} ${eb.employee.user.last_name}`,
-          employeeEmail: eb.employee.user.email,
-          profilePic: eb.employee.user.profile_pic || null,
-          benefitName: eb.benefit.name,
-          benefitType: eb.benefit.type,
-          status: eb.status,
-          startDate: eb.startDate,
-          endDate: eb.endDate,
-        },
-      };
-    });
-
-    return { items, total };
-  }
-
-  /**
-   * Search payroll records by employee name, month, year, status
-   */
-  private async searchPayroll(
-    searchTerm: string,
-    tenantId: string,
-    searchAllTenants: boolean,
-    limit: number,
-    teamIds?: string[],
-  ): Promise<{ items: SearchResultItem[]; total: number }> {
-    const queryBuilder = this.payrollRecordRepository
-      .createQueryBuilder('payroll')
-      .leftJoinAndSelect('payroll.employee', 'employee')
-      .leftJoinAndSelect('employee.user', 'user')
-      .leftJoinAndSelect('payroll.generatedBy', 'generatedBy')
-      .leftJoinAndSelect('payroll.approvedBy', 'approvedBy')
-      .where(
-        `(
-          user.first_name ILIKE :searchTerm OR
-          user.last_name ILIKE :searchTerm OR
-          CONCAT(user.first_name, ' ', user.last_name) ILIKE :searchTerm OR
-          user.email ILIKE :searchTerm OR
-          payroll.status ILIKE :searchTerm OR
-          CAST(payroll.month AS TEXT) ILIKE :searchTerm OR
-          CAST(payroll.year AS TEXT) ILIKE :searchTerm
-        )`,
-        { searchTerm },
-      );
-
-    // Apply tenant filter (skip if searching all tenants)
-    if (!searchAllTenants) {
-      queryBuilder.andWhere('payroll.tenant_id = :tenantId', { tenantId });
-    }
-
-    // Apply team filter for manager role - only show payroll of employees in manager's team(s)
-    if (teamIds && teamIds.length > 0) {
-      queryBuilder.andWhere('employee.team_id IN (:...teamIds)', { teamIds });
-    }
-
-    const [payrollRecords, total] = await queryBuilder
-      .orderBy('payroll.year', 'DESC')
-      .addOrderBy('payroll.month', 'DESC')
-      .take(limit)
-      .getManyAndCount();
-
-    const items: SearchResultItem[] = payrollRecords.map((payroll) => ({
-      id: payroll.id,
-      title: `${payroll.employee.user.first_name} ${payroll.employee.user.last_name} - ${payroll.month}/${payroll.year}`,
-      description: `Net Salary: ${payroll.netSalary} | Gross: ${payroll.grossSalary} | Status: ${payroll.status} | Days Present: ${payroll.daysPresent || 'N/A'}`,
-      module: 'payroll',
-      metadata: {
-        payrollRecordId: payroll.id,
-        employeeId: payroll.employee.id,
-        userId: payroll.employee.user_id,
-        employeeName: `${payroll.employee.user.first_name} ${payroll.employee.user.last_name}`,
-        employeeEmail: payroll.employee.user.email,
-        profilePic: payroll.employee.user.profile_pic || null,
-        month: payroll.month,
-        year: payroll.year,
-        grossSalary: payroll.grossSalary,
-        netSalary: payroll.netSalary,
-        totalDeductions: payroll.totalDeductions,
-        bonuses: payroll.bonuses,
-        status: payroll.status,
-        daysPresent: payroll.daysPresent,
-        daysAbsent: payroll.daysAbsent,
-        paidLeaves: payroll.paidLeaves,
-        unpaidLeaves: payroll.unpaidLeaves,
-        generatedBy: payroll.generatedBy ? `${payroll.generatedBy.first_name} ${payroll.generatedBy.last_name}` : null,
-        approvedBy: payroll.approvedBy ? `${payroll.approvedBy.first_name} ${payroll.approvedBy.last_name}` : null,
-      },
-    }));
-
-    return { items, total };
-  }
 }
