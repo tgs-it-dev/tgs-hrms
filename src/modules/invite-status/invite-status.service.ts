@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Employee } from '../../entities/employee.entity';
-import { InviteStatus } from '../../common/constants/enums';
+import { EmployeeStatus, InviteStatus } from '../../common/constants/enums';
 
 @Injectable()
 export class InviteStatusService {
@@ -26,7 +26,7 @@ export class InviteStatusService {
       }
 
       
-      if (employee.invite_status === InviteStatus.INVITE_SENT) {
+      if (employee.status === EmployeeStatus.ACTIVE && employee.invite_status === InviteStatus.INVITE_SENT) {
         employee.invite_status = InviteStatus.JOINED;
         await this.employeeRepo.save(employee);
         this.logger.log(`Updated invite status to 'Joined' for employee: ${employee.id}`);
@@ -44,6 +44,7 @@ export class InviteStatusService {
         .createQueryBuilder('employee')
         .leftJoinAndSelect('employee.user', 'user')
         .where('employee.invite_status = :status', { status: InviteStatus.INVITE_SENT })
+        .andWhere('employee.status = :activeStatus', { activeStatus: EmployeeStatus.ACTIVE })
         .andWhere('user.first_login_time IS NULL')
         .andWhere('employee.created_at < :expiryTime', { 
           expiryTime: new Date(Date.now() - 24 * 60 * 60 * 1000) 
@@ -89,7 +90,7 @@ export class InviteStatusService {
       }
 
     
-      if (employee.invite_status === InviteStatus.INVITE_SENT && 
+      if (employee.status === EmployeeStatus.ACTIVE && employee.invite_status === InviteStatus.INVITE_SENT && 
           !employee.user.first_login_time &&
           employee.created_at < new Date(Date.now() - 24 * 60 * 60 * 1000)) {
         

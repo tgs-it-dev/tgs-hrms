@@ -32,9 +32,7 @@ export class BillingService {
     if (stripeKey) {
       this.stripe = new Stripe(stripeKey);
     } else {
-      this.logger.warn(
-        'STRIPE_SECRET_KEY not configured; billing operations will be logged but not executed.',
-      );
+      this.logger.warn('STRIPE_SECRET_KEY not configured; billing operations will be logged but not executed.');
     }
   }
 
@@ -56,6 +54,9 @@ export class BillingService {
       gender?: string;
       cnic_number?: string;
       password?: string;
+      profile_picture_url?: string;
+      cnic_picture_url?: string;
+      cnic_back_picture_url?: string;
     },
   ): Promise<{ checkoutUrl: string; checkoutSessionId: string }> {
     if (!this.stripe) {
@@ -71,9 +72,7 @@ export class BillingService {
     }
 
     if (!companyDetails.stripe_customer_id) {
-      throw new Error(
-        `Stripe customer ID not found for tenant: ${tenantId}. Company may not be set up for billing.`,
-      );
+      throw new Error(`Stripe customer ID not found for tenant: ${tenantId}. Company may not be set up for billing.`);
     }
 
     const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
@@ -113,6 +112,9 @@ export class BillingService {
           role_name: employeeData.role_name || '',
           gender: employeeData.gender || '',
           cnic_number: employeeData.cnic_number || '',
+          profile_picture_url: employeeData.profile_picture_url || '',
+          cnic_picture_url: employeeData.cnic_picture_url || '',
+          cnic_back_picture_url: employeeData.cnic_back_picture_url || '',
           type: BillingTransactionType.EMPLOYEE_CREATION,
         },
       });
@@ -132,9 +134,7 @@ export class BillingService {
         `Stripe checkout session creation failed: ${errorMessage} (code: ${errorCode})`,
         stripeError?.stack,
       );
-      throw new Error(
-        `Failed to create Stripe checkout session: ${errorMessage} (code: ${errorCode})`,
-      );
+      throw new Error(`Failed to create Stripe checkout session: ${errorMessage} (code: ${errorCode})`);
     }
   }
 
@@ -145,9 +145,7 @@ export class BillingService {
   async handleEmployeeCreated(event: EmployeeCreatedEvent): Promise<void> {
     const { tenantId, employeeId, employeeEmail, employeeName } = event;
 
-    this.logger.log(
-      `Processing billing for employee creation: ${employeeId} (tenant: ${tenantId})`,
-    );
+    this.logger.log(`Processing billing for employee creation: ${employeeId} (tenant: ${tenantId})`);
 
     // Create a pending transaction record first
     const transaction = this.billingTransactionRepo.create({
@@ -175,18 +173,14 @@ export class BillingService {
       }
 
       if (!companyDetails.stripe_customer_id) {
-        throw new Error(
-          `Stripe customer ID not found for tenant: ${tenantId}. Company may not be set up for billing.`,
-        );
+        throw new Error(`Stripe customer ID not found for tenant: ${tenantId}. Company may not be set up for billing.`);
       }
 
       transaction.stripe_customer_id = companyDetails.stripe_customer_id;
 
       // If Stripe is not configured, mark as success (for development/testing)
       if (!this.stripe) {
-        this.logger.warn(
-          `Stripe not configured. Marking transaction as success without actual charge.`,
-        );
+        this.logger.warn('Stripe not configured. Marking transaction as success without actual charge.');
         transaction.status = BillingTransactionStatus.SUCCESS;
         transaction.description = `${transaction.description} (Stripe not configured - charge skipped)`;
         await this.billingTransactionRepo.save(transaction);
@@ -195,8 +189,11 @@ export class BillingService {
 
       // Check if customer has a default payment method
       const customer = await this.stripe.customers.retrieve(companyDetails.stripe_customer_id);
-      const hasPaymentMethod = customer && typeof customer === 'object' && 'invoice_settings' in customer 
-        && customer.invoice_settings?.default_payment_method !== null;
+      const hasPaymentMethod =
+        customer &&
+        typeof customer === 'object' &&
+        'invoice_settings' in customer &&
+        customer.invoice_settings?.default_payment_method !== null;
 
       // If no payment method, throw error to create checkout session
       if (!hasPaymentMethod) {
@@ -229,7 +226,7 @@ export class BillingService {
         // Update transaction with success status
         transaction.status = BillingTransactionStatus.SUCCESS;
         transaction.stripe_charge_id = paymentIntent.id;
-        
+
         // Save successful transaction
         await this.billingTransactionRepo.save(transaction);
 
@@ -249,11 +246,8 @@ export class BillingService {
         throw paymentError;
       }
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      this.logger.error(
-        `Failed to process billing for employee creation: ${employeeId}. Error: ${errorMessage}`,
-      );
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to process billing for employee creation: ${employeeId}. Error: ${errorMessage}`);
 
       // Mark transaction as failed
       transaction.status = BillingTransactionStatus.FAILED;
@@ -261,7 +255,7 @@ export class BillingService {
 
       // Save the failed transaction for audit purposes
       await this.billingTransactionRepo.save(transaction);
-      
+
       // Throw error to prevent employee creation/invitation if payment fails
       // Payment must succeed before employee invitation is sent
       throw new Error(`Payment processing failed: ${errorMessage}`);
@@ -295,6 +289,9 @@ export class BillingService {
       role_name?: string;
       gender?: string;
       cnic_number?: string;
+      profile_picture_url?: string;
+      cnic_picture_url?: string;
+      cnic_back_picture_url?: string;
     };
   }> {
     if (!this.stripe) {
@@ -302,20 +299,17 @@ export class BillingService {
     }
 
     // Retrieve checkout session from Stripe
-    const checkoutSession = await this.stripe.checkout.sessions.retrieve(
-      checkoutSessionId,
-      {
-        expand: ['payment_intent'],
-      },
-    );
+    const checkoutSession = await this.stripe.checkout.sessions.retrieve(checkoutSessionId, {
+      expand: ['payment_intent'],
+    });
 
     // Verify payment is successful
-    const isPaymentSuccessful = 
+    const isPaymentSuccessful =
       checkoutSession.payment_status === 'paid' ||
       checkoutSession.status === 'complete' ||
-      (checkoutSession.payment_intent && 
-       typeof checkoutSession.payment_intent === 'object' &&
-       checkoutSession.payment_intent.status === 'succeeded');
+      (checkoutSession.payment_intent &&
+        typeof checkoutSession.payment_intent === 'object' &&
+        checkoutSession.payment_intent.status === 'succeeded');
 
     if (!isPaymentSuccessful) {
       throw new BadRequestException(
@@ -346,6 +340,9 @@ export class BillingService {
       role_name: metadata.role_name || undefined,
       gender: metadata.gender || undefined,
       cnic_number: metadata.cnic_number || undefined,
+      profile_picture_url: metadata.profile_picture_url || undefined,
+      cnic_picture_url: metadata.cnic_picture_url || undefined,
+      cnic_back_picture_url: metadata.cnic_back_picture_url || undefined,
     };
 
     // Check if transaction already exists (FAILED or PENDING) for this employee email
@@ -359,11 +356,12 @@ export class BillingService {
     });
 
     // Find existing transaction by employee email in metadata
-    let existingTransaction = existingTransactions.find(t => 
-      t.metadata && 
-      typeof t.metadata === 'object' &&
-      (t.metadata as any).employee_email === metadata.employee_email &&
-      (t.status === BillingTransactionStatus.FAILED || t.status === BillingTransactionStatus.PENDING)
+    const existingTransaction = existingTransactions.find(
+      (t) =>
+        t.metadata &&
+        typeof t.metadata === 'object' &&
+        (t.metadata as any).employee_email === metadata.employee_email &&
+        (t.status === BillingTransactionStatus.FAILED || t.status === BillingTransactionStatus.PENDING),
     );
 
     let transaction;
@@ -401,9 +399,7 @@ export class BillingService {
           employee_name: metadata.employee_name,
         },
       });
-      this.logger.log(
-        `Creating new transaction for checkout session: ${checkoutSessionId}`,
-      );
+      this.logger.log(`Creating new transaction for checkout session: ${checkoutSessionId}`);
     }
     await this.billingTransactionRepo.save(transaction);
 
@@ -414,28 +410,24 @@ export class BillingService {
     // Create employee and send invitation
     if (this.employeeService) {
       try {
-        const createdEmployee = await this.employeeService.createAfterPayment(
-          tenantId,
-          employeeData,
-        );
-        
+        const activatedEmployee = await this.employeeService.activateAfterPayment(tenantId, employeeData);
+
         // Update transaction with employee_id
-        transaction.employee_id = createdEmployee.id;
+        transaction.employee_id = activatedEmployee.id;
         await this.billingTransactionRepo.save(transaction);
-        
-        this.logger.log(
-          `Employee created and invitation sent after payment: ${createdEmployee.id}`,
-        );
+
+        this.logger.log(`Employee activated and invitation sent after payment: ${activatedEmployee.id}`);
         return {
           success: true,
           paymentConfirmed: true,
           paymentStatus: checkoutSession.payment_status || checkoutSession.status,
-          paymentIntentId: typeof checkoutSession.payment_intent === 'string' 
-            ? checkoutSession.payment_intent 
-            : checkoutSession.payment_intent?.id,
+          paymentIntentId:
+            typeof checkoutSession.payment_intent === 'string'
+              ? checkoutSession.payment_intent
+              : checkoutSession.payment_intent?.id,
           checkoutSessionId: checkoutSessionId,
-          employeeId: createdEmployee.id,
-          message: 'Payment confirmed successfully. Employee created and invitation email sent',
+          employeeId: activatedEmployee.id,
+          message: 'Payment confirmed successfully. Employee activated and invitation email sent',
         };
       } catch (error) {
         this.logger.error(
@@ -467,14 +459,12 @@ export class BillingService {
     transactions: BillingTransaction[];
     total: number;
   }> {
-    const [transactions, total] = await this.billingTransactionRepo.findAndCount(
-      {
-        where: { tenant_id: tenantId },
-        order: { created_at: 'DESC' },
-        take: limit,
-        skip: offset,
-      },
-    );
+    const [transactions, total] = await this.billingTransactionRepo.findAndCount({
+      where: { tenant_id: tenantId },
+      order: { created_at: 'DESC' },
+      take: limit,
+      skip: offset,
+    });
 
     return { transactions, total };
   }
@@ -482,13 +472,9 @@ export class BillingService {
   /**
    * Get a specific billing transaction by ID
    */
-  async getTransactionById(
-    transactionId: string,
-    tenantId: string,
-  ): Promise<BillingTransaction | null> {
+  async getTransactionById(transactionId: string, tenantId: string): Promise<BillingTransaction | null> {
     return this.billingTransactionRepo.findOne({
       where: { id: transactionId, tenant_id: tenantId },
     });
   }
 }
-
