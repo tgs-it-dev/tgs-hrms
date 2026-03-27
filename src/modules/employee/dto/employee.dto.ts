@@ -52,9 +52,9 @@ export class CreateEmployeeDto {
   @IsString()
   role_name?: string;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'CNIC number in format: XXXXX-XXXXXXX-X',
-    example: '12345-1234567-1'
+    example: '12345-1234567-1',
   })
   @IsOptional()
   @IsString()
@@ -111,9 +111,9 @@ export class UpdateEmployeeDto {
   @IsString()
   role_name?: string;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'CNIC number in format: XXXXX-XXXXXXX-X',
-    example: '12345-1234567-1'
+    example: '12345-1234567-1',
   })
   @IsOptional()
   @IsString()
@@ -130,7 +130,7 @@ export class EmployeeQueryDto extends BaseQueryDto {
   @ApiPropertyOptional({ description: 'Filter by designation ID', example: 'uuid-string' })
   @IsOptional()
   @IsUUID()
-  designation_id?: string ;
+  designation_id?: string;
 
   @ApiPropertyOptional({ description: 'Filter by team ID', example: 'uuid-string' })
   @IsOptional()
@@ -163,9 +163,9 @@ export class EmployeeProfileDto {
   @ApiPropertyOptional({ description: 'Employee gender', enum: UserGender })
   gender?: UserGender;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'CNIC number in format: XXXXX-XXXXXXX-X',
-    example: '12345-1234567-1'
+    example: '12345-1234567-1',
   })
   cnic_number?: string;
 
@@ -227,9 +227,9 @@ export class EmployeeResponseDto {
   @ApiProperty({ description: 'Team name', example: 'Development Team' })
   team: string;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'CNIC number in format: XXXXX-XXXXXXX-X',
-    example: '12345-1234567-1'
+    example: '12345-1234567-1',
   })
   cnic_number?: string;
 

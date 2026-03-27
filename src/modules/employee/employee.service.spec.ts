@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { EmployeeService } from './services/employee.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Employee } from '../../entities/employee.entity';
@@ -8,11 +9,14 @@ import { Designation } from '../../entities/designation.entity';
 import { Role } from '../../entities/role.entity';
 import { Team } from '../../entities/team.entity';
 import { CreateEmployeeDto, UpdateEmployeeDto } from './dto/employee.dto';
-import { ConflictException, NotFoundException } from '@nestjs/common';
-import { MailerService } from '@nestjs-modules/mailer';
-import { ConfigService } from '@nestjs/config';
+import { InviteStatusService } from '../invite-status/invite-status.service';
+import { EmployeeCreationService } from './services/employee-creation.service';
+import { EmployeeValidationService } from './services/employee-validation.service';
+import { EmployeeNotificationService } from './services/employee-notification.service';
+import { EmployeeFileService } from './services/employee-file.service';
 
 const tenantId = '93ada9b3-fef5-4af3-ba65-035c833ea390';
+const actorUserId = '10000000-0000-0000-0000-000000000001';
 
 const createDto: CreateEmployeeDto = {
   first_name: 'John',
@@ -36,6 +40,9 @@ const mockEmployeeRepo = {
   findOne: jest.fn(),
   findOneBy: jest.fn(),
   delete: jest.fn(),
+  remove: jest.fn(),
+  update: jest.fn(),
+  manager: { transaction: jest.fn() },
   createQueryBuilder: jest.fn(() => ({
     leftJoinAndSelect: jest.fn().mockReturnThis(),
     where: jest.fn().mockReturnThis(),
@@ -49,9 +56,11 @@ const mockEmployeeRepo = {
 
 const mockUserRepo = {
   findOne: jest.fn(),
+  find: jest.fn().mockResolvedValue([]),
   create: jest.fn(),
   save: jest.fn(),
   update: jest.fn(),
+  remove: jest.fn(),
 };
 
 const mockDepartmentRepo = { findOneBy: jest.fn() };
@@ -59,10 +68,29 @@ const mockDesignationRepo = { findOne: jest.fn(), findOneBy: jest.fn() };
 const mockRoleRepo = { findOne: jest.fn(), create: jest.fn(), save: jest.fn() };
 const mockTeamRepo = { findOne: jest.fn() };
 
-const customRoleId = 'custom-role-uuid';
-const createDtoWithRole: CreateEmployeeDto = {
-  ...createDto,
-  role_id: customRoleId,
+const mockInviteStatusService = { getInviteStatus: jest.fn() };
+
+const mockEmployeeCreation = {
+  create: jest.fn(),
+  createAfterPayment: jest.fn(),
+};
+
+const mockNotification = {
+  sendPasswordResetEmail: jest.fn(),
+  sendNewEmployeeAnnouncementToTenant: jest.fn(),
+  errorMessage: jest.fn((e: unknown) => (e instanceof Error ? e.message : String(e))),
+};
+
+const mockEmployeeFile = {
+  uploadProfilePicture: jest.fn(),
+  uploadCnicPicture: jest.fn(),
+  uploadCnicBackPicture: jest.fn(),
+  deleteProfilePicture: jest.fn(),
+  deleteCnicPicture: jest.fn(),
+  deleteCnicBackPicture: jest.fn(),
+  getProfilePictureFile: jest.fn(),
+  getCnicPictureFile: jest.fn(),
+  getCnicBackPictureFile: jest.fn(),
 };
 
 describe('EmployeeService', () => {
@@ -72,65 +100,47 @@ describe('EmployeeService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EmployeeService,
+        EmployeeValidationService,
+        { provide: EmployeeCreationService, useValue: mockEmployeeCreation },
+        { provide: EmployeeNotificationService, useValue: mockNotification },
+        { provide: EmployeeFileService, useValue: mockEmployeeFile },
         { provide: getRepositoryToken(Employee), useValue: mockEmployeeRepo },
         { provide: getRepositoryToken(User), useValue: mockUserRepo },
         { provide: getRepositoryToken(Designation), useValue: mockDesignationRepo },
         { provide: getRepositoryToken(Role), useValue: mockRoleRepo },
         { provide: getRepositoryToken(Team), useValue: mockTeamRepo },
         { provide: getRepositoryToken(Department), useValue: mockDepartmentRepo },
-        { provide: MailerService, useValue: { sendMail: jest.fn() } },
-        { provide: ConfigService, useValue: { get: jest.fn() } },
+        { provide: InviteStatusService, useValue: mockInviteStatusService },
       ],
     }).compile();
 
     service = module.get<EmployeeService>(EmployeeService);
-
-    mockRoleRepo.findOne.mockResolvedValue({ id: 'role-uuid', name: 'Employee' });
   });
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  
   describe('create', () => {
     it('should throw conflict if email exists in same tenant', async () => {
-      mockDesignationRepo.findOne.mockResolvedValue({
-        id: 'desig-uuid',
-        department: { tenant_id: tenantId },
-      });
-      mockUserRepo.findOne.mockResolvedValue({
-        id: 'existing-user',
-        email: createDto.email,
-        tenant_id: tenantId,
-      });
-
-      await expect(service.create(tenantId, createDto)).rejects.toThrow(
-        'User with this email already exists in the tenant.'
+      mockEmployeeCreation.create.mockRejectedValue(
+        new ConflictException('User with this email already exists in the tenant.'),
       );
+
+      await expect(service.create(tenantId, actorUserId, createDto)).rejects.toThrow(
+        'User with this email already exists in the tenant.',
+      );
+      expect(mockEmployeeCreation.create).toHaveBeenCalled();
     });
 
     it('should allow creation if email exists in another tenant', async () => {
-      mockDesignationRepo.findOne.mockResolvedValue({
-        id: 'desig-uuid',
-        department: { tenant_id: tenantId },
-      });
-      mockUserRepo.findOne.mockResolvedValue(null);
-
-      mockUserRepo.create.mockReturnValue({ ...createDto, id: 'user-uuid' });
-      mockUserRepo.save.mockResolvedValue({ ...createDto, id: 'user-uuid' });
-      mockEmployeeRepo.create.mockReturnValue({
-        id: 'emp-uuid',
-        user_id: 'user-uuid',
-        designation_id: 'desig-uuid',
-      });
-      mockEmployeeRepo.save.mockResolvedValue({
+      mockEmployeeCreation.create.mockResolvedValue({
         id: 'emp-uuid',
         user_id: 'user-uuid',
         designation_id: 'desig-uuid',
       });
 
-      const result = await service.create(tenantId, createDto);
+      const result = await service.create(tenantId, actorUserId, createDto);
       expect(result).toEqual({
         id: 'emp-uuid',
         user_id: 'user-uuid',
@@ -139,30 +149,18 @@ describe('EmployeeService', () => {
     });
 
     it('should use provided role_id if given', async () => {
-      mockDesignationRepo.findOne.mockResolvedValue({
-        id: 'desig-uuid',
-        department: { tenant_id: tenantId },
-      });
-      mockUserRepo.findOne.mockResolvedValue(null);
-      mockRoleRepo.findOne.mockImplementation(({ where }) => {
-        if (where && where.id === customRoleId) {
-          return { id: customRoleId, name: 'HR Admin' };
-        }
-        return null;
-      });
-      mockUserRepo.create.mockReturnValue({ ...createDtoWithRole, id: 'user-uuid', role_id: customRoleId });
-      mockUserRepo.save.mockResolvedValue({ ...createDtoWithRole, id: 'user-uuid', role_id: customRoleId });
-      mockEmployeeRepo.create.mockReturnValue({
+      mockEmployeeCreation.create.mockResolvedValue({
         id: 'emp-uuid',
         user_id: 'user-uuid',
         designation_id: 'desig-uuid',
       });
-      mockEmployeeRepo.save.mockResolvedValue({
-        id: 'emp-uuid',
-        user_id: 'user-uuid',
-        designation_id: 'desig-uuid',
-      });
-      const result = await service.create(tenantId, createDtoWithRole);
+
+      const createDtoWithRole: CreateEmployeeDto = {
+        ...createDto,
+        role_id: 'a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d',
+      };
+
+      const result = await service.create(tenantId, actorUserId, createDtoWithRole);
       expect(result).toEqual({
         id: 'emp-uuid',
         user_id: 'user-uuid',
@@ -171,17 +169,17 @@ describe('EmployeeService', () => {
     });
 
     it('should throw NotFoundException if provided role_id does not exist', async () => {
-      mockDesignationRepo.findOne.mockResolvedValue({
-        id: 'desig-uuid',
-        department: { tenant_id: tenantId },
-      });
-      mockUserRepo.findOne.mockResolvedValue(null);
-      mockRoleRepo.findOne.mockResolvedValue(null); 
-      await expect(service.create(tenantId, { ...createDto, role_id: 'non-existent-role' })).rejects.toThrow('Specified role not found.');
+      mockEmployeeCreation.create.mockRejectedValue(new NotFoundException('Specified role not found.'));
+
+      await expect(
+        service.create(tenantId, actorUserId, {
+          ...createDto,
+          role_id: 'b2c3d4e5-f6a7-4b6c-9d0e-1f2a3b4c5d6e',
+        }),
+      ).rejects.toThrow('Specified role not found.');
     });
   });
 
-  
   describe('update', () => {
     const existingEmployee = {
       id: 'emp-uuid',
@@ -192,29 +190,28 @@ describe('EmployeeService', () => {
 
     beforeEach(() => {
       jest.clearAllMocks();
-    
+
       mockEmployeeRepo.findOneBy.mockResolvedValue(existingEmployee);
-      mockEmployeeRepo.findOne.mockImplementation(async ({ where }) => {
-        if (where && where.id === existingEmployee.id) {
-          return existingEmployee;
+      mockEmployeeRepo.findOne.mockImplementation((options: { where?: { id?: string } }) => {
+        if (options?.where?.id === existingEmployee.id) {
+          return Promise.resolve(existingEmployee);
         }
-        return null;
-      });
-    
-      mockUserRepo.findOne.mockResolvedValue(null);
-    
-      mockDesignationRepo.findOneBy.mockImplementation(async ({ id }) => {
-        if (id === 'desig-uuid-2') {
-          return { id: 'desig-uuid-2', department: { tenant_id: tenantId } };
-        }
-        return null;
+        return Promise.resolve(null);
       });
 
-      mockEmployeeRepo.save.mockImplementation(async (employee) => employee);
+      mockUserRepo.findOne.mockResolvedValue(null);
+
+      mockDesignationRepo.findOne.mockImplementation((opts: { where?: { id?: string } }) => {
+        if (opts?.where?.id === 'desig-uuid-2') {
+          return Promise.resolve({ id: 'desig-uuid-2', department: { tenant_id: tenantId } });
+        }
+        return Promise.resolve(null);
+      });
+
+      mockEmployeeRepo.save.mockImplementation((employee: Employee) => Promise.resolve(employee));
     });
 
     it('should throw conflict if new email exists in same tenant', async () => {
-    
       mockUserRepo.findOne.mockResolvedValue({
         id: 'other-user',
         email: updateDto.email,
@@ -222,12 +219,11 @@ describe('EmployeeService', () => {
       });
       const conflictDto = { ...updateDto };
       await expect(service.update(tenantId, existingEmployee.id, conflictDto)).rejects.toThrow(
-        'User with this email already exists in the tenant.'
+        'User with this email already exists in the tenant.',
       );
     });
 
     it('should update employee successfully if no conflict', async () => {
-  
       mockUserRepo.findOne.mockResolvedValue(null);
       const updatedData = {
         ...existingEmployee,
@@ -241,7 +237,7 @@ describe('EmployeeService', () => {
           phone: updateDto.phone,
         },
       };
-      
+
       mockEmployeeRepo.findOne.mockResolvedValue(updatedData);
       const result = await service.update(tenantId, existingEmployee.id, updateDto);
       expect(result).toEqual(updatedData);

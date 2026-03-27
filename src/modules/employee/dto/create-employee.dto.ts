@@ -3,6 +3,27 @@ import { IsEmail, IsNotEmpty, IsOptional, IsString, IsUUID, IsEnum } from 'class
 import { Transform } from 'class-transformer';
 import { UserGender } from '../../../common/constants/enums';
 
+/** Normalizes multipart/query string fields to a trimmed UUID or undefined (class-transformer). */
+function trimOptionalUuidInput(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'string') {
+    const v = value.trim();
+    if (v === '' || v.toLowerCase() === 'null' || v.toLowerCase() === 'undefined') return undefined;
+    return v;
+  }
+  return undefined;
+}
+
+function trimOptionalRoleNameInput(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  if (typeof value === 'string') {
+    const v = value.trim();
+    if (v === '' || v.toLowerCase() === 'null' || v.toLowerCase() === 'undefined') return undefined;
+    return v;
+  }
+  return undefined;
+}
+
 export class CreateEmployeeDto {
   @ApiProperty({ example: 'john.doe@example.com' })
   @IsEmail()
@@ -44,15 +65,7 @@ export class CreateEmployeeDto {
     description: 'Optional. Team ID to assign the employee to during creation',
   })
   @IsOptional()
-  @Transform(({ value }) => {
-    if (value === undefined || value === null) return undefined;
-    if (typeof value === 'string') {
-      const v = value.trim();
-      if (v === '' || v.toLowerCase() === 'null' || v.toLowerCase() === 'undefined') return undefined;
-      return v;
-    }
-    return value;
-  })
+  @Transform(({ value }) => trimOptionalUuidInput(value))
   @IsUUID()
   team_id?: string;
 
@@ -62,15 +75,7 @@ export class CreateEmployeeDto {
     nullable: true,
     description: 'Optional. Role name to assign to the employee. If not provided, defaults to Employee role.',
   })
-  @Transform(({ value }) => {
-    if (value === undefined || value === null || value === '') return undefined;
-    if (typeof value === 'string') {
-      const v = value.trim();
-      if (v === '' || v.toLowerCase() === 'null' || v.toLowerCase() === 'undefined') return undefined;
-      return v;
-    }
-    return value;
-  })
+  @Transform(({ value }) => trimOptionalRoleNameInput(value))
   @IsOptional()
   @IsString()
   role_name?: string;
@@ -79,17 +84,10 @@ export class CreateEmployeeDto {
     example: 'uuid-of-role',
     required: false,
     nullable: true,
-    description: 'Optional. Role ID to assign to the employee during invite. If not provided, defaults to Employee or Manager as before.',
+    description:
+      'Optional. Role ID to assign to the employee during invite. If not provided, defaults to Employee or Manager as before.',
   })
-  @Transform(({ value }) => {
-    if (value === undefined || value === null || value === '') return undefined;
-    if (typeof value === 'string') {
-      const v = value.trim();
-      if (v === '' || v.toLowerCase() === 'null' || v.toLowerCase() === 'undefined') return undefined;
-      return v;
-    }
-    return value;
-  })
+  @Transform(({ value }) => trimOptionalUuidInput(value))
   @IsOptional()
   @IsUUID()
   role_id?: string;
@@ -99,10 +97,10 @@ export class CreateEmployeeDto {
   @IsEnum(UserGender)
   gender?: UserGender;
 
-  @ApiProperty({ 
+  @ApiProperty({
     example: '12345-1234567-1',
     required: false,
-    description: 'CNIC number in format: XXXXX-XXXXXXX-X'
+    description: 'CNIC number in format: XXXXX-XXXXXXX-X',
   })
   @IsOptional()
   @IsString()
