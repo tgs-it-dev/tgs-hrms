@@ -513,7 +513,8 @@ export class AttendanceService {
     if (start) qb.andWhere('attendance.timestamp >= :start', { start });
     if (end) qb.andWhere('attendance.timestamp <= :end', { end });
     const items = await qb.getMany();
-    return { items, total: items.length };
+    const totalWorkHours = this.calculateTotalWorkHours(items);
+    return { items, total: items.length , totalWorkHours };
   }
 
   
@@ -1397,4 +1398,28 @@ export class AttendanceService {
 
     return false;
   }
+private calculateTotalWorkHours(items: any[]): number {
+  const sorted = items.sort(
+    (a, b) =>
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+  );
+
+  let lastCheckIn: any = null;
+  let totalHours = 0;
+
+  for (const event of sorted) {
+    if (event.type === AttendanceType.CHECK_IN) {
+      lastCheckIn = event;
+    } else if (event.type === AttendanceType.CHECK_OUT && lastCheckIn) {
+      const diffMs =
+        new Date(event.timestamp).getTime() -
+        new Date(lastCheckIn.timestamp).getTime();
+
+      totalHours += diffMs / (1000 * 60 * 60);
+      lastCheckIn = null;
+    }
+  }
+
+  return Math.round(totalHours * 100) / 100;
+}
 }
