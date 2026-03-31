@@ -341,7 +341,6 @@ export class AttendanceController {
     const rows = (items || []).flatMap((member: any) => {
       const attendance = member.attendance || [];
       return attendance.map((a: any) => ({
-        user_id: member.user_id,
         user_name: `${member.first_name || ''} ${member.last_name || ''}`.trim(),
         first_name: member.first_name,
         last_name: member.last_name,
