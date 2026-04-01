@@ -364,6 +364,13 @@ export class SendGridService {
     const style = priorityStyles[priority] || priorityStyles.medium;
     const categoryLabel = categoryLabels[category] || "Announcement";
 
+    const {
+      linkedin_logo_url,
+      x_logo_url,
+      instagram_logo_url,
+      companyLogoUrl,
+    } = getFrontendUrls(this.configService);
+
     const context = {
       name: recipientName,
       title,
@@ -377,6 +384,11 @@ export class SendGridService {
       linkedinUrl: this.configService.get<string>("LINKEDIN_URL") ?? "#",
       instagramUrl: this.configService.get<string>("INSTAGRAM_URL") ?? "#",
       twitterUrl: this.configService.get<string>("TWITTER_URL") ?? "#",
+      linkedin_logo_url,
+      x_logo_url,
+      instagram_logo_url,
+      companyLogoUrl,
+      current_year: new Date().getFullYear(),
     };
 
     const html = this.renderTemplate("announcement-mail", context);
