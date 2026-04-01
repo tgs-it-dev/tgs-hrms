@@ -129,6 +129,13 @@ export class SendGridService {
       return;
     }
 
+    const {
+      linkedin_logo_url,
+      x_logo_url,
+      instagram_logo_url,
+      companyLogoUrl,
+    } = getFrontendUrls(this.configService);
+
     const context = {
       userName,
       privacyPolicyUrl:
@@ -137,6 +144,14 @@ export class SendGridService {
       termsUrl: this.configService.get<string>("TERMS_URL") ?? "#",
       unsubscribeUrl: this.configService.get<string>("UNSUBSCRIBE_URL") ?? "#",
       companyName: companyName ?? "your organization",
+      linkedinUrl: this.configService.get<string>("LINKEDIN_URL") ?? "#",
+      instagramUrl: this.configService.get<string>("INSTAGRAM_URL") ?? "#",
+      twitterUrl: this.configService.get<string>("TWITTER_URL") ?? "#",
+      linkedin_logo_url,
+      x_logo_url,
+      instagram_logo_url,
+      companyLogoUrl,
+      current_year: new Date().getFullYear(),
     };
 
     const html = this.renderTemplate("password-reset-success", context);
