@@ -41,6 +41,9 @@ import { Response } from 'express';
 import { sendCsvResponse } from '../../../common/utils/csv.util';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { validateImageFile } from '../../../common/utils/file-validation.util';
+import { AuthenticatedRequest } from '../../auth/interfaces';
+import type { EmployeeCsvRow, EmployeeMultipartFiles, EmployeeSystemAdminCsvRow } from '../interfaces';
+import { EMPLOYEE_ROLE_NAMES } from '../../../common/constants/employee.constants';
 
 @ApiTags('Employees')
 @ApiBearerAuth()
@@ -50,8 +53,8 @@ export class EmployeeController {
   constructor(
     private readonly service: EmployeeService,
     private readonly attendanceService: AttendanceService,
-    private readonly leaveService: LeaveService
-  ) { }
+    private readonly leaveService: LeaveService,
+  ) {}
 
   @Post('manager')
   @Roles('admin', 'system-admin')
@@ -70,10 +73,7 @@ export class EmployeeController {
             validateImageFile(file);
             cb(null, true);
           } catch (error) {
-            cb(
-              error instanceof Error ? error : new Error("File validation failed"),
-              false,
-            );
+            cb(error instanceof Error ? error : new Error('File validation failed'), false);
           }
         },
         limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
@@ -108,17 +108,13 @@ export class EmployeeController {
     description: 'Manager created successfully with manager role assigned (or custom role if provided)',
   })
   async createManager(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @TenantId() tenant_id: string,
     @Body() createEmployeeDto: CreateEmployeeDto,
-    @UploadedFiles() files?: {
-      profile_picture?: Express.Multer.File[],
-      cnic_picture?: Express.Multer.File[],
-      cnic_back_picture?: Express.Multer.File[]
-    }
+    @UploadedFiles() files?: EmployeeMultipartFiles,
   ) {
-    const createdByUserId = req.user?.id;
-    return this.service.createManager(tenant_id, createdByUserId, createEmployeeDto, files);
+    const createdByUserId = req.user.id;
+    return this.service.create(tenant_id, createdByUserId, createEmployeeDto, files, EMPLOYEE_ROLE_NAMES.MANAGER);
   }
 
   @Patch(':id/promote-to-manager')
@@ -162,10 +158,7 @@ export class EmployeeController {
             validateImageFile(file);
             cb(null, true);
           } catch (error) {
-            cb(
-              error instanceof Error ? error : new Error("File validation failed"),
-              false,
-            );
+            cb(error instanceof Error ? error : new Error('File validation failed'), false);
           }
         },
         limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
@@ -220,16 +213,12 @@ export class EmployeeController {
     },
   })
   async create(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @TenantId() tenant_id: string,
     @Body() dto: CreateEmployeeDto,
-    @UploadedFiles() files?: {
-      profile_picture?: Express.Multer.File[],
-      cnic_picture?: Express.Multer.File[],
-      cnic_back_picture?: Express.Multer.File[]
-    }
+    @UploadedFiles() files?: EmployeeMultipartFiles,
   ) {
-    const createdByUserId = req.user?.id;
+    const createdByUserId = req.user.id;
     return this.service.create(tenant_id, createdByUserId, dto, files);
   }
 
@@ -250,10 +239,7 @@ export class EmployeeController {
             validateImageFile(file);
             cb(null, true);
           } catch (error) {
-            cb(
-              error instanceof Error ? error : new Error("File validation failed"),
-              false,
-            );
+            cb(error instanceof Error ? error : new Error('File validation failed'), false);
           }
         },
         limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
@@ -261,7 +247,9 @@ export class EmployeeController {
     ),
   )
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Update employee details including designation, role, and pictures (profile, CNIC front/back)' })
+  @ApiOperation({
+    summary: 'Update employee details including designation, role, and pictures (profile, CNIC front/back)',
+  })
   @ApiBody({
     schema: {
       type: 'object',
@@ -310,11 +298,7 @@ export class EmployeeController {
     @TenantId() tenant_id: string,
     @Param('id') id: string,
     @Body() dto: UpdateEmployeeDto,
-    @UploadedFiles() files?: {
-      profile_picture?: Express.Multer.File[],
-      cnic_picture?: Express.Multer.File[],
-      cnic_back_picture?: Express.Multer.File[]
-    }
+    @UploadedFiles() files?: EmployeeMultipartFiles,
   ) {
     return this.service.update(tenant_id, id, dto, files);
   }
@@ -368,36 +352,13 @@ export class EmployeeController {
     return this.service.findAll(tenant_id, query, pageNumber);
   }
 
-
   @Get('export')
   @Roles('admin', 'system-admin', 'hr-admin')
   @ApiOperation({ summary: 'Download employees list as CSV (Admin only)' })
-  async exportAll(
-    @TenantId() tenant_id: string,
-    @Query() query: EmployeeQueryDto,
-    @Res() res: Response
-  ) {
-    // Fetch all pages of employees so CSV includes complete dataset (no pagination)
-    let pageNumber = 1;
-    const allItems: any[] = [];
+  async exportAll(@TenantId() tenant_id: string, @Query() query: EmployeeQueryDto, @Res() res: Response) {
+    const allItems = await this.service.findAllEmployeesForExport(tenant_id, query);
 
-    while (true) {
-      const { items, total, limit } = await this.service.findAll(tenant_id, query, pageNumber);
-      allItems.push(...(items || []));
-
-      if (!items.length || allItems.length >= total) {
-        break;
-      }
-
-      pageNumber += 1;
-
-      // Safety: if last page returned fewer than limit, we are done
-      if (limit && items.length < limit) {
-        break;
-      }
-    }
-
-    const rows = (allItems || []).map((e: any) => ({
+    const rows: EmployeeCsvRow[] = allItems.map((e) => ({
       id: e.id,
       user_id: e.user_id,
       first_name: e.user?.first_name,
@@ -421,13 +382,10 @@ export class EmployeeController {
     description: 'Optional tenant ID to filter employees for a specific tenant',
     example: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
   })
-  async exportForSystemAdmin(
-    @Query('tenantId') tenantId: string | undefined,
-    @Res() res: Response,
-  ) {
+  async exportForSystemAdmin(@Query('tenantId') tenantId: string | undefined, @Res() res: Response) {
     const items = await this.service.getAllEmployeesForSystemAdmin(tenantId);
 
-    const rows = (items || []).map((e: any) => ({
+    const rows: EmployeeSystemAdminCsvRow[] = items.map((e) => ({
       tenant_id: e.user?.tenant?.id,
       tenant_name: e.user?.tenant?.name,
       tenant_status: e.user?.tenant?.status,
@@ -445,9 +403,7 @@ export class EmployeeController {
       created_at: e.created_at,
     }));
 
-    const filename = tenantId
-      ? `employees-tenant-${tenantId}.csv`
-      : 'employees-all-tenants.csv';
+    const filename = tenantId ? `employees-tenant-${tenantId}.csv` : 'employees-all-tenants.csv';
     return sendCsvResponse(res, filename, rows);
   }
 
@@ -526,8 +482,7 @@ export class EmployeeController {
   @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('view_reports', 'view_team_reports')
   @ApiOperation({
-    summary:
-      'Get total attendance for all employees for the current month (one per day per employee)',
+    summary: 'Get total attendance for all employees for the current month (one per day per employee)',
   })
   @ApiResponse({ status: 200, description: 'Total attendance for the current month.' })
   async getAttendanceThisMonth(@TenantId() tenant_id: string) {
@@ -563,11 +518,7 @@ export class EmployeeController {
   })
   @ApiResponse({ status: 200, description: 'Document removed successfully' })
   @ApiResponse({ status: 404, description: 'Employee or document not found' })
-  async removeDocument(
-    @Param('id') id: string,
-    @Body() dto: RemoveEmployeeDocumentDto,
-    @TenantId() tenant_id: string,
-  ) {
+  async removeDocument(@Param('id') id: string, @Body() dto: RemoveEmployeeDocumentDto, @TenantId() tenant_id: string) {
     return this.service.removeDocument(tenant_id, id, dto);
   }
 
@@ -608,5 +559,4 @@ export class EmployeeController {
       department_id: emp.designation?.department?.id ?? null,
     };
   }
-
 }

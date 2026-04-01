@@ -16,7 +16,7 @@ export class EmployeeProfileService {
     private readonly attendanceRepo: Repository<Attendance>,
 
     @InjectRepository(Leave)
-    private readonly leaveRepo: Repository<Leave>
+    private readonly leaveRepo: Repository<Leave>,
   ) {}
 
   async getEmployeeProfileByUserId(userId: string) {
@@ -86,8 +86,7 @@ export class EmployeeProfileService {
 
       const dayData = grouped[date];
       if (dayData && dayData.checkIn && dayData.checkOut) {
-        const diffMs =
-          new Date(dayData.checkOut).getTime() - new Date(dayData.checkIn).getTime();
+        const diffMs = new Date(dayData.checkOut).getTime() - new Date(dayData.checkIn).getTime();
         dayData.workedHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
       }
     }

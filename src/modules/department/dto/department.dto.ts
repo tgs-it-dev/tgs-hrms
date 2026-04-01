@@ -1,61 +1,12 @@
 /**
- * Department Module DTOs
+ * Department module — query / list / stats DTOs (Swagger).
+ * Create and update payloads live in `create-department.dto.ts` / `update-department.dto.ts`.
  */
 
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsUUID, MaxLength } from 'class-validator';
+import { IsOptional, IsUUID } from 'class-validator';
 import { BaseQueryDto } from '../../../common/dto/common.dto';
 
-// Create Department DTO
-export class CreateDepartmentDto {
-  @ApiProperty({ description: 'Department name', example: 'Engineering' })
-  @IsString()
-  @MaxLength(100)
-  name: string;
-
-  @ApiPropertyOptional({ description: 'Department description', example: 'Software development department' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  description?: string;
-
-  @ApiPropertyOptional({ description: 'Parent department ID', example: 'uuid-string' })
-  @IsOptional()
-  @IsUUID()
-  parent_id?: string;
-
-  @ApiPropertyOptional({ description: 'Department manager ID', example: 'uuid-string' })
-  @IsOptional()
-  @IsUUID()
-  manager_id?: string;
-}
-
-// Update Department DTO
-export class UpdateDepartmentDto {
-  @ApiPropertyOptional({ description: 'Department name', example: 'Engineering' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  name?: string;
-
-  @ApiPropertyOptional({ description: 'Department description', example: 'Software development department' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  description?: string;
-
-  @ApiPropertyOptional({ description: 'Parent department ID', example: 'uuid-string' })
-  @IsOptional()
-  @IsUUID()
-  parent_id?: string;
-
-  @ApiPropertyOptional({ description: 'Department manager ID', example: 'uuid-string' })
-  @IsOptional()
-  @IsUUID()
-  manager_id?: string;
-}
-
-// Department Query DTO
 export class DepartmentQueryDto extends BaseQueryDto {
   @ApiPropertyOptional({ description: 'Filter by parent department ID', example: 'uuid-string' })
   @IsOptional()
@@ -68,7 +19,6 @@ export class DepartmentQueryDto extends BaseQueryDto {
   manager_id?: string;
 }
 
-// Department Response DTO
 export class DepartmentResponseDto {
   @ApiProperty({ description: 'Department ID', example: 'uuid-string' })
   id: string;
@@ -102,7 +52,6 @@ export class DepartmentResponseDto {
   updated_at: Date;
 }
 
-// Department List Response DTO
 export class DepartmentListResponseDto {
   @ApiProperty({ description: 'List of departments', type: [DepartmentResponseDto] })
   departments: DepartmentResponseDto[];
@@ -120,7 +69,6 @@ export class DepartmentListResponseDto {
   total_pages: number;
 }
 
-// Department Stats DTO
 export class DepartmentStatsDto {
   @ApiProperty({ description: 'Total departments' })
   total_departments: number;
@@ -135,7 +83,6 @@ export class DepartmentStatsDto {
   by_employee_count: Record<string, number>;
 }
 
-// Department Hierarchy DTO
 export class DepartmentHierarchyDto {
   @ApiProperty({ description: 'Department ID', example: 'uuid-string' })
   id: string;

@@ -1,9 +1,8 @@
-/**
- * Central export for all constants.
- * Import from here: import { AUTH_MESSAGES, UserRole } from 'src/common/constants';
- */
 
 export * from './auth-messages';
 export * from './auth.constants';
 export * from './config.defaults';
+export * from './employee.constants';
+export * from './department.constants';
+export * from './file-storage.constants';
 export * from './enums';
