@@ -13,15 +13,14 @@ export const getFrontendUrls = (configService: ConfigService): FrontendUrls => {
     configService.get<string>("FRONTEND_URL") || "http://localhost:5173";
   const linkedin_logo_url =
     configService.get<string>("LINKEDIN_LOGO_URL") ||
-    `${frontendUrl}/public/linkedin.png`;
+    `${frontendUrl}/linkedin.png`;
   const x_logo_url =
-    configService.get<string>("X_LOGO_URL") || `${frontendUrl}/public/x.png`;
+    configService.get<string>("X_LOGO_URL") || `${frontendUrl}/x.png`;
   const instagram_logo_url =
     configService.get<string>("INSTAGRAM_LOGO_URL") ||
-    `${frontendUrl}/public/instagram.png`;
+    `${frontendUrl}/instagram.png`;
   const companyLogoUrl =
-    configService.get<string>("COMPANY_LOGO_URL") ||
-    `${frontendUrl}/public/logo.png`;
+    configService.get<string>("COMPANY_LOGO_URL") || `${frontendUrl}/logo.png`;
   return {
     url: frontendUrl,
     linkedin_logo_url,
