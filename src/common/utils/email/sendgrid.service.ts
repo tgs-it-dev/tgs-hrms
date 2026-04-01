@@ -294,7 +294,14 @@ export class SendGridService {
       return;
     }
 
-    const frontendUrl = this.configService.get<string>("FRONTEND_URL") ?? "#";
+    const {
+      url: frontendUrl,
+      linkedin_logo_url,
+      x_logo_url,
+      instagram_logo_url,
+      companyLogoUrl,
+    } = getFrontendUrls(this.configService);
+
     const context = {
       recipientName: payload.recipientName ?? "there",
       name: payload.newMember.name,
@@ -313,6 +320,14 @@ export class SendGridService {
       privacyUrl: this.configService.get<string>("PRIVACY_POLICY_URL") ?? "#",
       termsUrl: this.configService.get<string>("TERMS_URL") ?? "#",
       unsubscribeUrl: this.configService.get<string>("UNSUBSCRIBE_URL") ?? "#",
+      linkedinUrl: this.configService.get<string>("LINKEDIN_URL") ?? "#",
+      instagramUrl: this.configService.get<string>("INSTAGRAM_URL") ?? "#",
+      twitterUrl: this.configService.get<string>("TWITTER_URL") ?? "#",
+      linkedin_logo_url,
+      x_logo_url,
+      instagram_logo_url,
+      companyLogoUrl,
+      current_year: new Date().getFullYear(),
     };
 
     const html = this.renderTemplate("member-joined", context);
