@@ -9,6 +9,7 @@ import * as sgMail from "@sendgrid/mail";
 import * as fs from "fs";
 import * as path from "path";
 import * as Handlebars from "handlebars";
+import { getFrontendUrls } from "../frontend-urls.utilis";
 
 const TEMPLATES_DIR = path.join(process.cwd(), "src", "templates");
 
@@ -66,7 +67,13 @@ export class SendGridService {
     userName: string,
     companyName: string,
   ): Promise<void> {
-    const frontendUrl = this.configService.get<string>("FRONTEND_URL");
+    const {
+      url: frontendUrl,
+      linkedin_logo_url,
+      x_logo_url,
+      instagram_logo_url,
+      companyLogoUrl,
+    } = getFrontendUrls(this.configService);
     const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
     const fromEmail = this.configService.get<string>("SENDGRID_FROM");
 
@@ -82,6 +89,11 @@ export class SendGridService {
       termsUrl: this.configService.get<string>("TERMS_URL") ?? "#",
       unsubscribeUrl: this.configService.get<string>("UNSUBSCRIBE_URL") ?? "#",
       companyName: companyName ?? "your organization",
+      linkedin_logo_url,
+      x_logo_url,
+      instagram_logo_url,
+      companyLogoUrl,
+      current_year: new Date().getFullYear(),
     };
 
     const html = this.renderTemplate("password-reset", context);
