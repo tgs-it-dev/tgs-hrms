@@ -1,15 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Post,
-  Put,
-  Req,
-  UseGuards,
-  Query,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Req, UseGuards, Query } from '@nestjs/common';
 import { AuthenticatedRequest } from 'src/modules/auth/interfaces';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiQuery } from '@nestjs/swagger';
 import { DepartmentService } from './department.service';
@@ -90,9 +79,7 @@ export class DepartmentController {
     status: 403,
     description: 'Forbidden - System admin access required',
   })
-  async getAllDepartmentsAcrossTenants(
-    @Query('tenant_id') tenantId?: string
-  ) {
+  async getAllDepartmentsAcrossTenants(@Query('tenant_id') tenantId?: string) {
     return this.service.getAllDepartmentsAcrossTenants(tenantId);
   }
 
@@ -118,7 +105,7 @@ export class DepartmentController {
   }
 
   @Delete(':id')
-  @Roles('admin', 'system-admin', )
+  @Roles('admin', 'system-admin')
   @Permissions('manage_departments')
   @ApiOperation({ summary: 'Delete department' })
   @ApiResponse({ status: 200, description: 'Department deleted successfully.' })

@@ -39,7 +39,7 @@ export class DesignationController {
   }
 
   @Put(':id')
-  @Roles('admin', 'system-admin' , 'hr-admin')
+  @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('manage_designations')
   @ApiOperation({ summary: 'Update designation' })
   @ApiResponse({ status: 200, description: 'Designation updated.' })
@@ -59,7 +59,6 @@ export class DesignationController {
     return this.service.update(id, dto);
   }
 
-  
   @Get('all-tenants')
   @Roles('system-admin')
   @ApiOperation({ summary: 'Get all designations across all tenants with tenant filter (System Admin only)' })
@@ -77,9 +76,7 @@ export class DesignationController {
     status: 403,
     description: 'Forbidden - System admin access required',
   })
-  async getAllDesignationsAcrossTenants(
-    @Query('tenant_id') tenantId?: string
-  ) {
+  async getAllDesignationsAcrossTenants(@Query('tenant_id') tenantId?: string) {
     return this.service.getAllDesignationsAcrossTenants(tenantId);
   }
 
@@ -88,10 +85,7 @@ export class DesignationController {
   @Permissions('manage_designations')
   @ApiOperation({ summary: 'List designations under a department' })
   @ApiResponse({ status: 200, description: 'List of designations.' })
-  async findAllByDepartment(
-    @Param('departmentId') departmentId: string,
-    @Query('page') page?: string
-  ) {
+  async findAllByDepartment(@Param('departmentId') departmentId: string, @Query('page') page?: string) {
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
     return this.service.findAllByDepartment(departmentId, pageNumber);
   }

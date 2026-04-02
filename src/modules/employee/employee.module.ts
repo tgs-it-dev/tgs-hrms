@@ -16,9 +16,13 @@ import { LeaveModule } from '../leave/leave.module';
 import { EmailModule } from '../../common/utils/email/email.module';
 import { InviteStatusModule } from '../invite-status/invite-status.module';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
-import { EmployeeFileUploadService } from './services/employee-file-upload.service';
+import { EmployeeCreationService } from './services/employee-creation.service';
+import { EmployeeValidationService } from './services/employee-validation.service';
+import { EmployeeNotificationService } from './services/employee-notification.service';
+import { EmployeeFileService } from './services/employee-file.service';
 import { BillingModule } from '../billing/billing.module';
 import { PayrollModule } from '../payroll/payroll.module';
+import { FileStorageService } from '../../common/services/file-storage.service';
 
 @Module({
   imports: [
@@ -32,7 +36,15 @@ import { PayrollModule } from '../payroll/payroll.module';
     PayrollModule,
   ],
   controllers: [EmployeeController, EmployeeProfileController],
-  providers: [EmployeeService, EmployeeProfileService, EmployeeFileUploadService],
+  providers: [
+    EmployeeService,
+    EmployeeProfileService,
+    EmployeeCreationService,
+    EmployeeValidationService,
+    EmployeeNotificationService,
+    EmployeeFileService,
+    FileStorageService,
+  ],
   exports: [EmployeeService],
 })
 export class EmployeeModule {}

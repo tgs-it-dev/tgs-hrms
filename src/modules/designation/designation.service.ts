@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull, FindOptionsWhere } from 'typeorm';
 import { Designation } from '../../entities/designation.entity';
@@ -13,7 +8,13 @@ import { CreateDesignationDto } from './dto/create-designation.dto';
 import { UpdateDesignationDto } from './dto/update-designation.dto';
 import { PaginationResponse } from '../../common/interfaces/pagination.interface';
 import { getPostgresErrorCode } from '../../common/types/database.types';
-const GLOBAL = '00000000-0000-0000-0000-000000000000';
+import { GLOBAL_SYSTEM_TENANT_ID } from '../../common/constants/enums';
+import { DESIGNATION_LIST_PAGE_SIZE, DESIGNATION_MESSAGES } from '../../common/constants/designation.constants';
+import type {
+  AllDesignationsAcrossTenantsResult,
+  DepartmentDesignationsGroup,
+  DesignationRemoveResult,
+} from './interfaces';
 
 @Injectable()
 export class DesignationService {
@@ -34,16 +35,11 @@ export class DesignationService {
     });
 
     if (!department) {
-      throw new BadRequestException(
-        'Department not found. Please select a valid department.',
-      );
+      throw new BadRequestException(DESIGNATION_MESSAGES.DEPARTMENT_NOT_FOUND);
     }
 
-    // Allow either tenant-specific or GLOBAL (default) department
-    if (department.tenant_id !== tenant_id && department.tenant_id !== GLOBAL) {
-      throw new BadRequestException(
-        'Department does not belong to your organization',
-      );
+    if (department.tenant_id !== tenant_id && department.tenant_id !== GLOBAL_SYSTEM_TENANT_ID) {
+      throw new BadRequestException(DESIGNATION_MESSAGES.DEPARTMENT_NOT_IN_ORG);
     }
 
     const existing = await this.designationRepo.findOne({
@@ -54,27 +50,23 @@ export class DesignationService {
     });
 
     if (existing) {
-      throw new ConflictException(
-        'Designation with this title already exists in this department',
-      );
+      throw new ConflictException(DESIGNATION_MESSAGES.TITLE_EXISTS_IN_DEPARTMENT);
     }
 
     try {
-      // Make designation explicitly tenant-based
       const designation = this.designationRepo.create({
-        ...dto,
+        title: dto.title,
+        department_id: dto.department_id,
         tenant_id,
       });
       return await this.designationRepo.save(designation);
     } catch (err) {
       const errorCode = getPostgresErrorCode(err);
       if (errorCode === '23505') {
-        throw new ConflictException(
-          'Title must be unique within the department',
-        );
+        throw new ConflictException(DESIGNATION_MESSAGES.TITLE_UNIQUE_IN_DEPARTMENT);
       }
       if (errorCode === '23502') {
-        throw new BadRequestException('Missing required fields');
+        throw new BadRequestException(DESIGNATION_MESSAGES.MISSING_REQUIRED_FIELDS);
       }
       throw err;
     }
@@ -87,51 +79,60 @@ export class DesignationService {
     });
 
     if (!designation) {
-      throw new NotFoundException('Designation not found.');
+      throw new NotFoundException(DESIGNATION_MESSAGES.NOT_FOUND_DOT);
     }
 
-    // Protect only GLOBAL template designations (tenant_id = GLOBAL)
-    if (designation.tenant_id === GLOBAL) {
-      throw new BadRequestException(
-        'Global designations are read-only reference templates and cannot be modified.',
-      );
+    if (designation.tenant_id === GLOBAL_SYSTEM_TENANT_ID) {
+      throw new BadRequestException(DESIGNATION_MESSAGES.GLOBAL_READ_ONLY_MODIFY);
     }
 
-    if (dto.title && dto.title !== designation.title) {
+    const targetDepartmentId = dto.department_id ?? designation.department_id;
+
+    if (dto.department_id !== undefined && dto.department_id !== designation.department_id) {
+      const department = await this.departmentRepo.findOne({
+        where: { id: dto.department_id },
+      });
+      if (!department) {
+        throw new BadRequestException(DESIGNATION_MESSAGES.DEPARTMENT_NOT_FOUND);
+      }
+      if (department.tenant_id !== designation.tenant_id && department.tenant_id !== GLOBAL_SYSTEM_TENANT_ID) {
+        throw new BadRequestException(DESIGNATION_MESSAGES.DEPARTMENT_NOT_IN_ORG);
+      }
+    }
+
+    if (dto.title !== undefined && dto.title !== designation.title) {
       const exists = await this.designationRepo.findOne({
         where: {
           title: dto.title,
-          department_id: designation.department_id,
+          department_id: targetDepartmentId,
         },
       });
 
       if (exists && exists.id !== id) {
-        throw new ConflictException(
-          `Title '${dto.title}' already exists in this department.`,
-        );
+        throw new ConflictException(DESIGNATION_MESSAGES.TITLE_ALREADY_IN_DEPARTMENT(dto.title));
       }
     }
 
-    Object.assign(designation, dto);
+    if (dto.title !== undefined) {
+      designation.title = dto.title;
+    }
+    if (dto.department_id !== undefined) {
+      designation.department_id = dto.department_id;
+    }
 
     try {
       return await this.designationRepo.save(designation);
     } catch (err) {
       const errorCode = getPostgresErrorCode(err);
       if (errorCode === '23505') {
-        throw new ConflictException(
-          'Title must be unique within the department',
-        );
+        throw new ConflictException(DESIGNATION_MESSAGES.TITLE_UNIQUE_IN_DEPARTMENT);
       }
       throw err;
     }
   }
 
-  async findAllByDepartment(
-    department_id: string,
-    page: number = 1,
-  ): Promise<PaginationResponse<Designation>> {
-    const limit = 25;
+  async findAllByDepartment(department_id: string, page: number = 1): Promise<PaginationResponse<Designation>> {
+    const limit = DESIGNATION_LIST_PAGE_SIZE;
     const skip = (page - 1) * limit;
     const [items, total] = await this.designationRepo.findAndCount({
       where: { department_id },
@@ -155,32 +156,28 @@ export class DesignationService {
       relations: ['department'],
     });
     if (!designation) {
-      throw new NotFoundException('Designation not found.');
+      throw new NotFoundException(DESIGNATION_MESSAGES.NOT_FOUND_DOT);
     }
     return designation;
   }
 
-  async remove(id: string): Promise<{ deleted: true; id: string }> {
+  async remove(id: string): Promise<DesignationRemoveResult> {
     const designation = await this.designationRepo.findOne({
       where: { id },
       relations: ['department', 'employees'],
     });
 
     if (!designation) {
-      throw new NotFoundException('Designation not found.');
+      throw new NotFoundException(DESIGNATION_MESSAGES.NOT_FOUND_DOT);
     }
 
-    // Protect only GLOBAL template designations
-    if (designation.tenant_id === GLOBAL) {
-      throw new BadRequestException(
-        'Global designations are read-only reference templates and cannot be deleted.',
-      );
+    if (designation.tenant_id === GLOBAL_SYSTEM_TENANT_ID) {
+      throw new BadRequestException(DESIGNATION_MESSAGES.GLOBAL_READ_ONLY_DELETE);
     }
 
-    // Block deletion if employees are still assigned
-    if (designation.employees && designation.employees.length > 0) {
+    if (designation.employees?.length) {
       throw new BadRequestException(
-        `Cannot delete designation "${designation.title}" because it has ${designation.employees.length} employee(s) assigned. Please reassign employees to other designations first.`,
+        DESIGNATION_MESSAGES.HAS_EMPLOYEES(designation.title, designation.employees.length),
       );
     }
 
@@ -190,36 +187,16 @@ export class DesignationService {
     } catch (err) {
       const errorCode = getPostgresErrorCode(err);
       if (errorCode === '23503') {
-        throw new BadRequestException(
-          'Cannot delete designation because it is still being referenced by employees. Please reassign employees to other designations first.',
-        );
+        throw new BadRequestException(DESIGNATION_MESSAGES.DELETE_BLOCKED_BY_FK);
       }
       throw err;
     }
   }
 
   /**
-   * Get all designations across all tenants (for system admin)
-   * @param tenantId - Optional tenant ID to filter by
-   * @returns Designations grouped by tenant and department
+   * System-admin: all designations across tenants. One query for designations (no N+1 per tenant).
    */
-  async getAllDesignationsAcrossTenants(tenantId?: string): Promise<{
-    tenants: Array<{
-      tenant_id: string;
-      tenant_name: string;
-      tenant_status: string;
-      departments: Array<{
-        department_id: string;
-        department_name: string;
-        designations: Array<{
-          id: string;
-          title: string;
-          created_at: Date;
-        }>;
-      }>;
-    }>;
-  }> {
-    // Get tenants (filter by tenantId if provided)
+  async getAllDesignationsAcrossTenants(tenantId?: string): Promise<AllDesignationsAcrossTenantsResult> {
     const tenantWhere: FindOptionsWhere<Tenant> = { deleted_at: IsNull() };
     if (tenantId) {
       tenantWhere.id = tenantId;
@@ -230,45 +207,34 @@ export class DesignationService {
       order: { name: 'ASC' },
     });
 
-    const result: Array<{
-      tenant_id: string;
-      tenant_name: string;
-      tenant_status: string;
-      departments: Array<{
-        department_id: string;
-        department_name: string;
-        designations: Array<{
-          id: string;
-          title: string;
-          created_at: Date;
-        }>;
-      }>;
-    }> = [];
+    if (tenants.length === 0) {
+      return { tenants: [] };
+    }
 
-      for (const tenant of tenants) {
-        // Get all designations for this tenant (explicitly tenant-based)
-        const designations = await this.designationRepo
-          .createQueryBuilder('designation')
-          .leftJoinAndSelect('designation.department', 'department')
-          .where('designation.tenant_id = :tenant_id', { tenant_id: tenant.id })
-          .orderBy('department.name', 'ASC')
-          .addOrderBy('designation.title', 'ASC')
-          .getMany();
+    const tenantIds = tenants.map((t) => t.id);
 
-      // Group designations by department
-      const departmentMap = new Map<string, {
-        department_id: string;
-        department_name: string;
-        designations: Array<{
-          id: string;
-          title: string;
-          created_at: Date;
-        }>;
-      }>();
+    const designations = await this.designationRepo
+      .createQueryBuilder('designation')
+      .leftJoinAndSelect('designation.department', 'department')
+      .where('designation.tenant_id IN (:...ids)', { ids: tenantIds })
+      .orderBy('department.name', 'ASC')
+      .addOrderBy('designation.title', 'ASC')
+      .getMany();
 
-      for (const desg of designations) {
+    const byTenantId = new Map<string, Designation[]>();
+    for (const d of designations) {
+      const list = byTenantId.get(d.tenant_id) ?? [];
+      list.push(d);
+      byTenantId.set(d.tenant_id, list);
+    }
+
+    const result = tenants.map((tenant) => {
+      const tenantDesignations = byTenantId.get(tenant.id) ?? [];
+      const departmentMap = new Map<string, DepartmentDesignationsGroup>();
+
+      for (const desg of tenantDesignations) {
         const deptId = desg.department_id;
-        const deptName = desg.department?.name || '';
+        const deptName = desg.department?.name ?? '';
 
         if (!departmentMap.has(deptId)) {
           departmentMap.set(deptId, {
@@ -285,16 +251,13 @@ export class DesignationService {
         });
       }
 
-      // Convert map to array
-      const departments = Array.from(departmentMap.values());
-
-      result.push({
+      return {
         tenant_id: tenant.id,
         tenant_name: tenant.name,
         tenant_status: tenant.status,
-        departments: departments,
-      });
-    }
+        departments: Array.from(departmentMap.values()),
+      };
+    });
 
     return { tenants: result };
   }
