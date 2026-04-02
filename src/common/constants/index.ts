@@ -4,5 +4,6 @@ export * from './auth.constants';
 export * from './config.defaults';
 export * from './employee.constants';
 export * from './department.constants';
+export * from './designation.constants';
 export * from './file-storage.constants';
 export * from './enums';
