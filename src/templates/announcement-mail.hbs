@@ -1,43 +1,64 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <title>{{ title }} | {{ companyName }}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 </head>
+
 <body style="margin:0; padding:0; background-color:#f4f6fb;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f4f6fb;">
     <tr>
       <td align="center" style="padding:24px 16px;">
         <!-- Card wrapper -->
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:640px; background-color:#ffffff; border-radius:18px; box-shadow:0 10px 30px rgba(15,23,42,0.10);">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+          style="max-width:640px; background-color:#f8f8f8; border-radius:18px; box-shadow:0 10px 30px rgba(15,23,42,0.10);">
           <!-- Top header (logo + social icons) -->
           <tr>
-            <td style="padding:28px 36px 0 36px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+            <td style="padding:28px 32px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                 <tr>
                   <td align="left" valign="middle">
-                    <img src="{{ companyLogoUrl }}" alt="{{ companyName }} Logo" width="176" style="vertical-align:middle; margin-right:8px;" />
+                    <img src="{{ companyLogoUrl }}" alt="Workonnect.ai"
+                      style="display:block; height:26px; max-width:190px;" />
                   </td>
                   <td align="right" valign="middle">
                     <table role="presentation" cellspacing="0" cellpadding="0" border="0">
                       <tr>
                         <td style="padding-left:10px;">
-                          <a href="{{linkedinUrl}}" style="display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:4px; text-decoration:none;">
+                          <a href="{{linkedinUrl}}"
+                            style="width:24px; height:24px; border-radius:4px; text-decoration:none;">
                             <!-- LinkedIn icon -->
-                            <img src="{{ linkedin_logo_url }}" alt="LinkedIn" width="20" height="20" style="display:block;">
+                            <img src="{{ linkedin_logo_url }}" alt="linkedin" style="
+                          width: 19.5px;
+                          height: 19.5px;
+                          margin-right: 10px;
+                          display: inline-block;
+                        " />
                           </a>
                         </td>
                         <td style="padding-left:10px;">
-                          <a href="{{instagramUrl}}" style="display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:4px; text-decoration:none;">
+                          <a href="{{instagramUrl}}"
+                            style="width:24px; height:24px; border-radius:4px; text-decoration:none;">
                             <!-- Instagram icon -->
-                            <img src="{{ instagram_logo_url }}" alt="Instagram" width="20" height="20" style="display:block;">
+                            <img src="{{ instagram_logo_url }}" alt="instagram" style="
+                          width: 19.5px;
+                          height: 19.5px;
+                          margin-right: 10px;
+                          display: inline-block;
+                        " />
                           </a>
                         </td>
                         <td style="padding-left:10px;">
-                          <a href="{{twitterUrl}}" style="display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:4px; text-decoration:none;">
+                          <a href="{{twitterUrl}}"
+                            style="width:24px; height:24px; border-radius:4px; text-decoration:none;">
                             <!-- X icon -->
-                            <img src="{{ x_logo_url }}" alt="X" width="20" height="20" style="display:block;">
+                            <img src="{{ x_logo_url }}" alt="x" style="
+                          width: 19.5px;
+                          height: 19.5px;
+                          display: inline-block;
+                        " />
                           </a>
                         </td>
                       </tr>
@@ -45,57 +66,77 @@
                   </td>
                 </tr>
               </table>
-              <!-- Red title banner -->
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:22px;">
+              <!-- SPACE -->
+              <table width="100%">
                 <tr>
-                  <td style="background-color: {{ style.color }};  border-radius:8px 8px 0 0; padding:24px 16px; text-align:center;">
-                    <p style="margin:0; font-size:20px; line-height:32px; font-weight:600; color:#2C2C2C;">
-                      {{ title }}
-                    </p>
-                    <p style="margin:8px 0 0 0; font-size:14px; line-height:20px; font-weight:400; color:#2C2C2C;">
-                      {{ category }} | {{ style.badge }}
-                    </p>
-                  </td>
+                  <td height="15"></td>
                 </tr>
               </table>
-              <!-- Greeting -->
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+              <!-- ✅ SINGLE GREY CONTAINER -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background: #ffffff; border-radius: 8px">
                 <tr>
-                  <td style="padding:22px 0 0 0; font-size:15px; line-height:24px; color:#4b5563;">
-                    <p style="margin:0;">
-                      Hi <span style="font-weight:700; color:#2680D9;">{{name}}</span>,
-                    </p>
-                  </td>
-                </tr>
-              </table>
-              <!-- Message box -->
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
-                     style="margin-top:14px; border-radius:12px; background-color:#ffffff; font-size:14px; line-height:22px; color:#111827;">
-                <tr>
-                  <td width="4" style="background-color:#2680D9;">
-                    &nbsp;
-                  </td>
-                  <td style="padding:14px ">
-                    <p style="margin:0; font-weight:400; color:#2C2C2C;">
-                      {{ message }}
-                    </p>
-                  </td>
-                </tr>
-              </table>
-              <!-- Body text -->
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-                <tr>
-                  <td style="padding-top:18px; font-size:15px; line-height:24px; color:#656565
+                  <td>
+                    <!-- Red title banner -->
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                      <tr>
+                        <td
+                          style="background-color: {{ style.color }};  border-radius:8px 8px 0 0; padding:24px 16px; text-align:center;">
+                          <p style="margin:0; font-size:20px; line-height:32px; font-weight:600; color:#2C2C2C;">
+                            {{ title }}
+                          </p>
+                          <p
+                            style="margin:8px 0 0 0; font-size:14px; line-height:20px; font-weight:400; color:#2C2C2C;">
+                            {{ category }} | {{ style.badge }}
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                    <!-- Greeting -->
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                      <tr>
+                        <td style="padding:22px 0px 0px 32px; font-size:16px; line-height:24px; color:#656565;">
+                          <p style="margin:0;">
+                            Hi <span style="font-weight:500; color:#2680D9;">{{name}}</span>,
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                    <!-- Message box -->
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+                      style="margin-top:14px; border-radius:12px; background-color:#ffffff; font-size:14px; line-height:22px; color:#111827; padding:22px 0px 0px 32px;">
+                      <tr>
+                        <td width="4" style="background-color:#2680D9;">
+                          &nbsp;
+                        </td>
+                        <td style="padding:14px ">
+                          <p style="margin:0; font-weight:400; color:#2C2C2C; font-size: 16px;">
+                            {{ message }}
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                    <!-- Body text -->
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                      <tr>
+                        <td style="padding:22px 0px 20px 32px; font-size:14px; line-height:24px; color:#656565
 ;">
-                    <p style="margin:0;">
-                      This is an official announcement from your organization. Please take note accordingly.
-                    </p>
+                          <p style="margin:0;">
+                            This is an official announcement from your organization. Please take note accordingly.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+
                   </td>
                 </tr>
               </table>
+
+
               <!-- Spacer -->
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-                <tr><td style="height:26px; line-height:26px; font-size:0;">&nbsp;</td></tr>
+                <tr>
+                  <td style="height:26px; line-height:26px; font-size:0;">&nbsp;</td>
+                </tr>
               </table>
               <!-- Copyright -->
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
@@ -110,30 +151,45 @@
               <!-- Divider -->
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                 <tr>
-                  <td style="border-top:1px solid #e5e7eb; font-size:0; line-height:0;">&nbsp;</td>
+                  <td style="border-top:1px solid #dcdcdc; font-size:0; line-height:0;">&nbsp;</td>
                 </tr>
               </table>
               <!-- Automated message line -->
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                 <tr>
-                  <td style="padding-top:14px; font-size:14px; line-height:20px; color:#6b7280; text-align:center;">
+                  <td style="padding-top:14px; font-size:12px; line-height:20px; color:#656565; text-align:center;">
                     <p style="margin:0;">
-                      You're receiving this because you're part of [companyName] on Workonnect.ai. This is an automated message, please do not reply.
+                      You're receiving this because you're part of [companyName] on Workonnect.ai. This is an automated
+                      message, please do not reply.
                     </p>
                   </td>
                 </tr>
-              </table>
-              <!-- Footer links -->
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="padding:18px 0 28px 0;">
                 <tr>
-                  <td align="left" style="width:33.33%; text-align:left;">
-                    <a href="{{privacyUrl}}" style="color:#2680D9;text-decoration:underline; font-size:16px; font-weight:500;">Privacy Policy</a>
-                  </td>
-                  <td align="center" style="width:33.33%; text-align:center;">
-                    <a href="{{termsUrl}}" style="color:#2680D9; text-decoration:underline; font-size:16px; font-weight:500;">Terms of Service</a>
-                  </td>
-                  <td align="right" style="width:33.33%; text-align:right;">
-                    <a href="{{unsubscribeUrl}}" style="color:#2680D9; text-decoration:underline; font-size:16px; font-weight:500;">Unsubscribe</a>
+                  <td height="8"></td>
+                </tr>
+
+                <tr>
+                  <td align="center">
+                    <table cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td style="font-size: 12px">
+                          <a href="#" style="color: #2680d9">Privacy Policy</a>
+                        </td>
+
+                        <td width="150"></td>
+                        <!-- gap -->
+                        <td style="font-size: 12px">
+                          <a href="#" style="color: #2680d9">Terms of Service</a>
+                        </td>
+
+                        <td width="150"></td>
+                        <!-- gap -->
+
+                        <td style="font-size: 12px">
+                          <a href="#" style="color: #2680d9">Unsubscribe</a>
+                        </td>
+                      </tr>
+                    </table>
                   </td>
                 </tr>
               </table>
@@ -145,4 +201,5 @@
     </tr>
   </table>
 </body>
+
 </html>
