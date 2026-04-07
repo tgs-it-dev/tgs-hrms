@@ -43,7 +43,14 @@ export class RolesPermissionsService {
 
   private loadConfig(): void {
     try {
-      const configPath = join(process.cwd(), 'src', 'config', 'roles-permissions.json');
+      // Resolve next to compiled output (dist/src/...) or source (src/...) so production does not depend on cwd or a missing src/ tree.
+      const configPath = join(
+        __dirname,
+        '..',
+        '..',
+        'config',
+        'roles-permissions.json',
+      );
       const configFile = readFileSync(configPath, 'utf8');
       this.config = JSON.parse(configFile);
       this.logger.log('Roles and permissions configuration loaded successfully');
