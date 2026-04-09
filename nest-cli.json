@@ -9,6 +9,11 @@
         "include": "config/**/*.json",
         "outDir": "dist/src",
         "watchAssets": true
+      },
+      {
+        "include": "templates/**/*",
+        "outDir": "dist/src",
+        "watchAssets": true
       }
     ]
   }
