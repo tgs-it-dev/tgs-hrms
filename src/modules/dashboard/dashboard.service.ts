@@ -2,15 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, In } from 'typeorm';
 import { Employee } from '../../entities/employee.entity';
-import { EmployeeSalary } from '../../entities/employee-salary.entity';
-import { PayrollRecord } from '../../entities/payroll-record.entity';
 import { Attendance } from '../../entities/attendance.entity';
 import { Department } from '../../entities/department.entity';
 import { Designation } from '../../entities/designation.entity';
 import { Team } from '../../entities/team.entity';
 import { User } from '../../entities/user.entity';
 import { Leave } from '../../entities/leave.entity';
-import { AttendanceType, CheckInApprovalStatus, LeaveStatus, PayrollStatus, UserRole } from '../../common/constants/enums';
+import { AttendanceType, CheckInApprovalStatus, LeaveStatus, UserRole } from '../../common/constants/enums';
 import { EmployeeService } from '../employee/services/employee.service';
 
 type CacheEntry<T> = {
@@ -26,10 +24,6 @@ export class DashboardService {
   constructor(
     @InjectRepository(Employee)
     private readonly employeeRepo: Repository<Employee>,
-    @InjectRepository(EmployeeSalary)
-    private readonly employeeSalaryRepo: Repository<EmployeeSalary>,
-    @InjectRepository(PayrollRecord)
-    private readonly payrollRecordRepo: Repository<PayrollRecord>,
     @InjectRepository(Attendance)
     private readonly attendanceRepo: Repository<Attendance>,
     @InjectRepository(Department)
@@ -128,51 +122,10 @@ export class DashboardService {
     // total employees (within scoped set)
     const totalEmployees = employeeIds.length;
 
-    // Active salaries for scoped employees
-    const salaries = await this.employeeSalaryRepo.find({
-      where: {
-        employee_id: In(employeeIds),
-        tenant_id: tenantId,
-        status: 'active',
-      },
-    });
-
-    // Total salary liability calculation:
-    // 1. Get netSalary for generated records (paid or unpaid)
-    // 2. Get baseSalary for those whose payroll isn't generated yet
-    const month = now.getMonth() + 1;
-    const year = now.getFullYear();
-
-    const payrollRecords = await this.payrollRecordRepo.find({
-      where: {
-        tenant_id: tenantId,
-        month,
-        year,
-        employee_id: In(employeeIds),
-      },
-    });
-
-    const generatedEmployeeIds = new Set(payrollRecords.map((r) => r.employee_id));
-
-    let salaryPaid = 0;
-    let salaryUnpaid = 0;
-
-    for (const record of payrollRecords) {
-      const net = Number(record.netSalary || 0);
-      if (record.status === PayrollStatus.PAID) {
-        salaryPaid += net;
-      } else {
-        salaryUnpaid += net;
-      }
-    }
-
-    // Add baseSalary for employees without generated records to unpaid pool
-    const ungeneratedEmployees = salaries.filter(s => !generatedEmployeeIds.has(s.employee_id));
-    for (const s of ungeneratedEmployees) {
-      salaryUnpaid += Number(s.baseSalary || 0);
-    }
-
-    const totalSalary = salaryPaid + salaryUnpaid;
+    
+    const totalSalary = 0;
+    const salaryPaid = 0;
+    const salaryUnpaid = 0;
 
     // Employees present today (based on today's check-in/out)
     const attendanceRecords = await this.attendanceRepo.find({
@@ -352,45 +305,11 @@ export class DashboardService {
       return empty;
     }
 
-    // Fetch active salaries to account for ungenerated payroll liability
-    const salaries = await this.employeeSalaryRepo.find({
-      where: {
-        employee_id: In(employeeIds),
-        tenant_id: tenantId,
-        status: 'active',
-      },
-    });
-
-    const records = await this.payrollRecordRepo.find({
-      where: {
-        tenant_id: tenantId,
-        month,
-        year,
-        employee_id: In(employeeIds),
-      },
-    });
-
-    const paidRecords = records.filter((r) => r.status === PayrollStatus.PAID);
-    const unpaidRecords = records.filter((r) => r.status !== PayrollStatus.PAID);
-    const generatedEmployeeIds = new Set(records.map((r) => r.employee_id));
-
-    let paidSalary = paidRecords.reduce((sum, r) => sum + Number(r.netSalary || 0), 0);
-    let unpaidSalary = unpaidRecords.reduce((sum, r) => sum + Number(r.netSalary || 0), 0);
-
-    // Add baseSalary for employees without generated records to unpaid pool
-    const ungeneratedEmployees = salaries.filter(s => !generatedEmployeeIds.has(s.employee_id));
-    for (const s of ungeneratedEmployees) {
-      unpaidSalary += Number(s.baseSalary || 0);
-    }
-
-    const paidEmployees = new Set(paidRecords.map((r) => r.employee_id)).size;
-    const unpaidEmployees = employeeIds.length - paidEmployees;
-
     const result = {
-      paid_salary: Number(paidSalary.toFixed(2)),
-      unpaid_salary: Number(unpaidSalary.toFixed(2)),
-      paid_employees: paidEmployees,
-      unpaid_employees: unpaidEmployees,
+      paid_salary: 0,
+      unpaid_salary: 0,
+      paid_employees: 0,
+      unpaid_employees: 0,
       month,
       year,
     };
@@ -652,49 +571,10 @@ export class DashboardService {
       message: 'Pending check-in approval',
     }));
 
-    // Salary issues: payroll records not PAID for current or past months
-    const salaryIssues: any[] = [];
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1;
-
-    const payrollIssues = await this.payrollRecordRepo
-      .createQueryBuilder('record')
-      .leftJoinAndSelect('record.employee', 'employee')
-      .leftJoinAndSelect('employee.user', 'user')
-      .where('record.tenant_id = :tenantId', { tenantId })
-      .andWhere('record.employee_id IN (:...employeeIds)', { employeeIds: scopedUserIds.length ? scopedUserIds : ['-'] })
-      .andWhere(
-        '(record.year < :year OR (record.year = :year AND record.month <= :month))',
-        { year, month },
-      )
-      .andWhere('record.status != :paidStatus', { paidStatus: PayrollStatus.PAID })
-      .getMany();
-
-    for (const rec of payrollIssues) {
-      if (!rec.employee || !rec.employee.user) continue;
-      salaryIssues.push({
-        id: rec.id,
-        employee_id: rec.employee_id,
-        employee: {
-          first_name: rec.employee.user.first_name,
-          last_name: rec.employee.user.last_name,
-          email: rec.employee.user.email,
-        },
-        month: rec.month,
-        year: rec.year,
-        net_salary: Number(rec.netSalary || 0),
-        status: rec.status,
-        message:
-          rec.status === PayrollStatus.REJECTED
-            ? 'Rejected payroll record'
-            : 'Unpaid payroll record',
-      });
-    }
-
     const result = {
       auto_checkouts: autoCheckouts,
       pending_approvals: pendingApprovals,
-      salary_issues: salaryIssues,
+      salary_issues: [] as any[],
       timestamp: now.toISOString(),
     };
 

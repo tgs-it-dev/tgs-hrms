@@ -9,7 +9,6 @@ import {
   Index,
 } from "typeorm";
 
-import { EmployeeBenefit } from "./employee-benefit.entity";
 import { User } from './user.entity';
 import { Designation } from './designation.entity';
 import { Team } from './team.entity';
@@ -77,12 +76,6 @@ export class Employee {
   })
   @JoinColumn({ name: "team_id" })
   team: Team;
-
-  @OneToMany(
-    () => EmployeeBenefit,
-    (employeeBenefit) => employeeBenefit.employee,
-  )
-  employeeBenefits: EmployeeBenefit[];
 
   @OneToMany(() => EmployeeKpi, (employeeKpi) => employeeKpi.employee)
   employeeKpis: EmployeeKpi[];
