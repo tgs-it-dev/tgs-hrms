@@ -11,7 +11,7 @@ import * as path from "path";
 import * as Handlebars from "handlebars";
 import { getFrontendUrls } from "../frontend-urls.utilis";
 
-const TEMPLATES_DIR = path.join(process.cwd(), "src", "templates");
+const TEMPLATES_DIR = path.join(__dirname, "..", "..", "..", "templates");
 
 /** Payload for the "new team member joined" announcement email */
 export interface NewTeamMemberAnnouncementPayload {
