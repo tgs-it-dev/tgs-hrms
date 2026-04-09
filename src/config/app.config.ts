@@ -56,6 +56,13 @@ export interface AppConfig {
     endpoint?: string;
     publicUrlBase?: string;
   };
+  frontend: {
+    url: string;
+    linkedin_logo_url: string;
+    x_logo_url: string;
+    instagram_logo_url: string;
+    companyLogoUrl: string;
+  };
 }
 
 export const getAppConfig = (_configService: ConfigService): AppConfig => {
@@ -119,6 +126,13 @@ export const getAppConfig = (_configService: ConfigService): AppConfig => {
       secretAccessKey: envVars.AWS_SECRET_ACCESS_KEY || '',
       endpoint: envVars.AWS_S3_ENDPOINT,
       publicUrlBase: envVars.AWS_S3_PUBLIC_URL_BASE,
+    },
+    frontend: {
+      url: envVars.FRONTEND_URL || "http://localhost:5173",
+      linkedin_logo_url: `${envVars.FRONTEND_URL || "http://localhost:5173"}/public/linkedin.png`,
+      x_logo_url: `${envVars.FRONTEND_URL || "http://localhost:5173"}/public/x.png`,
+      instagram_logo_url: `${envVars.FRONTEND_URL || "http://localhost:5173"}/public/instagram.png`,
+      companyLogoUrl: `${envVars.FRONTEND_URL || "http://localhost:5173"}/public/logo.png`,
     },
   };
 };

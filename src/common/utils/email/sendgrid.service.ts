@@ -9,8 +9,9 @@ import * as sgMail from "@sendgrid/mail";
 import * as fs from "fs";
 import * as path from "path";
 import * as Handlebars from "handlebars";
+import { getFrontendUrls } from "../frontend-urls.utilis";
 
-const TEMPLATES_DIR = path.join(process.cwd(), "src", "templates");
+const TEMPLATES_DIR = path.join(__dirname, "..", "..", "..", "templates");
 
 /** Payload for the "new team member joined" announcement email */
 export interface NewTeamMemberAnnouncementPayload {
@@ -66,7 +67,13 @@ export class SendGridService {
     userName: string,
     companyName: string,
   ): Promise<void> {
-    const frontendUrl = this.configService.get<string>("FRONTEND_URL");
+    const {
+      url: frontendUrl,
+      linkedin_logo_url,
+      x_logo_url,
+      instagram_logo_url,
+      companyLogoUrl,
+    } = getFrontendUrls(this.configService);
     const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
     const fromEmail = this.configService.get<string>("SENDGRID_FROM");
 
@@ -82,6 +89,14 @@ export class SendGridService {
       termsUrl: this.configService.get<string>("TERMS_URL") ?? "#",
       unsubscribeUrl: this.configService.get<string>("UNSUBSCRIBE_URL") ?? "#",
       companyName: companyName ?? "your organization",
+      linkedinUrl: this.configService.get<string>("LINKEDIN_URL") ?? "#",
+      instagramUrl: this.configService.get<string>("INSTAGRAM_URL") ?? "#",
+      twitterUrl: this.configService.get<string>("TWITTER_URL") ?? "#",
+      linkedin_logo_url,
+      x_logo_url,
+      instagram_logo_url,
+      companyLogoUrl,
+      current_year: new Date().getFullYear(),
     };
 
     const html = this.renderTemplate("password-reset", context);
@@ -117,6 +132,13 @@ export class SendGridService {
       return;
     }
 
+    const {
+      linkedin_logo_url,
+      x_logo_url,
+      instagram_logo_url,
+      companyLogoUrl,
+    } = getFrontendUrls(this.configService);
+
     const context = {
       userName,
       privacyPolicyUrl:
@@ -125,6 +147,14 @@ export class SendGridService {
       termsUrl: this.configService.get<string>("TERMS_URL") ?? "#",
       unsubscribeUrl: this.configService.get<string>("UNSUBSCRIBE_URL") ?? "#",
       companyName: companyName ?? "your organization",
+      linkedinUrl: this.configService.get<string>("LINKEDIN_URL") ?? "#",
+      instagramUrl: this.configService.get<string>("INSTAGRAM_URL") ?? "#",
+      twitterUrl: this.configService.get<string>("TWITTER_URL") ?? "#",
+      linkedin_logo_url,
+      x_logo_url,
+      instagram_logo_url,
+      companyLogoUrl,
+      current_year: new Date().getFullYear(),
     };
 
     const html = this.renderTemplate("password-reset-success", context);
@@ -153,7 +183,13 @@ export class SendGridService {
     userName: string,
     companyName: string,
   ): Promise<void> {
-    const frontendUrl = this.configService.get<string>("FRONTEND_URL");
+    const {
+      url: frontendUrl,
+      linkedin_logo_url,
+      x_logo_url,
+      instagram_logo_url,
+      companyLogoUrl,
+    } = getFrontendUrls(this.configService);
     const resetUrl = `${frontendUrl}/confirm-password?token=${resetToken}`;
     const fromEmail = this.configService.get<string>("SENDGRID_FROM");
 
@@ -169,6 +205,14 @@ export class SendGridService {
       privacyUrl: this.configService.get<string>("PRIVACY_POLICY_URL") ?? "#",
       termsUrl: this.configService.get<string>("TERMS_URL") ?? "#",
       unsubscribeUrl: this.configService.get<string>("UNSUBSCRIBE_URL") ?? "#",
+      linkedinUrl: this.configService.get<string>("LINKEDIN_URL") ?? "#",
+      instagramUrl: this.configService.get<string>("INSTAGRAM_URL") ?? "#",
+      twitterUrl: this.configService.get<string>("TWITTER_URL") ?? "#",
+      linkedin_logo_url,
+      x_logo_url,
+      instagram_logo_url,
+      companyLogoUrl,
+      current_year: new Date().getFullYear(),
     };
 
     const html = this.renderTemplate("employee-welcome", context);
@@ -268,7 +312,14 @@ export class SendGridService {
       return;
     }
 
-    const frontendUrl = this.configService.get<string>("FRONTEND_URL") ?? "#";
+    const {
+      url: frontendUrl,
+      linkedin_logo_url,
+      x_logo_url,
+      instagram_logo_url,
+      companyLogoUrl,
+    } = getFrontendUrls(this.configService);
+
     const context = {
       recipientName: payload.recipientName ?? "there",
       name: payload.newMember.name,
@@ -287,6 +338,14 @@ export class SendGridService {
       privacyUrl: this.configService.get<string>("PRIVACY_POLICY_URL") ?? "#",
       termsUrl: this.configService.get<string>("TERMS_URL") ?? "#",
       unsubscribeUrl: this.configService.get<string>("UNSUBSCRIBE_URL") ?? "#",
+      linkedinUrl: this.configService.get<string>("LINKEDIN_URL") ?? "#",
+      instagramUrl: this.configService.get<string>("INSTAGRAM_URL") ?? "#",
+      twitterUrl: this.configService.get<string>("TWITTER_URL") ?? "#",
+      linkedin_logo_url,
+      x_logo_url,
+      instagram_logo_url,
+      companyLogoUrl,
+      current_year: new Date().getFullYear(),
     };
 
     const html = this.renderTemplate("member-joined", context);
@@ -323,6 +382,7 @@ export class SendGridService {
     content: string,
     category: string,
     priority: string,
+    companyName: string,
   ): Promise<void> {
     const fromEmail = this.configService.get<string>("SENDGRID_FROM");
 
@@ -335,9 +395,9 @@ export class SendGridService {
 
     // Priority-based styling
     const priorityStyles: Record<string, { color: string; badge: string }> = {
-      low: { color: "#28a745", badge: "Low Priority" },
-      medium: { color: "#ffc107", badge: "Medium Priority" },
-      high: { color: "#dc3545", badge: "High Priority" },
+      low: { color: "#66FF99", badge: "Low Priority" },
+      medium: { color: "#FFCC66", badge: "Medium Priority" },
+      high: { color: "#FF6767", badge: "High Priority" },
     };
 
     const categoryLabels: Record<string, string> = {
@@ -351,41 +411,40 @@ export class SendGridService {
     const style = priorityStyles[priority] || priorityStyles.medium;
     const categoryLabel = categoryLabels[category] || "Announcement";
 
+    const {
+      linkedin_logo_url,
+      x_logo_url,
+      instagram_logo_url,
+      companyLogoUrl,
+    } = getFrontendUrls(this.configService);
+
+    const context = {
+      name: recipientName,
+      title,
+      message: content,
+      category: categoryLabel,
+      companyName,
+      style,
+      privacyUrl: this.configService.get<string>("PRIVACY_POLICY_URL") ?? "#",
+      termsUrl: this.configService.get<string>("TERMS_URL") ?? "#",
+      unsubscribeUrl: this.configService.get<string>("UNSUBSCRIBE_URL") ?? "#",
+      linkedinUrl: this.configService.get<string>("LINKEDIN_URL") ?? "#",
+      instagramUrl: this.configService.get<string>("INSTAGRAM_URL") ?? "#",
+      twitterUrl: this.configService.get<string>("TWITTER_URL") ?? "#",
+      linkedin_logo_url,
+      x_logo_url,
+      instagram_logo_url,
+      companyLogoUrl,
+      current_year: new Date().getFullYear(),
+    };
+
+    const html = this.renderTemplate("announcement-mail", context);
+
     const msg = {
       to: recipientEmail,
       from: fromEmail,
       subject: `${priority === "high" ? "🔴 " : ""}${categoryLabel}: ${title}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
-          <!-- Header -->
-          <div style="background-color: ${style.color}; color: white; padding: 20px; text-align: center;">
-            <h1 style="margin: 0; font-size: 24px;">${title}</h1>
-            <p style="margin: 8px 0 0 0; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">
-              ${categoryLabel} | ${style.badge}
-            </p>
-          </div>
-          
-          <!-- Body -->
-          <div style="padding: 30px; background-color: #f9f9f9;">
-            <p style="margin-top: 0;">Hello ${recipientName},</p>
-            
-            <div style="background-color: white; padding: 20px; border-radius: 6px; border-left: 4px solid ${style.color}; margin: 20px 0;">
-              ${content.replace(/\n/g, "<br>")}
-            </div>
-            
-            <p style="color: #666; font-size: 14px; margin-bottom: 0;">
-              This is an official announcement from your organization. Please take note accordingly.
-            </p>
-          </div>
-          
-          <!-- Footer -->
-          <div style="background-color: #f0f0f0; padding: 15px; text-align: center; border-top: 1px solid #e0e0e0;">
-            <p style="margin: 0; color: #888; font-size: 12px;">
-              This is an automated message from your HRMS. Please do not reply to this email.
-            </p>
-          </div>
-        </div>
-      `,
+      html,
     };
 
     try {

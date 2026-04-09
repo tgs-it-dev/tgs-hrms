@@ -1,206 +1,311 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Welcome to HRMS – Set Your Password</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="margin:0; padding:0; background-color:#f4f6fb;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f4f6fb;">
-    <tr>
-      <td align="center" style="padding:24px 16px;">
-        <!-- Card wrapper -->
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:640px; background-color:#ffffff; border-radius:18px; box-shadow:0 10px 30px rgba(15,23,42,0.10);">
-          <tr>
-            <td style="padding:28px 36px 32px 36px; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; color:#111827;">
-              <!-- Header row -->
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-                <tr>
-                  <td align="left" valign="middle">
-                    <!-- Logo text -->
-                    <span style="font-size:22px; font-weight:800; color:#111827;">
-                      <span style="color:#2563eb;">Work</span>onnect.ai
-                    </span>
-                  </td>
-                  <td align="right" valign="middle">
-                    <!-- Social icons -->
-                    <table role="presentation" cellspacing="0" cellpadding="0" border="0">
-                      <tr>
-                        <td style="padding-left:10px;">
-                          <a href="#"
-                             style="display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:4px; text-decoration:none; background-color:transparent; border:none;">
-                            <!-- LinkedIn icon -->
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="30 30 180 180" width="20" height="20" aria-hidden="true" style="display:block;">
-                              <g transform="translate(0,240) scale(0.1,-0.1)" fill="#111827" stroke="none">
-                                <path d="M392 2060 c-18 -11 -41 -34 -52 -52 -19 -32 -20 -52 -20 -808 0 -756
-                                1 -776 20 -808 11 -18 34 -41 52 -52 32 -19 52 -20 808 -20 756 0 776 1 808
-                                20 18 11 41 34 52 52 19 32 20 52 20 808 0 756 -1 776 -20 808 -11 18 -34 41
-                                -52 52 -32 19 -52 20 -808 20 -756 0 -776 -1 -808 -20z m438 -308 c38 -28 63
-                                -86 56 -127 -14 -72 -88 -122 -158 -108 -39 8 -93 62 -101 100 -23 115 109
-                                203 203 135z m761 -357 c55 -20 106 -67 131 -122 25 -56 37 -200 38 -440 l0
-                                -193 -114 0 -115 0 -3 243 c-3 260 -9 291 -60 318 -30 16 -109 14 -145 -4 -56
-                                -29 -63 -68 -63 -327 l0 -230 -115 0 -115 0 0 375 0 375 110 0 110 0 0 -52 0
-                                -53 30 37 c46 56 120 88 201 88 36 0 86 -7 110 -15z m-721 -380 l0 -375 -110
-                                0 -110 0 0 375 0 375 110 0 110 0 0 -375z"/>
-                              </g>
-                            </svg>
-                          </a>
-                        </td>
-                        <td style="padding-left:10px;">
-                          <a href="#"
-                             style="display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:4px; text-decoration:none; background-color:transparent; border:none;">
-                            <!-- Instagram icon -->
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="display:block;">
-                              <path d="M 6.9980469,0 C 3.1390469,0 0,3.1419531 0,7.001953 v 10 C 0,20.860953 3.1419531,24 7.001953,24 h 10 C 20.860953,24 24,20.858047 24,16.998047 V 6.9980469 C 24,3.1390469 20.858047,0 16.998047,0 Z M 19,4 c 0.552,0 1,0.448 1,1 0,0.552 -0.448,1 -1,1 -0.552,0 -1,-0.448 -1,-1 0,-0.552 0.448,-1 1,-1 z m -7,2 c 3.309,0 6,2.691 6,6 0,3.309 -2.691,6 -6,6 C 8.691,18 6,15.309 6,12 6,8.691 8.691,6 12,6 Z m 0,2 a 4,4 0 0 0 -4,4 4,4 0 0 0 4,4 4,4 0 0 0 4,-4 4,4 0 0 0 -4,-4 z"
-                                    fill="#111827" />
-                            </svg>
-                          </a>
-                        </td>
-                        <td style="padding-left:10px;">
-                          <a href="#"
-                             style="display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:4px; text-decoration:none; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif; font-size:15px; font-weight:600; color:#111827;">
-                            <!-- X icon -->
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30" width="20" height="20" aria-hidden="true" style="display:block;">
-                              <path d="M26.37,26l-8.795-12.822l0.015,0.012L25.52,4h-2.65l-6.46,7.48L11.28,4H4.33l8.211,11.971L12.54,15.97L3.88,26h2.65 l7.182-8.322L19.42,26H26.37z M10.23,6l12.34,18h-2.1L8.12,6H10.23z" fill="#111827"/>
-                            </svg>
-                          </a>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-              </table>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Welcome to HRMS – Set Your Password</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
 
-              <!-- Spacing -->
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-                <tr><td style="height:28px; line-height:28px; font-size:0;">&nbsp;</td></tr>
-              </table>
-
-              <!-- Title -->
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-                <tr>
-                  <td>
-                    <p style="margin:0 0 16px 0; font-size:24px; line-height:32px; font-weight:700; color:#111827;">
-                      Welcome to HRMS 🎉
-                    </p>
-                  </td>
-                </tr>
-              </table>
-
-              <!-- Greeting + intro -->
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-                <tr>
-                  <td style="font-size:15px; line-height:24px; color:#4b5563;">
-                    <p style="margin:0 0 8px 0;">
-                      Hello <span style="font-weight:600;">{{userName}}</span>,
-                    </p>
-                    <p style="margin:0 0 8px 0;">
-                      Your account has been created successfully. You're one step away from managing your HR operations smarter and faster.
-                    </p>
-                    <p style="margin:0 0 20px 0;">
-                      To get started, set your password by clicking the button below:
-                    </p>
-                  </td>
-                </tr>
-              </table>
-
-              <!-- Primary button -->
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="start">
-                <tr>
-                  <td align="center" bgcolor="#1976d2" style="border-radius:4px;">
-                    <a href="{{resetUrl}}" target="_blank"
-                       style="display:inline-block; padding:14px 32px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:10px;">
-                      Set Your Password
-                    </a>
-                  </td>
-                </tr>
-              </table>
-
-              <!-- Spacing -->
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-                <tr><td style="height:24px; line-height:24px; font-size:0;">&nbsp;</td></tr>
-              </table>
-
-              <!-- Fallback link and info -->
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-                <tr>
-                  <td style="font-size:13px; line-height:20px; color:#6b7280;">
-                    <p style="margin:0 0 10px 0;">
-                      Or copy this link into your browser:
-                    </p>
-                    <p style="margin:0 0 10px 0; word-break:break-all;">
-                      <a href="{{resetUrl}}" style="color:#2563eb; text-decoration:underline;">
-                        {{resetUrl}}
+  <body style="margin: 0; padding: 0; background-color: #f4f6fb">
+    <table
+      width="100%"
+      cellpadding="0"
+      cellspacing="0"
+      style="background: #f4f6fb"
+    >
+      <tr>
+        <td align="center" style="padding: 24px">
+          <!-- OUTER RED -->
+          <table
+            width="100%"
+            cellpadding="0"
+            cellspacing="0"
+            style="max-width: 640px; background: #f8f8f8; border-radius: 18px"
+          >
+            <tr>
+              <td style="padding: 28px 32px; font-family: Arial, sans-serif">
+                <!-- HEADER -->
+                <table width="100%" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="font-size: 22px; font-weight: 800">
+                      <img
+                        src="{{ companyLogoUrl }}"
+                        alt="HRMS Logo"
+                        style="width: 100%; max-width: 160px"
+                      />
+                    </td>
+                    <td align="right">
+                   <a href="{{linkedinUrl}}" target="_blank" style="width:24px; height:24px; border-radius:4px; text-decoration:none;">
+                      <img
+                        src="{{ linkedin_logo_url }}"
+                        alt="linkedin"
+                        style="
+                          width: 19.5px;
+                          height: 19.5px;
+                          margin-right: 10px;
+                          display: inline-block;
+                        "
+                      />
                       </a>
-                    </p>
-                    <p style="margin:0 0 8px 0;">
-                      This link expires in <span style="font-weight:600;">24 hours</span>.
-                    </p>
-                    <p style="margin:0 0 0 0;">
-                      Have questions? Contact your administrator or reach us at
-                      <a href="mailto:support@workconnect.ai" style="color:#2563eb; text-decoration:underline;">support@workconnect.ai</a>
-                    </p>
-                  </td>
-                </tr>
-              </table>
+                      <a href="{{instagramUrl}}" target="_blank" style="width:24px; height:24px; border-radius:4px; text-decoration:none;">
+                      <img
+                        src="{{ instagram_logo_url }}"
+                        alt="instagram"
+                        style="
+                          width: 19.5px;
+                          height: 19.5px;
+                          margin-right: 10px;
+                          display: inline-block;
+                        "
+                      />
+                      </a>
+                      <a href="{{twitterUrl}}" target="_blank" style="width:24px; height:24px; border-radius:4px; text-decoration:none;">
+                      <img
+                        src="{{ x_logo_url }}"
+                        alt="x"
+                        style="
+                          width: 19.5px;
+                          height: 19.5px;
+                          display: inline-block;
+                        "
+                      />
+                      </a>
+                    </td>
+                  </tr>
+                </table>
 
-              <!-- Spacing before copyright -->
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-                <tr><td style="height:32px; line-height:32px; font-size:0;">&nbsp;</td></tr>
-              </table>
+                <!-- SPACE -->
+                <table width="100%">
+                  <tr>
+                    <td height="15"></td>
+                  </tr>
+                </table>
 
-              <!-- Copyright -->
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-                <tr>
-                  <td style="font-size:12px; line-height:18px; color:#9ca3af; text-align:center;">
-                    <p style="margin:0 0 6px 0;">
-                      © 2025 Workconnect.ai · All rights reserved.
-                    </p>
-                  </td>
-                </tr>
-              </table>
+                <!-- ✅ SINGLE GREY CONTAINER -->
+                <table
+                  width="100%"
+                  cellpadding="0"
+                  cellspacing="0"
+                  style="background: #ffffff; border-radius: 8px"
+                >
+                  <tr>
+                    <td style="padding: 24px">
+                      <!-- TITLE -->
+                      <table width="100%">
+                        <tr>
+                          <td style="font-size: 20px; font-weight: 600">
+                            Welcome to HRMS 🎉
+                          </td>
+                        </tr>
+                      </table>
 
-              <!-- Small spacing -->
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-                <tr><td style="height:2px; line-height:1px; font-size:0;">&nbsp;</td></tr>
-              </table>
+                      <!-- SPACE -->
+                      <table width="100%">
+                        <tr>
+                          <td height="12"></td>
+                        </tr>
+                      </table>
 
-              <!-- Divider -->
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-                <tr>
-                  <td style="border-top:1px solid #e5e7eb; font-size:0; line-height:0;">&nbsp;</td>
-                </tr>
-              </table>
+                      <!-- TEXT -->
+                      <table width="100%">
+                        <tr>
+                          <td style="font-size: 16px; color: #656565">
+                            Hello <b style="color: #2680d9">{{userName}}</b>,
+                          </td>
+                        </tr>
 
-              <!-- Spacing after divider -->
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-                <tr><td style="height:12px; line-height:12px; font-size:0;">&nbsp;</td></tr>
-              </table>
+                        <tr>
+                          <td height="8"></td>
+                        </tr>
 
-              <!-- Footer text + links -->
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-                <tr>
-                  <td style="font-size:12px; line-height:18px; color:#9ca3af; text-align:center;">
-                    <p style="margin:0 0 14px 0;">
-                      You're receiving this because you're part of {{companyName}} on Workconnect.ai. This is an automated message, please do not reply.
-                    </p>
-                  </td>
-                </tr>
-                <tr>
-                  <td align="center" style="font-size:12px; line-height:18px; color:#6b7280;">
-                    <a href="{{ privacyUrl }}" style="color:#1976d2; text-decoration:underline; margin:0 8px;">Privacy Policy</a>
-                    <a href="{{ termsUrl }}" style="color:#1976d2; text-decoration:underline; margin:0 8px;">Terms of Service</a>
-                    <a href="{{ unsubscribeUrl }}" style="color:#1976d2; text-decoration:underline; margin:0 8px;">Unsubscribe</a>
-                  </td>
-                </tr>
-              </table>
+                        <tr>
+                          <td
+                            style="
+                              font-size: 16px;
+                              line-height: 150%;
+                              color: #656565;
+                            "
+                          >
+                            Your account has been created successfully. You're
+                            one step away from managing your HR operations
+                            smarter and faster.
+                          </td>
+                        </tr>
 
-            </td>
-          </tr>
-        </table>
-        <!-- /Card wrapper -->
-      </td>
-    </tr>
-  </table>
-</body>
+                        <tr>
+                          <td height="8"></td>
+                        </tr>
+
+                        <tr>
+                          <td style="font-size: 16px; color: #656565">
+                            To get started, set your password by clicking the
+                            button below:
+                          </td>
+                        </tr>
+                      </table>
+
+                      <!-- SPACE -->
+                      <table width="100%">
+                        <tr>
+                          <td height="16"></td>
+                        </tr>
+                      </table>
+
+                      <!-- BUTTON -->
+                      <table cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td bgcolor="#2680D9" style="border-radius: 4px">
+                            <a
+                              href="{{resetUrl}}"
+                              target="_blank"
+                              style="
+                                display: inline-block;
+                                padding: 12px 24px;
+                                color: #fff;
+                                text-decoration: none;
+                                font-weight: 500;
+                              "
+                            >
+                              Set Your Password
+                            </a>
+                          </td>
+                        </tr>
+                      </table>
+
+                      <!-- SPACE -->
+                      <table width="100%">
+                        <tr>
+                          <td height="20"></td>
+                        </tr>
+                      </table>
+
+                      <!-- LINK -->
+                      <table width="100%">
+                        <tr>
+                          <td style="font-size: 14px; color: #656565">
+                            Or copy this link into your browser:
+                          </td>
+                        </tr>
+
+                        <tr>
+                          <td height="6"></td>
+                        </tr>
+
+                        <tr>
+                          <td style="font-size: 13px; word-break: break-all">
+                            <a href="{{resetUrl}}">{{resetUrl}}</a>
+                          </td>
+                        </tr>
+
+                        <tr>
+                          <td height="6"></td>
+                        </tr>
+
+                        <tr>
+                          <td style="font-size: 14px; color: #656565">
+                            This link expires in 24 hours.
+                          </td>
+                        </tr>
+
+                        <tr>
+                          <td height="6"></td>
+                        </tr>
+
+                        <tr>
+                          <td
+                            style="
+                              font-size: 14px;
+                              line-height: 150%;
+                              color: #656565;
+                            "
+                          >
+                            Have questions? Contact your administrator or reach
+                            us at <br />
+                            <a href="mailto:support@workconnect.ai"
+                              >support@workconnect.ai</a
+                            >
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- SPACE -->
+                <table width="100%">
+                  <tr>
+                    <td height="15"></td>
+                  </tr>
+                </table>
+
+                <!-- FOOTER -->
+                <table width="100%">
+                  <tr>
+                    <td align="center" style="font-size: 12px; color: #656565">
+                      © {{ current_year }} Workconnect.ai · All rights reserved.
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td height="10"></td>
+                  </tr>
+
+                  <tr>
+                    <td
+                      align="center"
+                      style="border-top: 1px solid #dcdcdc"
+                    ></td>
+                  </tr>
+
+                  <tr>
+                    <td height="10"></td>
+                  </tr>
+
+                  <tr>
+                    <td
+                      align="center"
+                      style="font-size: 12px; line-height: 150%; color: #656565"
+                    >
+                      You're receiving this because you're part of
+                      {{companyName}} on Workconnect.ai. This is an automated
+                      message, please do not reply.
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td height="8"></td>
+                  </tr>
+
+                  <tr>
+                    <td align="center">
+                      <table cellpadding="0" cellspacing="0" border="0">
+                        <tr>
+                          <td style="font-size: 12px">
+                            <a href="{{ privacyUrl }}" style="color: #2680d9" target="_blank">Privacy Policy</a>
+                          </td>
+
+                          <td width="150"></td>
+                          <!-- gap -->
+                          <td style="font-size: 12px">
+                            <a href="{{ termsUrl }}" style="color: #2680d9" target="_blank">Terms of Service</a>
+                          </td>
+
+                          <td width="150"></td>
+                          <!-- gap -->
+
+                          <td style="font-size: 12px">
+                            <a href="{{ unsubscribeUrl }}" style="color: #2680d9" target="_blank">Unsubscribe</a>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
 </html>

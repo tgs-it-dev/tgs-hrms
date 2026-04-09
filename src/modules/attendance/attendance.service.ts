@@ -41,6 +41,32 @@ export class AttendanceService {
     private readonly notificationService: NotificationService,
   ) {}
 
+  private parseDateRange(
+    startDate?: string,
+    endDate?: string,
+  ): { start?: Date; end?: Date } {
+    const parseStart = (date: string): Date => {
+      if (date.includes("T")) return new Date(date);
+      const [y, m, d] = date.split("-").map(Number);
+      return new Date(y, m - 1, d, 0, 0, 0, 0);
+    };
+
+    const parseEnd = (date: string): Date => {
+      if (date.includes("T")) return new Date(date);
+      const [y, m, d] = date.split("-").map(Number);
+      return new Date(y, m - 1, d, 23, 59, 59, 999);
+    };
+
+    return {
+      start: startDate ? parseStart(startDate) : undefined,
+      end: endDate
+        ? parseEnd(endDate)
+        : startDate
+          ? parseEnd(startDate)
+          : undefined,
+    };
+  }
+
   async create(userId: string, dto: CreateAttendanceDto, tenantId?: string) {
     const now = new Date();
 
@@ -460,17 +486,30 @@ export class AttendanceService {
     return out;
   }
 
-  async getAllAttendance(tenantId: string, startDate?: string, endDate?: string) {
-    const { start, end } = this.normalizeDateBounds(startDate, endDate);
-    const qb = this.attendanceRepo
-      .createQueryBuilder('attendance')
-      .leftJoinAndSelect('attendance.user', 'user')
-      .where('user.tenant_id = :tenantId', { tenantId });
-    if (start) qb.andWhere('attendance.timestamp >= :start', { start });
-    if (end) qb.andWhere('attendance.timestamp <= :end', { end });
-    qb.orderBy('attendance.timestamp', 'DESC');
-    const items = await qb.getMany();
-    return { items, total: items.length };
+  async getAllAttendance(
+    tenantId: string,
+    startDate?: string,
+    endDate?: string,
+  ) {
+    let items: unknown[] = [];
+    const { start, end } = this.parseDateRange(startDate, endDate);
+
+    try {
+      const qb = this.attendanceRepo
+        .createQueryBuilder("attendance")
+        .leftJoinAndSelect("attendance.user", "user")
+        .where("user.tenant_id = :tenantId", { tenantId })
+        .orderBy("attendance.timestamp", "DESC");
+
+      if (start) qb.andWhere("attendance.timestamp >= :start", { start });
+      if (end) qb.andWhere("attendance.timestamp <= :end", { end });
+
+      items = await qb.getMany();
+      return { items, total: items.length };
+    } catch (error) {
+      console.error("Error fetching attendance with user join:", error);
+      return { items: [], total: 0 };
+    }
   }
 
   async getAllAttendanceBatch(
