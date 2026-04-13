@@ -33,6 +33,9 @@ export class Tenant {
   @Column({ type: "varchar", default: "active" })
   status: "active" | "suspended";
 
+  @Column({ type: "boolean", default: false })
+  schema_provisioned: boolean;
+
   @CreateDateColumn()
   created_at: Date;
 

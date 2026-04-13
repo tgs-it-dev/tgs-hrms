@@ -10,6 +10,7 @@ import {
   NotFoundException,
   BadRequestException,
   Query,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -26,6 +27,7 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { Permissions } from 'src/common/decorators/permissions.decorator';
 import { PermissionsGuard } from 'src/common/guards/permissions.guard';
 import { TenantService } from './tenant.service';
+import { TenantSchemaProvisioningService } from './services/tenant-schema-provisioning.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 
@@ -33,7 +35,10 @@ import { UpdateTenantDto } from './dto/update-tenant.dto';
 @ApiBearerAuth()
 @Controller('tenants')
 export class TenantController {
-  constructor(private readonly tenantService: TenantService) {}
+  constructor(
+    private readonly tenantService: TenantService,
+    private readonly tenantSchemaProvisioning: TenantSchemaProvisioningService,
+  ) {}
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
@@ -245,6 +250,47 @@ export class TenantController {
       if (err instanceof NotFoundException) throw err;
       if (err instanceof BadRequestException) throw err;
       throw new BadRequestException('Failed to restore tenant');
+    }
+  }
+
+  @Post(':id/upgrade-schema')
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles('system-admin')
+  @Permissions('manage_tenants')
+  @ApiOperation({
+    summary: 'Upgrade tenant schema to current layout (Admin only)',
+    description:
+      'Idempotent. Creates missing tables (departments, designations, teams, ' +
+      'billing_transactions) and fixes employees FK constraints to point to the ' +
+      'tenant schema instead of the public schema. Safe to run on Phase 1 schemas, ' +
+      'already-upgraded schemas, or completely new schemas.',
+  })
+  @ApiParam({ name: 'id', description: 'Tenant UUID' })
+  @ApiResponse({ status: 200, description: 'Schema upgraded successfully.' })
+  @ApiResponse({ status: 404, description: 'Tenant not found.' })
+  @ApiResponse({ status: 500, description: 'Schema upgrade failed.' })
+  async upgradeSchema(@Param('id') id: string) {
+    const tenant = await this.tenantService.findOne(id);
+    if (!tenant) {
+      throw new NotFoundException(`Tenant ${id} not found`);
+    }
+
+    try {
+      await this.tenantSchemaProvisioning.upgradeTenantSchema(id);
+
+      if (!tenant.schema_provisioned) {
+        await this.tenantService.update(id, { schema_provisioned: true } as any);
+      }
+
+      return {
+        statusCode: 200,
+        message: `Schema for tenant "${tenant.name}" upgraded successfully.`,
+        schema: this.tenantSchemaProvisioning.getSchemaName(id),
+      };
+    } catch (err) {
+      throw new InternalServerErrorException(
+        `Schema upgrade failed for tenant ${id}: ${(err as Error).message}`,
+      );
     }
   }
 }

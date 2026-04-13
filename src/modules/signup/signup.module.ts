@@ -1,4 +1,3 @@
-
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SignupController } from './signup.controller';
@@ -10,6 +9,7 @@ import { User } from '../../entities/user.entity';
 import { Role } from '../../entities/role.entity';
 import { SubscriptionPlan } from '../../entities/subscription-plan.entity';
 import { JwtModule } from '@nestjs/jwt';
+import { TenantModule } from '../tenant/tenant.module';
 
 @Module({
   imports: [
@@ -25,6 +25,7 @@ import { JwtModule } from '@nestjs/jwt';
       secret: process.env.JWT_SECRET || 'default_secret',
       signOptions: { expiresIn: process.env.JWT_EXPIRES_IN || '24h' },
     }),
+    TenantModule,
   ],
   controllers: [SignupController],
   providers: [SignupService],

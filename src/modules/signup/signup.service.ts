@@ -20,6 +20,7 @@ import { JwtService } from '@nestjs/jwt';
 import { S3StorageService } from "../storage";
 import * as fs from 'fs';
 import * as path from 'path';
+import { TenantSchemaProvisioningService } from '../tenant/services/tenant-schema-provisioning.service';
 
 const PREFIX_COMPANY_LOGOS = 'company-logos';
 
@@ -44,6 +45,7 @@ export class SignupService {
     private readonly configService: ConfigService,
     private readonly jwtService: JwtService,
     private readonly s3: S3StorageService,
+    private readonly tenantSchemaProvisioning: TenantSchemaProvisioningService,
   ) {
     const stripeKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (stripeKey) {
@@ -573,6 +575,24 @@ export class SignupService {
       );
       company.tenant_id = tenant.id as unknown as any;
       await this.companyDetailsRepo.save(company);
+    }
+
+    // Provision a dedicated PostgreSQL schema for this tenant if not done yet.
+    // This is idempotent, so it is safe to call even if the schema already exists.
+    if (!tenant.schema_provisioned) {
+      try {
+        await this.tenantSchemaProvisioning.provisionTenantSchema(tenant.id);
+        tenant.schema_provisioned = true;
+        await this.tenantRepo.save(tenant);
+        this.logger.log(`Schema provisioned for tenant ${tenant.id}`);
+      } catch (err) {
+        // Non-fatal: log the error but do not block signup completion.
+        // The schema can be re-provisioned later via the admin API.
+        this.logger.error(
+          `Schema provisioning failed for tenant ${tenant.id}: ${(err as Error).message}`,
+          (err as Error).stack,
+        );
+      }
     }
 
     const roles = await this.ensureDefaultRoles(tenant.id);
