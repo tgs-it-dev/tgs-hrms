@@ -34,9 +34,13 @@ export interface NewTeamMemberAnnouncementPayload {
 @Injectable()
 export class SendGridService {
   private readonly logger = new Logger(SendGridService.name);
+  private companyName: string;
 
   constructor(private readonly configService: ConfigService) {
     const apiKey = this.configService.get<string>("SENDGRID_API_KEY");
+    this.companyName =
+      this.configService.get<string>("COMPANY_NAME") || "WorkOnnect";
+
     if (apiKey) {
       sgMail.setApiKey(apiKey);
       this.logger.log("SendGrid API key configured successfully");
@@ -103,7 +107,10 @@ export class SendGridService {
 
     const msg = {
       to: email,
-      from: fromEmail,
+      from: {
+        email: fromEmail,
+        name: this.companyName,
+      },
       subject: "Password Reset Request",
       html,
     };
@@ -161,7 +168,10 @@ export class SendGridService {
 
     const msg = {
       to: email,
-      from: fromEmail,
+      from: {
+        email: fromEmail,
+        name: this.companyName,
+      },
       subject: "Password Reset Successful",
       html,
     };
@@ -219,7 +229,10 @@ export class SendGridService {
 
     const msg = {
       to: email,
-      from: fromEmail,
+      from: {
+        email: fromEmail,
+        name: this.companyName,
+      },
       subject: "Welcome to HRMS - Set Your Password",
       html,
     };
@@ -248,7 +261,10 @@ export class SendGridService {
 
     const msg = {
       to,
-      from: fromEmail,
+      from: {
+        email: fromEmail,
+        name: this.companyName,
+      },
       subject,
       html,
     };
@@ -279,7 +295,10 @@ export class SendGridService {
 
     const msg = {
       to: emails,
-      from: fromEmail,
+      from: {
+        email: fromEmail,
+        name: this.companyName,
+      },
       subject,
       html,
     };
@@ -352,7 +371,10 @@ export class SendGridService {
 
     const msg = {
       to: payload.recipientEmail,
-      from: fromEmail,
+      from: {
+        email: fromEmail,
+        name: this.companyName,
+      },
       subject: "A New Team Member Has Joined!",
       html,
     };
@@ -442,7 +464,10 @@ export class SendGridService {
 
     const msg = {
       to: recipientEmail,
-      from: fromEmail,
+      from: {
+        email: fromEmail,
+        name: this.companyName,
+      },
       subject: `${priority === "high" ? "🔴 " : ""}${categoryLabel}: ${title}`,
       html,
     };
