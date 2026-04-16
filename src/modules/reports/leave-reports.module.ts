@@ -7,9 +7,10 @@ import { Employee } from '../../entities/employee.entity';
 import { LeaveReportsService } from './leave-reports.service';
 import { LeaveReportsController } from './leave-reports.controller';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
+import { TenantModule } from '../tenant/tenant.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Leave, LeaveType, User, Employee]), SharedJwtModule],
+  imports: [TypeOrmModule.forFeature([Leave, LeaveType, User, Employee]), SharedJwtModule, TenantModule],
   providers: [LeaveReportsService],
   controllers: [LeaveReportsController],
   exports: [LeaveReportsService],

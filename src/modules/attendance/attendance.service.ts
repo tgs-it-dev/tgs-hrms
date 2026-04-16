@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
   ForbiddenException,
@@ -10,7 +11,7 @@ import {
   UserRole,
 } from '../../common/constants/enums';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { EntityManager, Repository, In } from 'typeorm';
 import { Attendance } from '../../entities/attendance.entity';
 import { Geofence, GeofenceStatus } from '../../entities/geofence.entity';
 import { Employee } from '../../entities/employee.entity';
@@ -23,9 +24,14 @@ import { isPointWithinGeofence, checkPointWithinGeofence } from '../../common/ut
 import { NotificationGateway } from '../notification/notification.gateway';
 import { NotificationService } from '../notification/notification.service';
 import { NotificationType } from '../../common/constants/enums';
+import { TenantDatabaseService } from '../../common/services/tenant-database.service';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 
 @Injectable()
 export class AttendanceService {
+  private readonly logger = new Logger(AttendanceService.name);
+
   constructor(
     @InjectRepository(Attendance)
     private readonly attendanceRepo: Repository<Attendance>,
@@ -39,7 +45,29 @@ export class AttendanceService {
     private readonly teamService: TeamService,
     private readonly notificationGateway: NotificationGateway,
     private readonly notificationService: NotificationService,
+    private readonly tenantDbService: TenantDatabaseService,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
   ) {}
+
+  // ── Tenant schema helpers ─────────────────────────────────────────────────
+
+  private async isTenantSchemaProvisioned(tenantId: string): Promise<boolean> {
+    const result = await this.dataSource.query<{ schema_provisioned: boolean }[]>(
+      `SELECT schema_provisioned FROM public.tenants WHERE id = $1 LIMIT 1`,
+      [tenantId],
+    );
+    return result[0]?.schema_provisioned ?? false;
+  }
+
+  /** Looks up the tenant_id for a given user from the public users table. */
+  private async getTenantIdForUser(userId: string): Promise<string | null> {
+    const result = await this.dataSource.query<{ tenant_id: string }[]>(
+      `SELECT tenant_id FROM public.users WHERE id = $1 LIMIT 1`,
+      [userId],
+    );
+    return result[0]?.tenant_id ?? null;
+  }
 
   private parseDateRange(
     startDate?: string,
@@ -68,35 +96,61 @@ export class AttendanceService {
   }
 
   async create(userId: string, dto: CreateAttendanceDto, tenantId?: string) {
+    const isProvisioned = tenantId
+      ? await this.isTenantSchemaProvisioned(tenantId)
+      : false;
+
+    this.logger.debug(
+      `create [user=${userId}] [tenant=${tenantId}] [provisioned=${isProvisioned}] [type=${dto.type}]`,
+    );
+
+    if (isProvisioned && tenantId) {
+      return this.tenantDbService.withTenantSchema(tenantId, async (em) => {
+        return this.doCreate(userId, dto, tenantId, em);
+      });
+    }
+    return this.doCreate(userId, dto, tenantId, null);
+  }
+
+  private async doCreate(
+    userId: string,
+    dto: CreateAttendanceDto,
+    tenantId: string | undefined,
+    em: EntityManager | null,
+  ) {
+    const attendanceRepo = em ? em.getRepository(Attendance) : this.attendanceRepo;
+    const employeeRepo = em ? em.getRepository(Employee) : this.employeeRepo;
+
     const now = new Date();
 
     let nearBoundary = false;
 
     if (dto.type === AttendanceType.CHECK_IN) {
       // Validate location is provided for check-in (location disabled or not shared = clear message for toast)
-      const hasValidLocation =
-        dto.latitude != null &&
-        dto.longitude != null &&
-        !Number.isNaN(Number(dto.latitude)) &&
-        !Number.isNaN(Number(dto.longitude));
-      if (!hasValidLocation) {
-        throw new BadRequestException('Turn on Your Location');
-      }
-      const lat = Number(dto.latitude);
-      const lng = Number(dto.longitude);
+      // const hasValidLocation =
+      //   dto.latitude != null &&
+      //   dto.longitude != null &&
+      //   !Number.isNaN(Number(dto.latitude)) &&
+      //   !Number.isNaN(Number(dto.longitude));
+      // if (!hasValidLocation) {
+      //   throw new BadRequestException('Turn on Your Location');
+      // }
+      // const lat = Number(dto.latitude);
+      // const lng = Number(dto.longitude);
 
-      // Validate location is within geofence boundary
-      if (tenantId) {
-        const validationResult = await this.validateCheckInLocationWithThreshold(
-          userId,
-          tenantId,
-          lat,
-          lng,
-        );
-        nearBoundary = validationResult.nearBoundary;
-      }
+      // // Validate location is within geofence boundary
+      // if (tenantId) {
+      //   const validationResult = await this.validateCheckInLocationWithThreshold(
+      //     userId,
+      //     tenantId,
+      //     lat,
+      //     lng,
+      //     employeeRepo,
+      //   );
+      //   nearBoundary = validationResult.nearBoundary;
+      // }
 
-      const activeSession = await this.getActiveSession(userId);
+      const activeSession = await this.getActiveSession(userId, attendanceRepo);
       if (activeSession) {
         throw new BadRequestException(
           'You already have an active session. Please check out first.',
@@ -104,29 +158,30 @@ export class AttendanceService {
       }
     } else if (dto.type === AttendanceType.CHECK_OUT) {
       // Validate location is provided for check-out (location disabled or not shared = clear message for toast)
-      const hasValidLocation =
-        dto.latitude != null &&
-        dto.longitude != null &&
-        !Number.isNaN(Number(dto.latitude)) &&
-        !Number.isNaN(Number(dto.longitude));
-      if (!hasValidLocation) {
-        throw new BadRequestException('Turn on Your Location');
-      }
-      const lat = Number(dto.latitude);
-      const lng = Number(dto.longitude);
+      // const hasValidLocation =
+      //   dto.latitude != null &&
+      //   dto.longitude != null &&
+      //   !Number.isNaN(Number(dto.latitude)) &&
+      //   !Number.isNaN(Number(dto.longitude));
+      // if (!hasValidLocation) {
+      //   throw new BadRequestException('Turn on Your Location');
+      // }
+      // const lat = Number(dto.latitude);
+      // const lng = Number(dto.longitude);
 
-      // Validate location is within geofence boundary
-      if (tenantId) {
-        const validationResult = await this.validateCheckInLocationWithThreshold(
-          userId,
-          tenantId,
-          lat,
-          lng,
-        );
-        nearBoundary = validationResult.nearBoundary;
-      }
+      // // Validate location is within geofence boundary
+      // if (tenantId) {
+      //   const validationResult = await this.validateCheckInLocationWithThreshold(
+      //     userId,
+      //     tenantId,
+      //     lat,
+      //     lng,
+      //     employeeRepo,
+      //   );
+      //   nearBoundary = validationResult.nearBoundary;
+      // }
 
-      const activeSession = await this.getActiveSession(userId);
+      const activeSession = await this.getActiveSession(userId, attendanceRepo);
       if (!activeSession) {
         throw new BadRequestException(
           'No active session found. Please check in first.',
@@ -135,7 +190,7 @@ export class AttendanceService {
     }
 
     // Get employee info for manager notification
-    const employee = await this.employeeRepo.findOne({
+    const employee = await employeeRepo.findOne({
       where: { user_id: userId },
       relations: ['user', 'team'],
     });
@@ -164,7 +219,7 @@ export class AttendanceService {
       }
     }
 
-    const attendance = this.attendanceRepo.create({
+    const attendance = attendanceRepo.create({
       type: dto.type,
       user_id: userId,
       timestamp: now,
@@ -173,7 +228,7 @@ export class AttendanceService {
       approved_at: approvedAt,
       near_boundary: nearBoundary,
     });
-    const saved = await this.attendanceRepo.save(attendance);
+    const saved = await attendanceRepo.save(attendance);
 
     // Notify manager: save in DB (record) + real-time WebSocket. Skip when manager is notifying themselves (own attendance).
     const managerId = employee?.team?.manager_id;
@@ -231,9 +286,10 @@ export class AttendanceService {
     tenantId: string,
     latitude: number,
     longitude: number,
+    employeeRepo: Repository<Employee> = this.employeeRepo,
   ): Promise<{ nearBoundary: boolean }> {
     // Get employee's team_id
-    const employee = await this.employeeRepo.findOne({
+    const employee = await employeeRepo.findOne({
       where: { user_id: userId },
       relations: ['user'],
     });
@@ -292,16 +348,25 @@ export class AttendanceService {
     tenantId: string,
     latitude: number,
     longitude: number,
+    employeeRepo: Repository<Employee> = this.employeeRepo,
   ): Promise<void> {
-    await this.validateCheckInLocationWithThreshold(userId, tenantId, latitude, longitude);
+    await this.validateCheckInLocationWithThreshold(userId, tenantId, latitude, longitude, employeeRepo);
   }
 
-  
-  private async getActiveSession(userId: string): Promise<Attendance | null> {
-    const latestCheckIn = await this.attendanceRepo
+  private async getActiveSession(
+    userId: string,
+    attendanceRepo: Repository<Attendance> = this.attendanceRepo,
+  ): Promise<Attendance | null> {
+    // Only consider check-ins from today onwards — a stale migrated check-in
+    // from a previous day should never block a new clock-in.
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+
+    const latestCheckIn = await attendanceRepo
       .createQueryBuilder('a')
       .where('a.user_id = :userId', { userId })
       .andWhere('a.type = :type', { type: AttendanceType.CHECK_IN })
+      .andWhere('a.timestamp >= :startOfToday', { startOfToday })
       .orderBy('a.timestamp', 'DESC')
       .getOne();
 
@@ -309,8 +374,7 @@ export class AttendanceService {
       return null;
     }
 
-    
-    const matchingCheckOut = await this.attendanceRepo
+    const matchingCheckOut = await attendanceRepo
       .createQueryBuilder('a')
       .where('a.user_id = :userId', { userId })
       .andWhere('a.type = :type', { type: AttendanceType.CHECK_OUT })
@@ -318,17 +382,31 @@ export class AttendanceService {
       .orderBy('a.timestamp', 'ASC')
       .getOne();
 
-    
     return matchingCheckOut ? null : latestCheckIn;
   }
 
   
   async findAll(userId?: string) {
-    const query = this.attendanceRepo.createQueryBuilder('attendance');
+    let tenantId: string | null = null;
     if (userId) {
-      query.where('attendance.user_id = :userId', { userId });
+      tenantId = await this.getTenantIdForUser(userId);
     }
-    const records = await query.orderBy('attendance.timestamp', 'ASC').getMany();
+    const isProvisioned = tenantId
+      ? await this.isTenantSchemaProvisioned(tenantId)
+      : false;
+
+    let records: Attendance[];
+    if (isProvisioned && tenantId) {
+      records = await this.tenantDbService.withTenantSchemaReadOnly(tenantId, (em) => {
+        const q = em.getRepository(Attendance).createQueryBuilder('attendance');
+        if (userId) q.where('attendance.user_id = :userId', { userId });
+        return q.orderBy('attendance.timestamp', 'ASC').getMany();
+      });
+    } else {
+      const q = this.attendanceRepo.createQueryBuilder('attendance');
+      if (userId) q.where('attendance.user_id = :userId', { userId });
+      records = await q.orderBy('attendance.timestamp', 'ASC').getMany();
+    }
 
     // Maintain the summarizing and grouping logic
     const sessions: Array<{ checkIn: Attendance; checkOut?: Attendance; startDate: string }> = [];
@@ -363,7 +441,7 @@ export class AttendanceService {
       if (!groupedByDate[dateKey]) {
         groupedByDate[dateKey] = {};
       }
-      if (!groupedByDate[dateKey].checkIn || 
+      if (!groupedByDate[dateKey].checkIn ||
           session.checkIn.timestamp > (groupedByDate[dateKey].checkIn?.timestamp || new Date(0))) {
         groupedByDate[dateKey].checkIn = session.checkIn;
         groupedByDate[dateKey].checkOut = session.checkOut;
@@ -390,13 +468,50 @@ export class AttendanceService {
 
  
   async getTodaySummary(userId: string) {
+    const tenantId = await this.getTenantIdForUser(userId);
+    const isProvisioned = tenantId
+      ? await this.isTenantSchemaProvisioned(tenantId)
+      : false;
+
     const now = new Date();
-    
-    
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
     const startOfNextDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
-    
-    
+
+    if (isProvisioned && tenantId) {
+      return this.tenantDbService.withTenantSchemaReadOnly(tenantId, async (em) => {
+        const aRepo = em.getRepository(Attendance);
+        const todayCheckIn = await aRepo
+          .createQueryBuilder('a')
+          .where('a.user_id = :userId', { userId })
+          .andWhere('a.type = :type', { type: AttendanceType.CHECK_IN })
+          .andWhere('a.timestamp >= :startOfDay AND a.timestamp < :startOfNextDay', { startOfDay, startOfNextDay })
+          .orderBy('a.timestamp', 'DESC')
+          .getOne();
+
+        const latestCheckIn = todayCheckIn ?? await aRepo
+          .createQueryBuilder('a')
+          .where('a.user_id = :userId', { userId })
+          .andWhere('a.type = :type', { type: AttendanceType.CHECK_IN })
+          .orderBy('a.timestamp', 'DESC')
+          .getOne();
+
+        let matchingCheckOut: Attendance | null = null;
+        if (latestCheckIn) {
+          matchingCheckOut = await aRepo
+            .createQueryBuilder('a')
+            .where('a.user_id = :userId', { userId })
+            .andWhere('a.type = :type', { type: AttendanceType.CHECK_OUT })
+            .andWhere('a.timestamp > :after', { after: latestCheckIn.timestamp })
+            .orderBy('a.timestamp', 'ASC')
+            .getOne();
+        }
+        return {
+          checkIn: latestCheckIn?.timestamp || null,
+          checkOut: matchingCheckOut?.timestamp || null,
+        };
+      });
+    }
+
     const todayCheckIn = await this.attendanceRepo
       .createQueryBuilder('a')
       .where('a.user_id = :userId', { userId })
@@ -407,14 +522,12 @@ export class AttendanceService {
       })
       .orderBy('a.timestamp', 'DESC')
       .getOne();
-    
+
     let latestCheckIn: Attendance | null = null;
-    
+
     if (todayCheckIn) {
-      
       latestCheckIn = todayCheckIn;
     } else {
-      
       latestCheckIn = await this.attendanceRepo
         .createQueryBuilder('a')
         .where('a.user_id = :userId', { userId })
@@ -422,19 +535,18 @@ export class AttendanceService {
         .orderBy('a.timestamp', 'DESC')
         .getOne();
     }
-    
+
     let matchingCheckOut: Attendance | null = null;
     if (latestCheckIn) {
-    
       matchingCheckOut = await this.attendanceRepo
         .createQueryBuilder('a')
         .where('a.user_id = :userId', { userId })
-      .andWhere('a.type = :type', { type: AttendanceType.CHECK_OUT })
+        .andWhere('a.type = :type', { type: AttendanceType.CHECK_OUT })
         .andWhere('a.timestamp > :after', { after: latestCheckIn.timestamp })
-        .orderBy('a.timestamp', 'ASC') 
+        .orderBy('a.timestamp', 'ASC')
         .getOne();
     }
-    
+
     return {
       checkIn: latestCheckIn?.timestamp || null,
       checkOut: matchingCheckOut?.timestamp || null,
@@ -455,13 +567,28 @@ export class AttendanceService {
   }
 
   async getTotalAttendanceForCurrentMonth(tenantId: string): Promise<{ totalAttendance: number }> {
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
     const now = new Date();
     const year = now.getFullYear();
-    const month = now.getMonth(); 
+    const month = now.getMonth();
     const startOfMonth = new Date(year, month, 1);
     const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59, 999);
 
-  
+    if (isProvisioned) {
+      const result = await this.tenantDbService.withTenantSchemaReadOnly(tenantId, (em) =>
+        em.getRepository(Attendance)
+          .createQueryBuilder('attendance')
+          .leftJoin('attendance.user', 'user')
+          .where('user.tenant_id = :tenantId', { tenantId })
+          .andWhere('attendance.timestamp >= :startOfMonth AND attendance.timestamp <= :endOfMonth', { startOfMonth, endOfMonth })
+          .select(['attendance.user_id AS user_id', 'DATE(attendance.timestamp) AS date'])
+          .groupBy('attendance.user_id')
+          .addGroupBy('DATE(attendance.timestamp)')
+          .getRawMany(),
+      );
+      return { totalAttendance: result.length };
+    }
+
     const result = await this.attendanceRepo
       .createQueryBuilder('attendance')
       .leftJoin('attendance.user', 'user')
@@ -491,20 +618,29 @@ export class AttendanceService {
     startDate?: string,
     endDate?: string,
   ) {
-    let items: unknown[] = [];
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
     const { start, end } = this.parseDateRange(startDate, endDate);
 
-    try {
-      const qb = this.attendanceRepo
+    const buildQuery = (repo: Repository<Attendance>) => {
+      const qb = repo
         .createQueryBuilder("attendance")
         .leftJoinAndSelect("attendance.user", "user")
         .where("user.tenant_id = :tenantId", { tenantId })
         .orderBy("attendance.timestamp", "DESC");
-
       if (start) qb.andWhere("attendance.timestamp >= :start", { start });
       if (end) qb.andWhere("attendance.timestamp <= :end", { end });
+      return qb.getMany();
+    };
 
-      items = await qb.getMany();
+    try {
+      let items: Attendance[];
+      if (isProvisioned) {
+        items = await this.tenantDbService.withTenantSchemaReadOnly(tenantId, (em) =>
+          buildQuery(em.getRepository(Attendance)),
+        );
+      } else {
+        items = await buildQuery(this.attendanceRepo);
+      }
       return { items, total: items.length };
     } catch (error) {
       console.error("Error fetching attendance with user join:", error);
@@ -517,19 +653,27 @@ export class AttendanceService {
     startDate?: string,
     endDate?: string,
     skip: number = 0,
-    take: number = 1000
+    take: number = 1000,
   ) {
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
     const { start, end } = this.normalizeDateBounds(startDate, endDate);
-    const qb = this.attendanceRepo
-      .createQueryBuilder('attendance')
-      .leftJoinAndSelect('attendance.user', 'user')
-      .where('user.tenant_id = :tenantId', { tenantId });
-    if (start) qb.andWhere('attendance.timestamp >= :start', { start });
-    if (end) qb.andWhere('attendance.timestamp <= :end', { end });
-    qb.orderBy('attendance.timestamp', 'DESC')
-      .skip(skip)
-      .take(take);
-    return await qb.getMany();
+
+    const buildQuery = (repo: Repository<Attendance>) => {
+      const qb = repo
+        .createQueryBuilder('attendance')
+        .leftJoinAndSelect('attendance.user', 'user')
+        .where('user.tenant_id = :tenantId', { tenantId });
+      if (start) qb.andWhere('attendance.timestamp >= :start', { start });
+      if (end) qb.andWhere('attendance.timestamp <= :end', { end });
+      return qb.orderBy('attendance.timestamp', 'DESC').skip(skip).take(take).getMany();
+    };
+
+    if (isProvisioned) {
+      return this.tenantDbService.withTenantSchemaReadOnly(tenantId, (em) =>
+        buildQuery(em.getRepository(Attendance)),
+      );
+    }
+    return buildQuery(this.attendanceRepo);
   }
 
   /** Returns display name (first_name + last_name) for export/self when JWT has no name. */
@@ -543,17 +687,37 @@ export class AttendanceService {
   }
 
   async findEvents(userId?: string, startDate?: string, endDate?: string) {
+    let tenantId: string | null = null;
+    if (userId) {
+      tenantId = await this.getTenantIdForUser(userId);
+    }
+    const isProvisioned = tenantId
+      ? await this.isTenantSchemaProvisioned(tenantId)
+      : false;
+
     const { start, end } = this.normalizeDateBounds(startDate, endDate);
-    const qb = this.attendanceRepo
-      .createQueryBuilder('attendance')
-      .leftJoinAndSelect('attendance.user', 'user')
-      .orderBy('attendance.timestamp', 'DESC');
-    if (userId) qb.where('attendance.user_id = :userId', { userId });
-    if (start) qb.andWhere('attendance.timestamp >= :start', { start });
-    if (end) qb.andWhere('attendance.timestamp <= :end', { end });
-    const items = await qb.getMany();
+
+    const buildQuery = (repo: Repository<Attendance>) => {
+      const qb = repo
+        .createQueryBuilder('attendance')
+        .leftJoinAndSelect('attendance.user', 'user')
+        .orderBy('attendance.timestamp', 'DESC');
+      if (userId) qb.where('attendance.user_id = :userId', { userId });
+      if (start) qb.andWhere('attendance.timestamp >= :start', { start });
+      if (end) qb.andWhere('attendance.timestamp <= :end', { end });
+      return qb.getMany();
+    };
+
+    let items: Attendance[];
+    if (isProvisioned && tenantId) {
+      items = await this.tenantDbService.withTenantSchemaReadOnly(tenantId, (em) =>
+        buildQuery(em.getRepository(Attendance)),
+      );
+    } else {
+      items = await buildQuery(this.attendanceRepo);
+    }
     const totalWorkHours = this.calculateTotalWorkHours(items);
-    return { items, total: items.length , totalWorkHours };
+    return { items, total: items.length, totalWorkHours };
   }
 
   
@@ -611,22 +775,27 @@ export class AttendanceService {
     
     // Extract user IDs from team members
     const userIds = allTeamMembers.map((member) => member.user.id);
-    
-    // Apply date filter ONLY to attendance records, not to members
-    const attendanceQuery = this.attendanceRepo
-      .createQueryBuilder('attendance')
-      .where('attendance.user_id IN (:...userIds)', { userIds });
-    
-    if (startDate) {
-      attendanceQuery.andWhere('attendance.timestamp >= :start', { start: new Date(startDate) });
-    }
-    if (endDate) {
-      attendanceQuery.andWhere('attendance.timestamp <= :end', { end: new Date(endDate + 'T23:59:59.999Z') });
-    }
-    
-    const attendanceRecords = await attendanceQuery
-      .orderBy('attendance.timestamp', 'ASC')
-      .getMany();
+
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
+
+    const fetchAttendance = (repo: Repository<Attendance>) => {
+      const q = repo
+        .createQueryBuilder('attendance')
+        .where('attendance.user_id IN (:...userIds)', { userIds });
+      if (startDate) {
+        q.andWhere('attendance.timestamp >= :start', { start: new Date(startDate) });
+      }
+      if (endDate) {
+        q.andWhere('attendance.timestamp <= :end', { end: new Date(endDate + 'T23:59:59.999Z') });
+      }
+      return q.orderBy('attendance.timestamp', 'ASC').getMany();
+    };
+
+    const attendanceRecords: Attendance[] = isProvisioned
+      ? await this.tenantDbService.withTenantSchemaReadOnly(tenantId, (em) =>
+          fetchAttendance(em.getRepository(Attendance)),
+        )
+      : await fetchAttendance(this.attendanceRepo);
     
     const groupedAttendance: Record<
       string,
@@ -1089,17 +1258,25 @@ export class AttendanceService {
       Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0)
     );
 
-    // Get today's check-ins for team members
-    const todayCheckIns = await this.attendanceRepo
-      .createQueryBuilder('attendance')
-      .leftJoinAndSelect('attendance.user', 'user')
-      .leftJoinAndSelect('attendance.approver', 'approver')
-      .where('attendance.user_id IN (:...userIds)', { userIds })
-      .andWhere('attendance.type = :type', { type: AttendanceType.CHECK_IN })
-      .andWhere('attendance.timestamp >= :startOfDay', { startOfDay })
-      .andWhere('attendance.timestamp < :endOfDay', { endOfDay })
-      .orderBy('attendance.timestamp', 'DESC')
-      .getMany();
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
+
+    const fetchTodayCheckIns = (repo: Repository<Attendance>) =>
+      repo
+        .createQueryBuilder('attendance')
+        .leftJoinAndSelect('attendance.user', 'user')
+        .leftJoinAndSelect('attendance.approver', 'approver')
+        .where('attendance.user_id IN (:...userIds)', { userIds })
+        .andWhere('attendance.type = :type', { type: AttendanceType.CHECK_IN })
+        .andWhere('attendance.timestamp >= :startOfDay', { startOfDay })
+        .andWhere('attendance.timestamp < :endOfDay', { endOfDay })
+        .orderBy('attendance.timestamp', 'DESC')
+        .getMany();
+
+    const todayCheckIns: Attendance[] = isProvisioned
+      ? await this.tenantDbService.withTenantSchemaReadOnly(tenantId, (em) =>
+          fetchTodayCheckIns(em.getRepository(Attendance)),
+        )
+      : await fetchTodayCheckIns(this.attendanceRepo);
 
     // Group by user and get the latest check-in per user
     const userCheckInMap = new Map<string, Attendance>();
@@ -1149,60 +1326,47 @@ export class AttendanceService {
     checkInId: string,
     managerId: string,
     tenantId: string,
-    remarks?: string
+    remarks?: string,
   ): Promise<Attendance> {
-    const checkIn = await this.attendanceRepo.findOne({
-      where: { id: checkInId },
-      relations: ['user'],
-    });
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
 
-    if (!checkIn) {
-      throw new NotFoundException('Check-in record not found');
-    }
+    const findAndSave = async (repo: Repository<Attendance>) => {
+      const checkIn = await repo.findOne({ where: { id: checkInId }, relations: ['user'] });
+      if (!checkIn) throw new NotFoundException('Check-in record not found');
+      if (checkIn.type !== AttendanceType.CHECK_IN) {
+        throw new BadRequestException('Only check-in records can be approved');
+      }
+      const isTeamMember = await this.verifyTeamMember(checkIn.user_id, managerId, tenantId);
+      if (!isTeamMember) {
+        throw new ForbiddenException('You can only approve check-ins for your team members');
+      }
+      checkIn.approval_status = CheckInApprovalStatus.APPROVED;
+      checkIn.approved_by = managerId;
+      checkIn.approved_at = new Date();
+      checkIn.approval_remarks = remarks || null;
+      return repo.save(checkIn);
+    };
 
-    if (checkIn.type !== AttendanceType.CHECK_IN) {
-      throw new BadRequestException('Only check-in records can be approved');
-    }
+    const saved = isProvisioned
+      ? await this.tenantDbService.withTenantSchema(tenantId, (em) =>
+          findAndSave(em.getRepository(Attendance)),
+        )
+      : await findAndSave(this.attendanceRepo);
 
-    // Verify the employee is in the manager's team
-    const isTeamMember = await this.verifyTeamMember(
-      checkIn.user_id,
-      managerId,
-      tenantId
-    );
-
-    if (!isTeamMember) {
-      throw new ForbiddenException('You can only approve check-ins for your team members');
-    }
-
-    checkIn.approval_status = CheckInApprovalStatus.APPROVED;
-    checkIn.approved_by = managerId;
-    checkIn.approved_at = new Date();
-    checkIn.approval_remarks = remarks || null;
-
-    const saved = await this.attendanceRepo.save(checkIn);
-
-    // Notify employee: check-in approved (DB + real-time)
     try {
       const notification = await this.notificationService.create(
-        checkIn.user_id,
-        tenantId,
-        'Your check-in has been approved',
+        saved.user_id, tenantId, 'Your check-in has been approved',
         NotificationType.ATTENDANCE,
         { relatedEntityType: 'attendance', relatedEntityId: saved.id },
       );
-      this.notificationGateway.sendToUser(checkIn.user_id, 'new_notification', {
-        id: notification.id,
-        message: notification.message,
-        type: notification.type,
-        related_entity_type: 'attendance',
-        related_entity_id: saved.id,
+      this.notificationGateway.sendToUser(saved.user_id, 'new_notification', {
+        id: notification.id, message: notification.message, type: notification.type,
+        related_entity_type: 'attendance', related_entity_id: saved.id,
         created_at: notification.created_at,
       });
     } catch (error) {
       console.error('Failed to create check-in approval notification:', error);
     }
-
     return saved;
   }
 
@@ -1213,60 +1377,47 @@ export class AttendanceService {
     checkInId: string,
     managerId: string,
     tenantId: string,
-    remarks?: string
+    remarks?: string,
   ): Promise<Attendance> {
-    const checkIn = await this.attendanceRepo.findOne({
-      where: { id: checkInId },
-      relations: ['user'],
-    });
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
 
-    if (!checkIn) {
-      throw new NotFoundException('Check-in record not found');
-    }
+    const findAndSave = async (repo: Repository<Attendance>) => {
+      const checkIn = await repo.findOne({ where: { id: checkInId }, relations: ['user'] });
+      if (!checkIn) throw new NotFoundException('Check-in record not found');
+      if (checkIn.type !== AttendanceType.CHECK_IN) {
+        throw new BadRequestException('Only check-in records can be disapproved');
+      }
+      const isTeamMember = await this.verifyTeamMember(checkIn.user_id, managerId, tenantId);
+      if (!isTeamMember) {
+        throw new ForbiddenException('You can only disapprove check-ins for your team members');
+      }
+      checkIn.approval_status = CheckInApprovalStatus.REJECTED;
+      checkIn.approved_by = managerId;
+      checkIn.approved_at = new Date();
+      checkIn.approval_remarks = remarks || null;
+      return repo.save(checkIn);
+    };
 
-    if (checkIn.type !== AttendanceType.CHECK_IN) {
-      throw new BadRequestException('Only check-in records can be disapproved');
-    }
+    const saved = isProvisioned
+      ? await this.tenantDbService.withTenantSchema(tenantId, (em) =>
+          findAndSave(em.getRepository(Attendance)),
+        )
+      : await findAndSave(this.attendanceRepo);
 
-    // Verify the employee is in the manager's team
-    const isTeamMember = await this.verifyTeamMember(
-      checkIn.user_id,
-      managerId,
-      tenantId
-    );
-
-    if (!isTeamMember) {
-      throw new ForbiddenException('You can only disapprove check-ins for your team members');
-    }
-
-    checkIn.approval_status = CheckInApprovalStatus.REJECTED;
-    checkIn.approved_by = managerId;
-    checkIn.approved_at = new Date();
-    checkIn.approval_remarks = remarks || null;
-
-    const saved = await this.attendanceRepo.save(checkIn);
-
-    // Notify employee: check-in rejected (DB + real-time)
     try {
       const notification = await this.notificationService.create(
-        checkIn.user_id,
-        tenantId,
-        'Your check-in was rejected',
+        saved.user_id, tenantId, 'Your check-in was rejected',
         NotificationType.ATTENDANCE,
         { relatedEntityType: 'attendance', relatedEntityId: saved.id },
       );
-      this.notificationGateway.sendToUser(checkIn.user_id, 'new_notification', {
-        id: notification.id,
-        message: notification.message,
-        type: notification.type,
-        related_entity_type: 'attendance',
-        related_entity_id: saved.id,
+      this.notificationGateway.sendToUser(saved.user_id, 'new_notification', {
+        id: notification.id, message: notification.message, type: notification.type,
+        related_entity_type: 'attendance', related_entity_id: saved.id,
         created_at: notification.created_at,
       });
     } catch (error) {
       console.error('Failed to create check-in rejection notification:', error);
     }
-
     return saved;
   }
 
@@ -1276,69 +1427,50 @@ export class AttendanceService {
   async approveAllCheckIns(
     managerId: string,
     tenantId: string,
-    remarks?: string
+    remarks?: string,
   ): Promise<{ approved: number; items: Attendance[] }> {
-    // Get today's check-ins for team members
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
     const { items } = await this.getTodayTeamCheckIns(managerId, tenantId);
-
-    // Filter out already approved/rejected check-ins
     const pendingCheckIns = items.filter(
-      (item) => !item.approval_status || item.approval_status === CheckInApprovalStatus.PENDING
+      (item) => !item.approval_status || item.approval_status === CheckInApprovalStatus.PENDING,
     );
-
-    if (pendingCheckIns.length === 0) {
-      return { approved: 0, items: [] };
-    }
+    if (pendingCheckIns.length === 0) return { approved: 0, items: [] };
 
     const checkInIds = pendingCheckIns.map((item) => item.id);
     const now = new Date();
 
-    // Update all pending check-ins
-    await this.attendanceRepo
-      .createQueryBuilder()
-      .update(Attendance)
-      .set({
-        approval_status: CheckInApprovalStatus.APPROVED,
-        approved_by: managerId,
-        approved_at: now,
-        approval_remarks: remarks || null,
-      })
-      .where('id IN (:...ids)', { ids: checkInIds })
-      .andWhere('type = :type', { type: AttendanceType.CHECK_IN })
-      .execute();
+    const doUpdate = async (repo: Repository<Attendance>) => {
+      await repo
+        .createQueryBuilder()
+        .update(Attendance)
+        .set({ approval_status: CheckInApprovalStatus.APPROVED, approved_by: managerId, approved_at: now, approval_remarks: remarks || null })
+        .where('id IN (:...ids)', { ids: checkInIds })
+        .andWhere('type = :type', { type: AttendanceType.CHECK_IN })
+        .execute();
+      return repo.find({ where: { id: In(checkInIds) } });
+    };
 
-    // Fetch updated records
-    const updatedCheckIns = await this.attendanceRepo.find({
-      where: { id: In(checkInIds) },
-    });
+    const updatedCheckIns = isProvisioned
+      ? await this.tenantDbService.withTenantSchema(tenantId, (em) => doUpdate(em.getRepository(Attendance)))
+      : await doUpdate(this.attendanceRepo);
 
-    // Notify each employee: check-in approved (DB + real-time)
     for (const checkIn of updatedCheckIns) {
       try {
         const notification = await this.notificationService.create(
-          checkIn.user_id,
-          tenantId,
-          'Your check-in has been approved',
+          checkIn.user_id, tenantId, 'Your check-in has been approved',
           NotificationType.ATTENDANCE,
           { relatedEntityType: 'attendance', relatedEntityId: checkIn.id },
         );
         this.notificationGateway.sendToUser(checkIn.user_id, 'new_notification', {
-          id: notification.id,
-          message: notification.message,
-          type: notification.type,
-          related_entity_type: 'attendance',
-          related_entity_id: checkIn.id,
+          id: notification.id, message: notification.message, type: notification.type,
+          related_entity_type: 'attendance', related_entity_id: checkIn.id,
           created_at: notification.created_at,
         });
       } catch (error) {
         console.error(`Failed to notify employee ${checkIn.user_id} for check-in approval:`, error);
       }
     }
-
-    return {
-      approved: updatedCheckIns.length,
-      items: updatedCheckIns,
-    };
+    return { approved: updatedCheckIns.length, items: updatedCheckIns };
   }
 
   /**
@@ -1347,69 +1479,50 @@ export class AttendanceService {
   async disapproveAllCheckIns(
     managerId: string,
     tenantId: string,
-    remarks?: string
+    remarks?: string,
   ): Promise<{ disapproved: number; items: Attendance[] }> {
-    // Get today's check-ins for team members
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
     const { items } = await this.getTodayTeamCheckIns(managerId, tenantId);
-
-    // Filter out already approved/rejected check-ins
     const pendingCheckIns = items.filter(
-      (item) => !item.approval_status || item.approval_status === CheckInApprovalStatus.PENDING
+      (item) => !item.approval_status || item.approval_status === CheckInApprovalStatus.PENDING,
     );
-
-    if (pendingCheckIns.length === 0) {
-      return { disapproved: 0, items: [] };
-    }
+    if (pendingCheckIns.length === 0) return { disapproved: 0, items: [] };
 
     const checkInIds = pendingCheckIns.map((item) => item.id);
     const now = new Date();
 
-    // Update all pending check-ins
-    await this.attendanceRepo
-      .createQueryBuilder()
-      .update(Attendance)
-      .set({
-        approval_status: CheckInApprovalStatus.REJECTED,
-        approved_by: managerId,
-        approved_at: now,
-        approval_remarks: remarks || null,
-      })
-      .where('id IN (:...ids)', { ids: checkInIds })
-      .andWhere('type = :type', { type: AttendanceType.CHECK_IN })
-      .execute();
+    const doUpdate = async (repo: Repository<Attendance>) => {
+      await repo
+        .createQueryBuilder()
+        .update(Attendance)
+        .set({ approval_status: CheckInApprovalStatus.REJECTED, approved_by: managerId, approved_at: now, approval_remarks: remarks || null })
+        .where('id IN (:...ids)', { ids: checkInIds })
+        .andWhere('type = :type', { type: AttendanceType.CHECK_IN })
+        .execute();
+      return repo.find({ where: { id: In(checkInIds) } });
+    };
 
-    // Fetch updated records
-    const updatedCheckIns = await this.attendanceRepo.find({
-      where: { id: In(checkInIds) },
-    });
+    const updatedCheckIns = isProvisioned
+      ? await this.tenantDbService.withTenantSchema(tenantId, (em) => doUpdate(em.getRepository(Attendance)))
+      : await doUpdate(this.attendanceRepo);
 
-    // Notify each employee: check-in rejected (DB + real-time)
     for (const checkIn of updatedCheckIns) {
       try {
         const notification = await this.notificationService.create(
-          checkIn.user_id,
-          tenantId,
-          'Your check-in was rejected',
+          checkIn.user_id, tenantId, 'Your check-in was rejected',
           NotificationType.ATTENDANCE,
           { relatedEntityType: 'attendance', relatedEntityId: checkIn.id },
         );
         this.notificationGateway.sendToUser(checkIn.user_id, 'new_notification', {
-          id: notification.id,
-          message: notification.message,
-          type: notification.type,
-          related_entity_type: 'attendance',
-          related_entity_id: checkIn.id,
+          id: notification.id, message: notification.message, type: notification.type,
+          related_entity_type: 'attendance', related_entity_id: checkIn.id,
           created_at: notification.created_at,
         });
       } catch (error) {
         console.error(`Failed to notify employee ${checkIn.user_id} for check-in rejection:`, error);
       }
     }
-
-    return {
-      disapproved: updatedCheckIns.length,
-      items: updatedCheckIns,
-    };
+    return { disapproved: updatedCheckIns.length, items: updatedCheckIns };
   }
 
   /**

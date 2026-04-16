@@ -6,9 +6,10 @@ import { User } from '../../entities/user.entity';
 import { TimesheetService } from './timesheet.service';
 import { TimesheetController } from './timesheet.controller';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
+import { TenantModule } from '../tenant/tenant.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Timesheet, Attendance, User]), SharedJwtModule],
+  imports: [TypeOrmModule.forFeature([Timesheet, Attendance, User]), SharedJwtModule, TenantModule],
   controllers: [TimesheetController],
   providers: [TimesheetService],
   exports: [TimesheetService],

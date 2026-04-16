@@ -10,13 +10,14 @@ import { DataSource } from "typeorm";
  * Example: tenant_id "550e8400-e29b-41d4-a716-446655440000"
  *       → schema    "tenant_550e8400e29b41d4a716446655440000"
  *
- * Phase 2 table layout (employee module complete)
- * -----------------------------------------------
+ * Phase 3 table layout (attendance + leave modules)
+ * --------------------------------------------------
  * Tenant schema  : departments, designations, teams, employees,
- *                  billing_transactions
+ *                  billing_transactions, attendance,
+ *                  leave_types, leaves
  * Public schema  : users, tenants, company_details, roles, permissions,
  *                  role_permissions, subscription_plans, signup_sessions,
- *                  system_logs
+ *                  system_logs, geofences, notifications
  *
  * ── Identifier length ───────────────────────────────────────────────────────
  * PostgreSQL maximum identifier length is 63 bytes.  The schema name is
@@ -30,7 +31,7 @@ import { DataSource } from "typeorm";
  *
  * All names in this file are kept within those budgets using short
  * abbreviations: dept, desig, emp, bt (billing_transactions), tn (tenant),
- * mgr (manager).
+ * mgr (manager), att (attendance), lt (leave_types), lv (leaves).
  * ────────────────────────────────────────────────────────────────────────────
  *
  * Cross-schema FK rules:
@@ -92,6 +93,9 @@ export class TenantSchemaProvisioningService {
       await this.createTeamsTable(queryRunner, schemaName);
       await this.createEmployeesTable(queryRunner, schemaName);
       await this.createBillingTransactionsTable(queryRunner, schemaName);
+      await this.createAttendanceTable(queryRunner, schemaName);
+      await this.createLeaveTypesTable(queryRunner, schemaName);
+      await this.createLeavesTable(queryRunner, schemaName);
 
       // Copy platform-wide GLOBAL departments/designations so new tenants can
       // immediately create designations under them and see them in findAll.
@@ -145,14 +149,16 @@ export class TenantSchemaProvisioningService {
       await this.createTeamsTable(queryRunner, schemaName);
       await this.createEmployeesTable(queryRunner, schemaName);
       await this.createBillingTransactionsTable(queryRunner, schemaName);
+      await this.createAttendanceTable(queryRunner, schemaName);
+      await this.createLeaveTypesTable(queryRunner, schemaName);
+      await this.createLeavesTable(queryRunner, schemaName);
 
       // Fix employees FKs — must run after all tables exist so the new FK
       // targets (designations, teams) are guaranteed to be present.
       await this.upgradeEmployeesForeignKeys(queryRunner, schemaName);
 
-      // Migrate any existing public-schema rows (departments, designations,
-      // teams) for this tenant into the new tenant schema tables.  Idempotent:
-      // ON CONFLICT DO NOTHING so re-running is always safe.
+      // Migrate any existing public-schema rows for this tenant into the new
+      // tenant schema tables.  Idempotent: ON CONFLICT DO NOTHING everywhere.
       await this.migratePublicDataToTenantSchema(queryRunner, schemaName, tenantId);
 
       await queryRunner.commitTransaction();
@@ -438,6 +444,173 @@ export class TenantSchemaProvisioningService {
   }
 
   /**
+   * attendance
+   *   FK: user_id     → public.users  (shared login table)
+   *   FK: approved_by → public.users  (approver is always a shared user)
+   *   No tenant_id column — tenancy is implicit via user_id → public.users.tenant_id.
+   *
+   * Suffix budget used: _att_usr (8), _att_apr (8)
+   */
+  private async createAttendanceTable(
+    queryRunner: ReturnType<DataSource["createQueryRunner"]>,
+    schemaName: string,
+  ): Promise<void> {
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."attendance" (
+        "id"               UUID         NOT NULL DEFAULT gen_random_uuid(),
+        "user_id"          UUID         NOT NULL,
+        "type"             VARCHAR(20)  NOT NULL,
+        "timestamp"        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+        "created_at"       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+        "approval_status"  VARCHAR(20),
+        "approved_by"      UUID,
+        "approved_at"      TIMESTAMPTZ,
+        "approval_remarks" TEXT,
+        "near_boundary"    BOOLEAN      NOT NULL DEFAULT false,
+        "updated_at"       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+        CONSTRAINT "pk_${schemaName}_att"
+          PRIMARY KEY ("id"),
+        CONSTRAINT "fk_${schemaName}_att_usr"
+          FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id")
+          ON DELETE CASCADE,
+        CONSTRAINT "fk_${schemaName}_att_apr"
+          FOREIGN KEY ("approved_by") REFERENCES "public"."users" ("id")
+          ON DELETE SET NULL
+      )
+    `);
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_att_usr"
+         ON "${schemaName}"."attendance" ("user_id")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_att_ts"
+         ON "${schemaName}"."attendance" ("timestamp")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_att_type"
+         ON "${schemaName}"."attendance" ("type")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_att_apst"
+         ON "${schemaName}"."attendance" ("approval_status")`,
+    );
+    this.logger.debug(`Table "${schemaName}".attendance ensured`);
+  }
+
+  /**
+   * leave_types
+   *   FK: "tenantId"  → public.tenants
+   *   FK: "createdBy" → public.users
+   *
+   * Column names are camelCase to match the TypeORM entity (no naming strategy).
+   * Suffix budget used: _lt_tn (6), _lt_usr (7)
+   */
+  private async createLeaveTypesTable(
+    queryRunner: ReturnType<DataSource["createQueryRunner"]>,
+    schemaName: string,
+  ): Promise<void> {
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."leave_types" (
+        "id"             UUID         NOT NULL DEFAULT gen_random_uuid(),
+        "name"           VARCHAR(255) NOT NULL,
+        "description"    TEXT,
+        "maxDaysPerYear" INTEGER      NOT NULL DEFAULT 0,
+        "carryForward"   BOOLEAN      NOT NULL DEFAULT false,
+        "isPaid"         BOOLEAN      NOT NULL DEFAULT true,
+        "tenantId"       UUID         NOT NULL,
+        "createdBy"      UUID         NOT NULL,
+        "status"         VARCHAR(50)  NOT NULL DEFAULT 'active',
+        "createdAt"      TIMESTAMP    NOT NULL DEFAULT now(),
+        "updatedAt"      TIMESTAMP    NOT NULL DEFAULT now(),
+        CONSTRAINT "pk_${schemaName}_lt"
+          PRIMARY KEY ("id"),
+        CONSTRAINT "fk_${schemaName}_lt_tn"
+          FOREIGN KEY ("tenantId") REFERENCES "public"."tenants" ("id")
+          ON DELETE CASCADE,
+        CONSTRAINT "fk_${schemaName}_lt_usr"
+          FOREIGN KEY ("createdBy") REFERENCES "public"."users" ("id")
+          ON DELETE CASCADE
+      )
+    `);
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_lt_tn"
+         ON "${schemaName}"."leave_types" ("tenantId")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_lt_status"
+         ON "${schemaName}"."leave_types" ("status")`,
+    );
+    this.logger.debug(`Table "${schemaName}".leave_types ensured`);
+  }
+
+  /**
+   * leaves
+   *   FK: "employeeId"  → public.users           (employee/shared login)
+   *   FK: "leaveTypeId" → <tenant schema>.leave_types
+   *   FK: "approvedBy"  → public.users
+   *   FK: "tenantId"    → public.tenants
+   *
+   * Column names are camelCase to match the TypeORM entity.
+   * Suffix budget used: _lv_emp (7), _lv_lt (6), _lv_apr (7), _lv_tn (6)
+   */
+  private async createLeavesTable(
+    queryRunner: ReturnType<DataSource["createQueryRunner"]>,
+    schemaName: string,
+  ): Promise<void> {
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."leaves" (
+        "id"              UUID      NOT NULL DEFAULT gen_random_uuid(),
+        "employeeId"      UUID      NOT NULL,
+        "leaveTypeId"     UUID      NOT NULL,
+        "startDate"       DATE      NOT NULL,
+        "endDate"         DATE      NOT NULL,
+        "totalDays"       INTEGER   NOT NULL,
+        "reason"          TEXT      NOT NULL,
+        "status"          VARCHAR   NOT NULL DEFAULT 'pending',
+        "approvedBy"      UUID,
+        "tenantId"        UUID      NOT NULL,
+        "approvedAt"      TIMESTAMP,
+        "remarks"         TEXT,
+        "managerRemarks"  TEXT,
+        "documents"       TEXT[]             DEFAULT '{}',
+        "createdAt"       TIMESTAMP NOT NULL DEFAULT now(),
+        "updatedAt"       TIMESTAMP NOT NULL DEFAULT now(),
+        CONSTRAINT "pk_${schemaName}_lv"
+          PRIMARY KEY ("id"),
+        CONSTRAINT "fk_${schemaName}_lv_emp"
+          FOREIGN KEY ("employeeId") REFERENCES "public"."users" ("id")
+          ON DELETE CASCADE,
+        CONSTRAINT "fk_${schemaName}_lv_lt"
+          FOREIGN KEY ("leaveTypeId") REFERENCES "${schemaName}"."leave_types" ("id")
+          ON DELETE CASCADE,
+        CONSTRAINT "fk_${schemaName}_lv_apr"
+          FOREIGN KEY ("approvedBy") REFERENCES "public"."users" ("id")
+          ON DELETE SET NULL,
+        CONSTRAINT "fk_${schemaName}_lv_tn"
+          FOREIGN KEY ("tenantId") REFERENCES "public"."tenants" ("id")
+          ON DELETE CASCADE
+      )
+    `);
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_lv_emp"
+         ON "${schemaName}"."leaves" ("employeeId")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_lv_lt"
+         ON "${schemaName}"."leaves" ("leaveTypeId")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_lv_tn"
+         ON "${schemaName}"."leaves" ("tenantId")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_lv_status"
+         ON "${schemaName}"."leaves" ("status")`,
+    );
+    this.logger.debug(`Table "${schemaName}".leaves ensured`);
+  }
+
+  /**
    * Fixes the two FK constraints on the employees table that changed between
    * Phase 1 and Phase 2:
    *
@@ -630,6 +803,53 @@ export class TenantSchemaProvisioningService {
       FROM public.teams t
       JOIN public.users u ON u.id = t.manager_id
       WHERE u.tenant_id = $1
+      ON CONFLICT (id) DO NOTHING
+    `, [tenantId]);
+
+    // ── attendance — identified via user_id → public.users.tenant_id ─────────
+    await queryRunner.query(`
+      INSERT INTO "${schemaName}"."attendance"
+        (id, user_id, type, timestamp, created_at, approval_status,
+         approved_by, approved_at, approval_remarks, near_boundary, updated_at)
+      SELECT
+        a.id, a.user_id, a.type, a.timestamp, a.created_at, a.approval_status,
+        a.approved_by, a.approved_at, a.approval_remarks, a.near_boundary, a.updated_at
+      FROM public.attendance a
+      JOIN public.users u ON u.id = a.user_id
+      WHERE u.tenant_id = $1
+      ON CONFLICT (id) DO NOTHING
+    `, [tenantId]);
+
+    // ── leave_types ──────────────────────────────────────────────────────────
+    await queryRunner.query(`
+      INSERT INTO "${schemaName}"."leave_types"
+        (id, name, description, "maxDaysPerYear", "carryForward", "isPaid",
+         "tenantId", "createdBy", status, "createdAt", "updatedAt")
+      SELECT
+        lt.id, lt.name, lt.description, lt."maxDaysPerYear", lt."carryForward",
+        lt."isPaid", lt."tenantId", lt."createdBy", lt.status,
+        lt."createdAt", lt."updatedAt"
+      FROM public.leave_types lt
+      WHERE lt."tenantId" = $1
+      ON CONFLICT (id) DO NOTHING
+    `, [tenantId]);
+
+    // ── leaves — only those whose leaveType already landed above ─────────────
+    await queryRunner.query(`
+      INSERT INTO "${schemaName}"."leaves"
+        (id, "employeeId", "leaveTypeId", "startDate", "endDate", "totalDays",
+         reason, status, "approvedBy", "tenantId", "approvedAt", remarks,
+         "managerRemarks", documents, "createdAt", "updatedAt")
+      SELECT
+        lv.id, lv."employeeId", lv."leaveTypeId", lv."startDate", lv."endDate",
+        lv."totalDays", lv.reason, lv.status, lv."approvedBy", lv."tenantId",
+        lv."approvedAt", lv.remarks, lv."managerRemarks", lv.documents,
+        lv."createdAt", lv."updatedAt"
+      FROM public.leaves lv
+      WHERE lv."tenantId" = $1
+        AND EXISTS (
+          SELECT 1 FROM "${schemaName}"."leave_types" lt WHERE lt.id = lv."leaveTypeId"
+        )
       ON CONFLICT (id) DO NOTHING
     `, [tenantId]);
 
