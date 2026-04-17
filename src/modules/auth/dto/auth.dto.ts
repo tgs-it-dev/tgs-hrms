@@ -3,7 +3,7 @@
  */
 
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsEmail, IsOptional } from 'class-validator';
+import { IsString, IsEmail } from 'class-validator';
 
 // Login Response DTO
 export class LoginResponseDto {
@@ -51,13 +51,6 @@ export class RegisterResponseDto {
   };
 }
 
-// Token Refresh DTO
-export class RefreshTokenDto {
-  @ApiProperty({ description: 'Refresh token' })
-  @IsString()
-  refresh_token: string;
-}
-
 // Token Refresh Response DTO
 export class RefreshTokenResponseDto {
   @ApiProperty({ description: 'New access token' })
@@ -71,14 +64,6 @@ export class RefreshTokenResponseDto {
 
   @ApiProperty({ description: 'Token expiry time in seconds' })
   expires_in: number;
-}
-
-// Logout DTO
-export class LogoutDto {
-  @ApiPropertyOptional({ description: 'Refresh token to invalidate' })
-  @IsOptional()
-  @IsString()
-  refresh_token?: string;
 }
 
 // Logout Response DTO

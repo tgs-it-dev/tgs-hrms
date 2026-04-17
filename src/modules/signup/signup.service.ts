@@ -157,9 +157,6 @@ export class SignupService {
         expiresIn: '7d',
       });
 
-      existingUser.refresh_token = refreshToken;
-      await this.userRepo.save(existingUser);
-
       return {
         alreadyRegistered: true,
         accessToken,
@@ -543,9 +540,6 @@ export class SignupService {
         expiresIn: '7d',
       });
 
-      user.refresh_token = refreshToken;
-      await this.userRepo.save(user);
-
       return {
         success: true,
         tenantId: company.tenant_id,
@@ -652,9 +646,6 @@ export class SignupService {
       secret: this.configService.get<string>('JWT_SECRET'),
       expiresIn: '7d',
     });
-
-    user.refresh_token = refreshToken;
-    await this.userRepo.save(user);
 
     return {
       success: true,
