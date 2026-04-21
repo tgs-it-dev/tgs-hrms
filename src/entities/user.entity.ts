@@ -8,28 +8,18 @@ import {
   JoinColumn,
   OneToMany,
   Index,
-} from 'typeorm';
-import { Tenant } from './tenant.entity';
-import { Role } from './role.entity';
-import { Employee } from './employee.entity';
-import { Attendance } from './attendance.entity';
-import { Team } from './team.entity';
-import { UserGender } from '../common/constants/enums';
+} from "typeorm";
+import { Tenant } from "./tenant.entity";
+import { Role } from "./role.entity";
+import { Employee } from "./employee.entity";
+import { Attendance } from "./attendance.entity";
+import { Team } from "./team.entity";
+import { UserGender } from "../common/constants/enums";
 
-export enum UserRole {
-  ADMIN = 'admin',
-  USER = 'user',
-  MANAGER = 'manager',
-  HR = 'hr',
-  SYSTEM_ADMIN = 'system-admin',
-  NETWORK_ADMIN = 'network-admin',
-  HR_ADMIN = 'hr-admin',
-}
-
-@Index(['tenant_id'])
-@Index(['email'])
-@Index(['email', 'tenant_id'], { unique: true })
-@Index(['phone'], { unique: true })
+@Index(["tenant_id"])
+@Index(["email"])
+@Index(["email", "tenant_id"], { unique: true })
+@Index(["phone"], { unique: true })
 @Entity("users")
 export class User {
   @PrimaryGeneratedColumn("uuid")
@@ -56,7 +46,7 @@ export class User {
   @Column({ type: "uuid" })
   role_id: string;
 
-  @Column({ type: 'varchar', length: 10, nullable: true })
+  @Column({ type: "varchar", length: 10, nullable: true })
   gender: UserGender | null;
 
   @Column({ type: "uuid" })
@@ -73,14 +63,14 @@ export class User {
 
   @ManyToOne(() => Role, (role) => role.users, {
     nullable: false,
-    onDelete: 'RESTRICT' // Prevent deletion if users exist
+    onDelete: "RESTRICT", // Prevent deletion if users exist
   })
   @JoinColumn({ name: "role_id" })
   role: Role;
 
   @ManyToOne(() => Tenant, (tenant) => tenant.users, {
     nullable: false,
-    onDelete: 'RESTRICT' // Prevent hard delete, use soft delete instead
+    onDelete: "RESTRICT", // Prevent hard delete, use soft delete instead
   })
   @JoinColumn({ name: "tenant_id" })
   tenant: Tenant;
@@ -99,5 +89,4 @@ export class User {
 
   @Column({ type: "timestamptz", nullable: true })
   reset_token_expiry: Date | null;
-
 }
