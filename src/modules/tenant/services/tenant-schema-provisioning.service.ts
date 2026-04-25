@@ -14,10 +14,11 @@ import { DataSource } from "typeorm";
  * ---------------------------------------------------------
  * Tenant schema  : departments, designations, teams, employees,
  *                  billing_transactions, attendance,
- *                  leave_types, leaves, announcements
+ *                  leave_types, leaves, announcements, geofences,
+ *                  notifications
  * Public schema  : users, tenants, company_details, roles, permissions,
  *                  role_permissions, subscription_plans, signup_sessions,
- *                  system_logs, geofences, notifications
+ *                  system_logs
  *
  * ── Identifier length ───────────────────────────────────────────────────────
  * PostgreSQL maximum identifier length is 63 bytes.  The schema name is
@@ -39,6 +40,9 @@ import { DataSource } from "typeorm";
  *     the constraint resolves regardless of the current search_path.
  *   - FKs within the tenant schema use the schemaName prefix.
  *
+ * IMPORTANT: In tenant schemas, tenant_id is METADATA ONLY and must NEVER be used in WHERE filters.
+ * Queries in tenant schemas rely on schema isolation for tenancy. Only public schema queries should filter by tenant_id.
+ *
  * Roles stay in public — they are platform-wide (globally unique names,
  * no tenant_id) and are not per-company data.
  */
@@ -50,6 +54,15 @@ export class TenantSchemaProvisioningService {
     @InjectDataSource()
     private readonly dataSource: DataSource,
   ) {}
+
+  /**
+   * Returns the appropriate filter object for queries.
+   * For provisioned tenants (isProvisioned=true), tenant_id is NEVER included.
+   * For public schema (isProvisioned=false), tenant_id MUST be included.
+   */
+  private getTenantFilter(isProvisioned: boolean, tenantId: string): { tenant_id?: string } {
+    return isProvisioned ? {} : { tenant_id: tenantId };
+  }
 
   /**
    * Returns the PostgreSQL schema name for a given tenant UUID.
@@ -101,6 +114,8 @@ export class TenantSchemaProvisioningService {
       await this.createLeaveTypesTable(queryRunner, schemaName);
       await this.createLeavesTable(queryRunner, schemaName);
       await this.createAnnouncementsTable(queryRunner, schemaName);
+      await this.createGeofencesTable(queryRunner, schemaName);
+      await this.createNotificationsTable(queryRunner, schemaName);
 
       // Copy platform-wide GLOBAL departments/designations so new tenants can
       // immediately create designations under them and see them in findAll.
@@ -159,6 +174,8 @@ export class TenantSchemaProvisioningService {
       await this.createLeaveTypesTable(queryRunner, schemaName);
       await this.createLeavesTable(queryRunner, schemaName);
       await this.createAnnouncementsTable(queryRunner, schemaName);
+      await this.createGeofencesTable(queryRunner, schemaName);
+      await this.createNotificationsTable(queryRunner, schemaName);
 
       // Fix employees FKs — must run after all tables exist so the new FK
       // targets (designations, teams) are guaranteed to be present.
@@ -208,7 +225,7 @@ export class TenantSchemaProvisioningService {
    * departments
    *   FK: tenant_id → public.tenants
    *
-   * Suffix budget used: _dept_tn (8) for FK, _dept_tn (8) for idx
+   * Suffix budget used: _dept_tn (8) for FK
    */
   private async createDepartmentsTable(
     queryRunner: ReturnType<DataSource["createQueryRunner"]>,
@@ -229,10 +246,6 @@ export class TenantSchemaProvisioningService {
       )
     `);
     await queryRunner.query(
-      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_dept_tn"
-         ON "${schemaName}"."departments" ("tenant_id")`,
-    );
-    await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_dept_name"
          ON "${schemaName}"."departments" ("name")`,
     );
@@ -244,7 +257,7 @@ export class TenantSchemaProvisioningService {
    *   FK: department_id → <tenant schema>.departments
    *   FK: tenant_id     → public.tenants
    *
-   * Suffix budget used: _desig_dept (11), _desig_tn (9)
+   * Suffix budget used: _desig_dept (11)
    */
   private async createDesignationsTable(
     queryRunner: ReturnType<DataSource["createQueryRunner"]>,
@@ -267,10 +280,6 @@ export class TenantSchemaProvisioningService {
           ON DELETE RESTRICT
       )
     `);
-    await queryRunner.query(
-      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_desig_tn"
-         ON "${schemaName}"."designations" ("tenant_id")`,
-    );
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_desig_dept"
          ON "${schemaName}"."designations" ("department_id")`,
@@ -440,10 +449,6 @@ export class TenantSchemaProvisioningService {
     `);
 
     await queryRunner.query(
-      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_bt_tn"
-         ON "${schemaName}"."billing_transactions" ("tenant_id")`,
-    );
-    await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_bt_status"
          ON "${schemaName}"."billing_transactions" ("status")`,
     );
@@ -544,10 +549,6 @@ export class TenantSchemaProvisioningService {
       )
     `);
     await queryRunner.query(
-      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_lt_tn"
-         ON "${schemaName}"."leave_types" ("tenantId")`,
-    );
-    await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_lt_status"
          ON "${schemaName}"."leave_types" ("status")`,
     );
@@ -611,10 +612,6 @@ export class TenantSchemaProvisioningService {
          ON "${schemaName}"."leaves" ("leaveTypeId")`,
     );
     await queryRunner.query(
-      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_lv_tn"
-         ON "${schemaName}"."leaves" ("tenantId")`,
-    );
-    await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_lv_status"
          ON "${schemaName}"."leaves" ("status")`,
     );
@@ -659,18 +656,137 @@ export class TenantSchemaProvisioningService {
       )
     `);
     await queryRunner.query(
-      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_ann_tn_st"
-         ON "${schemaName}"."announcements" ("tenant_id", "status")`,
+      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_ann_status"
+         ON "${schemaName}"."announcements" ("status")`,
     );
     await queryRunner.query(
-      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_ann_tn_cat"
-         ON "${schemaName}"."announcements" ("tenant_id", "category")`,
+      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_ann_category"
+         ON "${schemaName}"."announcements" ("category")`,
     );
     await queryRunner.query(
-      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_ann_tn_sch"
-         ON "${schemaName}"."announcements" ("tenant_id", "scheduled_at")`,
+      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_ann_scheduled"
+         ON "${schemaName}"."announcements" ("scheduled_at")`,
     );
     this.logger.debug(`Table "${schemaName}".announcements ensured`);
+  }
+
+  /**
+   * geofences
+   *   FK: tenant_id -> public.tenants
+   *   FK: team_id   -> <tenant schema>.teams
+   *
+   * Suffix budget used: _gf_tn (6), _gf_tm (6)
+   */
+  private async createGeofencesTable(
+    queryRunner: ReturnType<DataSource["createQueryRunner"]>,
+    schemaName: string,
+  ): Promise<void> {
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."geofences" (
+        "id"                 UUID          NOT NULL DEFAULT gen_random_uuid(),
+        "tenant_id"          UUID          NOT NULL,
+        "team_id"            UUID          NOT NULL,
+        "name"               VARCHAR(120)  NOT NULL,
+        "description"        TEXT,
+        "type"               VARCHAR(32),
+        "radius"             NUMERIC,
+        "coordinates"        JSONB,
+        "latitude"           NUMERIC(10,7) NOT NULL,
+        "longitude"          NUMERIC(10,7) NOT NULL,
+        "status"             VARCHAR(10)   NOT NULL DEFAULT 'active',
+        "threshold_distance" NUMERIC,
+        "threshold_enabled"  BOOLEAN       NOT NULL DEFAULT false,
+        "created_at"         TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+        "updated_at"         TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+        CONSTRAINT "pk_${schemaName}_gf"
+          PRIMARY KEY ("id"),
+        CONSTRAINT "uq_${schemaName}_gf_tn_tm_nm"
+          UNIQUE ("tenant_id", "team_id", "name"),
+        CONSTRAINT "fk_${schemaName}_gf_tn"
+          FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants" ("id")
+          ON DELETE RESTRICT,
+        CONSTRAINT "fk_${schemaName}_gf_tm"
+          FOREIGN KEY ("team_id") REFERENCES "${schemaName}"."teams" ("id")
+          ON DELETE CASCADE
+      )
+    `);
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_gf_tm"
+         ON "${schemaName}"."geofences" ("team_id")`
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_gf_nm"
+         ON "${schemaName}"."geofences" ("name")`
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_gf_st"
+         ON "${schemaName}"."geofences" ("status")`
+    );
+    this.logger.debug(`Table "${schemaName}".geofences ensured`);
+  }
+
+  /**
+   * notifications
+   *   FK: user_id   -> public.users
+   *   FK: sender_id -> public.users
+   *   FK: tenant_id -> public.tenants
+   *
+   * Suffix budget used: _ntf_usr (8), _ntf_snd (8), _ntf_tn (7)
+   */
+  private async createNotificationsTable(
+    queryRunner: ReturnType<DataSource["createQueryRunner"]>,
+    schemaName: string,
+  ): Promise<void> {
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."notifications" (
+        "id"                  UUID         NOT NULL DEFAULT gen_random_uuid(),
+        "user_id"             UUID         NOT NULL,
+        "sender_id"           UUID,
+        "sender_role"         VARCHAR(32),
+        "tenant_id"           UUID         NOT NULL,
+        "message"             TEXT         NOT NULL,
+        "type"                VARCHAR(20)  NOT NULL,
+        "action"              VARCHAR(20),
+        "status"              VARCHAR(20)  NOT NULL DEFAULT 'UNREAD',
+        "related_entity_type" VARCHAR(32),
+        "related_entity_id"   UUID,
+        "is_system"           BOOLEAN      NOT NULL DEFAULT false,
+        "created_at"          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+        "updated_at"          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+        CONSTRAINT "pk_${schemaName}_ntf"
+          PRIMARY KEY ("id"),
+        CONSTRAINT "fk_${schemaName}_ntf_usr"
+          FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id")
+          ON DELETE CASCADE,
+        CONSTRAINT "fk_${schemaName}_ntf_snd"
+          FOREIGN KEY ("sender_id") REFERENCES "public"."users" ("id")
+          ON DELETE SET NULL,
+        CONSTRAINT "fk_${schemaName}_ntf_tn"
+          FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants" ("id")
+          ON DELETE RESTRICT
+      )
+    `);
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_ntf_st"
+         ON "${schemaName}"."notifications" ("status")`
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_ntf_typ"
+         ON "${schemaName}"."notifications" ("type")`
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_ntf_usr_st"
+         ON "${schemaName}"."notifications" ("user_id", "status")`
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_ntf_act"
+         ON "${schemaName}"."notifications" ("action")`
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_ntf_rel"
+         ON "${schemaName}"."notifications" ("related_entity_type", "related_entity_id")`
+    );
+    this.logger.debug(`Table "${schemaName}".notifications ensured`);
   }
 
   /**
@@ -946,6 +1062,42 @@ export class TenantSchemaProvisioningService {
         a.updated_at, a.deleted_at
       FROM public.announcements a
       WHERE a.tenant_id = $1
+      ON CONFLICT (id) DO NOTHING
+    `,
+      [tenantId],
+    );
+
+    // ── geofences ───────────────────────────────────────────────────────────
+    await queryRunner.query(
+      `
+      INSERT INTO "${schemaName}"."geofences"
+        (id, tenant_id, team_id, name, description, type, radius, coordinates,
+         latitude, longitude, status, threshold_distance, threshold_enabled,
+         created_at, updated_at)
+      SELECT
+        g.id, g.tenant_id, g.team_id, g.name, g.description, g.type, g.radius,
+        g.coordinates, g.latitude, g.longitude, g.status, g.threshold_distance,
+        g.threshold_enabled, g.created_at, g.updated_at
+      FROM public.geofences g
+      WHERE g.tenant_id = $1
+      ON CONFLICT (id) DO NOTHING
+    `,
+      [tenantId],
+    );
+
+    // ── notifications ───────────────────────────────────────────────────────
+    await queryRunner.query(
+      `
+      INSERT INTO "${schemaName}"."notifications"
+        (id, user_id, sender_id, sender_role, tenant_id, message, type, action,
+         status, related_entity_type, related_entity_id, is_system, created_at,
+         updated_at)
+      SELECT
+        n.id, n.user_id, n.sender_id, n.sender_role, n.tenant_id, n.message,
+        n.type, n.action, n.status, n.related_entity_type, n.related_entity_id,
+        n.is_system, n.created_at, n.updated_at
+      FROM public.notifications n
+      WHERE n.tenant_id = $1
       ON CONFLICT (id) DO NOTHING
     `,
       [tenantId],
