@@ -60,7 +60,10 @@ export class TenantSchemaProvisioningService {
    * For provisioned tenants (isProvisioned=true), tenant_id is NEVER included.
    * For public schema (isProvisioned=false), tenant_id MUST be included.
    */
-  private getTenantFilter(isProvisioned: boolean, tenantId: string): { tenant_id?: string } {
+  private getTenantFilter(
+    isProvisioned: boolean,
+    tenantId: string,
+  ): { tenant_id?: string } {
     return isProvisioned ? {} : { tenant_id: tenantId };
   }
 
@@ -180,6 +183,8 @@ export class TenantSchemaProvisioningService {
       // Fix employees FKs — must run after all tables exist so the new FK
       // targets (designations, teams) are guaranteed to be present.
       await this.upgradeEmployeesForeignKeys(queryRunner, schemaName);
+      await this.upgradeGeofencesForeignKeys(queryRunner, schemaName);
+      await this.upgradeNotificationsForeignKeys(queryRunner, schemaName);
 
       // Migrate any existing public-schema rows for this tenant into the new
       // tenant schema tables.  Idempotent: ON CONFLICT DO NOTHING everywhere.
@@ -712,15 +717,15 @@ export class TenantSchemaProvisioningService {
     `);
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_gf_tm"
-         ON "${schemaName}"."geofences" ("team_id")`
+         ON "${schemaName}"."geofences" ("team_id")`,
     );
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_gf_nm"
-         ON "${schemaName}"."geofences" ("name")`
+         ON "${schemaName}"."geofences" ("name")`,
     );
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_gf_st"
-         ON "${schemaName}"."geofences" ("status")`
+         ON "${schemaName}"."geofences" ("status")`,
     );
     this.logger.debug(`Table "${schemaName}".geofences ensured`);
   }
@@ -768,23 +773,23 @@ export class TenantSchemaProvisioningService {
     `);
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_ntf_st"
-         ON "${schemaName}"."notifications" ("status")`
+         ON "${schemaName}"."notifications" ("status")`,
     );
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_ntf_typ"
-         ON "${schemaName}"."notifications" ("type")`
+         ON "${schemaName}"."notifications" ("type")`,
     );
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_ntf_usr_st"
-         ON "${schemaName}"."notifications" ("user_id", "status")`
+         ON "${schemaName}"."notifications" ("user_id", "status")`,
     );
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_ntf_act"
-         ON "${schemaName}"."notifications" ("action")`
+         ON "${schemaName}"."notifications" ("action")`,
     );
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_ntf_rel"
-         ON "${schemaName}"."notifications" ("related_entity_type", "related_entity_id")`
+         ON "${schemaName}"."notifications" ("related_entity_type", "related_entity_id")`,
     );
     this.logger.debug(`Table "${schemaName}".notifications ensured`);
   }
@@ -907,6 +912,215 @@ export class TenantSchemaProvisioningService {
 
     this.logger.debug(
       `Employees FKs upgraded to tenant schema for "${schemaName}"`,
+    );
+  }
+
+  /**
+   * Ensures geofences.team_id points to <tenant schema>.teams.
+   *
+   * Handles legacy/manual schemas where geofences may exist with a different FK
+   * name/target (e.g. public.teams). We locate the FK by column name and replace
+   * it with the canonical tenant-local FK.
+   */
+  private async upgradeGeofencesForeignKeys(
+    queryRunner: ReturnType<DataSource["createQueryRunner"]>,
+    schemaName: string,
+  ): Promise<void> {
+    await queryRunner.query(`
+      DO $$
+      DECLARE
+        v_con text;
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM pg_constraint c
+          JOIN pg_class t ON t.oid = c.conrelid
+          JOIN pg_namespace n ON n.oid = t.relnamespace
+          WHERE c.contype = 'f'
+            AND n.nspname = '${schemaName}'
+            AND t.relname = 'geofences'
+            AND c.conname = 'fk_${schemaName}_gf_tm'
+        ) THEN
+          RETURN;
+        END IF;
+
+        SELECT c.conname INTO v_con
+        FROM pg_constraint c
+        JOIN pg_class t ON t.oid = c.conrelid
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+        JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = c.conkey[1]
+        WHERE c.contype = 'f'
+          AND n.nspname = '${schemaName}'
+          AND t.relname = 'geofences'
+          AND a.attname = 'team_id'
+        LIMIT 1;
+
+        IF v_con IS NOT NULL THEN
+          EXECUTE format(
+            'ALTER TABLE %I.geofences DROP CONSTRAINT %I',
+            '${schemaName}', v_con
+          );
+        END IF;
+
+        ALTER TABLE "${schemaName}"."geofences"
+          ADD CONSTRAINT "fk_${schemaName}_gf_tm"
+          FOREIGN KEY ("team_id")
+          REFERENCES "${schemaName}"."teams" ("id")
+          ON DELETE CASCADE;
+      END $$;
+    `);
+
+    this.logger.debug(
+      `Geofences team FK upgraded to tenant schema for "${schemaName}"`,
+    );
+  }
+
+  /**
+   * Ensures notifications FKs match canonical targets:
+   *   - user_id   -> public.users
+   *   - sender_id -> public.users
+   *   - tenant_id -> public.tenants
+   *
+   * Useful for manually-migrated tenant schemas where constraints may point to
+   * wrong tables or use non-canonical names.
+   */
+  private async upgradeNotificationsForeignKeys(
+    queryRunner: ReturnType<DataSource["createQueryRunner"]>,
+    schemaName: string,
+  ): Promise<void> {
+    // user_id FK
+    await queryRunner.query(`
+      DO $$
+      DECLARE
+        v_con text;
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM pg_constraint c
+          JOIN pg_class t ON t.oid = c.conrelid
+          JOIN pg_namespace n ON n.oid = t.relnamespace
+          WHERE c.contype = 'f'
+            AND n.nspname = '${schemaName}'
+            AND t.relname = 'notifications'
+            AND c.conname = 'fk_${schemaName}_ntf_usr'
+        ) THEN
+          RETURN;
+        END IF;
+
+        SELECT c.conname INTO v_con
+        FROM pg_constraint c
+        JOIN pg_class t ON t.oid = c.conrelid
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+        JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = c.conkey[1]
+        WHERE c.contype = 'f'
+          AND n.nspname = '${schemaName}'
+          AND t.relname = 'notifications'
+          AND a.attname = 'user_id'
+        LIMIT 1;
+
+        IF v_con IS NOT NULL THEN
+          EXECUTE format(
+            'ALTER TABLE %I.notifications DROP CONSTRAINT %I',
+            '${schemaName}', v_con
+          );
+        END IF;
+
+        ALTER TABLE "${schemaName}"."notifications"
+          ADD CONSTRAINT "fk_${schemaName}_ntf_usr"
+          FOREIGN KEY ("user_id")
+          REFERENCES "public"."users" ("id")
+          ON DELETE CASCADE;
+      END $$;
+    `);
+
+    // sender_id FK
+    await queryRunner.query(`
+      DO $$
+      DECLARE
+        v_con text;
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM pg_constraint c
+          JOIN pg_class t ON t.oid = c.conrelid
+          JOIN pg_namespace n ON n.oid = t.relnamespace
+          WHERE c.contype = 'f'
+            AND n.nspname = '${schemaName}'
+            AND t.relname = 'notifications'
+            AND c.conname = 'fk_${schemaName}_ntf_snd'
+        ) THEN
+          RETURN;
+        END IF;
+
+        SELECT c.conname INTO v_con
+        FROM pg_constraint c
+        JOIN pg_class t ON t.oid = c.conrelid
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+        JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = c.conkey[1]
+        WHERE c.contype = 'f'
+          AND n.nspname = '${schemaName}'
+          AND t.relname = 'notifications'
+          AND a.attname = 'sender_id'
+        LIMIT 1;
+
+        IF v_con IS NOT NULL THEN
+          EXECUTE format(
+            'ALTER TABLE %I.notifications DROP CONSTRAINT %I',
+            '${schemaName}', v_con
+          );
+        END IF;
+
+        ALTER TABLE "${schemaName}"."notifications"
+          ADD CONSTRAINT "fk_${schemaName}_ntf_snd"
+          FOREIGN KEY ("sender_id")
+          REFERENCES "public"."users" ("id")
+          ON DELETE SET NULL;
+      END $$;
+    `);
+
+    // tenant_id FK
+    await queryRunner.query(`
+      DO $$
+      DECLARE
+        v_con text;
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM pg_constraint c
+          JOIN pg_class t ON t.oid = c.conrelid
+          JOIN pg_namespace n ON n.oid = t.relnamespace
+          WHERE c.contype = 'f'
+            AND n.nspname = '${schemaName}'
+            AND t.relname = 'notifications'
+            AND c.conname = 'fk_${schemaName}_ntf_tn'
+        ) THEN
+          RETURN;
+        END IF;
+
+        SELECT c.conname INTO v_con
+        FROM pg_constraint c
+        JOIN pg_class t ON t.oid = c.conrelid
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+        JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = c.conkey[1]
+        WHERE c.contype = 'f'
+          AND n.nspname = '${schemaName}'
+          AND t.relname = 'notifications'
+          AND a.attname = 'tenant_id'
+        LIMIT 1;
+
+        IF v_con IS NOT NULL THEN
+          EXECUTE format(
+            'ALTER TABLE %I.notifications DROP CONSTRAINT %I',
+            '${schemaName}', v_con
+          );
+        END IF;
+
+        ALTER TABLE "${schemaName}"."notifications"
+          ADD CONSTRAINT "fk_${schemaName}_ntf_tn"
+          FOREIGN KEY ("tenant_id")
+          REFERENCES "public"."tenants" ("id")
+          ON DELETE RESTRICT;
+      END $$;
+    `);
+
+    this.logger.debug(
+      `Notifications FKs upgraded for tenant schema "${schemaName}"`,
     );
   }
 
@@ -1080,6 +1294,9 @@ export class TenantSchemaProvisioningService {
         g.threshold_enabled, g.created_at, g.updated_at
       FROM public.geofences g
       WHERE g.tenant_id = $1
+        AND EXISTS (
+          SELECT 1 FROM "${schemaName}"."teams" t WHERE t.id = g.team_id
+        )
       ON CONFLICT (id) DO NOTHING
     `,
       [tenantId],
