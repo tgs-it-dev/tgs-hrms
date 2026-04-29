@@ -10,12 +10,14 @@ import { SharedJwtModule } from '../../common/modules/jwt.module';
 import { LeaveFileUploadService } from './services/leave-file-upload.service';
 import { NotificationModule } from '../notification/notification.module';
 import { Team } from '../../entities/team.entity';
+import { TenantModule } from '../tenant/tenant.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Leave, LeaveType, User, Employee, Team]),
     SharedJwtModule,
     NotificationModule,
+    TenantModule,
   ],
   providers: [LeaveService, LeaveFileUploadService],
   controllers: [LeaveController],

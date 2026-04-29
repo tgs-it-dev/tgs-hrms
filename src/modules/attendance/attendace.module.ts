@@ -11,6 +11,7 @@ import { Geofence } from '../../entities/geofence.entity';
 import { NotificationModule } from '../notification/notification.module';
 import { Team } from '../../entities/team.entity';
 import { User } from '../../entities/user.entity';
+import { TenantModule } from '../tenant/tenant.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { User } from '../../entities/user.entity';
     SharedJwtModule,
     TeamModule,
     NotificationModule,
+    TenantModule,
   ],
   controllers: [AttendanceController],
   providers: [AttendanceService],
