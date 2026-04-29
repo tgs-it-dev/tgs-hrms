@@ -20,6 +20,7 @@ import { EmployeeFileUploadService } from './services/employee-file-upload.servi
 import { BillingModule } from '../billing/billing.module';
 import { PayrollModule } from '../payroll/payroll.module';
 import { Tenant } from 'src/entities/tenant.entity';
+import { TenantModule } from '../tenant/tenant.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { Tenant } from 'src/entities/tenant.entity';
     SharedJwtModule,
     forwardRef(() => BillingModule),
     PayrollModule,
+    TenantModule,
   ],
   controllers: [EmployeeController, EmployeeProfileController],
   providers: [EmployeeService, EmployeeProfileService, SendGridService, EmployeeFileUploadService],

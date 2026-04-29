@@ -24,9 +24,25 @@ const mockRole: Role = {
 const mockTenant: Tenant = {
   id: '11111111-1111-1111-1111-111111111111',
   name: 'Test Company',
+  status: 'active',
+  schema_provisioned: false,
   created_at: new Date(),
+  updated_at: new Date(),
+  deleted_at: null,
   users: [],
   departments: [],
+  designations: [],
+  benefits: [],
+  employeeBenefits: [],
+  kpis: [],
+  employeeKpis: [],
+  employeePerformanceReviews: [],
+  employeePromotions: [],
+  assets: [],
+  leaves: [],
+  tasks: [],
+  assetComments: [],
+  geofences: [],
 };
 
 const mockUser: User = {

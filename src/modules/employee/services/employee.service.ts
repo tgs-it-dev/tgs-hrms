@@ -6,7 +6,8 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull } from 'typeorm';
+import { Repository, IsNull, EntityManager } from 'typeorm';
+import { TenantDatabaseService } from '../../../common/services/tenant-database.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Employee } from '../../../entities/employee.entity';
 import { User } from '../../../entities/user.entity';
@@ -59,10 +60,57 @@ export class EmployeeService implements OnModuleInit {
     private readonly eventEmitter: EventEmitter2,
     private readonly billingService: BillingService,
     private readonly employeeSalaryService: EmployeeSalaryService,
+    private readonly tenantDbService: TenantDatabaseService,
   ) { }
 
   onModuleInit() {
 
+  }
+
+  /**
+   * Returns true when this tenant has a dedicated PostgreSQL schema provisioned.
+   * When true, all employee-table operations must run through withTenantSchema
+   * so that TypeORM resolves table names against the tenant schema rather than public.
+   */
+  private async isTenantSchemaProvisioned(tenantId: string): Promise<boolean> {
+    const tenant = await this.tenantRepo.findOne({
+      where: { id: tenantId },
+      select: ['id', 'schema_provisioned'],
+    });
+    return tenant?.schema_provisioned ?? false;
+  }
+
+  /**
+   * Executes `work` inside the correct transactional context:
+   *   - schema-provisioned tenant → SET LOCAL search_path to tenant schema, then public
+   *   - legacy tenant            → standard TypeORM transaction on default DataSource
+   *
+   * In both cases `work` receives a transactional EntityManager so repository
+   * operations participate in the same transaction.
+   */
+  private async executeInTenantContext<T>(
+    tenantId: string,
+    isSchemaProvisioned: boolean,
+    work: (em: EntityManager) => Promise<T>,
+  ): Promise<T> {
+    return isSchemaProvisioned
+      ? this.tenantDbService.withTenantSchema(tenantId, work)
+      : this.userRepo.manager.transaction(work);
+  }
+
+  /**
+   * Convenience wrapper for single write operations (update/delete) that need
+   * schema routing but don't require a shared transaction with prior work.
+   */
+  private async runInTenantSchema<T>(
+    tenantId: string,
+    isSchemaProvisioned: boolean,
+    work: (em: EntityManager) => Promise<T>,
+  ): Promise<T> {
+    if (isSchemaProvisioned) {
+      return this.tenantDbService.withTenantSchema(tenantId, work);
+    }
+    return work(this.userRepo.manager);
   }
 
   private async validateDesignation(
@@ -203,6 +251,7 @@ export class EmployeeService implements OnModuleInit {
     cnic_picture?: Express.Multer.File[],
     cnic_back_picture?: Express.Multer.File[]
   }) {
+    const isSchemaProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
     await this.validateDesignation(dto.designation_id, tenant_id);
 
 
@@ -255,9 +304,9 @@ export class EmployeeService implements OnModuleInit {
 
 
     try {
-      const result = await this.userRepo.manager.transaction(async (manager) => {
-        const userRepo = manager.getRepository(User);
-        const employeeRepo = manager.getRepository(Employee);
+      const result = await this.executeInTenantContext(tenant_id, isSchemaProvisioned, async (em) => {
+        const userRepo = em.getRepository(User);
+        const employeeRepo = em.getRepository(Employee);
 
         const savedUser = await userRepo.save(user);
 
@@ -314,12 +363,16 @@ export class EmployeeService implements OnModuleInit {
               );
           }
           if (Object.keys(employeePictureUpdate).length > 0) {
-            await this.employeeRepo.update(result.id, employeePictureUpdate);
+            await this.runInTenantSchema(tenant_id, isSchemaProvisioned, (em) =>
+              em.getRepository(Employee).update(result.id, employeePictureUpdate),
+            );
           }
         } catch (uploadError) {
           // If file upload fails, we must delete the employee to prevent partial creation
           // We also delete the linked user account
-          await this.employeeRepo.delete(result.id);
+          await this.runInTenantSchema(tenant_id, isSchemaProvisioned, (em) =>
+            em.getRepository(Employee).delete(result.id),
+          );
           await this.userRepo.delete(result.user_id);
           throw uploadError; // Re-throw the error to notify the user
         }
@@ -369,10 +422,12 @@ export class EmployeeService implements OnModuleInit {
       }
 
       // Reload so response includes picture URLs persisted via update()
-      const created = await this.employeeRepo.findOne({
-        where: { id: result.id },
-        relations: ['user', 'designation', 'designation.department', 'team'],
-      });
+      const created = await this.runInTenantSchema(tenant_id, isSchemaProvisioned, (em) =>
+        em.getRepository(Employee).findOne({
+          where: { id: result.id },
+          relations: ['user', 'designation', 'designation.department', 'team'],
+        }),
+      );
       return created ?? result;
     } catch (err) {
       const errorCode = getPostgresErrorCode(err);
@@ -388,6 +443,7 @@ export class EmployeeService implements OnModuleInit {
     cnic_picture?: Express.Multer.File[],
     cnic_back_picture?: Express.Multer.File[]
   }) {
+    const isSchemaProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
     await this.validateDesignation(dto.designation_id, tenant_id);
 
 
@@ -445,10 +501,12 @@ export class EmployeeService implements OnModuleInit {
 
 
     try {
-      // 1. Create user + employee in transaction (no file URLs yet)
-      const result = await this.userRepo.manager.transaction(async (manager) => {
-        const userRepo = manager.getRepository(User);
-        const employeeRepo = manager.getRepository(Employee);
+      // 1. Create user (public schema) + employee (tenant schema when provisioned)
+      //    executeInTenantContext routes to withTenantSchema for provisioned tenants
+      //    (search_path resolves users→public, employees→tenant schema automatically)
+      const result = await this.executeInTenantContext(tenant_id, isSchemaProvisioned, async (em) => {
+        const userRepo = em.getRepository(User);
+        const employeeRepo = em.getRepository(Employee);
 
         const user = userRepo.create(userData);
         const savedUser = await userRepo.save(user);
@@ -505,10 +563,14 @@ export class EmployeeService implements OnModuleInit {
             employeePictureUpdate.cnic_back_picture = uploadedCnicBackPic;
           }
           if (Object.keys(employeePictureUpdate).length > 0) {
-            await this.employeeRepo.update(result.id, employeePictureUpdate);
+            await this.runInTenantSchema(tenant_id, isSchemaProvisioned, (em) =>
+              em.getRepository(Employee).update(result.id, employeePictureUpdate),
+            );
           }
         } catch (uploadError) {
-          await this.employeeRepo.delete(result.id);
+          await this.runInTenantSchema(tenant_id, isSchemaProvisioned, (em) =>
+            em.getRepository(Employee).delete(result.id),
+          );
           await this.userRepo.delete(result.user_id);
           throw uploadError;
         }
@@ -584,7 +646,9 @@ export class EmployeeService implements OnModuleInit {
               this.employeeFileUploadService.saveToTempForCheckout(checkout.checkoutSessionId, files);
             }
 
-            await this.employeeRepo.delete(result.id);
+            await this.runInTenantSchema(tenant_id, isSchemaProvisioned, (em) =>
+              em.getRepository(Employee).delete(result.id),
+            );
             await this.userRepo.delete(result.user_id);
 
             this.logger.log(
@@ -608,7 +672,9 @@ export class EmployeeService implements OnModuleInit {
             this.logger.error(`Failed to create checkout session: ${checkoutErrMsg}`);
 
             // Checkout failed - delete employee/user (no temp files were saved)
-            await this.employeeRepo.delete(result.id);
+            await this.runInTenantSchema(tenant_id, isSchemaProvisioned, (em) =>
+              em.getRepository(Employee).delete(result.id),
+            );
             await this.userRepo.delete(result.user_id);
 
             throw new BadRequestException({
@@ -619,7 +685,9 @@ export class EmployeeService implements OnModuleInit {
           }
         }
 
-        await this.employeeRepo.delete(result.id);
+        await this.runInTenantSchema(tenant_id, isSchemaProvisioned, (em) =>
+          em.getRepository(Employee).delete(result.id),
+        );
         await this.userRepo.delete(result.user_id);
 
         throw new BadRequestException(
@@ -681,10 +749,12 @@ export class EmployeeService implements OnModuleInit {
       }
 
       // Reload so response includes picture URLs persisted via update()
-      const created = await this.employeeRepo.findOne({
-        where: { id: result.id },
-        relations: ['user', 'designation', 'designation.department', 'team'],
-      });
+      const created = await this.runInTenantSchema(tenant_id, isSchemaProvisioned, (em) =>
+        em.getRepository(Employee).findOne({
+          where: { id: result.id },
+          relations: ['user', 'designation', 'designation.department', 'team'],
+        }),
+      );
       return created ?? result;
     } catch (err) {
       const errorCode = getPostgresErrorCode(err);
@@ -732,6 +802,7 @@ export class EmployeeService implements OnModuleInit {
     };
 
     // Create employee (payment already verified, so skip payment check)
+    const isSchemaProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
     await this.validateDesignation(dto.designation_id, tenant_id);
 
     if (dto.team_id && dto.team_id !== null) {
@@ -783,9 +854,9 @@ export class EmployeeService implements OnModuleInit {
     };
 
     try {
-      const result = await this.userRepo.manager.transaction(async (manager) => {
-        const userRepo = manager.getRepository(User);
-        const employeeRepo = manager.getRepository(Employee);
+      const result = await this.executeInTenantContext(tenant_id, isSchemaProvisioned, async (em) => {
+        const userRepo = em.getRepository(User);
+        const employeeRepo = em.getRepository(Employee);
 
         const user = userRepo.create(userData);
         const savedUser = await userRepo.save(user);
@@ -817,7 +888,9 @@ export class EmployeeService implements OnModuleInit {
           if (docUrls.cnicPic) picUpdate.cnic_picture = docUrls.cnicPic;
           if (docUrls.cnicBackPic) picUpdate.cnic_back_picture = docUrls.cnicBackPic;
           if (Object.keys(picUpdate).length > 0) {
-            await this.employeeRepo.update(result.id, picUpdate);
+            await this.runInTenantSchema(tenant_id, isSchemaProvisioned, (em) =>
+              em.getRepository(Employee).update(result.id, picUpdate),
+            );
           }
         } catch (docErr: unknown) {
           const errMsg = docErr instanceof Error ? docErr.message : String(docErr);
@@ -887,89 +960,99 @@ export class EmployeeService implements OnModuleInit {
   async findAll(tenant_id: string, query: EmployeeQueryDto, page: number) {
     const limit = 25;
     const skip = (page - 1) * limit;
+    const isSchemaProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
 
-    const qb = this.employeeRepo
-      .createQueryBuilder('employee')
-      .leftJoinAndSelect('employee.user', 'user')
-      .leftJoinAndSelect('user.role', 'role')
-      .leftJoinAndSelect('employee.designation', 'designation')
-      .leftJoinAndSelect('designation.department', 'department')
-      .leftJoinAndSelect('employee.team', 'team')
-      .where('user.tenant_id = :tenant_id', { tenant_id })
-      .andWhere('employee.deleted_at IS NULL');
+    const executeQuery = async (em: EntityManager | null) => {
+      const repo = em ? em.getRepository(Employee) : this.employeeRepo;
 
-    if (query.department_id) {
-      qb.andWhere('designation.department_id = :department_id', {
-        department_id: query.department_id,
-      });
-    }
-    if (query.designation_id) {
-      qb.andWhere('employee.designation_id = :designation_id', {
-        designation_id: query.designation_id,
-      });
-    }
+      const qb = repo
+        .createQueryBuilder('employee')
+        .leftJoinAndSelect('employee.user', 'user')
+        .leftJoinAndSelect('user.role', 'role')
+        .leftJoinAndSelect('employee.designation', 'designation')
+        .leftJoinAndSelect('designation.department', 'department')
+        .leftJoinAndSelect('employee.team', 'team')
+        .where('user.tenant_id = :tenant_id', { tenant_id })
+        .andWhere('employee.deleted_at IS NULL');
 
-    // Add search functionality
-    if (query.search && query.search.trim().length > 0) {
-      const searchTerm = `%${query.search.trim()}%`;
-      qb.andWhere(
-        `(
-          user.first_name ILIKE :searchTerm OR
-          user.last_name ILIKE :searchTerm OR
-          CONCAT(user.first_name, ' ', user.last_name) ILIKE :searchTerm OR
-          user.email ILIKE :searchTerm OR
-          user.phone ILIKE :searchTerm OR
-          employee.cnic_number ILIKE :searchTerm OR
-          designation.title ILIKE :searchTerm OR
-          department.name ILIKE :searchTerm OR
-          team.name ILIKE :searchTerm
-        )`,
-        { searchTerm },
-      );
-    }
-
-    const [items, total] = await qb
-      .orderBy('employee.created_at', 'DESC')
-      .skip(skip)
-      .take(limit)
-      .getManyAndCount();
-
-
-    const now = new Date();
-    for (const item of items) {
-      if (item.invite_status === InviteStatus.INVITE_SENT && item.user?.reset_token_expiry && now > item.user.reset_token_expiry) {
-        item.invite_status = InviteStatus.INVITE_EXPIRED;
-        try {
-          await this.employeeRepo.update(item.id, { invite_status: InviteStatus.INVITE_EXPIRED });
-        } catch { }
+      if (query.department_id) {
+        qb.andWhere('designation.department_id = :department_id', {
+          department_id: query.department_id,
+        });
       }
-    }
+      if (query.designation_id) {
+        qb.andWhere('employee.designation_id = :designation_id', {
+          designation_id: query.designation_id,
+        });
+      }
 
-    const totalPages = Math.ceil(total / limit);
+      if (query.search && query.search.trim().length > 0) {
+        const searchTerm = `%${query.search.trim()}%`;
+        qb.andWhere(
+          `(
+            user.first_name ILIKE :searchTerm OR
+            user.last_name ILIKE :searchTerm OR
+            CONCAT(user.first_name, ' ', user.last_name) ILIKE :searchTerm OR
+            user.email ILIKE :searchTerm OR
+            user.phone ILIKE :searchTerm OR
+            employee.cnic_number ILIKE :searchTerm OR
+            designation.title ILIKE :searchTerm OR
+            department.name ILIKE :searchTerm OR
+            team.name ILIKE :searchTerm
+          )`,
+          { searchTerm },
+        );
+      }
 
-    return {
-      items: items.map(employee => ({
-        ...employee,
-        role_name: employee.user?.role?.name || null,
-        profile_picture: employee.user?.profile_pic || null,
-      })),
-      total,
-      page,
-      limit,
-      totalPages,
+      const [items, total] = await qb
+        .orderBy('employee.created_at', 'DESC')
+        .skip(skip)
+        .take(limit)
+        .getManyAndCount();
+
+      const now = new Date();
+      for (const item of items) {
+        if (item.invite_status === InviteStatus.INVITE_SENT && item.user?.reset_token_expiry && now > item.user.reset_token_expiry) {
+          item.invite_status = InviteStatus.INVITE_EXPIRED;
+          try {
+            await repo.update(item.id, { invite_status: InviteStatus.INVITE_EXPIRED });
+          } catch { }
+        }
+      }
+
+      const totalPages = Math.ceil(total / limit);
+      return {
+        items: items.map(employee => ({
+          ...employee,
+          role_name: employee.user?.role?.name || null,
+          profile_picture: employee.user?.profile_pic || null,
+        })),
+        total,
+        page,
+        limit,
+        totalPages,
+      };
     };
+
+    if (isSchemaProvisioned) {
+      return this.tenantDbService.withTenantSchema(tenant_id, (em) => executeQuery(em));
+    }
+    return executeQuery(null);
   }
 
   async findOne(tenant_id: string, id: string) {
-    const employee = await this.employeeRepo.findOne({
-      where: { id, deleted_at: IsNull() },
-      relations: ['user', 'user.role', 'designation', 'designation.department', 'team'],
-    });
+    const isSchemaProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
+
+    const employee = await this.runInTenantSchema(tenant_id, isSchemaProvisioned, (em) =>
+      em.getRepository(Employee).findOne({
+        where: { id, deleted_at: IsNull() },
+        relations: ['user', 'user.role', 'designation', 'designation.department', 'team'],
+      }),
+    );
 
     if (!employee || employee.user.tenant_id !== tenant_id) {
       throw new NotFoundException('Employee not found');
     }
-
 
     const currentStatus = await this.inviteStatusService.getInviteStatus(employee.id);
     if (currentStatus && currentStatus !== employee.invite_status) {
@@ -988,10 +1071,14 @@ export class EmployeeService implements OnModuleInit {
     cnic_picture?: Express.Multer.File[],
     cnic_back_picture?: Express.Multer.File[]
   }) {
-    const employee = await this.employeeRepo.findOne({
-      where: { id },
-      relations: ['user', 'designation', 'designation.department'],
-    });
+    const isSchemaProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
+
+    const employee = await this.runInTenantSchema(tenant_id, isSchemaProvisioned, (em) =>
+      em.getRepository(Employee).findOne({
+        where: { id },
+        relations: ['user', 'designation', 'designation.department'],
+      }),
+    );
     if (!employee) throw new NotFoundException('Employee not found');
 
     const user = employee.user;
@@ -1152,11 +1239,15 @@ export class EmployeeService implements OnModuleInit {
 
     try {
       if (shouldSaveUser) await this.userRepo.save(user);
-      await this.employeeRepo.save(employee);
-      return await this.employeeRepo.findOne({
-        where: { id },
-        relations: ['user', 'designation', 'designation.department', 'team'],
-      });
+      await this.runInTenantSchema(tenant_id, isSchemaProvisioned, (em) =>
+        em.getRepository(Employee).save(employee),
+      );
+      return this.runInTenantSchema(tenant_id, isSchemaProvisioned, (em) =>
+        em.getRepository(Employee).findOne({
+          where: { id },
+          relations: ['user', 'designation', 'designation.department', 'team'],
+        }),
+      );
     } catch (err) {
       const errorCode = getPostgresErrorCode(err);
       if (errorCode === '23505') {
@@ -1167,25 +1258,35 @@ export class EmployeeService implements OnModuleInit {
   }
 
   async remove(tenant_id: string, id: string): Promise<{ deleted: true; id: string }> {
-    const employee = await this.employeeRepo.findOne({
-      where: { id, deleted_at: IsNull() },
-      relations: ['user'],
-    });
+    const isSchemaProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
+
+    const employee = await this.runInTenantSchema(tenant_id, isSchemaProvisioned, (em) =>
+      em.getRepository(Employee).findOne({
+        where: { id, deleted_at: IsNull() },
+        relations: ['user'],
+      }),
+    );
 
     if (!employee || employee.user.tenant_id !== tenant_id) {
       throw new NotFoundException('Employee not found');
     }
 
-    await this.employeeRepo.update(employee.id, { deleted_at: new Date() });
+    await this.runInTenantSchema(tenant_id, isSchemaProvisioned, (em) =>
+      em.getRepository(Employee).update(employee.id, { deleted_at: new Date() }),
+    );
 
     return { deleted: true, id };
   }
 
   async removeDocument(tenant_id: string, id: string, dto: RemoveEmployeeDocumentDto): Promise<Employee> {
-    const employee = await this.employeeRepo.findOne({
-      where: { id, deleted_at: IsNull(), user: { tenant_id } },
-      relations: ['user'],
-    });
+    const isSchemaProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
+
+    const employee = await this.runInTenantSchema(tenant_id, isSchemaProvisioned, (em) =>
+      em.getRepository(Employee).findOne({
+        where: { id, deleted_at: IsNull(), user: { tenant_id } },
+        relations: ['user'],
+      }),
+    );
 
     if (!employee) {
       throw new NotFoundException('Employee not found');
@@ -1222,13 +1323,17 @@ export class EmployeeService implements OnModuleInit {
     }
 
     if (fieldToUpdate) {
-      await this.employeeRepo.update(id, { [fieldToUpdate]: null });
+      await this.runInTenantSchema(tenant_id, isSchemaProvisioned, (em) =>
+        em.getRepository(Employee).update(id, { [fieldToUpdate as string]: null }),
+      );
     }
 
-    const updatedEmployee = await this.employeeRepo.findOne({
-      where: { id },
-      relations: ['user', 'designation', 'team'],
-    });
+    const updatedEmployee = await this.runInTenantSchema(tenant_id, isSchemaProvisioned, (em) =>
+      em.getRepository(Employee).findOne({
+        where: { id },
+        relations: ['user', 'designation', 'team'],
+      }),
+    );
 
     if (!updatedEmployee) {
       throw new NotFoundException('Employee not found after update');
@@ -1461,11 +1566,14 @@ export class EmployeeService implements OnModuleInit {
   }
 
   async refreshInviteStatus(tenant_id: string, employee_id: string) {
+    const isSchemaProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
 
-    const employee = await this.employeeRepo.findOne({
-      where: { id: employee_id, deleted_at: IsNull() },
-      relations: ["user", "user.tenant"],
-    });
+    const employee = await this.runInTenantSchema(tenant_id, isSchemaProvisioned, (em) =>
+      em.getRepository(Employee).findOne({
+        where: { id: employee_id, deleted_at: IsNull() },
+        relations: ['user', 'user.tenant'],
+      }),
+    );
     if (!employee || employee.user.tenant_id !== tenant_id) {
       throw new NotFoundException('Employee not found for this tenant');
     }
@@ -1482,7 +1590,9 @@ export class EmployeeService implements OnModuleInit {
     employee.user.reset_token_expiry = resetTokenExpiry;
     employee.invite_status = InviteStatus.INVITE_SENT;
     await this.userRepo.save(employee.user);
-    await this.employeeRepo.save(employee);
+    await this.runInTenantSchema(tenant_id, isSchemaProvisioned, (em) =>
+      em.getRepository(Employee).save(employee),
+    );
 
     await this.sendPasswordWelcomeEmail(
       employee.user.email,
@@ -1494,10 +1604,13 @@ export class EmployeeService implements OnModuleInit {
   }
 
   async getProfilePictureFile(tenant_id: string, employee_id: string, res: Response) {
-    const employee = await this.employeeRepo.findOne({
-      where: { id: employee_id, deleted_at: IsNull() },
-      relations: ['user'],
-    });
+    const isSchemaProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
+    const employee = await this.runInTenantSchema(tenant_id, isSchemaProvisioned, (em) =>
+      em.getRepository(Employee).findOne({
+        where: { id: employee_id, deleted_at: IsNull() },
+        relations: ['user'],
+      }),
+    );
 
     if (!employee || employee.user.tenant_id !== tenant_id) {
       throw new NotFoundException('Employee not found');
@@ -1542,10 +1655,13 @@ export class EmployeeService implements OnModuleInit {
   }
 
   async getCnicPictureFile(tenant_id: string, employee_id: string, res: Response) {
-    const employee = await this.employeeRepo.findOne({
-      where: { id: employee_id, deleted_at: IsNull() },
-      relations: ['user'],
-    });
+    const isSchemaProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
+    const employee = await this.runInTenantSchema(tenant_id, isSchemaProvisioned, (em) =>
+      em.getRepository(Employee).findOne({
+        where: { id: employee_id, deleted_at: IsNull() },
+        relations: ['user'],
+      }),
+    );
 
     if (!employee || employee.user.tenant_id !== tenant_id) {
       throw new NotFoundException('Employee not found');
@@ -1584,10 +1700,13 @@ export class EmployeeService implements OnModuleInit {
   }
 
   async getCnicBackPictureFile(tenant_id: string, employee_id: string, res: Response) {
-    const employee = await this.employeeRepo.findOne({
-      where: { id: employee_id, deleted_at: IsNull() },
-      relations: ['user'],
-    });
+    const isSchemaProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
+    const employee = await this.runInTenantSchema(tenant_id, isSchemaProvisioned, (em) =>
+      em.getRepository(Employee).findOne({
+        where: { id: employee_id, deleted_at: IsNull() },
+        relations: ['user'],
+      }),
+    );
 
     if (!employee || employee.user.tenant_id !== tenant_id) {
       throw new NotFoundException('Employee not found');
