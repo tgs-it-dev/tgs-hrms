@@ -65,10 +65,15 @@ async function bootstrap() {
         'https://snazzy-raindrop-644615.netlify.app',
         'https://deploy-preview-288--snazzy-raindrop-644615.netlify.app',
         'https://tgs-hrms.onrender.com',
+        'http://app.workonnect.ai',
+        'https://app.workonnect.ai',
         'http://localhost:5173',
         'http://localhost:3000',
         'http://localhost:3001',
+        'http://192.168.0.109:3001',
          'http://192.168.0.109:3001',
+         'http://dev.workonnect.ai',
+         'https://dev.workonnect.ai',
       ];
 
   app.enableCors({

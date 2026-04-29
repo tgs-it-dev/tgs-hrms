@@ -14,13 +14,11 @@ export const typeOrmConfig = (
     password: configService.get("DB_PASS"),
     database: configService.get("DB_NAME"),
     synchronize: false,
-    ...(isProduction
-      ? {
-          ssl: {
-            rejectUnauthorized: false,
-          },
-        }
-      : {}),
     entities: [__dirname + "/../entities/*.entity.{ts,js}"],
+    ...(isProduction && {
+      ssl: {
+        rejectUnauthorized: false,
+      },
+    }),
   };
 };
