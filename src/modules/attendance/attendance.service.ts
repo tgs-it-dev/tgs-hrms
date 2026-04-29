@@ -74,27 +74,27 @@ export class AttendanceService {
 
     if (dto.type === AttendanceType.CHECK_IN) {
       // Validate location is provided for check-in (location disabled or not shared = clear message for toast)
-      const hasValidLocation =
-        dto.latitude != null &&
-        dto.longitude != null &&
-        !Number.isNaN(Number(dto.latitude)) &&
-        !Number.isNaN(Number(dto.longitude));
-      if (!hasValidLocation) {
-        throw new BadRequestException('Turn on Your Location');
-      }
-      const lat = Number(dto.latitude);
-      const lng = Number(dto.longitude);
+      // const hasValidLocation =
+      //   dto.latitude != null &&
+      //   dto.longitude != null &&
+      //   !Number.isNaN(Number(dto.latitude)) &&
+      //   !Number.isNaN(Number(dto.longitude));
+      // if (!hasValidLocation) {
+      //   throw new BadRequestException('Turn on Your Location');
+      // }
+      // const lat = Number(dto.latitude);
+      // const lng = Number(dto.longitude);
 
-      // Validate location is within geofence boundary
-      if (tenantId) {
-        const validationResult = await this.validateCheckInLocationWithThreshold(
-          userId,
-          tenantId,
-          lat,
-          lng,
-        );
-        nearBoundary = validationResult.nearBoundary;
-      }
+      // // Validate location is within geofence boundary
+      // if (tenantId) {
+      //   const validationResult = await this.validateCheckInLocationWithThreshold(
+      //     userId,
+      //     tenantId,
+      //     lat,
+      //     lng,
+      //   );
+      //   nearBoundary = validationResult.nearBoundary;
+      // }
 
       const activeSession = await this.getActiveSession(userId);
       if (activeSession) {
@@ -104,27 +104,27 @@ export class AttendanceService {
       }
     } else if (dto.type === AttendanceType.CHECK_OUT) {
       // Validate location is provided for check-out (location disabled or not shared = clear message for toast)
-      const hasValidLocation =
-        dto.latitude != null &&
-        dto.longitude != null &&
-        !Number.isNaN(Number(dto.latitude)) &&
-        !Number.isNaN(Number(dto.longitude));
-      if (!hasValidLocation) {
-        throw new BadRequestException('Turn on Your Location');
-      }
-      const lat = Number(dto.latitude);
-      const lng = Number(dto.longitude);
+      // const hasValidLocation =
+      //   dto.latitude != null &&
+      //   dto.longitude != null &&
+      //   !Number.isNaN(Number(dto.latitude)) &&
+      //   !Number.isNaN(Number(dto.longitude));
+      // if (!hasValidLocation) {
+      //   throw new BadRequestException('Turn on Your Location');
+      // }
+      // const lat = Number(dto.latitude);
+      // const lng = Number(dto.longitude);
 
-      // Validate location is within geofence boundary
-      if (tenantId) {
-        const validationResult = await this.validateCheckInLocationWithThreshold(
-          userId,
-          tenantId,
-          lat,
-          lng,
-        );
-        nearBoundary = validationResult.nearBoundary;
-      }
+      // // Validate location is within geofence boundary
+      // if (tenantId) {
+      //   const validationResult = await this.validateCheckInLocationWithThreshold(
+      //     userId,
+      //     tenantId,
+      //     lat,
+      //     lng,
+      //   );
+      //   nearBoundary = validationResult.nearBoundary;
+      // }
 
       const activeSession = await this.getActiveSession(userId);
       if (!activeSession) {

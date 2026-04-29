@@ -1,0 +1,67 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Build and Deploy to EC2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Prepare .env from secret
+        run: |
+          if [ -n "${{ secrets.APP_ENV_BASE64 }}" ]; then
+            printf '%s' "${{ secrets.APP_ENV_BASE64 }}" > .env
+          fi
+
+      - name: Create deployment zip
+        run: |
+          zip -r deploy.zip dist package.json package-lock.json
+          [ -s .env ] && zip deploy.zip .env || true
+
+      - name: Setup SSH and copy zip to EC2
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -P ${{ secrets.EC2_SSH_PORT || 22 }} deploy.zip ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:${{ secrets.EC2_APP_PATH }}/deploy.zip
+
+      - name: Unzip, install deps, and restart on EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.EC2_SSH_PORT || 22 }}
+          script: |
+            set -e
+            export PATH="/usr/local/bin:/usr/bin:$PATH"
+            [ -s "$HOME/.nvm/nvm.sh" ] && . "$HOME/.nvm/nvm.sh"
+            cd ${{ secrets.EC2_APP_PATH }}
+            mv deploy.zip /tmp/deploy.zip
+            find . -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+            mv /tmp/deploy.zip ./deploy.zip
+            unzip -o deploy.zip
+            rm deploy.zip
+            npm ci --omit=dev
+            pm2 restart ${{ secrets.PM2_APP_NAME }} --update-env || pm2 start dist/src/main.js --name ${{ secrets.PM2_APP_NAME }}
+            pm2 save
+            echo "Deploy completed successfully."
