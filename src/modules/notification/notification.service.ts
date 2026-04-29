@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
+import { TenantDatabaseService } from '../../common/services/tenant-database.service';
 import { Notification } from '../../entities/notification.entity';
 import { User } from '../../entities/user.entity';
 import {
@@ -38,20 +39,48 @@ export class NotificationService {
     private readonly notificationRepo: Repository<Notification>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    private readonly tenantDbService: TenantDatabaseService,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
   ) {}
+
+  private async isTenantSchemaProvisioned(tenantId: string): Promise<boolean> {
+    const result = await this.dataSource.query<{ schema_provisioned: boolean }[]>(
+      `SELECT schema_provisioned FROM public.tenants WHERE id = $1 LIMIT 1`,
+      [tenantId],
+    );
+    return result[0]?.schema_provisioned ?? false;
+  }
 
   /**
    * Create a new notification (saved in DB for record; use gateway for real-time in calling code).
    * Validates that recipient belongs to tenant when possible; one row per recipient.
    */
-  async create(
+    async create(
     userId: string,
     tenantId: string,
     message: string,
     type: NotificationType,
     options?: CreateNotificationOptions,
   ): Promise<Notification> {
-    const notification = this.notificationRepo.create({
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
+    if (isProvisioned) {
+      return this.tenantDbService.withTenantSchema(tenantId, (em) => this.doCreate(em, userId, tenantId, message, type, options));
+    }
+    return this.doCreate(null, userId, tenantId, message, type, options);
+  }
+
+  private async doCreate(
+    em: EntityManager | null,
+    userId: string,
+    tenantId: string,
+    message: string,
+    type: NotificationType,
+    options?: CreateNotificationOptions,
+  ): Promise<Notification> {
+    const notificationRepo = em ? em.getRepository(Notification) : this.notificationRepo;
+
+    const notification = notificationRepo.create({
       user_id: userId,
       tenant_id: tenantId,
       message,
@@ -65,14 +94,14 @@ export class NotificationService {
       is_system: options?.isSystem ?? false,
     });
 
-    return await this.notificationRepo.save(notification);
+    return await notificationRepo.save(notification);
   }
 
   /**
    * Get all notifications for the requesting user only.
    * Rule: each user sees ONLY notifications where user_id = their id (actor never sees their own action's notification as creator; recipient is single).
    */
-  async getUserNotifications(
+    async getUserNotifications(
     userId: string,
     tenantId: string,
     _userRole: string,
@@ -80,7 +109,25 @@ export class NotificationService {
     type?: NotificationType,
     limit: number = 50,
   ): Promise<Notification[]> {
-    const query = this.notificationRepo
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
+    if (isProvisioned) {
+      return this.tenantDbService.withTenantSchemaReadOnly(tenantId, (em) => this.doGetUserNotifications(em, userId, tenantId, _userRole, status, type, limit));
+    }
+    return this.doGetUserNotifications(null, userId, tenantId, _userRole, status, type, limit);
+  }
+
+  private async doGetUserNotifications(
+    em: EntityManager | null,
+    userId: string,
+    tenantId: string,
+    _userRole: string,
+    status?: NotificationStatus,
+    type?: NotificationType,
+    limit: number = 50,
+  ): Promise<Notification[]> {
+    const notificationRepo = em ? em.getRepository(Notification) : this.notificationRepo;
+
+    const query = notificationRepo
       .createQueryBuilder('notification')
       .where('notification.user_id = :userId', { userId })
       .andWhere('notification.tenant_id = :tenantId', { tenantId })
@@ -101,12 +148,27 @@ export class NotificationService {
   /**
    * Get unread count for the requesting user only (user_id = userId).
    */
-  async getUnreadCount(
+    async getUnreadCount(
     userId: string,
     tenantId: string,
     _userRole: string,
   ): Promise<number> {
-    return await this.notificationRepo.count({
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
+    if (isProvisioned) {
+      return this.tenantDbService.withTenantSchemaReadOnly(tenantId, (em) => this.doGetUnreadCount(em, userId, tenantId, _userRole));
+    }
+    return this.doGetUnreadCount(null, userId, tenantId, _userRole);
+  }
+
+  private async doGetUnreadCount(
+    em: EntityManager | null,
+    userId: string,
+    tenantId: string,
+    _userRole: string,
+  ): Promise<number> {
+    const notificationRepo = em ? em.getRepository(Notification) : this.notificationRepo;
+
+    return await notificationRepo.count({
       where: {
         user_id: userId,
         tenant_id: tenantId,
@@ -118,13 +180,29 @@ export class NotificationService {
   /**
    * Mark notification as read — only if it belongs to the requesting user (user_id = userId).
    */
-  async markAsRead(
+    async markAsRead(
     notificationId: string,
     userId: string,
     tenantId: string,
     _userRole: string,
   ): Promise<Notification> {
-    const notification = await this.notificationRepo.findOne({
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
+    if (isProvisioned) {
+      return this.tenantDbService.withTenantSchema(tenantId, (em) => this.doMarkAsRead(em, notificationId, userId, tenantId, _userRole));
+    }
+    return this.doMarkAsRead(null, notificationId, userId, tenantId, _userRole);
+  }
+
+  private async doMarkAsRead(
+    em: EntityManager | null,
+    notificationId: string,
+    userId: string,
+    tenantId: string,
+    _userRole: string,
+  ): Promise<Notification> {
+    const notificationRepo = em ? em.getRepository(Notification) : this.notificationRepo;
+
+    const notification = await notificationRepo.findOne({
       where: {
         id: notificationId,
         user_id: userId,
@@ -137,7 +215,7 @@ export class NotificationService {
     }
 
     notification.status = NotificationStatus.READ;
-    return await this.notificationRepo.save(notification);
+    return await notificationRepo.save(notification);
   }
 
   /**
@@ -175,12 +253,27 @@ export class NotificationService {
   /**
    * Mark all notifications as read for the requesting user only (user_id = userId).
    */
-  async markAllAsRead(
+    async markAllAsRead(
     userId: string,
     tenantId: string,
     _userRole: string,
   ): Promise<void> {
-    await this.notificationRepo.update(
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
+    if (isProvisioned) {
+      return this.tenantDbService.withTenantSchema(tenantId, (em) => this.doMarkAllAsRead(em, userId, tenantId, _userRole));
+    }
+    return this.doMarkAllAsRead(null, userId, tenantId, _userRole);
+  }
+
+  private async doMarkAllAsRead(
+    em: EntityManager | null,
+    userId: string,
+    tenantId: string,
+    _userRole: string,
+  ): Promise<void> {
+    const notificationRepo = em ? em.getRepository(Notification) : this.notificationRepo;
+
+    await notificationRepo.update(
       {
         user_id: userId,
         tenant_id: tenantId,
@@ -196,13 +289,29 @@ export class NotificationService {
    * Mark all notifications for a user that are related to a specific entity (e.g. a leave) as read.
    * Used e.g. when manager processes leave so their "leave applied" notification is cleared from inbox.
    */
-  async markAsReadForRelatedEntity(
+    async markAsReadForRelatedEntity(
     userId: string,
     tenantId: string,
     relatedEntityType: string,
     relatedEntityId: string,
   ): Promise<void> {
-    await this.notificationRepo.update(
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
+    if (isProvisioned) {
+      return this.tenantDbService.withTenantSchema(tenantId, (em) => this.doMarkAsReadForRelatedEntity(em, userId, tenantId, relatedEntityType, relatedEntityId));
+    }
+    return this.doMarkAsReadForRelatedEntity(null, userId, tenantId, relatedEntityType, relatedEntityId);
+  }
+
+  private async doMarkAsReadForRelatedEntity(
+    em: EntityManager | null,
+    userId: string,
+    tenantId: string,
+    relatedEntityType: string,
+    relatedEntityId: string,
+  ): Promise<void> {
+    const notificationRepo = em ? em.getRepository(Notification) : this.notificationRepo;
+
+    await notificationRepo.update(
       {
         user_id: userId,
         tenant_id: tenantId,
@@ -219,13 +328,30 @@ export class NotificationService {
   /**
    * Send notifications to multiple users. One notification row per recipient; tenant-safe.
    */
-  async sendToUsers(
+    async sendToUsers(
     userIds: string[],
     tenantId: string,
     message: string,
     type: NotificationType,
     options?: CreateNotificationOptions,
   ): Promise<Notification[]> {
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
+    if (isProvisioned) {
+      return this.tenantDbService.withTenantSchema(tenantId, (em) => this.doSendToUsers(em, userIds, tenantId, message, type, options));
+    }
+    return this.doSendToUsers(null, userIds, tenantId, message, type, options);
+  }
+
+  private async doSendToUsers(
+    em: EntityManager | null,
+    userIds: string[],
+    tenantId: string,
+    message: string,
+    type: NotificationType,
+    options?: CreateNotificationOptions,
+  ): Promise<Notification[]> {
+    const notificationRepo = em ? em.getRepository(Notification) : this.notificationRepo;
+
     if (!userIds || userIds.length === 0) {
       throw new BadRequestException('At least one user ID is required');
     }
@@ -243,7 +369,7 @@ export class NotificationService {
     }
 
     const notifications = userIds.map((userId) =>
-      this.notificationRepo.create({
+      notificationRepo.create({
         user_id: userId,
         tenant_id: tenantId,
         message,
@@ -258,7 +384,7 @@ export class NotificationService {
       }),
     );
 
-    return await this.notificationRepo.save(notifications);
+    return await notificationRepo.save(notifications);
   }
 
   // ---------- Leave workflow helpers ----------
