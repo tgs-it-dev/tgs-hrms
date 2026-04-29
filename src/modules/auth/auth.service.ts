@@ -2,14 +2,15 @@ import { Injectable, UnauthorizedException, BadRequestException, Logger } from '
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from '../../entities/user.entity';
 import { CompanyDetails } from '../../entities/company-details.entity';
+import { UserToken } from '../../entities/user-token.entity';
 import { Repository, Not, IsNull, MoreThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { RegisterDto } from './dto/register.dto';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ConfigService } from '@nestjs/config';
-import { NotFoundException } from '@nestjs/common';
 import { EmailService } from '../../common/utils/email';
 import { InviteStatusService } from '../invite-status/invite-status.service';
 import { Employee } from 'src/entities/employee.entity';
@@ -34,11 +35,72 @@ export class AuthService {
     private roleRepository: Repository<Role>,
     @InjectRepository(Tenant)
     private tenantRepository: Repository<Tenant>,
+    @InjectRepository(UserToken)
+    private userTokenRepository: Repository<UserToken>,
     private jwtService: JwtService,
     private configService: ConfigService,
     private emailService: EmailService,
-    private inviteStatusService: InviteStatusService
+    private inviteStatusService: InviteStatusService,
   ) { }
+
+  // ── Token helpers ──────────────────────────────────────────────────────────
+
+  private buildAccessToken(
+    user: User,
+    tenantId: string,
+    permissions: string[],
+    sessionId?: string,
+  ): string {
+    const payload: Record<string, unknown> = {
+      email: user.email,
+      sub: user.id,
+      role: user.role.name.toLowerCase(),
+      tenant_id: tenantId,
+      permissions,
+      first_name: user.first_name,
+      last_name: user.last_name,
+    };
+    if (sessionId) {
+      payload["sid"] = sessionId;
+    }
+    return this.jwtService.sign(payload, {
+      secret: this.configService.get<string>('JWT_SECRET'),
+      expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') ?? '24h',
+    });
+  }
+
+  /**
+   * Creates a refresh JWT whose `jti` claim is the primary key of the
+   * corresponding `user_tokens` row, enabling O(1) session lookup and revocation.
+   */
+  private buildRefreshToken(userId: string, jti: string): string {
+    return this.jwtService.sign(
+      { sub: userId, jti, type: 'refresh' },
+      {
+        secret: this.configService.get<string>('JWT_SECRET'),
+        expiresIn: '7d',
+      },
+    );
+  }
+
+  private async createUserTokenRecord(
+    userId: string,
+    jti: string,
+    platform?: string,
+    deviceInfo?: string,
+    ipAddress?: string,
+  ): Promise<void> {
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    await this.userTokenRepository.save({
+      id: jti,
+      user_id: userId,
+      platform: platform ?? null,
+      device_info: deviceInfo ?? null,
+      ip_address: ipAddress ?? null,
+      expires_at: expiresAt,
+      is_revoked: false,
+    });
+  }
 
   /**
    * Normalizes and checks if a role name is system-admin.
@@ -262,7 +324,13 @@ export class AuthService {
 
 
 
-  async validateUser(email: string, password: string) {
+  async validateUser(
+    email: string,
+    password: string,
+    platform?: string,
+    deviceInfo?: string,
+    ipAddress?: string,
+  ) {
     const normalizedEmail = email.toLowerCase();
     this.logger.log(`Login attempt for email: ${normalizedEmail}`);
 
@@ -358,40 +426,21 @@ export class AuthService {
     this.logger.log(`User ${user.email} has role: ${user.role.name}`);
     this.logger.log(`User ${user.email} permissions: ${JSON.stringify(permissions)}`);
 
-    const payload = {
-      email: user.email,
-      sub: user.id,
-      role: user.role.name.toLowerCase(),
-      tenant_id: tenantId,
-      permissions,
-      first_name: user.first_name,
-      last_name: user.last_name,
-    };
+    this.logger.log(`JWT payload for user ${user.email}: sub=${user.id} role=${user.role.name}`);
 
-    this.logger.log(`JWT payload for user ${user.email}: ${JSON.stringify(payload)}`);
+    const jti = crypto.randomUUID();
+    const refreshToken = this.buildRefreshToken(user.id, jti);
+    await this.createUserTokenRecord(user.id, jti, platform, deviceInfo, ipAddress);
 
-    const accessToken = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('JWT_SECRET'),
-      expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '24h',
-    });
-
-    const refreshToken = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('JWT_SECRET'),
-      expiresIn: '7d',
-    });
-
-    user.refresh_token = refreshToken;
-
+    const accessToken = this.buildAccessToken(user, tenantId, permissions, jti);
 
     if (!user.first_login_time) {
-      user.first_login_time = new Date();
       this.logger.log(`First login recorded for user: ${normalizedEmail}`);
-
-
+      await this.userRepository.update(user.id, {
+        first_login_time: new Date(),
+      });
       await this.inviteStatusService.updateInviteStatusOnLogin(user.id);
     }
-
-    await this.userRepository.save(user);
 
     // Find SignupSession by email to get session_id
     const signupSession = await this.signupSessionRepository.findOne({
@@ -431,15 +480,11 @@ export class AuthService {
     const hashedResetToken = await bcrypt.hash(resetToken, 10);
     const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
 
-    // Update all users with this email
-    // for (const user of users) {
     await this.userRepository.update(user.id, {
       reset_token: hashedResetToken,
       reset_token_expiry: resetTokenExpiry,
     });
-    // }
 
-    // const firstUser = users[0];
     const userName = `${user.first_name} ${user.last_name}`;
     const companyName = user.tenant.name;
     await this.emailService.sendPasswordResetEmail(
@@ -570,76 +615,108 @@ export class AuthService {
         secret: this.configService.get<string>('JWT_SECRET'),
       });
 
+      // Ensure this is a refresh token, not an access token being misused.
+      if (payload.type !== 'refresh' || !payload.jti) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+
+      // Look up the session — check both active and revoked rows separately
+      // so we can distinguish a normal "invalid token" from a reuse-after-rotation
+      // attack (a rotated token being replayed by a thief).
+      const tokenRecord = await this.userTokenRepository.findOne({
+        where: { id: payload.jti, user_id: payload.sub },
+      });
+
+      if (!tokenRecord) {
+        this.logger.warn(`Refresh failed: unknown token (jti=${payload.jti})`);
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+
+      if (tokenRecord.is_revoked) {
+        // A previously-valid token is being replayed. This is a strong signal
+        // that the refresh token was stolen and rotated by an attacker before
+        // the legitimate owner could use it. Revoke ALL sessions immediately.
+        this.logger.warn(
+          `SECURITY: revoked token reuse detected for user ${payload.sub} (jti=${payload.jti}). ` +
+          `Revoking all sessions.`,
+        );
+        await this.userTokenRepository.update(
+          { user_id: payload.sub, is_revoked: false },
+          { is_revoked: true },
+        );
+        throw new UnauthorizedException(
+          'Session invalidated due to suspicious activity. Please log in again.',
+        );
+      }
+
+      if (tokenRecord.expires_at < new Date()) {
+        this.logger.warn(`Refresh failed: token expired (jti=${payload.jti})`);
+        await this.userTokenRepository.update(tokenRecord.id, { is_revoked: true });
+        throw new UnauthorizedException('Refresh token has expired. Please log in again.');
+      }
+
       const user = await this.userRepository.findOne({
         where: { id: payload.sub },
         relations: ['role'],
       });
 
-      if (!user) {
-        this.logger.warn(`Refresh token failed: user not found for id: ${payload.sub}`);
+      if (!user || !user.role?.name) {
         throw new UnauthorizedException('User not found or has been deleted');
       }
 
-      if (!user.role?.name) {
-        this.logger.warn(`Refresh token failed: user role missing for id: ${payload.sub}`);
-        throw new UnauthorizedException('User role not found');
-      }
-
-      // System-admin users always use the global system tenant ID
       const isSystemAdmin = this.isSystemAdminRole(user.role.name);
       const tenantId = isSystemAdmin ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
 
-      // Check if tenant is deleted or suspended (for non-system-admin users)
       if (!isSystemAdmin && tenantId) {
-        const tenant = await this.tenantRepository.findOne({
-          where: { id: tenantId },
-        });
-
+        const tenant = await this.tenantRepository.findOne({ where: { id: tenantId } });
         if (!tenant || tenant.deleted_at) {
-          this.logger.warn(`Refresh token failed: tenant is deleted for user: ${user.email}`);
           throw new UnauthorizedException('Your organization account has been deleted. Please contact support.');
         }
         if (tenant.status === 'suspended') {
-          this.logger.warn(`Refresh token failed: tenant is suspended for user: ${user.email}`);
           throw new UnauthorizedException('Your organization account has been suspended. Please contact support.');
         }
       }
 
       const employee = await this.employeeRepository.findOne({ where: { user_id: user.id } });
       if (employee?.deleted_at) {
-        this.logger.warn(`Refresh token failed: employee is deleted for user: ${user.email}`);
         throw new UnauthorizedException('Your employee account has been deactivated. Please contact your administrator.');
-      }
-
-      if (user.refresh_token !== refreshToken) {
-        this.logger.warn(`Refresh token failed: token mismatch for user: ${user.email}`);
-        throw new UnauthorizedException('Invalid refresh token');
       }
 
       const permissions = await this.getUserPermissions(user.id);
 
-      this.logger.log(`Refresh: User ${user.email} has role: ${user.role.name}`);
-      this.logger.log(`Refresh: User ${user.email} permissions: ${JSON.stringify(permissions)}`);
+      // ── Refresh token rotation ──────────────────────────────────────────────
+      // Revoke the consumed token and issue a brand-new one.  If an attacker
+      // ever steals a refresh token and uses it first, the legitimate user's
+      // next call here will fail because their token is already revoked.
+      const newJti = crypto.randomUUID();
+      const newRefreshToken = this.buildRefreshToken(user.id, newJti);
 
-      const newPayload = {
-        email: user.email,
-        sub: user.id,
-        role: user.role.name.toLowerCase(),
-        tenant_id: tenantId,
-        permissions,
-        first_name: user.first_name,
-        last_name: user.last_name,
-      };
-
-      this.logger.log(`Refresh: JWT payload for user ${user.email}: ${JSON.stringify(newPayload)}`);
-
-      const newAccessToken = this.jwtService.sign(newPayload, {
-        secret: this.configService.get<string>('JWT_SECRET'),
-        expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '24h',
+      await this.userTokenRepository.manager.transaction(async (em) => {
+        await em.update(UserToken, tokenRecord.id, {
+          is_revoked: true,
+          last_used_at: new Date(),
+        });
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        await em.save(UserToken, {
+          id: newJti,
+          user_id: user.id,
+          platform: tokenRecord.platform,
+          device_info: tokenRecord.device_info,
+          ip_address: tokenRecord.ip_address,
+          expires_at: expiresAt,
+          is_revoked: false,
+        });
       });
 
-      this.logger.log(`Access token refreshed successfully for user: ${user.email}`);
-      return { accessToken: newAccessToken };
+      const newAccessToken = this.buildAccessToken(
+        user,
+        tenantId,
+        permissions,
+        newJti,
+      );
+
+      this.logger.log(`Tokens rotated for user: ${user.email} (old jti=${payload.jti} → new jti=${newJti})`);
+      return { accessToken: newAccessToken, refreshToken: newRefreshToken };
     } catch (error) {
       if (error instanceof UnauthorizedException || error instanceof BadRequestException) {
         throw error;
@@ -656,52 +733,63 @@ export class AuthService {
     }
 
     try {
-      const payload = this.jwtService.verify(refreshToken, {
-        secret: this.configService.get<string>('JWT_SECRET'),
-      });
+      // Decode without verifying expiry — a user should still be able to
+      // logout even if their refresh token has already expired.
+      const payload = this.jwtService.decode(refreshToken) as Record<string, unknown> | null;
 
-      const user = await this.userRepository.findOne({
-        where: { id: payload.sub },
-      });
-
-      if (!user) {
+      if (!payload?.jti || typeof payload.jti !== 'string') {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
-      await this.userRepository.update(user.id, {
-        refresh_token: null,
-      });
+      const result = await this.userTokenRepository.update(
+        { id: payload.jti, is_revoked: false },
+        { is_revoked: true },
+      );
 
-      this.logger.log(`User logged out successfully: ${user.email}`);
+      if (result.affected === 0) {
+        // Token was already revoked or never existed; treat as success.
+        this.logger.warn(`Logout: token already revoked or not found (jti=${payload.jti})`);
+      } else {
+        this.logger.log(`User logged out (jti=${payload.jti})`);
+      }
+
       return { message: 'Successfully logged out' };
     } catch (error) {
-      this.logger.warn(`Logout failed: invalid refresh token`);
+      if (error instanceof BadRequestException || error instanceof UnauthorizedException) {
+        throw error;
+      }
+      this.logger.warn(`Logout failed: ${String(error)}`);
       throw new UnauthorizedException('Invalid refresh token');
     }
   }
 
-  async deleteUser(userId: string) {
-    this.logger.log(`Deleting user: ${userId}`);
-
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-    });
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-
-    await this.userRepository.update(userId, {
-      refresh_token: null,
-    });
-
-
-    await this.userRepository.delete(userId);
-
-    this.logger.log(`User deleted successfully: ${user.email}`);
-    return { message: 'User deleted successfully' };
+  /** Revoke all active sessions for a user (logout from all devices). */
+  async logoutAll(userId: string): Promise<{ message: string; revoked: number }> {
+    const result = await this.userTokenRepository.update(
+      { user_id: userId, is_revoked: false },
+      { is_revoked: true },
+    );
+    this.logger.log(`All sessions revoked for user ${userId} (count=${result.affected})`);
+    return {
+      message: 'Successfully logged out from all devices',
+      revoked: result.affected ?? 0,
+    };
   }
+
+  /** List active (non-revoked, non-expired) sessions for a user. */
+  async getActiveSessions(userId: string) {
+    const sessions = await this.userTokenRepository
+      .createQueryBuilder('t')
+      .where('t.user_id = :userId', { userId })
+      .andWhere('t.is_revoked = false')
+      .andWhere('t.expires_at > NOW()')
+      .select(['t.id', 't.platform', 't.device_info', 't.ip_address', 't.created_at', 't.last_used_at'])
+      .orderBy('t.created_at', 'DESC')
+      .getMany();
+
+    return sessions;
+  }
+
 
 
 

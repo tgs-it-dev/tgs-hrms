@@ -24,6 +24,7 @@ import { CreateUserDto, UpdateUserDto } from '../dto/user.dto';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { RolesGuard } from 'src/common/guards/roles.guard';
+import { Public } from 'src/common/decorators/public.decorator';
 import { TenantId } from 'src/common/decorators/company.deorator';
 import { ApiBearerAuth, ApiTags, ApiConsumes, ApiBody, ApiOperation } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -39,6 +40,7 @@ export class UserController {
 
 
   @Get(':id/profile-picture')
+  @Public()
   async getProfilePicture(@Param('id') id: string, @Res() res: Response) {
     try {
       const profilePictureData = await this.userService.getProfilePicture(id);

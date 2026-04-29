@@ -1,11 +1,14 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { SubscriptionService } from './subscription.service';
-import { SubscriptionPlan } from '../../entities/subscription-plan.entity';
 import { BadRequestException } from '@nestjs/common';
 import { Query } from '@nestjs/common';
+import { SubscriptionService } from './subscription.service';
+import { SubscriptionPlan } from '../../entities/subscription-plan.entity';
+import { Public } from '../../common/decorators/public.decorator';
+
 @ApiTags('Subscription Plans')
 @Controller('subscription-plans')
+@Public()
 export class SubscriptionController {
   constructor(private readonly subscriptionService: SubscriptionService) {}
 

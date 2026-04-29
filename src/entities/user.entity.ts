@@ -94,9 +94,6 @@ export class User {
   @OneToMany(() => Team, (team) => team.manager)
   managedTeams: Team[];
 
-  @Column({ type: 'text', nullable: true })
-  refresh_token: string | null;
-
   @Column({ type: "text", nullable: true })
   reset_token: string | null;
 

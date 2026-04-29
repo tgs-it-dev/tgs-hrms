@@ -1,5 +1,6 @@
 import { Body, Controller, Post, Query, BadRequestException, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { ApiTags, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { Public } from '../../common/decorators/public.decorator';
 import { SignupService } from './signup.service';
 import { PersonalDetailsDto } from './dto/personal-details.dto';
 import { CompanyDetailsDto } from './dto/company-details.dto';
@@ -13,6 +14,7 @@ import * as path from 'path';
 
 @ApiTags('Signup')
 @Controller('signup')
+@Public()
 export class SignupController {
   constructor(private readonly signupService: SignupService) {}
 
