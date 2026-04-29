@@ -10,11 +10,11 @@ import { DataSource } from "typeorm";
  * Example: tenant_id "550e8400-e29b-41d4-a716-446655440000"
  *       → schema    "tenant_550e8400e29b41d4a716446655440000"
  *
- * Phase 3 table layout (attendance + leave modules)
- * --------------------------------------------------
+ * Phase 3 table layout (attendance + leave + announcements)
+ * ---------------------------------------------------------
  * Tenant schema  : departments, designations, teams, employees,
  *                  billing_transactions, attendance,
- *                  leave_types, leaves
+ *                  leave_types, leaves, announcements
  * Public schema  : users, tenants, company_details, roles, permissions,
  *                  role_permissions, subscription_plans, signup_sessions,
  *                  system_logs, geofences, notifications
@@ -31,7 +31,7 @@ import { DataSource } from "typeorm";
  *
  * All names in this file are kept within those budgets using short
  * abbreviations: dept, desig, emp, bt (billing_transactions), tn (tenant),
- * mgr (manager), att (attendance), lt (leave_types), lv (leaves).
+ * mgr (manager), att (attendance), lt (leave_types), lv (leaves), ann (announcements).
  * ────────────────────────────────────────────────────────────────────────────
  *
  * Cross-schema FK rules:
@@ -71,6 +71,10 @@ export class TenantSchemaProvisioningService {
    *   3. teams                 (FK → public.users)
    *   4. employees             (FK → designations, teams, public.users)
    *   5. billing_transactions  (FK → public.tenants, employees)
+   *   6. attendance            (FK → public.users)
+   *   7. leave_types           (FK → public.tenants, public.users)
+   *   8. leaves                (FK → users, leave_types, tenants)
+   *   9. announcements         (FK → public.tenants, public.users)
    *
    * After successful provisioning, callers must set tenant.schema_provisioned = true.
    */
@@ -96,6 +100,7 @@ export class TenantSchemaProvisioningService {
       await this.createAttendanceTable(queryRunner, schemaName);
       await this.createLeaveTypesTable(queryRunner, schemaName);
       await this.createLeavesTable(queryRunner, schemaName);
+      await this.createAnnouncementsTable(queryRunner, schemaName);
 
       // Copy platform-wide GLOBAL departments/designations so new tenants can
       // immediately create designations under them and see them in findAll.
@@ -125,7 +130,8 @@ export class TenantSchemaProvisioningService {
    *
    * What this does in one transaction:
    *   1. Creates schema if missing.
-   *   2. Creates departments, designations, teams, billing_transactions (IF NOT EXISTS).
+   *   2. Creates departments, designations, teams, billing_transactions, attendance,
+   *      leave_types, leaves, announcements (IF NOT EXISTS).
    *   3. Creates employees table (IF NOT EXISTS — skipped if Phase 1 table exists).
    *   4. Fixes employees FKs — drops old Phase 1 constraints (regardless of their
    *      name/truncation) and re-adds them pointing to the tenant schema tables.
@@ -152,6 +158,7 @@ export class TenantSchemaProvisioningService {
       await this.createAttendanceTable(queryRunner, schemaName);
       await this.createLeaveTypesTable(queryRunner, schemaName);
       await this.createLeavesTable(queryRunner, schemaName);
+      await this.createAnnouncementsTable(queryRunner, schemaName);
 
       // Fix employees FKs — must run after all tables exist so the new FK
       // targets (designations, teams) are guaranteed to be present.
@@ -159,7 +166,11 @@ export class TenantSchemaProvisioningService {
 
       // Migrate any existing public-schema rows for this tenant into the new
       // tenant schema tables.  Idempotent: ON CONFLICT DO NOTHING everywhere.
-      await this.migratePublicDataToTenantSchema(queryRunner, schemaName, tenantId);
+      await this.migratePublicDataToTenantSchema(
+        queryRunner,
+        schemaName,
+        tenantId,
+      );
 
       await queryRunner.commitTransaction();
       this.logger.log(`Schema upgrade complete for tenant ${tenantId}`);
@@ -611,6 +622,58 @@ export class TenantSchemaProvisioningService {
   }
 
   /**
+   * announcements
+   *   FK: tenant_id   → public.tenants
+   *   FK: created_by  → public.users
+   *
+   * Suffix budget used: _ann_tn (6), _ann_usr (7)
+   */
+  private async createAnnouncementsTable(
+    queryRunner: ReturnType<DataSource["createQueryRunner"]>,
+    schemaName: string,
+  ): Promise<void> {
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."announcements" (
+        "id"               UUID          NOT NULL DEFAULT gen_random_uuid(),
+        "tenant_id"        UUID          NOT NULL,
+        "title"            VARCHAR(200)  NOT NULL,
+        "content"          TEXT          NOT NULL,
+        "category"         VARCHAR(20)   NOT NULL DEFAULT 'general',
+        "priority"         VARCHAR(10)   NOT NULL DEFAULT 'medium',
+        "status"           VARCHAR(15)   NOT NULL DEFAULT 'draft',
+        "scheduled_at"     TIMESTAMPTZ,
+        "sent_at"          TIMESTAMPTZ,
+        "recipient_count"  INTEGER       NOT NULL DEFAULT 0,
+        "created_by"       UUID          NOT NULL,
+        "created_at"       TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+        "updated_at"       TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+        "deleted_at"       TIMESTAMPTZ,
+        CONSTRAINT "pk_${schemaName}_ann"
+          PRIMARY KEY ("id"),
+        CONSTRAINT "fk_${schemaName}_ann_tn"
+          FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants" ("id")
+          ON DELETE CASCADE,
+        CONSTRAINT "fk_${schemaName}_ann_usr"
+          FOREIGN KEY ("created_by") REFERENCES "public"."users" ("id")
+          ON DELETE CASCADE
+      )
+    `);
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_ann_tn_st"
+         ON "${schemaName}"."announcements" ("tenant_id", "status")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_ann_tn_cat"
+         ON "${schemaName}"."announcements" ("tenant_id", "category")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "idx_${schemaName}_ann_tn_sch"
+         ON "${schemaName}"."announcements" ("tenant_id", "scheduled_at")`,
+    );
+    this.logger.debug(`Table "${schemaName}".announcements ensured`);
+  }
+
+  /**
    * Fixes the two FK constraints on the employees table that changed between
    * Phase 1 and Phase 2:
    *
@@ -756,7 +819,8 @@ export class TenantSchemaProvisioningService {
     tenantId: string,
   ): Promise<void> {
     // ── departments ──────────────────────────────────────────────────────────
-    await queryRunner.query(`
+    await queryRunner.query(
+      `
       INSERT INTO "${schemaName}"."departments"
         (id, name, description, tenant_id, created_at)
       SELECT
@@ -768,10 +832,13 @@ export class TenantSchemaProvisioningService {
       FROM public.departments d
       WHERE d.tenant_id = $1
       ON CONFLICT (id) DO NOTHING
-    `, [tenantId]);
+    `,
+      [tenantId],
+    );
 
     // ── designations — only those whose department already landed above ──────
-    await queryRunner.query(`
+    await queryRunner.query(
+      `
       INSERT INTO "${schemaName}"."designations"
         (id, title, department_id, tenant_id, created_at)
       SELECT
@@ -788,10 +855,13 @@ export class TenantSchemaProvisioningService {
           WHERE dep.id = dg.department_id
         )
       ON CONFLICT (id) DO NOTHING
-    `, [tenantId]);
+    `,
+      [tenantId],
+    );
 
     // ── teams — identified via manager's tenant_id in public.users ───────────
-    await queryRunner.query(`
+    await queryRunner.query(
+      `
       INSERT INTO "${schemaName}"."teams"
         (id, name, description, manager_id, created_at)
       SELECT
@@ -804,10 +874,13 @@ export class TenantSchemaProvisioningService {
       JOIN public.users u ON u.id = t.manager_id
       WHERE u.tenant_id = $1
       ON CONFLICT (id) DO NOTHING
-    `, [tenantId]);
+    `,
+      [tenantId],
+    );
 
     // ── attendance — identified via user_id → public.users.tenant_id ─────────
-    await queryRunner.query(`
+    await queryRunner.query(
+      `
       INSERT INTO "${schemaName}"."attendance"
         (id, user_id, type, timestamp, created_at, approval_status,
          approved_by, approved_at, approval_remarks, near_boundary, updated_at)
@@ -818,10 +891,13 @@ export class TenantSchemaProvisioningService {
       JOIN public.users u ON u.id = a.user_id
       WHERE u.tenant_id = $1
       ON CONFLICT (id) DO NOTHING
-    `, [tenantId]);
+    `,
+      [tenantId],
+    );
 
     // ── leave_types ──────────────────────────────────────────────────────────
-    await queryRunner.query(`
+    await queryRunner.query(
+      `
       INSERT INTO "${schemaName}"."leave_types"
         (id, name, description, "maxDaysPerYear", "carryForward", "isPaid",
          "tenantId", "createdBy", status, "createdAt", "updatedAt")
@@ -832,10 +908,13 @@ export class TenantSchemaProvisioningService {
       FROM public.leave_types lt
       WHERE lt."tenantId" = $1
       ON CONFLICT (id) DO NOTHING
-    `, [tenantId]);
+    `,
+      [tenantId],
+    );
 
     // ── leaves — only those whose leaveType already landed above ─────────────
-    await queryRunner.query(`
+    await queryRunner.query(
+      `
       INSERT INTO "${schemaName}"."leaves"
         (id, "employeeId", "leaveTypeId", "startDate", "endDate", "totalDays",
          reason, status, "approvedBy", "tenantId", "approvedAt", remarks,
@@ -851,7 +930,26 @@ export class TenantSchemaProvisioningService {
           SELECT 1 FROM "${schemaName}"."leave_types" lt WHERE lt.id = lv."leaveTypeId"
         )
       ON CONFLICT (id) DO NOTHING
-    `, [tenantId]);
+    `,
+      [tenantId],
+    );
+
+    // ── announcements ───────────────────────────────────────────────────────
+    await queryRunner.query(
+      `
+      INSERT INTO "${schemaName}"."announcements"
+        (id, tenant_id, title, content, category, priority, status, scheduled_at,
+         sent_at, recipient_count, created_by, created_at, updated_at, deleted_at)
+      SELECT
+        a.id, a.tenant_id, a.title, a.content, a.category, a.priority, a.status,
+        a.scheduled_at, a.sent_at, a.recipient_count, a.created_by, a.created_at,
+        a.updated_at, a.deleted_at
+      FROM public.announcements a
+      WHERE a.tenant_id = $1
+      ON CONFLICT (id) DO NOTHING
+    `,
+      [tenantId],
+    );
 
     // Also ensure GLOBAL (platform-wide) departments and designations are
     // present so that provisioned tenants can see and use them.
@@ -880,7 +978,8 @@ export class TenantSchemaProvisioningService {
     const GLOBAL = "00000000-0000-0000-0000-000000000000";
 
     // ── GLOBAL departments ───────────────────────────────────────────────────
-    await queryRunner.query(`
+    await queryRunner.query(
+      `
       INSERT INTO "${schemaName}"."departments"
         (id, name, description, tenant_id, created_at)
       SELECT
@@ -895,10 +994,13 @@ export class TenantSchemaProvisioningService {
           SELECT 1 FROM public.tenants WHERE id = $1
         )
       ON CONFLICT (id) DO NOTHING
-    `, [GLOBAL]);
+    `,
+      [GLOBAL],
+    );
 
     // ── GLOBAL designations (only those referencing a GLOBAL department) ─────
-    await queryRunner.query(`
+    await queryRunner.query(
+      `
       INSERT INTO "${schemaName}"."designations"
         (id, title, department_id, tenant_id, created_at)
       SELECT
@@ -915,7 +1017,9 @@ export class TenantSchemaProvisioningService {
           WHERE dep.id = dg.department_id
         )
       ON CONFLICT (id) DO NOTHING
-    `, [GLOBAL]);
+    `,
+      [GLOBAL],
+    );
 
     this.logger.debug(
       `GLOBAL departments/designations ensured in tenant schema "${schemaName}"`,

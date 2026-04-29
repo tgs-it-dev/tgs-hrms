@@ -1243,7 +1243,7 @@ export class AttendanceService {
           first_name: userDetails.first_name,
           last_name: userDetails.last_name,
           email: userDetails.email,
-          profile_pic: userDetails.profile_pic,
+          profile_pic: userDetails.profile_pic ?? undefined,
           attendance: attendanceData,
           totalDaysWorked,
           totalHoursWorked: Math.round(totalHoursWorked * 100) / 100,
