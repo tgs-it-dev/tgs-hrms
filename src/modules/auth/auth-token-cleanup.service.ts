@@ -1,7 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 import { InjectRepository } from "@nestjs/typeorm";
-import { LessThan, Repository } from "typeorm";
+import { Repository } from "typeorm";
 import { UserToken } from "../../entities/user-token.entity";
 
 /**
@@ -30,15 +30,20 @@ export class AuthTokenCleanupService {
       const result = await this.userTokenRepository
         .createQueryBuilder()
         .delete()
-        .where("(is_revoked = true OR expires_at < :now) AND created_at < :cutoff", {
-          now: new Date(),
-          cutoff,
-        })
+        .where(
+          "(is_revoked = true OR expires_at < :now) AND created_at < :cutoff",
+          {
+            now: new Date(),
+            cutoff,
+          },
+        )
         .execute();
 
       const count = result.affected ?? 0;
       if (count > 0) {
-        this.logger.log(`Purged ${count} stale token row(s) older than 30 days`);
+        this.logger.log(
+          `Purged ${count} stale token row(s) older than 30 days`,
+        );
       } else {
         this.logger.debug("No stale token rows to purge");
       }

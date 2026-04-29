@@ -1,5 +1,2 @@
-/**
- * Auth Module DTOs Export
- */
-
-export * from './auth.dto';
+export { LoginDto } from "./login.dto";
+export { RefreshTokenDto } from "./refresh-token.dto";
