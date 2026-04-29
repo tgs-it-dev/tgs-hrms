@@ -26,23 +26,14 @@ import { TimesheetModule } from './modules/timesheet/timesheet.module';
 import { LeaveModule } from './modules/leave/leave.module';
 import { LeaveTypeModule } from './modules/leave-type/leave-type.module';
 import { LeaveReportsModule } from './modules/reports/leave-reports.module';
-import { PolicyModule } from './modules/policy/policy.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { TeamModule } from './modules/team/team.module';
 import { SignupModule } from './modules/signup/signup.module';
 import { SubscriptionModule } from './modules/subscription/subscription.module';
-import { PayrollModule } from './modules/payroll/payroll.module';
 import { CompanyModule } from './modules/company/company.module';
-import { AssetModule } from './modules/asset/asset.module';
-import { AssetRequestModule } from './modules/asset-request/asset-request.module';
-import { AssetCategoryModule } from './modules/asset-category/asset-category.module';
-import { AssetSubcategoryModule } from './modules/asset-subcategory/asset-subcategory.module';
-import { BenefitsModule } from "./modules/benefits/benefits.module";
-import { PmsModule } from './modules/pms/pms.module';
 import { SystemModule } from './modules/system/system.module';
 import { SearchModule } from './modules/search/search.module';
 import { BillingModule } from './modules/billing/billing.module';
-import { TaskModule } from './modules/tasks/task.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { GeofenceModule } from './modules/geofence/geofence.module';
 import { NotificationModule } from './modules/notification/notification.module';
@@ -160,7 +151,6 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     AttendanceModule,
     TimesheetModule,
     LeaveModule,
-    PolicyModule,
     LeaveTypeModule,
     LeaveReportsModule,
     ReportsModule,
@@ -168,17 +158,9 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     SignupModule,
     SubscriptionModule,
     CompanyModule,
-    AssetModule,
-    AssetRequestModule,
-    AssetCategoryModule,
-    AssetSubcategoryModule,
-    BenefitsModule,
-    PmsModule,
     SystemModule,
-    PayrollModule,
     SearchModule,
     BillingModule,
-    TaskModule,
     DashboardModule,
     GeofenceModule,
     NotificationModule,

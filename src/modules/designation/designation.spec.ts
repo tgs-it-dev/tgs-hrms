@@ -29,9 +29,11 @@ describe('DesignationService', () => {
   const mockDesignation: Designation = {
     id: designationId,
     department_id: departmentId,
-    title: 'Manager',
+    tenant_id: tenantId,
+    title: "Manager",
     created_at: new Date(),
     department: mockDepartment,
+    tenant: {} as Designation["tenant"],
     employees: [],
   };
 
@@ -100,7 +102,7 @@ describe('DesignationService', () => {
     jest.spyOn(designationRepo, 'findOne').mockResolvedValue(null);
     jest.spyOn(designationRepo, 'save').mockResolvedValue({ ...mockDesignation, title: 'Lead' });
 
-    const result = await service.update(designationId, { title: 'Lead' });
+    const result = await service.update(tenantId, designationId, { title: "Lead" });
     expect(result.title).toBe('Lead');
   });
 
@@ -109,7 +111,9 @@ describe('DesignationService', () => {
     jest.spyOn(designationRepo, 'findOneBy').mockResolvedValue(mockDesignation);
     jest.spyOn(designationRepo, 'findOne').mockResolvedValue(anotherDesignation);
 
-    await expect(service.update(designationId, { title: 'Manager' })).rejects.toThrow(
+    await expect(
+      service.update(tenantId, designationId, { title: "Manager" }),
+    ).rejects.toThrow(
       ConflictException
     );
   });
@@ -118,14 +122,16 @@ describe('DesignationService', () => {
     jest.spyOn(designationRepo, 'findOneBy').mockResolvedValue(mockDesignation);
     jest.spyOn(designationRepo, 'delete').mockResolvedValue({ affected: 1 } as any);
 
-    const result = await service.remove(designationId);
+    const result = await service.remove(tenantId, designationId);
     expect(result).toEqual({ deleted: true, id: designationId });
   });
 
   it('should throw 404 if deleting non-existent designation', async () => {
     jest.spyOn(designationRepo, 'findOneBy').mockResolvedValue(null);
 
-    await expect(service.remove('6ba7b813-9dad-11d1-80b4-00c04fd430c8')).rejects.toThrow(
+    await expect(
+      service.remove(tenantId, "6ba7b813-9dad-11d1-80b4-00c04fd430c8"),
+    ).rejects.toThrow(
       NotFoundException
     );
   });
