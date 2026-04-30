@@ -98,13 +98,13 @@ export class AttendanceService {
     const parseStart = (date: string): Date => {
       if (date.includes("T")) return new Date(date);
       const [y, m, d] = date.split("-").map(Number);
-      return new Date(y, m - 1, d, 0, 0, 0, 0);
+      return new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
     };
 
     const parseEnd = (date: string): Date => {
       if (date.includes("T")) return new Date(date);
       const [y, m, d] = date.split("-").map(Number);
-      return new Date(y, m - 1, d, 23, 59, 59, 999);
+      return new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
     };
 
     return {
@@ -270,13 +270,7 @@ export class AttendanceService {
     // from a previous day should never block a new clock-in.
     const now = new Date();
     const startOfToday = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      0,
-      0,
-      0,
-      0,
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
     );
 
     const latestCheckIn = await attendanceRepo
@@ -415,111 +409,48 @@ export class AttendanceService {
 
     const now = new Date();
     const startOfDay = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      0,
-      0,
-      0,
-      0,
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
     );
     const startOfNextDay = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate() + 1,
-      0,
-      0,
-      0,
-      0,
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1),
     );
 
-    if (isProvisioned && tenantId) {
-      return this.tenantDbService.withTenantSchemaReadOnly(
-        tenantId,
-        async (em) => {
-          const aRepo = em.getRepository(Attendance);
-          const todayCheckIn = await aRepo
-            .createQueryBuilder("a")
-            .where("a.user_id = :userId", { userId })
-            .andWhere("a.type = :type", { type: AttendanceType.CHECK_IN })
-            .andWhere(
-              "a.timestamp >= :startOfDay AND a.timestamp < :startOfNextDay",
-              { startOfDay, startOfNextDay },
-            )
-            .orderBy("a.timestamp", "DESC")
-            .getOne();
-
-          const latestCheckIn =
-            todayCheckIn ??
-            (await aRepo
-              .createQueryBuilder("a")
-              .where("a.user_id = :userId", { userId })
-              .andWhere("a.type = :type", { type: AttendanceType.CHECK_IN })
-              .orderBy("a.timestamp", "DESC")
-              .getOne());
-
-          let matchingCheckOut: Attendance | null = null;
-          if (latestCheckIn) {
-            matchingCheckOut = await aRepo
-              .createQueryBuilder("a")
-              .where("a.user_id = :userId", { userId })
-              .andWhere("a.type = :type", { type: AttendanceType.CHECK_OUT })
-              .andWhere("a.timestamp > :after", {
-                after: latestCheckIn.timestamp,
-              })
-              .orderBy("a.timestamp", "ASC")
-              .getOne();
-          }
-          return {
-            checkIn: latestCheckIn?.timestamp || null,
-            checkOut: matchingCheckOut?.timestamp || null,
-          };
-        },
-      );
-    }
-
-    const todayCheckIn = await this.attendanceRepo
-      .createQueryBuilder("a")
-      .where("a.user_id = :userId", { userId })
-      .andWhere("a.type = :type", { type: AttendanceType.CHECK_IN })
-      .andWhere(
-        "a.timestamp >= :startOfDay AND a.timestamp < :startOfNextDay",
-        {
-          startOfDay,
-          startOfNextDay,
-        },
-      )
-      .orderBy("a.timestamp", "DESC")
-      .getOne();
-
-    let latestCheckIn: Attendance | null = null;
-
-    if (todayCheckIn) {
-      latestCheckIn = todayCheckIn;
-    } else {
-      latestCheckIn = await this.attendanceRepo
+    const run = async (repo: Repository<Attendance>) => {
+      const todayCheckIn = await repo
         .createQueryBuilder("a")
         .where("a.user_id = :userId", { userId })
         .andWhere("a.type = :type", { type: AttendanceType.CHECK_IN })
+        .andWhere(
+          "a.timestamp >= :startOfDay AND a.timestamp < :startOfNextDay",
+          { startOfDay, startOfNextDay },
+        )
         .orderBy("a.timestamp", "DESC")
         .getOne();
-    }
 
-    let matchingCheckOut: Attendance | null = null;
-    if (latestCheckIn) {
-      matchingCheckOut = await this.attendanceRepo
+      if (!todayCheckIn) {
+        return { checkIn: null, checkOut: null };
+      }
+
+      const matchingCheckOut = await repo
         .createQueryBuilder("a")
         .where("a.user_id = :userId", { userId })
         .andWhere("a.type = :type", { type: AttendanceType.CHECK_OUT })
-        .andWhere("a.timestamp > :after", { after: latestCheckIn.timestamp })
+        .andWhere("a.timestamp > :after", { after: todayCheckIn.timestamp })
         .orderBy("a.timestamp", "ASC")
         .getOne();
-    }
 
-    return {
-      checkIn: latestCheckIn?.timestamp || null,
-      checkOut: matchingCheckOut?.timestamp || null,
+      return {
+        checkIn: todayCheckIn.timestamp,
+        checkOut: matchingCheckOut?.timestamp || null,
+      };
     };
+
+    if (isProvisioned && tenantId) {
+      return this.tenantDbService.withTenantSchemaReadOnly(tenantId, (em) =>
+        run(em.getRepository(Attendance)),
+      );
+    }
+    return run(this.attendanceRepo);
   }
 
   async update(id: string, dto: UpdateAttendanceDto) {
@@ -540,10 +471,12 @@ export class AttendanceService {
   ): Promise<{ totalAttendance: number }> {
     const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
     const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    const startOfMonth = new Date(year, month, 1);
-    const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59, 999);
+    const startOfMonth = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+    );
+    const endOfMonth = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999),
+    );
 
     if (isProvisioned) {
       const result = await this.tenantDbService.withTenantSchemaReadOnly(
@@ -789,7 +722,9 @@ export class AttendanceService {
         .where("attendance.user_id IN (:...userIds)", { userIds });
       if (startDate) {
         q.andWhere("attendance.timestamp >= :start", {
-          start: new Date(startDate),
+          start: startDate.includes("T")
+            ? new Date(startDate)
+            : new Date(startDate + "T00:00:00.000Z"),
         });
       }
       if (endDate) {
@@ -990,14 +925,13 @@ export class AttendanceService {
 
     // Apply date filters
     if (startDate) {
+      const start = startDate.includes("T")
+        ? new Date(startDate)
+        : new Date(startDate + "T00:00:00.000Z");
       if (tenantId) {
-        qb.andWhere("attendance.timestamp >= :start", {
-          start: new Date(startDate),
-        });
+        qb.andWhere("attendance.timestamp >= :start", { start });
       } else {
-        qb.where("attendance.timestamp >= :start", {
-          start: new Date(startDate),
-        });
+        qb.where("attendance.timestamp >= :start", { start });
       }
     }
     if (endDate) {
