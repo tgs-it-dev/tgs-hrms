@@ -2,9 +2,17 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, DataSource, IsNull, EntityManager } from 'typeorm';
+import {
+  Repository,
+  Not,
+  DataSource,
+  IsNull,
+  EntityManager,
+  In,
+} from 'typeorm';
 import { Team } from '../../entities/team.entity';
 import { Employee } from '../../entities/employee.entity';
 import { User } from '../../entities/user.entity';
@@ -13,9 +21,12 @@ import { CreateTeamDto } from './dto/create-team.dto';
 import { UpdateTeamDto } from './dto/update-team.dto';
 import { EmployeeStatus } from '../../common/constants/enums';
 import { TenantDatabaseService } from '../../common/services/tenant-database.service';
+import { SendGridService } from '../../common/utils/email/sendgrid.service';
 
 @Injectable()
 export class TeamService {
+  private readonly logger = new Logger(TeamService.name);
+
   constructor(
     @InjectRepository(Team)
     private readonly teamRepo: Repository<Team>,
@@ -27,6 +38,7 @@ export class TeamService {
     private readonly tenantRepo: Repository<Tenant>,
     private readonly dataSource: DataSource,
     private readonly tenantDbService: TenantDatabaseService,
+    private readonly sendGridService: SendGridService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -61,7 +73,9 @@ export class TeamService {
       throw new NotFoundException('Manager not found in this tenant');
     }
     if (manager.role.name !== 'Manager') {
-      throw new BadRequestException('User must have manager role to create a team');
+      throw new BadRequestException(
+        'User must have manager role to create a team',
+      );
     }
 
     const createWork = async (em: EntityManager | null) => {
@@ -72,7 +86,9 @@ export class TeamService {
         where: { manager_id: dto.manager_id },
       });
       if (existingTeam) {
-        throw new BadRequestException('Manager is already managing another team');
+        throw new BadRequestException(
+          'Manager is already managing another team',
+        );
       }
 
       const team = teamR.create({ ...dto });
@@ -89,7 +105,9 @@ export class TeamService {
     };
 
     if (isProvisioned) {
-      return this.tenantDbService.withTenantSchema(tenantId, (em) => createWork(em));
+      return this.tenantDbService.withTenantSchema(tenantId, (em) =>
+        createWork(em),
+      );
     }
     return this.dataSource.transaction((em) => createWork(em));
   }
@@ -108,7 +126,10 @@ export class TeamService {
     const limit = 25;
     const skip = (page - 1) * limit;
 
-    const query = async (teamR: Repository<Team>, employeeR: Repository<Employee>) => {
+    const query = async (
+      teamR: Repository<Team>,
+      employeeR: Repository<Employee>,
+    ) => {
       const [teams, total] = await teamR.findAndCount({
         where: { manager: { tenant_id: tenantId } },
         relations: [
@@ -255,7 +276,11 @@ export class TeamService {
     return doFind(this.teamRepo);
   }
 
-  async update(tenantId: string, id: string, dto: UpdateTeamDto): Promise<Team> {
+  async update(
+    tenantId: string,
+    id: string,
+    dto: UpdateTeamDto,
+  ): Promise<Team> {
     const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
 
     const updateWork = async (em: EntityManager | null) => {
@@ -279,26 +304,37 @@ export class TeamService {
           throw new NotFoundException('New manager not found in this tenant');
         }
         if (newManager.role.name !== 'Manager') {
-          throw new BadRequestException('User must have manager role to manage a team');
+          throw new BadRequestException(
+            'User must have manager role to manage a team',
+          );
         }
         const existingTeam = await teamR.findOne({
           where: { manager_id: dto.manager_id, id: Not(id) },
         });
         if (existingTeam) {
-          throw new BadRequestException('New manager is already managing another team');
+          throw new BadRequestException(
+            'New manager is already managing another team',
+          );
         }
       }
 
       const updateData: Partial<Team> = {};
       if (dto.name !== undefined) updateData.name = dto.name;
-      if (dto.description !== undefined) updateData.description = dto.description;
+      if (dto.description !== undefined)
+        updateData.description = dto.description;
       if (dto.manager_id !== undefined) updateData.manager_id = dto.manager_id;
 
       await teamR.update(id, updateData);
 
       const updatedTeam = await teamR.findOne({
         where: { id, manager: { tenant_id: tenantId } },
-        relations: ['manager', 'manager.role', 'teamMembers', 'teamMembers.user', 'teamMembers.designation'],
+        relations: [
+          'manager',
+          'manager.role',
+          'teamMembers',
+          'teamMembers.user',
+          'teamMembers.designation',
+        ],
       });
       if (!updatedTeam) {
         throw new NotFoundException('Team not found after update');
@@ -307,7 +343,9 @@ export class TeamService {
     };
 
     if (isProvisioned) {
-      return this.tenantDbService.withTenantSchema(tenantId, (em) => updateWork(em));
+      return this.tenantDbService.withTenantSchema(tenantId, (em) =>
+        updateWork(em),
+      );
     }
     return this.dataSource.transaction((em) => updateWork(em));
   }
@@ -320,10 +358,18 @@ export class TeamService {
         const teamR = em.getRepository(Team);
         const team = await teamR.findOne({
           where: { id, manager: { tenant_id: tenantId } },
-          relations: ['manager', 'manager.role', 'teamMembers', 'teamMembers.user', 'teamMembers.designation'],
+          relations: [
+            'manager',
+            'manager.role',
+            'teamMembers',
+            'teamMembers.user',
+            'teamMembers.designation',
+          ],
         });
         if (!team) throw new NotFoundException('Team not found');
-        await em.getRepository(Employee).update({ team_id: id }, { team_id: null });
+        await em
+          .getRepository(Employee)
+          .update({ team_id: id }, { team_id: null });
         await teamR.remove(team);
       });
     } else {
@@ -371,7 +417,10 @@ export class TeamService {
             email: employee.user.email,
             profile_pic: employee.user.profile_pic,
           },
-          designation: { id: employee.designation.id, title: employee.designation.title },
+          designation: {
+            id: employee.designation.id,
+            title: employee.designation.title,
+          },
           department: {
             id: employee.designation.department.id,
             name: employee.designation.department.name,
@@ -410,13 +459,23 @@ export class TeamService {
 
     const doQuery = async (employeeR: Repository<Employee>) => {
       const [items, total] = await employeeR.findAndCount({
-        where: { team_id: teamId, deleted_at: IsNull(), user: { tenant_id: tenantId } },
+        where: {
+          team_id: teamId,
+          deleted_at: IsNull(),
+          user: { tenant_id: tenantId },
+        },
         relations: ['user', 'designation', 'designation.department'],
         order: { created_at: 'ASC' },
         skip,
         take: limit,
       });
-      return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
+      return {
+        items,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      };
     };
 
     if (isProvisioned) {
@@ -433,7 +492,11 @@ export class TeamService {
     const doQuery = async (teamR: Repository<Team>) =>
       teamR.find({
         where: { manager_id: managerId, manager: { tenant_id: tenantId } },
-        relations: ['teamMembers', 'teamMembers.user', 'teamMembers.designation'],
+        relations: [
+          'teamMembers',
+          'teamMembers.user',
+          'teamMembers.designation',
+        ],
       });
 
     if (isProvisioned) {
@@ -451,21 +514,44 @@ export class TeamService {
   ): Promise<void> {
     const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
 
-    const doWork = async (teamR: Repository<Team>, employeeR: Repository<Employee>) => {
+    const doWork = async (
+      teamR: Repository<Team>,
+      employeeR: Repository<Employee>,
+    ) => {
       const team = await teamR.findOne({
         where: { id: teamId, manager: { tenant_id: tenantId } },
-        relations: ['manager', 'manager.role', 'teamMembers', 'teamMembers.user', 'teamMembers.designation'],
+        relations: [
+          'manager',
+          'manager.role',
+          'teamMembers',
+          'teamMembers.user',
+          'teamMembers.designation',
+        ],
       });
       if (!team) throw new NotFoundException('Team not found');
 
       const employee = await employeeR.findOne({
-        where: { id: employeeId, deleted_at: IsNull(), user: { tenant_id: tenantId } },
+        where: {
+          id: employeeId,
+          deleted_at: IsNull(),
+          user: { tenant_id: tenantId },
+        },
       });
-      if (!employee) throw new NotFoundException('Employee not found in this tenant');
-      if (employee.team_id) throw new BadRequestException('Employee is already part of a team');
+      if (!employee)
+        throw new NotFoundException('Employee not found in this tenant');
+      if (employee.team_id)
+        throw new BadRequestException('Employee is already part of a team');
 
       employee.team_id = teamId;
       await employeeR.save(employee);
+
+      // Send team member announcement emails
+      await this.sendNewTeamMemberAnnouncementToTeam(
+        tenantId,
+        teamId,
+        employeeId,
+        isProvisioned,
+      );
     };
 
     if (isProvisioned) {
@@ -493,7 +579,8 @@ export class TeamService {
           user: { tenant_id: tenantId },
         },
       });
-      if (!employee) throw new NotFoundException('Employee not found in this team');
+      if (!employee)
+        throw new NotFoundException('Employee not found in this team');
       employee.team_id = null;
       await employeeR.save(employee);
     };
@@ -539,7 +626,9 @@ export class TeamService {
         .leftJoinAndSelect('d.department', 'dep')
         .where('u.tenant_id = :tenantId', { tenantId })
         .andWhere('e.deleted_at IS NULL')
-        .andWhere('dep.id = :deptId', { deptId: manager.designation.department.id })
+        .andWhere('dep.id = :deptId', {
+          deptId: manager.designation.department.id,
+        })
         .andWhere('e.team_id IS NULL')
         .andWhere('e.user_id != :managerId', { managerId });
 
@@ -566,7 +655,10 @@ export class TeamService {
             email: employee.user.email,
             profile_pic: employee.user.profile_pic,
           },
-          designation: { id: employee.designation.id, title: employee.designation.title },
+          designation: {
+            id: employee.designation.id,
+            title: employee.designation.title,
+          },
           department: {
             id: employee.designation.department.id,
             name: employee.designation.department.name,
@@ -630,7 +722,10 @@ export class TeamService {
             email: employee.user.email,
             profile_pic: employee.user.profile_pic,
           },
-          designation: { id: employee.designation.id, title: employee.designation.title },
+          designation: {
+            id: employee.designation.id,
+            title: employee.designation.title,
+          },
           department: {
             id: employee.designation.department.id,
             name: employee.designation.department.name,
@@ -715,7 +810,10 @@ export class TeamService {
             email: employee.user.email,
             profile_pic: employee.user.profile_pic,
           },
-          designation: { id: employee.designation.id, title: employee.designation.title },
+          designation: {
+            id: employee.designation.id,
+            title: employee.designation.title,
+          },
           department: {
             id: employee.designation.department.id,
             name: employee.designation.department.name,
@@ -795,12 +893,23 @@ export class TeamService {
         id: m.id,
         status: m.status,
         user: m.user
-          ? { id: m.user.id, name: `${m.user.first_name} ${m.user.last_name}`, email: m.user.email, profile_pic: m.user.profile_pic }
+          ? {
+              id: m.user.id,
+              name: `${m.user.first_name} ${m.user.last_name}`,
+              email: m.user.email,
+              profile_pic: m.user.profile_pic,
+            }
           : null,
-        designation: m.designation ? { id: m.designation.id, title: m.designation.title } : null,
-        department: m.designation && m.designation.department
-          ? { id: m.designation.department.id, name: m.designation.department.name }
+        designation: m.designation
+          ? { id: m.designation.id, title: m.designation.title }
           : null,
+        department:
+          m.designation && m.designation.department
+            ? {
+                id: m.designation.department.id,
+                name: m.designation.department.name,
+              }
+            : null,
       })),
     });
 
@@ -816,17 +925,21 @@ export class TeamService {
         teamR.find({
           where: { manager: { tenant_id: tenant.id } },
           relations: [
-            'manager', 'manager.role',
-            'teamMembers', 'teamMembers.user',
-            'teamMembers.designation', 'teamMembers.designation.department',
+            'manager',
+            'manager.role',
+            'teamMembers',
+            'teamMembers.user',
+            'teamMembers.designation',
+            'teamMembers.designation.department',
           ],
           order: { created_at: 'DESC' },
         });
 
       let teams: Team[];
       if (tenant.schema_provisioned) {
-        teams = await this.tenantDbService.withTenantSchemaReadOnly(tenant.id, (em) =>
-          fetchTeams(em.getRepository(Team)),
+        teams = await this.tenantDbService.withTenantSchemaReadOnly(
+          tenant.id,
+          (em) => fetchTeams(em.getRepository(Team)),
         );
       } else {
         teams = await fetchTeams(this.teamRepo);
@@ -841,5 +954,144 @@ export class TeamService {
     }
 
     return { tenants: result };
+  }
+
+  /**
+   * Sends "New team member joined" email to all existing members of the team (excluding the new member)
+   */
+  private async sendNewTeamMemberAnnouncementToTeam(
+    tenantId: string,
+    teamId: string,
+    newEmployeeId: string,
+    isProvisioned: boolean,
+  ): Promise<void> {
+    try {
+      // Get tenant info
+      const tenant = await this.tenantRepo.findOne({
+        where: { id: tenantId },
+        select: ['name'],
+      });
+      if (!tenant) {
+        this.logger.warn(
+          `Tenant not found for announcement (tenant: ${tenantId})`,
+        );
+        return;
+      }
+
+      // Get new employee details
+      let newEmployee: Employee | null = null;
+      if (isProvisioned) {
+        await this.tenantDbService.withTenantSchemaReadOnly(
+          tenantId,
+          async (em) => {
+            newEmployee = await em.getRepository(Employee).findOne({
+              where: { id: newEmployeeId },
+              relations: ['user', 'designation', 'designation.department'],
+            });
+          },
+        );
+      } else {
+        newEmployee = await this.employeeRepo.findOne({
+          where: { id: newEmployeeId },
+          relations: ['user', 'designation', 'designation.department'],
+        });
+      }
+
+      if (!newEmployee) {
+        this.logger.warn(
+          `New employee not found for announcement (employee: ${newEmployeeId})`,
+        );
+        return;
+      }
+
+      // Get all existing team members (excluding the new member)
+      let existingMembers: Employee[] = [];
+      if (isProvisioned) {
+        await this.tenantDbService.withTenantSchemaReadOnly(
+          tenantId,
+          async (em) => {
+            const members = await em.getRepository(Employee).find({
+              where: { team_id: teamId, id: Not(newEmployeeId) },
+              relations: ['user'],
+            });
+            existingMembers = members;
+          },
+        );
+      } else {
+        existingMembers = await this.employeeRepo.find({
+          where: { team_id: teamId, id: Not(newEmployeeId) },
+          relations: ['user'],
+        });
+      }
+
+      if (existingMembers.length === 0) {
+        this.logger.log(
+          `No existing team members to notify for new member (team: ${teamId})`,
+        );
+        return;
+      }
+
+      // Get emails from public user table for all existing members
+      const userIds = existingMembers.map((m) => m.user_id).filter(Boolean);
+      if (userIds.length === 0) {
+        this.logger.log(`No user IDs found for team members (team: ${teamId})`);
+        return;
+      }
+
+      const usersWithEmails = await this.userRepo.find({
+        where: { id: In(userIds) },
+        select: ['id', 'email', 'first_name', 'last_name'],
+      });
+
+      const emailMap = new Map(usersWithEmails.map((u) => [u.id, u]));
+
+      const recipientDisplayName = (
+        first: string | null | undefined,
+        last: string | null | undefined,
+      ) => `${first ?? ''} ${last ?? ''}`.trim() || 'there';
+
+      // Send email to each existing team member
+      for (const member of existingMembers) {
+        const user = emailMap.get(member?.user_id);
+        if (!user?.email) continue;
+
+        try {
+          await this.sendGridService.sendNewTeamMemberAnnouncementEmail({
+            recipientEmail: user.email,
+            recipientName: recipientDisplayName(
+              user.first_name,
+              user.last_name,
+            ),
+            newMember: {
+              name: `${newEmployee.user.first_name} ${newEmployee.user.last_name}`.trim(),
+              email: newEmployee.user.email,
+              department: newEmployee.designation?.department?.name ?? '-',
+              jobTitle: newEmployee.designation?.title ?? '-',
+              joinedDate:
+                newEmployee.created_at?.toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                }) ?? '-',
+            },
+            companyName: tenant.name,
+          });
+        } catch (err) {
+          this.logger.error(
+            `Failed to send team member announcement to ${user.email}: ${String((err as Error)?.message ?? err)}`,
+          );
+          // Continue with other recipients; do not throw
+        }
+      }
+
+      this.logger.log(
+        `Team member announcement sent to ${existingMembers.length} team member(s) (team: ${teamId})`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to send team member announcement to team ${teamId}: ${String((error as Error)?.message ?? error)}`,
+      );
+      // Do not throw - announcement failure should not affect team member addition
+    }
   }
 }

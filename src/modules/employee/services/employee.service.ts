@@ -463,24 +463,8 @@ export class EmployeeService implements OnModuleInit {
         resetToken,
         `${dto.first_name} ${dto.last_name}`.trim() || dto.email,
         (await this.tenantRepo.findOne({ where: { id: tenant_id } }))?.name ||
-          "your organization",
+          'your organization',
       );
-
-      // Notify all other employees in the same tenant (tenant isolation)
-      const newManagerUser = await this.userRepo.findOne({
-        where: { id: result.user_id },
-        select: ["id", "email", "first_name", "last_name"],
-      });
-      if (newManagerUser) {
-        const newManagerName =
-          `${newManagerUser.first_name} ${newManagerUser.last_name}`.trim();
-        await this.sendNewEmployeeAnnouncementToTenant(
-          tenant_id,
-          newManagerUser.id,
-          newManagerName,
-          newManagerUser.email,
-        );
-      }
 
       // Reload so response includes picture URLs persisted via update()
       const created = await this.runInTenantSchema(
@@ -836,13 +820,7 @@ export class EmployeeService implements OnModuleInit {
           "your organization",
       );
 
-      // Notify all other employees in the same tenant (tenant isolation)
-      await this.sendNewEmployeeAnnouncementToTenant(
-        tenant_id,
-        user.id,
-        employeeName,
-        user.email,
-      );
+
 
       // Emit event for audit/logging purposes (payment already processed above)
       try {
@@ -1055,14 +1033,7 @@ export class EmployeeService implements OnModuleInit {
           "your organization",
       );
 
-      // Notify all other employees in the same tenant (tenant isolation)
-      const newEmployeeName = `${dto.first_name} ${dto.last_name}`.trim();
-      await this.sendNewEmployeeAnnouncementToTenant(
-        tenant_id,
-        result.user_id,
-        newEmployeeName,
-        dto.email,
-      );
+
 
       // Note: Event is NOT emitted here because payment was already processed in confirmEmployeePayment
       // This prevents duplicate billing transaction creation
