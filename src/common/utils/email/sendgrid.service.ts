@@ -3,15 +3,16 @@
  * Handles all SendGrid email operations
  */
 
-import { Injectable, Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import * as sgMail from "@sendgrid/mail";
-import * as fs from "fs";
-import * as path from "path";
-import * as Handlebars from "handlebars";
-import { getFrontendUrls } from "../frontend-urls.utilis";
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import * as sgMail from '@sendgrid/mail';
+import { IEmailProvider } from './interfaces/email-provider.interface';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as Handlebars from 'handlebars';
+import { getFrontendUrls } from '../frontend-urls.utilis';
 
-const TEMPLATES_DIR = path.join(__dirname, "..", "..", "..", "templates");
+const TEMPLATES_DIR = path.join(__dirname, '..', '..', '..', 'templates');
 
 /** Payload for the "new team member joined" announcement email */
 export interface NewTeamMemberAnnouncementPayload {
@@ -32,21 +33,21 @@ export interface NewTeamMemberAnnouncementPayload {
 }
 
 @Injectable()
-export class SendGridService {
+export class SendGridService implements IEmailProvider {
   private readonly logger = new Logger(SendGridService.name);
   private companyName: string;
 
   constructor(private readonly configService: ConfigService) {
-    const apiKey = this.configService.get<string>("SENDGRID_API_KEY");
+    const apiKey = this.configService.get<string>('SENDGRID_API_KEY');
     this.companyName =
-      this.configService.get<string>("COMPANY_NAME") || "WorkOnnect";
+      this.configService.get<string>('COMPANY_NAME') || 'WorkOnnect';
 
     if (apiKey) {
       sgMail.setApiKey(apiKey);
-      this.logger.log("SendGrid API key configured successfully");
+      this.logger.log('SendGrid API key configured successfully');
     } else {
       this.logger.warn(
-        "SENDGRID_API_KEY not found. Email functionality will be disabled.",
+        'SENDGRID_API_KEY not found. Email functionality will be disabled.',
       );
     }
   }
@@ -60,7 +61,7 @@ export class SendGridService {
     context: Record<string, unknown>,
   ): string {
     const templatePath = path.join(TEMPLATES_DIR, `${templateName}.hbs`);
-    const source = fs.readFileSync(templatePath, "utf-8");
+    const source = fs.readFileSync(templatePath, 'utf-8');
     const template = Handlebars.compile(source, { strict: true });
     return template(context);
   }
@@ -79,23 +80,23 @@ export class SendGridService {
       companyLogoUrl,
     } = getFrontendUrls(this.configService);
     const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
-    const fromEmail = this.configService.get<string>("SENDGRID_FROM");
+    const fromEmail = this.configService.get<string>('SENDGRID_FROM');
 
     if (!fromEmail) {
-      this.logger.warn("SENDGRID_FROM not configured. Skipping email send.");
+      this.logger.warn('SENDGRID_FROM not configured. Skipping email send.');
       return;
     }
 
     const context = {
       userName,
       resetUrl,
-      privacyUrl: this.configService.get<string>("PRIVACY_POLICY_URL") ?? "#",
-      termsUrl: this.configService.get<string>("TERMS_URL") ?? "#",
-      unsubscribeUrl: this.configService.get<string>("UNSUBSCRIBE_URL") ?? "#",
-      companyName: companyName ?? "your organization",
-      linkedinUrl: this.configService.get<string>("LINKEDIN_URL") ?? "#",
-      instagramUrl: this.configService.get<string>("INSTAGRAM_URL") ?? "#",
-      twitterUrl: this.configService.get<string>("TWITTER_URL") ?? "#",
+      privacyUrl: this.configService.get<string>('PRIVACY_POLICY_URL') ?? '#',
+      termsUrl: this.configService.get<string>('TERMS_URL') ?? '#',
+      unsubscribeUrl: this.configService.get<string>('UNSUBSCRIBE_URL') ?? '#',
+      companyName: companyName ?? 'your organization',
+      linkedinUrl: this.configService.get<string>('LINKEDIN_URL') ?? '#',
+      instagramUrl: this.configService.get<string>('INSTAGRAM_URL') ?? '#',
+      twitterUrl: this.configService.get<string>('TWITTER_URL') ?? '#',
       linkedin_logo_url,
       x_logo_url,
       instagram_logo_url,
@@ -103,7 +104,7 @@ export class SendGridService {
       current_year: new Date().getFullYear(),
     };
 
-    const html = this.renderTemplate("password-reset", context);
+    const html = this.renderTemplate('password-reset', context);
 
     const msg = {
       to: email,
@@ -111,7 +112,7 @@ export class SendGridService {
         email: fromEmail,
         name: this.companyName,
       },
-      subject: "Password Reset Request",
+      subject: 'Password Reset Request',
       html,
     };
 
@@ -123,7 +124,7 @@ export class SendGridService {
         `Failed to send password reset email to ${email}:`,
         error,
       );
-      throw new Error("Failed to send password reset email");
+      throw new Error('Failed to send password reset email');
     }
   }
 
@@ -132,10 +133,10 @@ export class SendGridService {
     userName: string,
     companyName: string,
   ): Promise<void> {
-    const fromEmail = this.configService.get<string>("SENDGRID_FROM");
+    const fromEmail = this.configService.get<string>('SENDGRID_FROM');
 
     if (!fromEmail) {
-      this.logger.warn("SENDGRID_FROM not configured. Skipping email send.");
+      this.logger.warn('SENDGRID_FROM not configured. Skipping email send.');
       return;
     }
 
@@ -149,14 +150,14 @@ export class SendGridService {
     const context = {
       userName,
       privacyPolicyUrl:
-        this.configService.get<string>("PRIVACY_POLICY_URL") ?? "#",
-      loginUrl: `${this.configService.get<string>("FRONTEND_URL")}`,
-      termsUrl: this.configService.get<string>("TERMS_URL") ?? "#",
-      unsubscribeUrl: this.configService.get<string>("UNSUBSCRIBE_URL") ?? "#",
-      companyName: companyName ?? "your organization",
-      linkedinUrl: this.configService.get<string>("LINKEDIN_URL") ?? "#",
-      instagramUrl: this.configService.get<string>("INSTAGRAM_URL") ?? "#",
-      twitterUrl: this.configService.get<string>("TWITTER_URL") ?? "#",
+        this.configService.get<string>('PRIVACY_POLICY_URL') ?? '#',
+      loginUrl: `${this.configService.get<string>('FRONTEND_URL')}`,
+      termsUrl: this.configService.get<string>('TERMS_URL') ?? '#',
+      unsubscribeUrl: this.configService.get<string>('UNSUBSCRIBE_URL') ?? '#',
+      companyName: companyName ?? 'your organization',
+      linkedinUrl: this.configService.get<string>('LINKEDIN_URL') ?? '#',
+      instagramUrl: this.configService.get<string>('INSTAGRAM_URL') ?? '#',
+      twitterUrl: this.configService.get<string>('TWITTER_URL') ?? '#',
       linkedin_logo_url,
       x_logo_url,
       instagram_logo_url,
@@ -164,7 +165,7 @@ export class SendGridService {
       current_year: new Date().getFullYear(),
     };
 
-    const html = this.renderTemplate("password-reset-success", context);
+    const html = this.renderTemplate('password-reset-success', context);
 
     const msg = {
       to: email,
@@ -172,7 +173,7 @@ export class SendGridService {
         email: fromEmail,
         name: this.companyName,
       },
-      subject: "Password Reset Successful",
+      subject: 'Password Reset Successful',
       html,
     };
 
@@ -201,23 +202,23 @@ export class SendGridService {
       companyLogoUrl,
     } = getFrontendUrls(this.configService);
     const resetUrl = `${frontendUrl}/confirm-password?token=${resetToken}`;
-    const fromEmail = this.configService.get<string>("SENDGRID_FROM");
+    const fromEmail = this.configService.get<string>('SENDGRID_FROM');
 
     if (!fromEmail) {
-      this.logger.warn("SENDGRID_FROM not configured. Skipping email send.");
+      this.logger.warn('SENDGRID_FROM not configured. Skipping email send.');
       return;
     }
 
     const context = {
       userName,
       resetUrl,
-      companyName: companyName ?? "your organization",
-      privacyUrl: this.configService.get<string>("PRIVACY_POLICY_URL") ?? "#",
-      termsUrl: this.configService.get<string>("TERMS_URL") ?? "#",
-      unsubscribeUrl: this.configService.get<string>("UNSUBSCRIBE_URL") ?? "#",
-      linkedinUrl: this.configService.get<string>("LINKEDIN_URL") ?? "#",
-      instagramUrl: this.configService.get<string>("INSTAGRAM_URL") ?? "#",
-      twitterUrl: this.configService.get<string>("TWITTER_URL") ?? "#",
+      companyName: companyName ?? 'your organization',
+      privacyUrl: this.configService.get<string>('PRIVACY_POLICY_URL') ?? '#',
+      termsUrl: this.configService.get<string>('TERMS_URL') ?? '#',
+      unsubscribeUrl: this.configService.get<string>('UNSUBSCRIBE_URL') ?? '#',
+      linkedinUrl: this.configService.get<string>('LINKEDIN_URL') ?? '#',
+      instagramUrl: this.configService.get<string>('INSTAGRAM_URL') ?? '#',
+      twitterUrl: this.configService.get<string>('TWITTER_URL') ?? '#',
       linkedin_logo_url,
       x_logo_url,
       instagram_logo_url,
@@ -225,7 +226,7 @@ export class SendGridService {
       current_year: new Date().getFullYear(),
     };
 
-    const html = this.renderTemplate("employee-welcome", context);
+    const html = this.renderTemplate('employee-welcome', context);
 
     const msg = {
       to: email,
@@ -233,7 +234,7 @@ export class SendGridService {
         email: fromEmail,
         name: this.companyName,
       },
-      subject: "Welcome to HRMS - Set Your Password",
+      subject: 'Welcome to HRMS - Set Your Password',
       html,
     };
 
@@ -242,7 +243,7 @@ export class SendGridService {
       this.logger.log(`Welcome email sent to ${email}`);
     } catch (error) {
       this.logger.error(`Failed to send welcome email to ${email}:`, error);
-      throw new Error("Failed to send welcome email");
+      throw new Error('Failed to send welcome email');
     }
   }
 
@@ -252,10 +253,10 @@ export class SendGridService {
     html: string,
     from?: string,
   ): Promise<void> {
-    const fromEmail = from || this.configService.get<string>("SENDGRID_FROM");
+    const fromEmail = from || this.configService.get<string>('SENDGRID_FROM');
 
     if (!fromEmail) {
-      this.logger.warn("SENDGRID_FROM not configured. Skipping email send.");
+      this.logger.warn('SENDGRID_FROM not configured. Skipping email send.');
       return;
     }
 
@@ -274,7 +275,7 @@ export class SendGridService {
       this.logger.log(`Email sent to ${to}`);
     } catch (error) {
       this.logger.error(`Failed to send email to ${to}:`, error);
-      throw new Error("Failed to send email");
+      throw new Error('Failed to send email');
     }
   }
 
@@ -284,11 +285,11 @@ export class SendGridService {
     html: string,
     from?: string,
   ): Promise<void> {
-    const fromEmail = from || this.configService.get<string>("SENDGRID_FROM");
+    const fromEmail = from || this.configService.get<string>('SENDGRID_FROM');
 
     if (!fromEmail) {
       this.logger.warn(
-        "SENDGRID_FROM not configured. Skipping bulk email send.",
+        'SENDGRID_FROM not configured. Skipping bulk email send.',
       );
       return;
     }
@@ -311,7 +312,7 @@ export class SendGridService {
         `Failed to send bulk email to ${emails.length} recipients:`,
         error,
       );
-      throw new Error("Failed to send bulk email");
+      throw new Error('Failed to send bulk email');
     }
   }
 
@@ -322,11 +323,11 @@ export class SendGridService {
   async sendNewTeamMemberAnnouncementEmail(
     payload: NewTeamMemberAnnouncementPayload,
   ): Promise<void> {
-    const fromEmail = this.configService.get<string>("SENDGRID_FROM");
+    const fromEmail = this.configService.get<string>('SENDGRID_FROM');
 
     if (!fromEmail) {
       this.logger.warn(
-        "SENDGRID_FROM not configured. Skipping new team member announcement email.",
+        'SENDGRID_FROM not configured. Skipping new team member announcement email.',
       );
       return;
     }
@@ -340,26 +341,26 @@ export class SendGridService {
     } = getFrontendUrls(this.configService);
 
     const context = {
-      recipientName: payload.recipientName ?? "there",
+      recipientName: payload.recipientName ?? 'there',
       name: payload.newMember.name,
       email: payload.newMember.email,
-      department: payload.newMember.department ?? "—",
-      jobTitle: payload.newMember.jobTitle ?? "—",
+      department: payload.newMember.department ?? '—',
+      jobTitle: payload.newMember.jobTitle ?? '—',
       joinedDate:
         payload.newMember.joinedDate ??
-        new Date().toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
+        new Date().toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
         }),
-      companyName: payload.companyName ?? "your organization",
+      companyName: payload.companyName ?? 'your organization',
       viewTeamUrl: payload.viewTeamUrl ?? frontendUrl,
-      privacyUrl: this.configService.get<string>("PRIVACY_POLICY_URL") ?? "#",
-      termsUrl: this.configService.get<string>("TERMS_URL") ?? "#",
-      unsubscribeUrl: this.configService.get<string>("UNSUBSCRIBE_URL") ?? "#",
-      linkedinUrl: this.configService.get<string>("LINKEDIN_URL") ?? "#",
-      instagramUrl: this.configService.get<string>("INSTAGRAM_URL") ?? "#",
-      twitterUrl: this.configService.get<string>("TWITTER_URL") ?? "#",
+      privacyUrl: this.configService.get<string>('PRIVACY_POLICY_URL') ?? '#',
+      termsUrl: this.configService.get<string>('TERMS_URL') ?? '#',
+      unsubscribeUrl: this.configService.get<string>('UNSUBSCRIBE_URL') ?? '#',
+      linkedinUrl: this.configService.get<string>('LINKEDIN_URL') ?? '#',
+      instagramUrl: this.configService.get<string>('INSTAGRAM_URL') ?? '#',
+      twitterUrl: this.configService.get<string>('TWITTER_URL') ?? '#',
       linkedin_logo_url,
       x_logo_url,
       instagram_logo_url,
@@ -367,7 +368,7 @@ export class SendGridService {
       current_year: new Date().getFullYear(),
     };
 
-    const html = this.renderTemplate("member-joined", context);
+    const html = this.renderTemplate('member-joined', context);
 
     const msg = {
       to: payload.recipientEmail,
@@ -375,7 +376,7 @@ export class SendGridService {
         email: fromEmail,
         name: this.companyName,
       },
-      subject: "A New Team Member Has Joined!",
+      subject: 'A New Team Member Has Joined!',
       html,
     };
 
@@ -389,7 +390,7 @@ export class SendGridService {
         `Failed to send new team member announcement to ${payload.recipientEmail}:`,
         error,
       );
-      throw new Error("Failed to send new team member announcement email");
+      throw new Error('Failed to send new team member announcement email');
     }
   }
 
@@ -406,32 +407,32 @@ export class SendGridService {
     priority: string,
     companyName: string,
   ): Promise<void> {
-    const fromEmail = this.configService.get<string>("SENDGRID_FROM");
+    const fromEmail = this.configService.get<string>('SENDGRID_FROM');
 
     if (!fromEmail) {
       this.logger.warn(
-        "SENDGRID_FROM not configured. Skipping announcement email.",
+        'SENDGRID_FROM not configured. Skipping announcement email.',
       );
       return;
     }
 
     // Priority-based styling
     const priorityStyles: Record<string, { color: string; badge: string }> = {
-      low: { color: "#66FF99", badge: "Low Priority" },
-      medium: { color: "#FFCC66", badge: "Medium Priority" },
-      high: { color: "#FF6767", badge: "High Priority" },
+      low: { color: '#66FF99', badge: 'Low Priority' },
+      medium: { color: '#FFCC66', badge: 'Medium Priority' },
+      high: { color: '#FF6767', badge: 'High Priority' },
     };
 
     const categoryLabels: Record<string, string> = {
-      general: "General Announcement",
-      holiday: "Holiday Notice",
-      policy: "Policy Update",
-      event: "Event Announcement",
-      urgent: "Urgent Notice",
+      general: 'General Announcement',
+      holiday: 'Holiday Notice',
+      policy: 'Policy Update',
+      event: 'Event Announcement',
+      urgent: 'Urgent Notice',
     };
 
     const style = priorityStyles[priority] || priorityStyles.medium;
-    const categoryLabel = categoryLabels[category] || "Announcement";
+    const categoryLabel = categoryLabels[category] || 'Announcement';
 
     const {
       linkedin_logo_url,
@@ -447,12 +448,12 @@ export class SendGridService {
       category: categoryLabel,
       companyName,
       style,
-      privacyUrl: this.configService.get<string>("PRIVACY_POLICY_URL") ?? "#",
-      termsUrl: this.configService.get<string>("TERMS_URL") ?? "#",
-      unsubscribeUrl: this.configService.get<string>("UNSUBSCRIBE_URL") ?? "#",
-      linkedinUrl: this.configService.get<string>("LINKEDIN_URL") ?? "#",
-      instagramUrl: this.configService.get<string>("INSTAGRAM_URL") ?? "#",
-      twitterUrl: this.configService.get<string>("TWITTER_URL") ?? "#",
+      privacyUrl: this.configService.get<string>('PRIVACY_POLICY_URL') ?? '#',
+      termsUrl: this.configService.get<string>('TERMS_URL') ?? '#',
+      unsubscribeUrl: this.configService.get<string>('UNSUBSCRIBE_URL') ?? '#',
+      linkedinUrl: this.configService.get<string>('LINKEDIN_URL') ?? '#',
+      instagramUrl: this.configService.get<string>('INSTAGRAM_URL') ?? '#',
+      twitterUrl: this.configService.get<string>('TWITTER_URL') ?? '#',
       linkedin_logo_url,
       x_logo_url,
       instagram_logo_url,
@@ -460,7 +461,7 @@ export class SendGridService {
       current_year: new Date().getFullYear(),
     };
 
-    const html = this.renderTemplate("announcement-mail", context);
+    const html = this.renderTemplate('announcement-mail', context);
 
     const msg = {
       to: recipientEmail,
@@ -468,7 +469,7 @@ export class SendGridService {
         email: fromEmail,
         name: this.companyName,
       },
-      subject: `${priority === "high" ? "🔴 " : ""}${categoryLabel}: ${title}`,
+      subject: `${priority === 'high' ? '🔴 ' : ''}${categoryLabel}: ${title}`,
       html,
     };
 
@@ -482,7 +483,7 @@ export class SendGridService {
         `Failed to send announcement email to ${recipientEmail}:`,
         error,
       );
-      throw new Error("Failed to send announcement email");
+      throw new Error('Failed to send announcement email');
     }
   }
 }

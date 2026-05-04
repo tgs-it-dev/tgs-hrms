@@ -10,7 +10,7 @@ import { Tenant } from "../../entities/tenant.entity";
 import { UserToken } from "../../entities/user-token.entity";
 import { JwtModule } from "@nestjs/jwt";
 import { ConfigModule, ConfigService } from "@nestjs/config";
-import { EmailService, SendGridService } from "../../common/utils/email";
+import { EmailModule } from '../../common/utils/email';
 import { InviteStatusModule } from "../invite-status/invite-status.module";
 import { Employee } from "../../entities/employee.entity";
 import { SignupSession } from "../../entities/signup-session.entity";
@@ -37,14 +37,10 @@ import { SignupSession } from "../../entities/signup-session.entity";
       }),
     }),
     InviteStatusModule,
+    EmailModule,
   ],
   controllers: [AuthController],
-  providers: [
-    AuthService,
-    AuthTokenCleanupService,
-    EmailService,
-    SendGridService,
-  ],
+  providers: [AuthService, AuthTokenCleanupService],
   exports: [AuthService],
 })
 export class AuthModule {}
