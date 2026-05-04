@@ -28,11 +28,9 @@ import {
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         connection: {
-          host: config.get<string>('REDIS_HOST', 'localhost'),
-          port: config.get<number>('REDIS_PORT', 6379),
-          password: config.get<string>('REDIS_PASSWORD'),
-          db: config.get<number>('REDIS_DB', 0),
+          url: config.get<string>('REDIS_URL', 'redis://localhost:6379'),
           maxRetriesPerRequest: null,
+          tls: undefined,
         },
       }),
     }),

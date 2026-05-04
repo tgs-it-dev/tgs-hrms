@@ -75,16 +75,14 @@ async function flushThrottleKeys(redis: Redis, pattern: string): Promise<void> {
 
 /** Checks Redis reachability before running the suite. */
 async function isRedisAvailable(
-  host: string,
-  port: number,
+  url: string,
   password?: string,
 ): Promise<boolean> {
-  const client = new Redis({
-    host,
-    port,
+  const client = new Redis(url, {
     password,
     connectTimeout: 2_000,
     lazyConnect: true,
+    tls: undefined,
   });
   try {
     await client.connect();
@@ -112,12 +110,12 @@ describe('Email Integration Tests', () => {
   const runId = Date.now().toString();
 
   beforeAll(async () => {
-    const redisHost = process.env.REDIS_HOST ?? 'localhost';
-    const redisPort = parseInt(process.env.REDIS_PORT ?? '6379', 10);
+    // const redisHost = process.env.REDIS_HOST ?? 'localhost';
+    // const redisPort = parseInt(process.env.REDIS_PORT ?? '6379', 10);
+    const redisURL = process.env.REDIS_URL ?? 'redis://localhost:6379';
 
     const redisReady = await isRedisAvailable(
-      redisHost,
-      redisPort,
+      redisURL,
       process.env.REDIS_PASSWORD,
     );
     if (!redisReady) {
@@ -156,9 +154,7 @@ describe('Email Integration Tests', () => {
     );
     bulkQueue = moduleRef.get<Queue>(getQueueToken(EMAIL_BULK_QUEUE));
 
-    testRedis = new Redis({
-      host: redisHost,
-      port: redisPort,
+    testRedis = new Redis(redisURL, {
       password: process.env.REDIS_PASSWORD,
       maxRetriesPerRequest: null,
     });
