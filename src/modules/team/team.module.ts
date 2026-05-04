@@ -8,6 +8,7 @@ import { TeamService } from './team.service';
 import { TeamController } from './team.controller';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
 import { TenantModule } from '../tenant/tenant.module';
+import { SendGridService } from 'src/common/utils/email';
 
 @Module({
   imports: [
@@ -16,7 +17,7 @@ import { TenantModule } from '../tenant/tenant.module';
     TenantModule,
   ],
   controllers: [TeamController],
-  providers: [TeamService],
+  providers: [TeamService, SendGridService],
   exports: [TeamService],
 })
 export class TeamModule {}
