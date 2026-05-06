@@ -1,6 +1,17 @@
-import { Body, Controller, Post, Query, BadRequestException, UseInterceptors, UploadedFile } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Post,
+  Query,
+  BadRequestException,
+  UseGuards,
+  UseInterceptors,
+  UploadedFile,
+} from '@nestjs/common';
 import { ApiTags, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
+import { Feature } from '../../common/decorators/feature.decorator';
+import { FeatureGuard } from '../../common/guards/feature.guard';
 import { SignupService } from './signup.service';
 import { PersonalDetailsDto } from './dto/personal-details.dto';
 import { CompanyDetailsDto } from './dto/company-details.dto';
@@ -15,6 +26,8 @@ import * as path from 'path';
 @ApiTags('Signup')
 @Controller('signup')
 @Public()
+@Feature('signup')
+@UseGuards(FeatureGuard)
 export class SignupController {
   constructor(private readonly signupService: SignupService) {}
 
@@ -28,27 +41,32 @@ export class SignupController {
     return this.signupService.saveCompanyDetails(dto);
   }
 
-  
-  @Post('payment') 
+  @Post('payment')
   async startPayment(@Body() paymentDto: PaymentDto) {
     return this.signupService.startPayment(paymentDto);
   }
   @Post('payment/confirm')
   confirmPayment(
-    @Body() body: { signupSessionId?: string; checkoutSessionId?: string } | undefined,
+    @Body()
+    body: { signupSessionId?: string; checkoutSessionId?: string } | undefined,
     @Query('signupSessionId') signupSessionIdQuery?: string,
     @Query('checkoutSessionId') checkoutSessionIdQuery?: string,
-    @Query('session_id') sessionIdFromStripe?: string
+    @Query('session_id') sessionIdFromStripe?: string,
   ) {
     const signupSessionId = body?.signupSessionId || signupSessionIdQuery;
     const checkoutSessionId =
       body?.checkoutSessionId || checkoutSessionIdQuery || sessionIdFromStripe;
 
     if (!signupSessionId) {
-      throw new BadRequestException('signupSessionId is required (in body or query)');
+      throw new BadRequestException(
+        'signupSessionId is required (in body or query)',
+      );
     }
 
-    return this.signupService.markPaymentSuccess(signupSessionId, checkoutSessionId);
+    return this.signupService.markPaymentSuccess(
+      signupSessionId,
+      checkoutSessionId,
+    );
   }
 
   @Post('upload-logo')
@@ -68,32 +86,38 @@ export class SignupController {
       required: ['file', 'signupSessionId'],
     },
   })
-  @UseInterceptors(FileInterceptor('file', {
-    storage: memoryStorage(),
-    fileFilter: (_req, file, cb) => {
-      const ext = (path.extname(file.originalname || '') || '').toLowerCase();
-      const allowed = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-      if (!allowed.includes(ext)) {
-        return cb(
-          new BadRequestException(
-            'Company logo: Only JPG, JPEG, PNG, GIF and WebP are accepted. Other formats (e.g. .jfif) are not allowed.',
-          ),
-          false,
-        );
-      }
-      const mimetype = (file.mimetype || '').toLowerCase();
-      const isImageMime = mimetype.startsWith('image/');
-      const isGenericMime = !mimetype || mimetype === 'application/octet-stream';
-      if (!isImageMime && !isGenericMime) {
-        return cb(new BadRequestException('Only image files are allowed.'), false);
-      }
-      cb(null, true);
-    },
-    limits: { fileSize: 5 * 1024 * 1024 },
-  }))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      fileFilter: (_req, file, cb) => {
+        const ext = (path.extname(file.originalname || '') || '').toLowerCase();
+        const allowed = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+        if (!allowed.includes(ext)) {
+          return cb(
+            new BadRequestException(
+              'Company logo: Only JPG, JPEG, PNG, GIF and WebP are accepted. Other formats (e.g. .jfif) are not allowed.',
+            ),
+            false,
+          );
+        }
+        const mimetype = (file.mimetype || '').toLowerCase();
+        const isImageMime = mimetype.startsWith('image/');
+        const isGenericMime =
+          !mimetype || mimetype === 'application/octet-stream';
+        if (!isImageMime && !isGenericMime) {
+          return cb(
+            new BadRequestException('Only image files are allowed.'),
+            false,
+          );
+        }
+        cb(null, true);
+      },
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
   async uploadLogo(
     @UploadedFile() file: Express.Multer.File,
-    @Body() dto: CompanyLogoDto
+    @Body() dto: CompanyLogoDto,
   ) {
     return this.signupService.saveCompanyLogo(dto.signupSessionId, file);
   }
