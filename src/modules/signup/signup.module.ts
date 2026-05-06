@@ -10,7 +10,6 @@ import { Role } from '../../entities/role.entity';
 import { SubscriptionPlan } from '../../entities/subscription-plan.entity';
 import { JwtModule } from '@nestjs/jwt';
 import { TenantModule } from '../tenant/tenant.module';
-import { SystemSettingsModule } from '../system/system-settings/system-settings.module';
 
 @Module({
   imports: [
@@ -27,7 +26,6 @@ import { SystemSettingsModule } from '../system/system-settings/system-settings.
       signOptions: { expiresIn: process.env.JWT_EXPIRES_IN || '24h' },
     }),
     TenantModule,
-    SystemSettingsModule,
   ],
   controllers: [SignupController],
   providers: [SignupService],
