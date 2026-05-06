@@ -17,10 +17,15 @@ export class SystemSettingsService implements OnModuleInit {
   }
 
   async reloadCache() {
-    const settings = await this.repo.find();
-    this.cache.clear();
-    for (const s of settings) {
-      this.cache.set(s.key, s.value);
+    try {
+      const settings = await this.repo.find();
+      this.cache.clear();
+      for (const s of settings) {
+        this.cache.set(s.key, s.value);
+      }
+    } catch {
+      // Table may not exist yet (migration pending) — cache stays empty and
+      // getBoolean() will fall back to its defaultValue (true = allow all).
     }
   }
 
