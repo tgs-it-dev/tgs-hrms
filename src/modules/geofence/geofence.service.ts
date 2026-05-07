@@ -5,8 +5,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, Not } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, EntityManager, Repository, In, Not } from 'typeorm';
 import { Geofence, GeofenceStatus, GeofenceType } from '../../entities/geofence.entity';
 import { Team } from '../../entities/team.entity';
 import { Employee } from '../../entities/employee.entity';
@@ -14,6 +14,7 @@ import { CreateGeofenceDto } from './dto/create-geofence.dto';
 import { UpdateGeofenceDto } from './dto/update-geofence.dto';
 import { getPostgresErrorCode } from '../../common/types/database.types';
 import { calculateDistance } from '../../common/utils/geofence.util';
+import { TenantDatabaseService } from '../../common/services/tenant-database.service';
 
 @Injectable()
 export class GeofenceService {
@@ -24,7 +25,18 @@ export class GeofenceService {
     private readonly teamRepo: Repository<Team>,
     @InjectRepository(Employee)
     private readonly employeeRepo: Repository<Employee>,
+    private readonly tenantDbService: TenantDatabaseService,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
   ) {}
+
+  private async isTenantSchemaProvisioned(tenantId: string): Promise<boolean> {
+    const result = await this.dataSource.query<{ schema_provisioned: boolean }[]>(
+      `SELECT schema_provisioned FROM public.tenants WHERE id = $1 LIMIT 1`,
+      [tenantId],
+    );
+    return result[0]?.schema_provisioned ?? false;
+  }
 
   private validateCoordinates(coordinates: unknown): asserts coordinates is number[][] {
     if (!Array.isArray(coordinates)) {
@@ -62,14 +74,32 @@ export class GeofenceService {
     return { latitude: sumLat / coordinates.length, longitude: sumLng / coordinates.length };
   }
 
-  async create(
+    async create(
     tenant_id: string,
     dto: CreateGeofenceDto,
     user_id?: string,
     user_role?: string,
   ): Promise<Geofence> {
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
+    if (isProvisioned) {
+      return this.tenantDbService.withTenantSchema(tenant_id, (em) => this.doCreate(em, tenant_id, dto, user_id, user_role));
+    }
+    return this.doCreate(null, tenant_id, dto, user_id, user_role);
+  }
+
+  private async doCreate(
+    em: EntityManager | null,
+    tenant_id: string,
+    dto: CreateGeofenceDto,
+    user_id?: string,
+    user_role?: string,
+  ): Promise<Geofence> {
+    const repo = em ? em.getRepository(Geofence) : this.repo;
+    const teamRepo = em ? em.getRepository(Team) : this.teamRepo;
+    const employeeRepo = em ? em.getRepository(Employee) : this.employeeRepo;
+
     // Verify team exists and belongs to tenant
-    const team = await this.teamRepo.findOne({
+    const team = await teamRepo.findOne({
       where: { id: dto.team_id },
       relations: ['manager'],
     });
@@ -91,7 +121,7 @@ export class GeofenceService {
     }
 
     // Check for duplicate name within the same team
-    const existing = await this.repo.findOne({
+    const existing = await repo.findOne({
       where: { tenant_id, team_id: dto.team_id, name: dto.name },
     });
     if (existing) {
@@ -167,7 +197,7 @@ export class GeofenceService {
       const newStatus = dto.status ?? GeofenceStatus.ACTIVE;
       if (newStatus === GeofenceStatus.ACTIVE) {
         // Deactivate all existing active geofences for this team
-        await this.repo.update(
+        await repo.update(
           {
             tenant_id,
             team_id: dto.team_id,
@@ -179,7 +209,7 @@ export class GeofenceService {
         );
       }
 
-      const geofence = this.repo.create({
+      const geofence = repo.create({
         tenant_id,
         team_id: dto.team_id,
         name: dto.name,
@@ -193,7 +223,7 @@ export class GeofenceService {
         threshold_distance: dto.threshold_distance !== undefined && dto.threshold_distance !== null ? String(dto.threshold_distance) : null,
         threshold_enabled: dto.threshold_enabled ?? false,
       });
-      return await this.repo.save(geofence);
+      return await repo.save(geofence);
     } catch (err) {
       const errorCode = getPostgresErrorCode(err);
       if (errorCode === '23505') {
@@ -210,15 +240,33 @@ export class GeofenceService {
     }
   }
 
-  async findAll(
+    async findAll(
     tenant_id: string,
     team_id?: string,
     user_id?: string,
     user_role?: string,
   ): Promise<Geofence[]> {
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
+    if (isProvisioned) {
+      return this.tenantDbService.withTenantSchemaReadOnly(tenant_id, (em) => this.doFindAll(em, tenant_id, team_id, user_id, user_role));
+    }
+    return this.doFindAll(null, tenant_id, team_id, user_id, user_role);
+  }
+
+  private async doFindAll(
+    em: EntityManager | null,
+    tenant_id: string,
+    team_id?: string,
+    user_id?: string,
+    user_role?: string,
+  ): Promise<Geofence[]> {
+    const repo = em ? em.getRepository(Geofence) : this.repo;
+    const teamRepo = em ? em.getRepository(Team) : this.teamRepo;
+    const employeeRepo = em ? em.getRepository(Employee) : this.employeeRepo;
+
     // If user is a manager, only show geofences for teams they manage
     if (user_role === 'manager' && user_id) {
-      const managerTeams = await this.teamRepo.find({
+      const managerTeams = await teamRepo.find({
         where: { manager_id: user_id, manager: { tenant_id } },
       });
       const teamIds = managerTeams.map((t) => t.id);
@@ -231,7 +279,7 @@ export class GeofenceService {
         if (!teamIds.includes(team_id)) {
           return [];
         }
-        return this.repo.find({
+        return repo.find({
           where: { tenant_id, team_id },
           relations: ['team', 'team.manager'],
           order: { created_at: 'DESC' },
@@ -239,7 +287,7 @@ export class GeofenceService {
       }
 
       // Otherwise, return all geofences for teams the manager manages
-      return this.repo.find({
+      return repo.find({
         where: { tenant_id, team_id: In(teamIds) },
         relations: ['team', 'team.manager'],
         order: { created_at: 'DESC' },
@@ -248,7 +296,7 @@ export class GeofenceService {
 
     // If user is an employee, automatically filter by their team_id
     if (user_role === 'employee' && user_id) {
-      const employee = await this.employeeRepo.findOne({
+      const employee = await employeeRepo.findOne({
         where: { user_id },
       });
 
@@ -264,7 +312,7 @@ export class GeofenceService {
       // Override team_id with employee's team_id to ensure team isolation
       const employeeTeamId = employee.team_id;
 
-      return this.repo.find({
+      return repo.find({
         where: { tenant_id, team_id: employeeTeamId },
         relations: ['team', 'team.manager'],
         order: { created_at: 'DESC' },
@@ -279,7 +327,7 @@ export class GeofenceService {
     }
 
     // Verify team belongs to tenant
-    const team = await this.teamRepo.findOne({
+    const team = await teamRepo.findOne({
       where: { id: team_id },
       relations: ['manager'],
     });
@@ -292,20 +340,38 @@ export class GeofenceService {
       throw new BadRequestException('Team does not belong to your organization.');
     }
 
-    return this.repo.find({
+    return repo.find({
       where: { tenant_id, team_id },
       relations: ['team', 'team.manager'],
       order: { created_at: 'DESC' },
     });
   }
 
-  async findOne(
+    async findOne(
     tenant_id: string,
     id: string,
     user_id?: string,
     user_role?: string,
   ): Promise<Geofence> {
-    const geofence = await this.repo.findOne({
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
+    if (isProvisioned) {
+      return this.tenantDbService.withTenantSchemaReadOnly(tenant_id, (em) => this.doFindOne(em, tenant_id, id, user_id, user_role));
+    }
+    return this.doFindOne(null, tenant_id, id, user_id, user_role);
+  }
+
+  private async doFindOne(
+    em: EntityManager | null,
+    tenant_id: string,
+    id: string,
+    user_id?: string,
+    user_role?: string,
+  ): Promise<Geofence> {
+    const repo = em ? em.getRepository(Geofence) : this.repo;
+    const teamRepo = em ? em.getRepository(Team) : this.teamRepo;
+    const employeeRepo = em ? em.getRepository(Employee) : this.employeeRepo;
+
+    const geofence = await repo.findOne({
       where: { id, tenant_id },
       relations: ['team', 'team.manager'],
     });
@@ -326,14 +392,33 @@ export class GeofenceService {
     return geofence;
   }
 
-  async update(
+    async update(
     tenant_id: string,
     id: string,
     dto: UpdateGeofenceDto,
     user_id?: string,
     user_role?: string,
   ): Promise<Geofence> {
-    const geofence = await this.repo.findOne({
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
+    if (isProvisioned) {
+      return this.tenantDbService.withTenantSchema(tenant_id, (em) => this.doUpdate(em, tenant_id, id, dto, user_id, user_role));
+    }
+    return this.doUpdate(null, tenant_id, id, dto, user_id, user_role);
+  }
+
+  private async doUpdate(
+    em: EntityManager | null,
+    tenant_id: string,
+    id: string,
+    dto: UpdateGeofenceDto,
+    user_id?: string,
+    user_role?: string,
+  ): Promise<Geofence> {
+    const repo = em ? em.getRepository(Geofence) : this.repo;
+    const teamRepo = em ? em.getRepository(Team) : this.teamRepo;
+    const employeeRepo = em ? em.getRepository(Employee) : this.employeeRepo;
+
+    const geofence = await repo.findOne({
       where: { id, tenant_id },
       relations: ['team', 'team.manager'],
     });
@@ -353,7 +438,7 @@ export class GeofenceService {
 
     // If team_id is being changed, verify new team exists and belongs to tenant
     if (dto.team_id && dto.team_id !== geofence.team_id) {
-      const newTeam = await this.teamRepo.findOne({
+      const newTeam = await teamRepo.findOne({
         where: { id: dto.team_id },
         relations: ['manager'],
       });
@@ -378,7 +463,7 @@ export class GeofenceService {
       // Business Logic: If geofence is ACTIVE and being moved to a new team, deactivate all ACTIVE geofences in the new team
       const willBeActive = dto.status !== undefined ? dto.status === GeofenceStatus.ACTIVE : geofence.status === GeofenceStatus.ACTIVE;
       if (willBeActive) {
-        await this.repo.update(
+        await repo.update(
           {
             tenant_id,
             team_id: dto.team_id,
@@ -396,7 +481,7 @@ export class GeofenceService {
 
     // Check for duplicate name within the same team (if name or team_id changed)
     if (dto.name && dto.name !== geofence.name) {
-      const existing = await this.repo.findOne({
+      const existing = await repo.findOne({
         where: {
           tenant_id,
           team_id: dto.team_id || geofence.team_id,
@@ -479,7 +564,7 @@ export class GeofenceService {
     if (dto.status !== undefined) {
       if (dto.status === GeofenceStatus.ACTIVE && geofence.status !== GeofenceStatus.ACTIVE) {
         // Deactivate all existing active geofences for this team (except the current one)
-        await this.repo.update(
+        await repo.update(
           {
             tenant_id,
             team_id: geofence.team_id,
@@ -503,7 +588,7 @@ export class GeofenceService {
     }
 
     try {
-      return await this.repo.save(geofence);
+      return await repo.save(geofence);
     } catch (err) {
       const errorCode = getPostgresErrorCode(err);
       if (errorCode === '23505') {
@@ -515,13 +600,31 @@ export class GeofenceService {
     }
   }
 
-  async remove(
+    async remove(
     tenant_id: string,
     id: string,
     user_id?: string,
     user_role?: string,
   ): Promise<{ deleted: true; id: string }> {
-    const geofence = await this.repo.findOne({
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
+    if (isProvisioned) {
+      return this.tenantDbService.withTenantSchema(tenant_id, (em) => this.doRemove(em, tenant_id, id, user_id, user_role));
+    }
+    return this.doRemove(null, tenant_id, id, user_id, user_role);
+  }
+
+  private async doRemove(
+    em: EntityManager | null,
+    tenant_id: string,
+    id: string,
+    user_id?: string,
+    user_role?: string,
+  ): Promise<{ deleted: true; id: string }> {
+    const repo = em ? em.getRepository(Geofence) : this.repo;
+    const teamRepo = em ? em.getRepository(Team) : this.teamRepo;
+    const employeeRepo = em ? em.getRepository(Employee) : this.employeeRepo;
+
+    const geofence = await repo.findOne({
       where: { id, tenant_id },
       relations: ['team', 'team.manager'],
     });
@@ -539,7 +642,7 @@ export class GeofenceService {
       }
     }
 
-    await this.repo.delete({ id, tenant_id });
+    await repo.delete({ id, tenant_id });
     return { deleted: true, id };
   }
 }

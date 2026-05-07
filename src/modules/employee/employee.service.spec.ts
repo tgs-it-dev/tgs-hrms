@@ -105,7 +105,7 @@ describe('EmployeeService', () => {
         tenant_id: tenantId,
       });
 
-      await expect(service.create(tenantId, createDto)).rejects.toThrow(
+      await expect(service.create(tenantId, "actor-user-id", createDto)).rejects.toThrow(
         'User with this email already exists in the tenant.'
       );
     });
@@ -130,7 +130,7 @@ describe('EmployeeService', () => {
         designation_id: 'desig-uuid',
       });
 
-      const result = await service.create(tenantId, createDto);
+      const result = await service.create(tenantId, "actor-user-id", createDto);
       expect(result).toEqual({
         id: 'emp-uuid',
         user_id: 'user-uuid',
@@ -162,7 +162,7 @@ describe('EmployeeService', () => {
         user_id: 'user-uuid',
         designation_id: 'desig-uuid',
       });
-      const result = await service.create(tenantId, createDtoWithRole);
+      const result = await service.create(tenantId, "actor-user-id", createDtoWithRole);
       expect(result).toEqual({
         id: 'emp-uuid',
         user_id: 'user-uuid',
@@ -177,7 +177,12 @@ describe('EmployeeService', () => {
       });
       mockUserRepo.findOne.mockResolvedValue(null);
       mockRoleRepo.findOne.mockResolvedValue(null); 
-      await expect(service.create(tenantId, { ...createDto, role_id: 'non-existent-role' })).rejects.toThrow('Specified role not found.');
+      await expect(
+        service.create(tenantId, "actor-user-id", {
+          ...createDto,
+          role_id: "non-existent-role",
+        }),
+      ).rejects.toThrow("Specified role not found.");
     });
   });
 

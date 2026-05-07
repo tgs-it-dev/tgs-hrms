@@ -3,8 +3,6 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { Employee } from "src/entities/employee.entity";
 import { Leave } from "src/entities/leave.entity";
-import { EmployeeKpi } from "src/entities/employee-kpi.entity";
-import { Asset } from "src/entities/asset.entity";
 import { EmployeeStatus } from "src/common/constants/enums";
 
 @Injectable()
@@ -12,20 +10,10 @@ export class SystemEmployeeService {
   constructor(
     @InjectRepository(Employee)
     private readonly employeeRepo: Repository<Employee>,
-
     @InjectRepository(Leave)
     private readonly leaveRepo: Repository<Leave>,
-
-    @InjectRepository(EmployeeKpi)
-    private readonly employeeKpiRepo: Repository<EmployeeKpi>,
-
-    @InjectRepository(Asset)
-    private readonly assetRepo: Repository<Asset>,
   ) {}
 
-  /**
-   * GET /system/employees → Paginated list with filters
-   */
   async findAll(
     page: number = 1,
     filters?: {
@@ -72,14 +60,12 @@ export class SystemEmployeeService {
     const results = await qb.getMany();
 
     const data = results.map((e) => {
-      // Check if tenant is deleted or suspended
       const isTenantDeleted = !!e.user?.tenant?.deleted_at;
-      const isTenantSuspended = e.user?.tenant?.status === 'suspended';
-      
-      // If tenant is deleted or suspended, set employee status to INACTIVE
-      const employeeStatus = (isTenantDeleted || isTenantSuspended) 
-        ? EmployeeStatus.INACTIVE 
-        : e.status;
+      const isTenantSuspended = e.user?.tenant?.status === "suspended";
+      const employeeStatus =
+        isTenantDeleted || isTenantSuspended
+          ? EmployeeStatus.INACTIVE
+          : e.status;
 
       return {
         id: e.id,
@@ -98,9 +84,6 @@ export class SystemEmployeeService {
     return data;
   }
 
-  /**
-   * GET /system/employees/:id → Full employee profile
-   */
   async findProfile(id: string) {
     const employee = await this.employeeRepo.findOne({
       where: { id },
@@ -110,12 +93,6 @@ export class SystemEmployeeService {
         "designation",
         "designation.department",
         "team",
-        "employeeBenefits",
-        "employeeBenefits.benefit",
-        "employeeKpis",
-        "employeeKpis.kpi",
-        "employeePerformanceReviews",
-        "employeePromotions",
       ],
     });
 
@@ -123,14 +100,12 @@ export class SystemEmployeeService {
       throw new NotFoundException("Employee not found");
     }
 
-    // Check if tenant is deleted or suspended
     const isTenantDeleted = !!employee.user?.tenant?.deleted_at;
-    const isTenantSuspended = employee.user?.tenant?.status === 'suspended';
-    
-    // If tenant is deleted or suspended, set employee status to INACTIVE
-    const employeeStatus = (isTenantDeleted || isTenantSuspended) 
-      ? EmployeeStatus.INACTIVE 
-      : employee.status;
+    const isTenantSuspended = employee.user?.tenant?.status === "suspended";
+    const employeeStatus =
+      isTenantDeleted || isTenantSuspended
+        ? EmployeeStatus.INACTIVE
+        : employee.status;
 
     return {
       id: employee.id,
@@ -144,80 +119,43 @@ export class SystemEmployeeService {
       team: employee.team?.name ?? null,
       status: employeeStatus,
       inviteStatus: employee.invite_status,
-      benefits: employee.employeeBenefits,
-      kpis: employee.employeeKpis,
-      promotions: employee.employeePromotions,
-      performanceReviews: employee.employeePerformanceReviews,
     };
   }
 
-  /**
-   * GET /system/employees/leaves → Leaves history (with optional filters)
-   * GET /system/employees/:id/leaves → Leaves history by employee ID
-   */
   async getLeaves(employeeId?: string, userId?: string) {
     let targetUserId: string | undefined;
 
-    // If employeeId is provided, get user_id from employee
     if (employeeId) {
       const employee = await this.employeeRepo.findOne({
         where: { id: employeeId },
-        relations: ['user'],
+        relations: ["user"],
       });
 
       if (!employee) {
-        throw new NotFoundException('Employee not found');
+        throw new NotFoundException("Employee not found");
       }
 
       targetUserId = employee.user_id;
     }
 
-    // If userId is provided as query param, use it (overrides employeeId)
     if (userId) {
       targetUserId = userId;
     }
 
-    // If neither employeeId nor userId is provided, return all leaves
     if (!targetUserId) {
       const leaves = await this.leaveRepo.find({
         order: { createdAt: "DESC" },
-        relations: ['leaveType', 'approver'],
+        relations: ["leaveType", "approver"],
       });
       return leaves;
     }
 
-    // Filter by user ID
     const leaves = await this.leaveRepo.find({
       where: { employeeId: targetUserId },
       order: { createdAt: "DESC" },
-      relations: ['leaveType', 'approver'],
+      relations: ["leaveType", "approver"],
     });
 
     return leaves;
-  }
-
-  /**
-   * GET /system/employees/:id/performance → KPI performance records
-   */
-  async getPerformance(id: string) {
-    const kpiRecords = await this.employeeKpiRepo.find({
-      where: { employee_id: id },
-      relations: ["kpi"],
-      order: { createdAt: "DESC" },
-    });
-
-    return kpiRecords;
-  }
-
-  /**
-   * GET /system/employees/:id/assets → Assigned assets
-   */
-  async getAssets(id: string) {
-    const assets = await this.assetRepo.find({
-      where: { assigned_to: id },
-      order: { created_at: "DESC" },
-    });
-
-    return assets;
   }
 }

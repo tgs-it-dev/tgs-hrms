@@ -55,8 +55,12 @@ export class DesignationController {
     },
   })
   @ApiResponse({ status: 404, description: 'Designation not found.' })
-  async update(@Param('id') id: string, @Body() dto: UpdateDesignationDto) {
-    return this.service.update(id, dto);
+  async update(
+    @TenantId() tenant_id: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateDesignationDto,
+  ) {
+    return this.service.update(tenant_id, id, dto);
   }
 
   
@@ -89,11 +93,12 @@ export class DesignationController {
   @ApiOperation({ summary: 'List designations under a department' })
   @ApiResponse({ status: 200, description: 'List of designations.' })
   async findAllByDepartment(
+    @TenantId() tenant_id: string,
     @Param('departmentId') departmentId: string,
-    @Query('page') page?: string
+    @Query('page') page?: string,
   ) {
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-    return this.service.findAllByDepartment(departmentId, pageNumber);
+    return this.service.findAllByDepartment(tenant_id, departmentId, pageNumber);
   }
 
   @Get(':id')
@@ -102,8 +107,8 @@ export class DesignationController {
   @ApiOperation({ summary: 'Get a single designation' })
   @ApiResponse({ status: 200, description: 'Designation found.' })
   @ApiResponse({ status: 404, description: 'Designation not found.' })
-  async findOne(@Param('id') id: string) {
-    return this.service.findOne(id);
+  async findOne(@TenantId() tenant_id: string, @Param('id') id: string) {
+    return this.service.findOne(tenant_id, id);
   }
 
   @Delete(':id')
@@ -112,7 +117,7 @@ export class DesignationController {
   @ApiOperation({ summary: 'Delete a designation' })
   @ApiResponse({ status: 200, description: 'Designation deleted.' })
   @ApiResponse({ status: 404, description: 'Designation not found.' })
-  async remove(@Param('id') id: string) {
-    return this.service.remove(id);
+  async remove(@TenantId() tenant_id: string, @Param('id') id: string) {
+    return this.service.remove(tenant_id, id);
   }
 }

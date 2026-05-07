@@ -98,7 +98,7 @@ export class SearchController {
           ],
           leaves: [],
         },
-        counts: { employees: 1, leaves: 0, assets: 0, assetRequests: 0, teams: 0, attendance: 0, benefits: 0, payroll: 0 },
+        counts: { employees: 1, leaves: 0, teams: 0, attendance: 0 },
       },
     },
   })

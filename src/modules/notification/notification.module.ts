@@ -8,6 +8,7 @@ import { NotificationController } from './notification.controller';
 import { NotificationService } from './notification.service';
 import { NotificationGateway } from './notification.gateway';
 import { AuthModule } from '../auth/auth.module';
+import { TenantModule } from '../tenant/tenant.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { AuthModule } from '../auth/auth.module';
     JwtModule,
     ConfigModule,
     AuthModule,
+    TenantModule,
   ],
   controllers: [NotificationController],
   providers: [NotificationService, NotificationGateway],

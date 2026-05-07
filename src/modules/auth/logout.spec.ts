@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { User, UserRole } from '../../entities/user.entity';
+import { User } from "../../entities/user.entity";
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
@@ -22,11 +22,18 @@ const mockRole: Role = {
 };
 
 const mockTenant: Tenant = {
-  id: '11111111-1111-1111-1111-111111111111',
-  name: 'Test Company',
+  id: "11111111-1111-1111-1111-111111111111",
+  name: "Test Company",
+  status: "active",
+  schema_provisioned: false,
   created_at: new Date(),
+  updated_at: new Date(),
+  deleted_at: null,
   users: [],
   departments: [],
+  designations: [],
+  leaves: [],
+  geofences: [],
 };
 
 const mockUser: User = {
@@ -36,14 +43,13 @@ const mockUser: User = {
   role_id: '11111111-1111-1111-1111-111111111111',
   tenant_id: '11111111-1111-1111-1111-111111111111',
   reset_token: '',
-  reset_token_expiry: new Date(),
-  refresh_token: '',
+  reset_token_expiry: null,
   first_name: 'Admin',
   last_name: 'User',
   phone: '1234567890',
   gender: null,
   profile_pic: null,
-  first_login_time: null,
+  first_login_time: new Date(0),
   created_at: new Date(),
   updated_at: new Date(),
   role: mockRole,

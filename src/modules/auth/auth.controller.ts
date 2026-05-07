@@ -13,6 +13,7 @@ import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Permissions } from 'src/common/decorators/permissions.decorator';
 import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+import { Public } from 'src/common/decorators/public.decorator';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -20,6 +21,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
+  @Public()
   @Throttle({ default: { limit: 3, ttl: 300_000 } }) // 3 requests per 5 minutes
   @ApiBody({ type: RegisterDto })
   @ApiResponse({ status: 201, description: 'User registered successfully' })
@@ -51,6 +53,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @Public()
   @Throttle({ default: { limit: 5, ttl: 60_000 } }) // 5 requests per minute (stricter for auth)
   @ApiBody({ type: LoginDto })
   @ApiResponse({ 
@@ -114,11 +117,21 @@ export class AuthController {
       },
     },
   })
-  async login(@Body() body: LoginDto) {
-    return this.authService.validateUser(body.email, body.password);
+  async login(@Body() body: LoginDto, @Req() req: any) {
+    const ipAddress = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
+      ?? req.socket?.remoteAddress
+      ?? null;
+    return this.authService.validateUser(
+      body.email,
+      body.password,
+      body.platform,
+      body.device_info,
+      ipAddress,
+    );
   }
 
   @Post('forgot-password')
+  @Public()
   @Throttle({ default: { limit: 3, ttl: 300_000 } })
   @ApiBody({ type: ForgotPasswordDto })
   @ApiOperation({
@@ -150,6 +163,7 @@ export class AuthController {
   }
 
   @Post('verify-reset-token')
+  @Public()
   @ApiOperation({
     summary: 'Verify reset token',
     description:
@@ -187,6 +201,7 @@ export class AuthController {
   }
 
   @Post('reset-password')
+  @Public()
   @Throttle({ default: { limit: 5, ttl: 300_000 } })
   @ApiOperation({
     summary: 'Reset password using token',
@@ -229,6 +244,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @Public()
   @ApiOperation({
     summary: 'Refresh access token',
     description:
@@ -237,10 +253,11 @@ export class AuthController {
   @ApiBody({ type: RefreshTokenDto })
   @ApiResponse({
     status: 200,
-    description: 'New access token generated successfully',
+    description: 'Tokens rotated — store BOTH tokens; the old refresh token is now revoked.',
     schema: {
       example: {
         accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+        refreshToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
       },
     },
   })
@@ -282,8 +299,8 @@ export class AuthController {
     };
   }
 
-  @ApiBearerAuth()
   @Post('logout')
+  @Public()
   @ApiOperation({
     summary: 'Logout user',
     description: 'Invalidate the refresh token to log out the user',
@@ -318,34 +335,33 @@ export class AuthController {
     summary: 'Validate current token',
     description: 'Validates if the current JWT token is still valid and user exists',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Token is valid',
-    schema: {
-      example: {
-        valid: true,
-        user: {
-          id: 'user-id',
-          email: 'user@example.com',
-          role: 'admin',
-          tenant_id: 'tenant-id'
-        }
-      }
-    }
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Token is invalid or user not found',
-    schema: {
-      example: {
-        message: 'User not found or has been deleted'
-      }
-    }
-  })
+  @ApiResponse({ status: 200, description: 'Token is valid' })
+  @ApiResponse({ status: 401, description: 'Token is invalid or user not found' })
   async validateToken(@Req() req: any) {
     return this.authService.validateToken(req.user.id);
   }
 
+  @ApiBearerAuth()
+  @Post('logout-all')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: 'Logout from all devices',
+    description: 'Revokes all active refresh token sessions for the authenticated user.',
+  })
+  @ApiResponse({ status: 200, description: 'All sessions revoked' })
+  async logoutAll(@Req() req: any) {
+    return this.authService.logoutAll(req.user.id);
+  }
 
-
+  @ApiBearerAuth()
+  @Get('sessions')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: 'List active sessions',
+    description: 'Returns all active (non-revoked, non-expired) login sessions for the current user.',
+  })
+  @ApiResponse({ status: 200, description: 'Active sessions returned' })
+  async getSessions(@Req() req: any) {
+    return this.authService.getActiveSessions(req.user.id);
+  }
 }

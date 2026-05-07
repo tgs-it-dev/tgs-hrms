@@ -36,19 +36,18 @@ export class SystemEmployeeController {
     @Query("status") status?: string,
     @Query("page") page: number = 1,
   ) {
-    const data = await this.systemEmployeeService.findAll(page, {
+    return this.systemEmployeeService.findAll(page, {
       tenantId,
       departmentId,
       designationId,
       status,
     });
-
-    return data;
   }
 
   @Get("leaves")
   @ApiOperation({
-    summary: "Get employee leave history (System Admin) - Both employeeId and userId are optional",
+    summary:
+      "Get employee leave history (System Admin) - Both employeeId and userId are optional",
   })
   @ApiQuery({
     name: "employeeId",
@@ -68,8 +67,7 @@ export class SystemEmployeeController {
     @Query("employeeId") employeeId?: string,
     @Query("userId") userId?: string,
   ) {
-    const data = await this.systemEmployeeService.getLeaves(employeeId, userId);
-    return data;
+    return this.systemEmployeeService.getLeaves(employeeId, userId);
   }
 
   @Get(":id")
@@ -77,13 +75,13 @@ export class SystemEmployeeController {
     summary: "Get full employee profile (System Admin)",
   })
   async findProfile(@Param("id") id: string) {
-    const data = await this.systemEmployeeService.findProfile(id);
-    return data;
+    return this.systemEmployeeService.findProfile(id);
   }
 
   @Get(":id/leaves")
   @ApiOperation({
-    summary: "Get employee leave history by employee ID (System Admin) - Legacy route",
+    summary:
+      "Get employee leave history by employee ID (System Admin) - Legacy route",
   })
   @ApiParam({
     name: "id",
@@ -102,25 +100,6 @@ export class SystemEmployeeController {
     @Param("id") id: string,
     @Query("userId") userId?: string,
   ) {
-    const data = await this.systemEmployeeService.getLeaves(id, userId);
-    return data;
-  }
-
-  @Get(":id/performance")
-  @ApiOperation({
-    summary: "Get employee KPI performance records (System Admin)",
-  })
-  async getPerformance(@Param("id") id: string) {
-    const data = await this.systemEmployeeService.getPerformance(id);
-    return data;
-  }
-
-  @Get(":id/assets")
-  @ApiOperation({
-    summary: "Get employee assigned assets (System Admin)",
-  })
-  async getAssets(@Param("id") id: string) {
-    const data = await this.systemEmployeeService.getAssets(id);
-    return data;
+    return this.systemEmployeeService.getLeaves(id, userId);
   }
 }

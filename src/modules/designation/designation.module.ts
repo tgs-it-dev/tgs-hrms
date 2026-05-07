@@ -6,9 +6,14 @@ import { Tenant } from '../../entities/tenant.entity';
 import { DesignationController } from './designation.controller';
 import { DesignationService } from './designation.service';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
+import { TenantModule } from '../tenant/tenant.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Designation, Department, Tenant]), SharedJwtModule],
+  imports: [
+    TypeOrmModule.forFeature([Designation, Department, Tenant]),
+    SharedJwtModule,
+    TenantModule,
+  ],
   controllers: [DesignationController],
   providers: [DesignationService],
   exports: [DesignationService],
