@@ -352,4 +352,30 @@ export enum AnnouncementStatus {
   CANCELLED = 'cancelled',
 }
 
+// Workflow Enums
+export enum WorkflowRequestType {
+  LEAVE = 'leave',
+  WFH = 'wfh',
+}
 
+export enum WorkflowRequestStatus {
+  PENDING = 'pending',
+  IN_REVIEW = 'in_review',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+  CANCELLED = 'cancelled',
+}
+
+export enum WorkflowStepStatus {
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+}
+
+// WFH Enums
+export enum WfhStatus {
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+  CANCELLED = 'cancelled',
+}

@@ -27,6 +27,10 @@ export class Tenant {
   @Column({ type: "boolean", default: false })
   schema_provisioned: boolean;
 
+  // Feature flag: when true the centralized workflow engine handles leave/WFH approvals
+  @Column({ type: "boolean", default: false })
+  workflow_enabled: boolean = false;
+
   @CreateDateColumn()
   created_at: Date;
 
