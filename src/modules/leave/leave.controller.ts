@@ -430,55 +430,58 @@ export class LeaveController {
     return this.leaveService.getLeaveById(id, req.user.id, req.user.tenant_id);
   }
 
+  // ── Approve / Reject (legacy path — active when workflow_enabled = false) ──
+
   @Patch(':id/approve')
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin', 'manager')
   @Permissions('approve_leaves', 'manage_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Approve a leave request (Admin or System Admin only)' })
-  @ApiResponse({
-    status: 200,
-    description: 'Leave request approved successfully',
+  @ApiOperation({
+    summary: 'Approve a leave request (legacy path)',
+    description:
+      'Used when the workflow engine is **disabled** for the tenant. ' +
+      'Manager approval moves leave to PROCESSING; admin/system-admin approval moves it to APPROVED.',
   })
+  @ApiResponse({ status: 200, description: 'Leave approved successfully' })
   async approveLeave(@Param('id') id: string, @Body() dto: ApproveLeaveDto, @Request() req: any) {
     return this.leaveService.approveLeave(id, req.user.id, req.user.tenant_id, dto.remarks);
   }
 
   @Patch(':id/reject')
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin', 'manager')
   @Permissions('approve_leaves', 'manage_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Reject a leave request (Admin or System Admin only)' })
-  @ApiResponse({
-    status: 200,
-    description: 'Leave request rejected successfully',
+  @ApiOperation({
+    summary: 'Reject a leave request (legacy path)',
+    description: 'Used when the workflow engine is **disabled** for the tenant.',
   })
+  @ApiResponse({ status: 200, description: 'Leave rejected successfully' })
   async rejectLeave(@Param('id') id: string, @Body() dto: RejectLeaveDto, @Request() req: any) {
     return this.leaveService.rejectLeave(id, req.user.id, req.user.tenant_id, dto.remarks);
   }
 
-  // PUT aliases for approve/reject to match external API spec
   @Put(':id/approve')
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin', 'manager')
   @Permissions('approve_leaves', 'manage_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Approve a leave request (Admin or System Admin only) [PUT alias]' })
-  @ApiResponse({ status: 200, description: 'Leave request approved successfully' })
+  @ApiOperation({ summary: 'Approve a leave request — PUT alias (legacy path)' })
+  @ApiResponse({ status: 200, description: 'Leave approved successfully' })
   async approveLeavePut(@Param('id') id: string, @Body() dto: ApproveLeaveDto, @Request() req: any) {
     return this.leaveService.approveLeave(id, req.user.id, req.user.tenant_id, dto.remarks);
   }
 
   @Put(':id/reject')
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin', 'manager')
   @Permissions('approve_leaves', 'manage_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Reject a leave request (Admin or System Admin only) [PUT alias]' })
-  @ApiResponse({ status: 200, description: 'Leave request rejected successfully' })
-  async rejectLeavePut(@Param('id') id: string, @Request() req: any) {
-    return this.leaveService.rejectLeave(id, req.user.id, req.user.tenant_id);
+  @ApiOperation({ summary: 'Reject a leave request — PUT alias (legacy path)' })
+  @ApiResponse({ status: 200, description: 'Leave rejected successfully' })
+  async rejectLeavePut(@Param('id') id: string, @Body() dto: RejectLeaveDto, @Request() req: any) {
+    return this.leaveService.rejectLeave(id, req.user.id, req.user.tenant_id, dto.remarks);
   }
 
   @Patch(':id/manager-remarks')

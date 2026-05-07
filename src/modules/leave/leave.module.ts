@@ -11,6 +11,8 @@ import { LeaveFileUploadService } from './services/leave-file-upload.service';
 import { NotificationModule } from '../notification/notification.module';
 import { Team } from '../../entities/team.entity';
 import { TenantModule } from '../tenant/tenant.module';
+import { WorkflowModule } from '../workflow/workflow.module';
+import { LeaveWorkflowListener } from './listeners/workflow.listener';
 
 @Module({
   imports: [
@@ -18,8 +20,9 @@ import { TenantModule } from '../tenant/tenant.module';
     SharedJwtModule,
     NotificationModule,
     TenantModule,
+    WorkflowModule,
   ],
-  providers: [LeaveService, LeaveFileUploadService],
+  providers: [LeaveService, LeaveFileUploadService, LeaveWorkflowListener],
   controllers: [LeaveController],
   exports: [LeaveService],
 })

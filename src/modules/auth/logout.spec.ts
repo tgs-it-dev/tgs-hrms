@@ -26,6 +26,7 @@ const mockTenant: Tenant = {
   name: "Test Company",
   status: "active",
   schema_provisioned: false,
+  workflow_enabled: false,
   created_at: new Date(),
   updated_at: new Date(),
   deleted_at: null,
