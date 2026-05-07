@@ -75,6 +75,10 @@ export class Leave {
   @Column({ type: 'text', array: true, nullable: true, default: [] })
   documents: string[];
 
+  // Soft link to the workflow engine request (no FK to avoid coupling)
+  @Column({ type: 'uuid', nullable: true, name: 'workflow_request_id' })
+  workflowRequestId: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 
