@@ -67,6 +67,46 @@ export class WorkflowController {
   })
   @ApiOkResponse({
     description: `Paginated list of requests pending the current user's approval`,
+    schema: {
+      example: {
+        items: [
+          {
+            id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+            request_type: 'wfh',
+            status: 'pending',
+            requestor_id: 'b2c3d4e5-f6a7-8901-bcde-f12345678901',
+            tenant_id: 'c3d4e5f6-a7b8-9012-cdef-123456789012',
+            current_step_order: 1,
+            total_steps: 2,
+            created_at: '2026-05-09T08:00:00.000Z',
+            updated_at: '2026-05-09T08:00:00.000Z',
+            steps: [
+              {
+                id: 'step-uuid-1',
+                step_order: 1,
+                step_label: 'Manager Approval',
+                approver_role: 'manager',
+                status: 'pending',
+                approver_id: null,
+                remarks: null,
+                acted_at: null,
+              },
+            ],
+            request_data: {
+              id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+              start_date: '2026-05-12',
+              end_date: '2026-05-14',
+              reason: 'Working remotely for project deadline',
+              status: 'pending',
+              attachments: [],
+            },
+          },
+        ],
+        total: 5,
+        page: 1,
+        limit: 20,
+      },
+    },
   })
   async getPendingApprovals(
     @Request() req: AuthenticatedRequest,
@@ -113,7 +153,111 @@ export class WorkflowController {
     description: 'Items per page (default 20)',
   })
   @ApiOkResponse({
-    description: `Paginated list of the current user's workflow requests with steps`,
+    description: `Paginated list of the current user's workflow requests with steps and entity data`,
+    schema: {
+      example: {
+        items: [
+          {
+            id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+            request_type: 'wfh',
+            status: 'pending',
+            requestor_id: 'b2c3d4e5-f6a7-8901-bcde-f12345678901',
+            tenant_id: 'c3d4e5f6-a7b8-9012-cdef-123456789012',
+            current_step_order: 1,
+            total_steps: 2,
+            created_at: '2026-05-09T08:00:00.000Z',
+            updated_at: '2026-05-09T08:00:00.000Z',
+            steps: [
+              {
+                id: 'step-uuid-1',
+                step_order: 1,
+                step_label: 'Manager Approval',
+                approver_role: 'manager',
+                status: 'pending',
+                approver_id: null,
+                remarks: null,
+                acted_at: null,
+              },
+            ],
+            request_data: {
+              id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+              start_date: '2026-05-12',
+              end_date: '2026-05-14',
+              reason: 'Working remotely for project deadline',
+              status: 'pending',
+              attachments: [],
+            },
+          },
+          {
+            id: 'd4e5f6a7-b8c9-0123-defa-234567890123',
+            request_type: 'overtime',
+            status: 'in_review',
+            requestor_id: 'b2c3d4e5-f6a7-8901-bcde-f12345678901',
+            tenant_id: 'c3d4e5f6-a7b8-9012-cdef-123456789012',
+            current_step_order: 2,
+            total_steps: 2,
+            created_at: '2026-05-08T10:00:00.000Z',
+            updated_at: '2026-05-09T09:00:00.000Z',
+            steps: [
+              {
+                id: 'step-uuid-2',
+                step_order: 1,
+                step_label: 'Manager Approval',
+                approver_role: 'manager',
+                status: 'approved',
+                approver_id: 'mgr-uuid',
+                remarks: 'Approved',
+                acted_at: '2026-05-09T09:00:00.000Z',
+              },
+              {
+                id: 'step-uuid-3',
+                step_order: 2,
+                step_label: 'HR Approval',
+                approver_role: 'hr-admin',
+                status: 'pending',
+                approver_id: null,
+                remarks: null,
+                acted_at: null,
+              },
+            ],
+            request_data: {
+              id: 'd4e5f6a7-b8c9-0123-defa-234567890123',
+              start_date: '2026-05-10',
+              end_date: '2026-05-10',
+              hours: 4,
+              reason: 'Critical deployment on Saturday',
+              status: 'pending',
+              attachments: [],
+            },
+          },
+          {
+            id: 'e5f6a7b8-c9d0-1234-efab-345678901234',
+            request_type: 'leave',
+            status: 'approved',
+            requestor_id: 'b2c3d4e5-f6a7-8901-bcde-f12345678901',
+            tenant_id: 'c3d4e5f6-a7b8-9012-cdef-123456789012',
+            current_step_order: 2,
+            total_steps: 2,
+            created_at: '2026-05-01T08:00:00.000Z',
+            updated_at: '2026-05-03T12:00:00.000Z',
+            steps: [],
+            request_data: {
+              id: 'e5f6a7b8-c9d0-1234-efab-345678901234',
+              start_date: '2026-05-15',
+              end_date: '2026-05-17',
+              total_days: 3,
+              reason: 'Family function',
+              status: 'approved',
+              attachments: [],
+              leave_type_id: 'lt-uuid-annual',
+            },
+          },
+        ],
+        total: 3,
+        page: 1,
+        limit: 20,
+      },
+    },
   })
   async getMyRequests(
     @Request() req: AuthenticatedRequest,
@@ -162,7 +306,51 @@ export class WorkflowController {
   })
   @ApiParam({ name: 'id', description: 'Workflow request UUID' })
   @ApiOkResponse({
-    description: 'Workflow request with all steps ordered by step_order',
+    description: 'Workflow request with all steps and the linked entity data',
+    schema: {
+      example: {
+        id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+        request_type: 'overtime',
+        status: 'pending',
+        requestor_id: 'b2c3d4e5-f6a7-8901-bcde-f12345678901',
+        tenant_id: 'c3d4e5f6-a7b8-9012-cdef-123456789012',
+        current_step_order: 1,
+        total_steps: 2,
+        created_at: '2026-05-09T08:00:00.000Z',
+        updated_at: '2026-05-09T08:00:00.000Z',
+        steps: [
+          {
+            id: 'step-uuid-1',
+            step_order: 1,
+            step_label: 'Manager Approval',
+            approver_role: 'manager',
+            status: 'pending',
+            approver_id: null,
+            remarks: null,
+            acted_at: null,
+          },
+          {
+            id: 'step-uuid-2',
+            step_order: 2,
+            step_label: 'HR Approval',
+            approver_role: 'hr-admin',
+            status: 'pending',
+            approver_id: null,
+            remarks: null,
+            acted_at: null,
+          },
+        ],
+        request_data: {
+          id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+          start_date: '2026-05-10',
+          end_date: '2026-05-10',
+          hours: 4,
+          reason: 'Critical deployment on Saturday',
+          status: 'pending',
+          attachments: ['https://s3.example.com/overtime-docs/proof.jpg'],
+        },
+      },
+    },
   })
   @ApiNotFoundResponse({ description: 'Workflow request not found' })
   async getRequestById(

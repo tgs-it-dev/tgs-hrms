@@ -417,14 +417,16 @@ export class WorkflowService {
     page = 1,
     limit = 20,
   ): Promise<{
-    items: WorkflowRequest[];
+    items: Array<
+      WorkflowRequest & { request_data: Record<string, unknown> | null }
+    >;
     total: number;
     page: number;
     limit: number;
   }> {
     return this.runInTenantContext(
       tenantId,
-      async (_configRepo, requestRepo) => {
+      async (_configRepo, requestRepo, _stepRepo, em) => {
         const qb = requestRepo
           .createQueryBuilder('wr')
           .innerJoinAndSelect('wr.steps', 'step')
@@ -454,7 +456,8 @@ export class WorkflowService {
           .take(limit)
           .getMany();
 
-        return { items, total, page, limit };
+        const enriched = await this.enrichWithEntityData(items, tenantId, em);
+        return { items: enriched, total, page, limit };
       },
     );
   }
@@ -462,10 +465,12 @@ export class WorkflowService {
   async getWorkflowRequestById(
     workflowRequestId: string,
     tenantId: string,
-  ): Promise<WorkflowRequest> {
+  ): Promise<
+    WorkflowRequest & { request_data: Record<string, unknown> | null }
+  > {
     return this.runInTenantContext(
       tenantId,
-      async (_configRepo, requestRepo) => {
+      async (_configRepo, requestRepo, _stepRepo, em) => {
         const request = await requestRepo.findOne({
           where: { id: workflowRequestId, tenant_id: tenantId },
           relations: ['steps'],
@@ -475,7 +480,13 @@ export class WorkflowService {
         if (!request) {
           throw new NotFoundException('Workflow request not found');
         }
-        return request;
+
+        const [enriched] = await this.enrichWithEntityData(
+          [request],
+          tenantId,
+          em,
+        );
+        return enriched;
       },
     );
   }
@@ -488,14 +499,16 @@ export class WorkflowService {
     page = 1,
     limit = 20,
   ): Promise<{
-    items: WorkflowRequest[];
+    items: Array<
+      WorkflowRequest & { request_data: Record<string, unknown> | null }
+    >;
     total: number;
     page: number;
     limit: number;
   }> {
     return this.runInTenantContext(
       tenantId,
-      async (_configRepo, requestRepo) => {
+      async (_configRepo, requestRepo, _stepRepo, em) => {
         const qb = requestRepo
           .createQueryBuilder('wr')
           .leftJoinAndSelect('wr.steps', 'step')
@@ -518,9 +531,81 @@ export class WorkflowService {
           .take(limit)
           .getMany();
 
-        return { items, total, page, limit };
+        const enriched = await this.enrichWithEntityData(items, tenantId, em);
+        return { items: enriched, total, page, limit };
       },
     );
+  }
+
+  private async enrichWithEntityData(
+    items: WorkflowRequest[],
+    tenantId: string,
+    em: EntityManager | null,
+  ): Promise<
+    Array<WorkflowRequest & { request_data: Record<string, unknown> | null }>
+  > {
+    if (items.length === 0) return [];
+
+    const runQuery = (
+      sql: string,
+      params: unknown[],
+    ): Promise<Record<string, unknown>[]> =>
+      em ? em.query(sql, params) : this.dataSource.query(sql, params);
+
+    const byType = new Map<string, string[]>();
+    for (const item of items) {
+      const arr = byType.get(item.request_type) ?? [];
+      arr.push(item.related_entity_id);
+      byType.set(item.request_type, arr);
+    }
+
+    const wfhIds = byType.get(WorkflowRequestType.WFH) ?? [];
+    const overtimeIds = byType.get(WorkflowRequestType.OVERTIME) ?? [];
+    const leaveIds = byType.get(WorkflowRequestType.LEAVE) ?? [];
+
+    const [wfhRows, overtimeRows, leaveRows] = await Promise.all([
+      wfhIds.length
+        ? runQuery(
+            `SELECT id, start_date, end_date, reason, status, attachments
+               FROM wfh_requests
+              WHERE id = ANY($1::uuid[]) AND tenant_id = $2`,
+            [wfhIds, tenantId],
+          )
+        : Promise.resolve([]),
+      overtimeIds.length
+        ? runQuery(
+            `SELECT id, start_date, end_date, hours, reason, status, attachments
+               FROM overtime_requests
+              WHERE id = ANY($1::uuid[]) AND tenant_id = $2`,
+            [overtimeIds, tenantId],
+          )
+        : Promise.resolve([]),
+      leaveIds.length
+        ? runQuery(
+            `SELECT id,
+                    "startDate"   AS start_date,
+                    "endDate"     AS end_date,
+                    "totalDays"   AS total_days,
+                    reason,
+                    status,
+                    documents     AS attachments,
+                    "leaveTypeId" AS leave_type_id
+               FROM leaves
+              WHERE id = ANY($1::uuid[]) AND "tenantId" = $2`,
+            [leaveIds, tenantId],
+          )
+        : Promise.resolve([]),
+    ]);
+
+    const entityMap = new Map<string, Record<string, unknown>>();
+    for (const row of [...wfhRows, ...overtimeRows, ...leaveRows]) {
+      entityMap.set(row['id'] as string, row);
+    }
+
+    return items.map((item) => ({
+      ...item,
+      request_data: entityMap.get(item.related_entity_id) ?? null,
+    }));
   }
 
   async getWorkflowRequestByEntity(
