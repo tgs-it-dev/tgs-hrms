@@ -356,6 +356,7 @@ export enum AnnouncementStatus {
 export enum WorkflowRequestType {
   LEAVE = 'leave',
   WFH = 'wfh',
+  OVERTIME = 'overtime',
 }
 
 export enum WorkflowRequestStatus {
@@ -374,6 +375,14 @@ export enum WorkflowStepStatus {
 
 // WFH Enums
 export enum WfhStatus {
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+  CANCELLED = 'cancelled',
+}
+
+// Overtime Enums
+export enum OvertimeStatus {
   PENDING = 'pending',
   APPROVED = 'approved',
   REJECTED = 'rejected',

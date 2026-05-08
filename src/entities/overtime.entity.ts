@@ -1,12 +1,12 @@
 import { Entity, Column, Index, ManyToOne, JoinColumn } from 'typeorm';
 import { TenantBaseEntity } from './tenant-base.entity';
 import { User } from './user.entity';
-import { WfhStatus } from '../common/constants/enums';
+import { OvertimeStatus } from '../common/constants/enums';
 
-@Entity('wfh_requests')
+@Entity('overtime_requests')
 @Index(['tenant_id', 'employee_id'])
 @Index(['tenant_id', 'status'])
-export class Wfh extends TenantBaseEntity {
+export class Overtime extends TenantBaseEntity {
   @Column({ type: 'uuid' })
   employee_id!: string;
 
@@ -20,11 +20,14 @@ export class Wfh extends TenantBaseEntity {
   @Column({ type: 'date' })
   end_date!: Date;
 
+  @Column({ type: 'decimal', precision: 4, scale: 2 })
+  hours!: number;
+
   @Column({ type: 'text' })
   reason!: string;
 
-  @Column({ type: 'varchar', length: 32, default: WfhStatus.PENDING })
-  status!: WfhStatus;
+  @Column({ type: 'varchar', length: 32, default: OvertimeStatus.PENDING })
+  status!: OvertimeStatus;
 
   @Column({ type: 'jsonb', default: [] })
   attachments!: string[];

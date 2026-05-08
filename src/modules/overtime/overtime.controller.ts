@@ -6,7 +6,7 @@ import {
   Param,
   Body,
   Query,
-  Request,
+  Req,
   UseGuards,
   ParseUUIDPipe,
   UseInterceptors,
@@ -23,29 +23,30 @@ import {
 } from '@nestjs/swagger';
 import { FilesInterceptor } from '@nestjs/platform-express';
 
-import { WfhService } from './wfh.service';
-import { CreateWfhDto } from './dto/create-wfh.dto';
-import { WfhStatus } from '../../common/constants/enums';
+import { OvertimeService } from './overtime.service';
+import { CreateOvertimeDto } from './dto/create-overtime.dto';
+import { OvertimeStatus } from '../../common/constants/enums';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { AuthenticatedRequest } from 'src/common/types/request.types';
+import { AuthenticatedRequest } from '../../common/types/request.types';
 
-@ApiTags('WFH')
+@ApiTags('Overtime')
 @ApiBearerAuth()
-@Controller('wfh')
-export class WfhController {
-  constructor(private readonly wfhService: WfhService) {}
+@Controller('overtime')
+export class OvertimeController {
+  constructor(private readonly overtimeService: OvertimeService) {}
 
   @Post()
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Submit a WFH request' })
+  @ApiOperation({ summary: 'Submit an overtime request' })
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['start_date', 'end_date', 'reason'],
+      required: ['start_date', 'end_date', 'hours', 'reason'],
       properties: {
         start_date: { type: 'string', format: 'date' },
         end_date: { type: 'string', format: 'date' },
+        hours: { type: 'number' },
         reason: { type: 'string' },
         attachments: {
           type: 'array',
@@ -72,11 +73,11 @@ export class WfhController {
     }),
   )
   async create(
-    @Body() dto: CreateWfhDto,
-    @Request() req: AuthenticatedRequest,
+    @Body() dto: CreateOvertimeDto,
+    @Req() req: AuthenticatedRequest,
     @UploadedFiles() files?: Express.Multer.File[],
   ) {
-    return this.wfhService.createWfhRequest(
+    return this.overtimeService.createOvertimeRequest(
       req.user.id,
       req.user.tenant_id,
       dto,
@@ -86,15 +87,17 @@ export class WfhController {
 
   // must be before /:id so NestJS does not match 'me' as a UUID param
   @Get('me')
-  @ApiOperation({ summary: 'List WFH requests submitted by the current user' })
+  @ApiOperation({
+    summary: 'List overtime requests submitted by the current user',
+  })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   async getMyRequests(
-    @Request() req: AuthenticatedRequest,
+    @Req() req: AuthenticatedRequest,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
-    return this.wfhService.getMyWfhRequests(
+    return this.overtimeService.getMyOvertimeRequests(
       req.user.id,
       req.user.tenant_id,
       page ? parseInt(page, 10) : 1,
@@ -106,18 +109,18 @@ export class WfhController {
   @UseGuards(RolesGuard)
   @Roles('admin', 'hr-admin', 'system-admin', 'network-admin', 'manager')
   @ApiOperation({
-    summary: 'List all WFH requests across the tenant (admin/manager)',
+    summary: 'List all overtime requests across the tenant (admin/manager)',
   })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
-  @ApiQuery({ name: 'status', enum: WfhStatus, required: false })
+  @ApiQuery({ name: 'status', enum: OvertimeStatus, required: false })
   async getAllRequests(
-    @Request() req: AuthenticatedRequest,
+    @Req() req: AuthenticatedRequest,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
-    @Query('status') status?: WfhStatus,
+    @Query('status') status?: OvertimeStatus,
   ) {
-    return this.wfhService.getAllWfhRequests(
+    return this.overtimeService.getAllOvertimeRequests(
       req.user.tenant_id,
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 20,
@@ -126,21 +129,21 @@ export class WfhController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get a single WFH request by ID' })
+  @ApiOperation({ summary: 'Get a single overtime request by ID' })
   async getById(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req: AuthenticatedRequest,
+    @Req() req: AuthenticatedRequest,
   ) {
-    return this.wfhService.getWfhById(id, req.user.tenant_id);
+    return this.overtimeService.getOvertimeById(id, req.user.tenant_id);
   }
 
   @Patch(':id/cancel')
-  @ApiOperation({ summary: 'Cancel a pending WFH request' })
+  @ApiOperation({ summary: 'Cancel a pending overtime request' })
   async cancel(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req: AuthenticatedRequest,
+    @Req() req: AuthenticatedRequest,
   ) {
-    return this.wfhService.cancelWfhRequest(
+    return this.overtimeService.cancelOvertimeRequest(
       id,
       req.user.id,
       req.user.tenant_id,

@@ -480,6 +480,49 @@ export class WorkflowService {
     );
   }
 
+  async getMyRequests(
+    tenantId: string,
+    requestorId: string,
+    requestType?: WorkflowRequestType,
+    status?: WorkflowRequestStatus,
+    page = 1,
+    limit = 20,
+  ): Promise<{
+    items: WorkflowRequest[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    return this.runInTenantContext(
+      tenantId,
+      async (_configRepo, requestRepo) => {
+        const qb = requestRepo
+          .createQueryBuilder('wr')
+          .leftJoinAndSelect('wr.steps', 'step')
+          .where('wr.tenant_id = :tenantId', { tenantId })
+          .andWhere('wr.requestor_id = :requestorId', { requestorId })
+          .orderBy('wr.created_at', 'DESC')
+          .addOrderBy('step.step_order', 'ASC');
+
+        if (requestType) {
+          qb.andWhere('wr.request_type = :requestType', { requestType });
+        }
+
+        if (status) {
+          qb.andWhere('wr.status = :status', { status });
+        }
+
+        const total = await qb.getCount();
+        const items = await qb
+          .skip((page - 1) * limit)
+          .take(limit)
+          .getMany();
+
+        return { items, total, page, limit };
+      },
+    );
+  }
+
   async getWorkflowRequestByEntity(
     relatedEntityId: string,
     tenantId: string,

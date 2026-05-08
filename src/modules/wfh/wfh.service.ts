@@ -10,11 +10,17 @@ import { Repository, DataSource, EntityManager } from 'typeorm';
 
 import { Wfh } from '../../entities/wfh.entity';
 import { User } from '../../entities/user.entity';
-import { WfhStatus, WorkflowRequestType, NotificationType, NotificationAction } from '../../common/constants/enums';
+import {
+  WfhStatus,
+  WorkflowRequestType,
+  NotificationType,
+  NotificationAction,
+} from '../../common/constants/enums';
 import { TenantDatabaseService } from '../../common/services/tenant-database.service';
 import { WorkflowService } from '../workflow/workflow.service';
 import { NotificationService } from '../notification/notification.service';
 import { CreateWfhDto } from './dto/create-wfh.dto';
+import { DocumentUploadService } from '../storage/document-upload.service';
 
 @Injectable()
 export class WfhService {
@@ -28,6 +34,7 @@ export class WfhService {
     private readonly workflowService: WorkflowService,
     private readonly notificationService: NotificationService,
     private readonly tenantDbService: TenantDatabaseService,
+    private readonly fileUploadService: DocumentUploadService,
     @InjectDataSource()
     private readonly dataSource: DataSource,
   ) {}
@@ -35,10 +42,11 @@ export class WfhService {
   // ── Tenant context helpers ────────────────────────────────────────────────
 
   private async isTenantSchemaProvisioned(tenantId: string): Promise<boolean> {
-    const result = await this.dataSource.query<{ schema_provisioned: boolean }[]>(
-      `SELECT schema_provisioned FROM public.tenants WHERE id = $1 LIMIT 1`,
-      [tenantId],
-    );
+    const result = await this.dataSource.query<
+      { schema_provisioned: boolean }[]
+    >(`SELECT schema_provisioned FROM public.tenants WHERE id = $1 LIMIT 1`, [
+      tenantId,
+    ]);
     return result[0]?.schema_provisioned ?? false;
   }
 
@@ -69,6 +77,7 @@ export class WfhService {
     employeeId: string,
     tenantId: string,
     dto: CreateWfhDto,
+    files?: Express.Multer.File[],
   ): Promise<Wfh> {
     const workflowEnabled = await this.isWorkflowEnabled(tenantId);
     if (!workflowEnabled) {
@@ -77,57 +86,97 @@ export class WfhService {
       );
     }
 
+    const startDate = new Date(dto.start_date);
+    const endDate = new Date(dto.end_date);
+
+    if (endDate < startDate) {
+      throw new BadRequestException('end_date cannot be before start_date');
+    }
+
     return this.runInTenantContext(tenantId, async (wfhRepo) => {
-      // Check for duplicate WFH on same date
-      const wfhDate = new Date(dto.wfh_date);
-      const existing = await wfhRepo.findOne({
-        where: {
-          employee_id: employeeId,
-          tenant_id: tenantId,
-          wfh_date: wfhDate,
-          status: WfhStatus.PENDING,
-        },
-      });
-      if (existing) {
-        throw new ForbiddenException('You already have a pending WFH request for this date');
+      // Overlap check: reject if any active request spans any of the requested dates
+      const overlap = await wfhRepo
+        .createQueryBuilder('w')
+        .where('w.employee_id = :employeeId', { employeeId })
+        .andWhere('w.tenant_id = :tenantId', { tenantId })
+        .andWhere('w.status IN (:...statuses)', {
+          statuses: [WfhStatus.PENDING, WfhStatus.APPROVED],
+        })
+        .andWhere('w.start_date <= :endDate', { endDate: dto.end_date })
+        .andWhere('w.end_date >= :startDate', { startDate: dto.start_date })
+        .getOne();
+
+      if (overlap) {
+        throw new ForbiddenException(
+          overlap.status === WfhStatus.APPROVED
+            ? 'You already have an approved WFH request that overlaps these dates'
+            : 'You already have a pending WFH request that overlaps these dates',
+        );
       }
 
       const wfh = wfhRepo.create({
         employee_id: employeeId,
         tenant_id: tenantId,
-        wfh_date: wfhDate,
+        start_date: startDate,
+        end_date: endDate,
         reason: dto.reason,
         status: WfhStatus.PENDING,
+        attachments: [],
         workflow_request_id: null,
       });
       const savedWfh = await wfhRepo.save(wfh);
 
-      // Create workflow request
+      if (files && files.length > 0) {
+        try {
+          savedWfh.attachments = await this.fileUploadService.uploadDocuments(
+            files,
+            'wfh-documents',
+            savedWfh.id,
+            employeeId,
+          );
+          await wfhRepo.save(savedWfh);
+        } catch (err: unknown) {
+          this.logger.warn(
+            `Failed to upload WFH attachments for ${savedWfh.id}: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
+
       try {
-        const workflowRequest = await this.workflowService.createWorkflowRequest(
-          tenantId,
-          WorkflowRequestType.WFH,
-          savedWfh.id,
-          employeeId,
-        );
+        const workflowRequest =
+          await this.workflowService.createWorkflowRequest(
+            tenantId,
+            WorkflowRequestType.WFH,
+            savedWfh.id,
+            employeeId,
+          );
         savedWfh.workflow_request_id = workflowRequest.id;
         await wfhRepo.save(savedWfh);
       } catch (error) {
-        this.logger.error(`Failed to create workflow for WFH ${savedWfh.id}`, error);
+        this.logger.error(
+          `Failed to create workflow for WFH ${savedWfh.id}`,
+          error,
+        );
         throw error;
       }
 
-      // Notify manager via notification service
       try {
-        const employee = await this.userRepo.findOne({ where: { id: employeeId } });
+        const employee = await this.userRepo.findOne({
+          where: { id: employeeId },
+        });
         const employeeName = employee
           ? `${employee.first_name} ${employee.last_name}`.trim()
           : 'An employee';
 
+        const dateRange =
+          dto.start_date === dto.end_date
+            ? dto.start_date
+            : `${dto.start_date} to ${dto.end_date}`;
+
         await this.notificationService.create(
           employeeId,
           tenantId,
-          `${employeeName} has submitted a WFH request for ${dto.wfh_date}`,
+          `${employeeName} has submitted a WFH request for ${dateRange}`,
           NotificationType.IN_APP,
           {
             relatedEntityType: 'wfh',
@@ -139,7 +188,10 @@ export class WfhService {
           },
         );
       } catch (error) {
-        this.logger.warn(`Failed to send WFH notification for ${savedWfh.id}`, error);
+        this.logger.warn(
+          `Failed to send WFH notification for ${savedWfh.id}`,
+          error,
+        );
       }
 
       return savedWfh;
@@ -205,11 +257,15 @@ export class WfhService {
       if (!wfh) throw new NotFoundException('WFH request not found');
 
       if (wfh.employee_id !== employeeId) {
-        throw new ForbiddenException('You can only cancel your own WFH requests');
+        throw new ForbiddenException(
+          'You can only cancel your own WFH requests',
+        );
       }
 
       if (wfh.status !== WfhStatus.PENDING) {
-        throw new ForbiddenException(`Cannot cancel a WFH request with status "${wfh.status}"`);
+        throw new ForbiddenException(
+          `Cannot cancel a WFH request with status "${wfh.status}"`,
+        );
       }
 
       wfh.status = WfhStatus.CANCELLED;
@@ -229,9 +285,11 @@ export class WfhService {
 
   // ── Called by WfhWorkflowListener ─────────────────────────────────────────
 
-  async markApproved(relatedEntityId: string, tenantId: string, _approverId: string | null): Promise<void> {
+  async markApproved(relatedEntityId: string, tenantId: string): Promise<void> {
     await this.runInTenantContext(tenantId, async (wfhRepo) => {
-      const wfh = await wfhRepo.findOne({ where: { id: relatedEntityId, tenant_id: tenantId } });
+      const wfh = await wfhRepo.findOne({
+        where: { id: relatedEntityId, tenant_id: tenantId },
+      });
       if (!wfh) return;
       wfh.status = WfhStatus.APPROVED;
       await wfhRepo.save(wfh);
@@ -239,9 +297,11 @@ export class WfhService {
     });
   }
 
-  async markRejected(relatedEntityId: string, tenantId: string, _approverId: string | null): Promise<void> {
+  async markRejected(relatedEntityId: string, tenantId: string): Promise<void> {
     await this.runInTenantContext(tenantId, async (wfhRepo) => {
-      const wfh = await wfhRepo.findOne({ where: { id: relatedEntityId, tenant_id: tenantId } });
+      const wfh = await wfhRepo.findOne({
+        where: { id: relatedEntityId, tenant_id: tenantId },
+      });
       if (!wfh) return;
       wfh.status = WfhStatus.REJECTED;
       await wfhRepo.save(wfh);
