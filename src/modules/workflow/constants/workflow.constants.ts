@@ -16,4 +16,8 @@ export const DEFAULT_WORKFLOW_CONFIGS: Record<
   wfh: [
     { step_order: 1, approver_role: 'manager', step_label: 'Manager Approval' },
   ],
+  overtime: [
+    { step_order: 1, approver_role: 'manager', step_label: 'Manager Approval' },
+    { step_order: 2, approver_role: 'hr-admin', step_label: 'HR Approval' },
+  ],
 };
