@@ -27,9 +27,13 @@ import {
 import { WorkflowService } from './workflow.service';
 import { ActOnStepDto } from './dto/act-on-step.dto';
 import { UpsertWorkflowConfigDto } from './dto/upsert-workflow-config.dto';
-import { WorkflowRequestType } from '../../common/constants/enums';
+import {
+  WorkflowRequestType,
+  WorkflowRequestStatus,
+} from '../../common/constants/enums';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { AuthenticatedRequest } from '../../common/types/request.types';
 
 @ApiTags('Workflow')
 @ApiBearerAuth()
@@ -37,18 +41,35 @@ import { Roles } from '../../common/decorators/roles.decorator';
 export class WorkflowController {
   constructor(private readonly workflowService: WorkflowService) {}
 
-  // ── Pending approvals for the current actor's role ────────────────────────
+  // ── Approver inbox: requests waiting on the current user's role ──────────
 
-  @Get('requests')
+  @Get('approvals')
   @UseGuards(RolesGuard)
   @Roles('manager', 'admin', 'hr-admin', 'system-admin', 'network-admin')
-  @ApiOperation({ summary: 'Get pending workflow requests awaiting action by the current user role' })
-  @ApiQuery({ name: 'type', enum: WorkflowRequestType, required: false, description: 'Filter by request type (leave / wfh)' })
-  @ApiQuery({ name: 'page', required: false, description: 'Page number (default 1)' })
-  @ApiQuery({ name: 'limit', required: false, description: 'Items per page (default 20)' })
-  @ApiOkResponse({ description: 'Paginated list of pending workflow requests' })
-  async getPendingRequests(
-    @Request() req: any,
+  @ApiOperation({
+    summary: `List pending requests awaiting approval by the current user's role`,
+  })
+  @ApiQuery({
+    name: 'type',
+    enum: WorkflowRequestType,
+    required: false,
+    description: 'Filter by request type (leave / wfh / overtime)',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Page number (default 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Items per page (default 20)',
+  })
+  @ApiOkResponse({
+    description: `Paginated list of requests pending the current user's approval`,
+  })
+  async getPendingApprovals(
+    @Request() req: AuthenticatedRequest,
     @Query('type') type?: WorkflowRequestType,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
@@ -62,49 +83,121 @@ export class WorkflowController {
     );
   }
 
-  // ── Get single workflow request with full step history ────────────────────
+  // ── Requestor history: all requests submitted by the current user ─────────
+
+  @Get('my-requests')
+  @ApiOperation({
+    summary:
+      'List all workflow requests submitted by the current user with full step history',
+  })
+  @ApiQuery({
+    name: 'type',
+    enum: WorkflowRequestType,
+    required: false,
+    description: 'Filter by request type (leave / wfh / overtime)',
+  })
+  @ApiQuery({
+    name: 'status',
+    enum: WorkflowRequestStatus,
+    required: false,
+    description: 'Filter by request status',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Page number (default 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Items per page (default 20)',
+  })
+  @ApiOkResponse({
+    description: `Paginated list of the current user's workflow requests with steps`,
+  })
+  async getMyRequests(
+    @Request() req: AuthenticatedRequest,
+    @Query('type') type?: WorkflowRequestType,
+    @Query('status') status?: WorkflowRequestStatus,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.workflowService.getMyRequests(
+      req.user.tenant_id,
+      req.user.id,
+      type,
+      status,
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 20,
+    );
+  }
+
+  // ── Lookup by related entity (must be before /:id to avoid param collision) ──
+
+  @Get('requests/by-entity/:entityId')
+  @ApiOperation({
+    summary:
+      'Get the workflow request linked to a leave, WFH, or overtime record',
+  })
+  @ApiParam({
+    name: 'entityId',
+    description: 'UUID of the related entity (leave / WFH / overtime)',
+  })
+  @ApiOkResponse({ description: 'Matching workflow request or null' })
+  async getRequestByEntity(
+    @Param('entityId', ParseUUIDPipe) entityId: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.workflowService.getWorkflowRequestByEntity(
+      entityId,
+      req.user.tenant_id,
+    );
+  }
+
+  // ── Single request detail ─────────────────────────────────────────────────
 
   @Get('requests/:id')
-  @ApiOperation({ summary: 'Get workflow request details with full step history' })
+  @ApiOperation({
+    summary: 'Get a workflow request with its full step-by-step history',
+  })
   @ApiParam({ name: 'id', description: 'Workflow request UUID' })
-  @ApiOkResponse({ description: 'Workflow request with all steps' })
+  @ApiOkResponse({
+    description: 'Workflow request with all steps ordered by step_order',
+  })
   @ApiNotFoundResponse({ description: 'Workflow request not found' })
-  async getWorkflowRequest(
+  async getRequestById(
     @Param('id', ParseUUIDPipe) id: string,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
   ) {
     return this.workflowService.getWorkflowRequestById(id, req.user.tenant_id);
   }
 
-  // ── Get workflow request by entity (leave/wfh ID) ─────────────────────────
+  // ── Approve or reject the current pending step ────────────────────────────
 
-  @Get('requests/entity/:entityId')
-  @ApiOperation({ summary: 'Get workflow request by related entity ID (leave or WFH UUID)' })
-  @ApiParam({ name: 'entityId', description: 'Related entity UUID (e.g. leave ID or WFH ID)' })
-  @ApiOkResponse({ description: 'Matching workflow request or null' })
-  async getWorkflowRequestByEntity(
-    @Param('entityId', ParseUUIDPipe) entityId: string,
-    @Request() req: any,
-  ) {
-    return this.workflowService.getWorkflowRequestByEntity(entityId, req.user.tenant_id);
-  }
-
-  // ── Approve or reject current step ───────────────────────────────────────
-
-  @Post('requests/:id/act')
+  @Post('requests/:id/decision')
   @UseGuards(RolesGuard)
   @Roles('manager', 'admin', 'hr-admin', 'system-admin', 'network-admin')
-  @ApiOperation({ summary: 'Approve or reject the current pending step of a workflow request' })
+  @ApiOperation({
+    summary: 'Approve or reject the current pending step of a workflow request',
+  })
   @ApiParam({ name: 'id', description: 'Workflow request UUID' })
   @ApiBody({ type: ActOnStepDto })
-  @ApiOkResponse({ description: 'Updated workflow request after acting on the step' })
-  @ApiForbiddenResponse({ description: "Actor's role does not match the step's required approver role" })
-  @ApiBadRequestResponse({ description: 'Request is not in an actionable state or no pending step found' })
+  @ApiOkResponse({
+    description: 'Updated workflow request after the decision is recorded',
+  })
+  @ApiForbiddenResponse({
+    description:
+      'Your role does not match the required approver role for this step',
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Request is not in an actionable state or no pending step exists',
+  })
   @ApiNotFoundResponse({ description: 'Workflow request not found' })
-  async actOnStep(
+  async submitDecision(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ActOnStepDto,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
   ) {
     return this.workflowService.actOnCurrentStep(
       id,
@@ -116,16 +209,25 @@ export class WorkflowController {
     );
   }
 
-  // ── Workflow config management ────────────────────────────────────────────
+  // ── Approval step configuration ───────────────────────────────────────────
 
   @Get('configs')
   @UseGuards(RolesGuard)
   @Roles('admin', 'hr-admin', 'system-admin', 'network-admin')
-  @ApiOperation({ summary: 'Get workflow approval step configuration for the tenant' })
-  @ApiQuery({ name: 'type', enum: WorkflowRequestType, required: false, description: 'Filter by request type' })
-  @ApiOkResponse({ description: 'List of workflow config rows ordered by request_type and step_order' })
+  @ApiOperation({
+    summary: 'Get approval step configuration for one or all request types',
+  })
+  @ApiQuery({
+    name: 'type',
+    enum: WorkflowRequestType,
+    required: false,
+    description: 'Filter by request type',
+  })
+  @ApiOkResponse({
+    description: 'Config rows ordered by request_type then step_order',
+  })
   async getConfigs(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Query('type') type?: WorkflowRequestType,
   ) {
     return this.workflowService.getWorkflowConfigs(req.user.tenant_id, type);
@@ -134,37 +236,52 @@ export class WorkflowController {
   @Put('configs')
   @UseGuards(RolesGuard)
   @Roles('admin', 'system-admin')
-  @ApiOperation({ summary: 'Upsert workflow step configuration for a request type' })
+  @ApiOperation({
+    summary: 'Create or update approval step configuration for a request type',
+  })
   @ApiBody({ type: UpsertWorkflowConfigDto })
-  @ApiOkResponse({ description: 'Updated list of config rows for the given request type' })
+  @ApiOkResponse({
+    description: 'Updated config rows for the given request type',
+  })
   async upsertConfig(
     @Body() dto: UpsertWorkflowConfigDto,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
   ) {
     return this.workflowService.upsertWorkflowConfig(req.user.tenant_id, dto);
   }
 
-  // ── Feature flag ─────────────────────────────────────────────────────────
+  // ── Workflow engine toggle ────────────────────────────────────────────────
 
-  @Get('feature-flag')
+  @Get('settings/enabled')
   @UseGuards(RolesGuard)
-  @ApiOperation({ summary: 'Get the workflow engine enabled/disabled state for the tenant' })
+  @ApiOperation({
+    summary: 'Check whether the workflow engine is enabled for this tenant',
+  })
   @ApiOkResponse({ description: '{ workflow_enabled: boolean }' })
-  async getFeatureFlag(@Request() req: any) {
+  async getWorkflowEnabled(@Request() req: AuthenticatedRequest) {
     return this.workflowService.getWorkflowEnabled(req.user.tenant_id);
   }
 
-  @Patch('feature-flag')
+  @Patch('settings/enabled')
   @UseGuards(RolesGuard)
   @Roles('admin', 'system-admin')
   @ApiOperation({
-    summary: 'Enable or disable the workflow engine for the tenant',
+    summary: 'Enable or disable the workflow engine for this tenant',
     description:
-      'When disabled, leave approvals fall back to the legacy direct-approve/reject endpoints. Only admins can toggle this flag.',
+      'When disabled, leave approvals fall back to the legacy direct-approve/reject flow.',
   })
-  @ApiBody({ schema: { type: 'object', properties: { enabled: { type: 'boolean' } }, required: ['enabled'] } })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { enabled: { type: 'boolean' } },
+      required: ['enabled'],
+    },
+  })
   @ApiOkResponse({ description: '{ workflow_enabled: boolean }' })
-  async setFeatureFlag(@Body('enabled') enabled: boolean, @Request() req: any) {
+  async setWorkflowEnabled(
+    @Body('enabled') enabled: boolean,
+    @Request() req: AuthenticatedRequest,
+  ) {
     return this.workflowService.setWorkflowEnabled(req.user.tenant_id, enabled);
   }
 }
