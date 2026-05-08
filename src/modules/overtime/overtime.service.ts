@@ -101,20 +101,52 @@ export class OvertimeService {
       );
     }
 
-    const startDate = new Date(dto.start_date);
-    const endDate = new Date(dto.end_date);
+    const hasHours = dto.hours !== undefined;
+    const hasEndDate = dto.end_date !== undefined;
 
-    if (endDate < startDate) {
-      throw new BadRequestException('end_date cannot be before start_date');
+    if (hasHours && hasEndDate) {
+      throw new BadRequestException(
+        'Provide either hours (single-day mode) or end_date (range mode), not both.',
+      );
+    }
+    if (!hasHours && !hasEndDate) {
+      throw new BadRequestException(
+        'Provide either hours with start_date (single-day) or start_date with end_date (range).',
+      );
     }
 
-    // Every day in the range must be a Saturday or Sunday
-    const weekday = this.findWeekdayInRange(startDate, endDate);
-    if (weekday) {
-      const label = weekday.toISOString().slice(0, 10);
-      throw new BadRequestException(
-        `Overtime requests can only cover weekends (Saturday/Sunday). ${label} is a weekday.`,
-      );
+    const startDate = new Date(dto.start_date);
+    let endDate: Date;
+    let hours: number;
+
+    if (hasHours) {
+      // ── Hours mode: single day ────────────────────────────────────────────
+      const dayOfWeek = startDate.getUTCDay();
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        throw new BadRequestException(
+          `Overtime can only be requested on weekends. ${dto.start_date} is a weekday.`,
+        );
+      }
+      endDate = new Date(startDate);
+      hours = dto.hours!;
+    } else {
+      // ── Range mode: start_date → end_date ─────────────────────────────────
+      endDate = new Date(dto.end_date!);
+
+      if (endDate < startDate) {
+        throw new BadRequestException('end_date cannot be before start_date');
+      }
+
+      const weekday = this.findWeekdayInRange(startDate, endDate);
+      if (weekday) {
+        throw new BadRequestException(
+          `Overtime can only cover weekends. ${weekday.toISOString().slice(0, 10)} is a weekday.`,
+        );
+      }
+
+      const totalDays =
+        Math.round((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1;
+      hours = totalDays * 8;
     }
 
     return this.runInTenantContext(tenantId, async (repo) => {
@@ -126,8 +158,12 @@ export class OvertimeService {
         .andWhere('o.status IN (:...statuses)', {
           statuses: [OvertimeStatus.PENDING, OvertimeStatus.APPROVED],
         })
-        .andWhere('o.start_date <= :endDate', { endDate: dto.end_date })
-        .andWhere('o.end_date >= :startDate', { startDate: dto.start_date })
+        .andWhere('o.start_date <= :endDate', {
+          endDate: endDate.toISOString().slice(0, 10),
+        })
+        .andWhere('o.end_date >= :startDate', {
+          startDate: dto.start_date,
+        })
         .getOne();
 
       if (overlap) {
@@ -143,7 +179,7 @@ export class OvertimeService {
         tenant_id: tenantId,
         start_date: startDate,
         end_date: endDate,
-        hours: dto.hours,
+        hours,
         reason: dto.reason,
         status: OvertimeStatus.PENDING,
         attachments: [],
@@ -193,15 +229,15 @@ export class OvertimeService {
           ? `${employee.first_name} ${employee.last_name}`.trim()
           : 'An employee';
 
+        const startLabel = startDate.toISOString().slice(0, 10);
+        const endLabel = endDate.toISOString().slice(0, 10);
         const dateRange =
-          dto.start_date === dto.end_date
-            ? dto.start_date
-            : `${dto.start_date} to ${dto.end_date}`;
+          startLabel === endLabel ? startLabel : `${startLabel} to ${endLabel}`;
 
         await this.notificationService.create(
           employeeId,
           tenantId,
-          `${employeeName} submitted an overtime request for ${dateRange} (${dto.hours}h)`,
+          `${employeeName} submitted an overtime request for ${dateRange} (${hours}h)`,
           NotificationType.IN_APP,
           {
             relatedEntityType: WorkflowRequestType.OVERTIME,
