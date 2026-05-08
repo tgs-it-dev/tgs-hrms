@@ -2,38 +2,43 @@ import {
   IsDateString,
   IsString,
   IsNumber,
+  IsOptional,
   Min,
   Max,
   MaxLength,
   MinLength,
 } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateOvertimeDto {
   @ApiProperty({
     example: '2026-05-10',
-    description:
-      'Overtime start date — must be a Saturday or Sunday (ISO 8601)',
+    description: 'Overtime date — must be a Saturday or Sunday (ISO 8601)',
   })
   @IsDateString()
   start_date!: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: '2026-05-11',
     description:
-      'Overtime end date — must be a Saturday or Sunday, >= start_date (ISO 8601)',
+      'Range end date (range mode only). Omit when providing hours. ' +
+      'All days in the range must be Saturday or Sunday.',
   })
+  @IsOptional()
   @IsDateString()
-  end_date!: string;
+  end_date?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 4,
-    description: 'Total overtime hours across the entire period (0.5 – 24)',
+    description:
+      'Overtime hours for start_date (hours mode only). ' +
+      'Omit when providing end_date — hours are then auto-calculated (8 h per weekend day).',
   })
+  @IsOptional()
   @IsNumber()
   @Min(0.5)
   @Max(24)
-  hours!: number;
+  hours?: number;
 
   @ApiProperty({ example: 'Critical deployment requiring after-hours work' })
   @IsString()
