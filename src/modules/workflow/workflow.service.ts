@@ -412,7 +412,9 @@ export class WorkflowService {
 
   async getPendingStepsForRole(
     tenantId: string,
+    actorId: string,
     actorRole: string,
+    view: 'pending' | 'history' | 'all' = 'pending',
     requestType?: WorkflowRequestType,
     page = 1,
     limit = 20,
@@ -427,35 +429,112 @@ export class WorkflowService {
     return this.runInTenantContext(
       tenantId,
       async (_configRepo, requestRepo, _stepRepo, em) => {
-        const qb = requestRepo
-          .createQueryBuilder('wr')
-          .innerJoinAndSelect('wr.steps', 'step')
-          .where('wr.tenant_id = :tenantId', { tenantId })
-          .andWhere('wr.status IN (:...statuses)', {
-            statuses: [
-              WorkflowRequestStatus.PENDING,
-              WorkflowRequestStatus.IN_REVIEW,
-            ],
-          })
-          .andWhere('step.step_order = wr.current_step_order')
-          .andWhere('step.status = :stepStatus', {
-            stepStatus: WorkflowStepStatus.PENDING,
-          })
-          .andWhere('LOWER(step.approver_role) = LOWER(:actorRole)', {
-            actorRole,
-          })
-          .orderBy('wr.created_at', 'DESC');
+        const STATUS_PRIORITY: Record<string, number> = {
+          [WorkflowRequestStatus.PENDING]: 1,
+          [WorkflowRequestStatus.IN_REVIEW]: 2,
+          [WorkflowRequestStatus.APPROVED]: 3,
+          [WorkflowRequestStatus.REJECTED]: 4,
+          [WorkflowRequestStatus.CANCELLED]: 5,
+        };
 
-        if (requestType) {
-          qb.andWhere('wr.request_type = :requestType', { requestType });
+        const buildPendingQb = () => {
+          const qb = requestRepo
+            .createQueryBuilder('wr')
+            .innerJoinAndSelect('wr.steps', 'step')
+            .where('wr.tenant_id = :tenantId', { tenantId })
+            .andWhere('wr.status IN (:...statuses)', {
+              statuses: [
+                WorkflowRequestStatus.PENDING,
+                WorkflowRequestStatus.IN_REVIEW,
+              ],
+            })
+            .andWhere('step.step_order = wr.current_step_order')
+            .andWhere('step.status = :stepStatus', {
+              stepStatus: WorkflowStepStatus.PENDING,
+            })
+            .andWhere('LOWER(step.approver_role) = LOWER(:actorRole)', {
+              actorRole,
+            })
+            .orderBy('wr.created_at', 'DESC');
+          if (requestType)
+            qb.andWhere('wr.request_type = :requestType', { requestType });
+          return qb;
+        };
+
+        const buildHistoryBaseQb = () => {
+          const qb = requestRepo
+            .createQueryBuilder('wr')
+            .where('wr.tenant_id = :tenantId', { tenantId })
+            .andWhere(
+              (subQb) =>
+                `EXISTS (${subQb
+                  .subQuery()
+                  .select('1')
+                  .from(WorkflowStep, 'ws')
+                  .where('ws.workflow_request_id = wr.id')
+                  .andWhere('ws.approver_id = :actorId')
+                  .getQuery()})`,
+              { actorId },
+            );
+          if (requestType)
+            qb.andWhere('wr.request_type = :requestType', { requestType });
+          return qb;
+        };
+
+        const buildHistoryDataQb = () =>
+          buildHistoryBaseQb()
+            .leftJoinAndSelect('wr.steps', 'step')
+            .orderBy('wr.updated_at', 'DESC')
+            .addOrderBy('step.step_order', 'ASC');
+
+        if (view === 'history') {
+          const total = await buildHistoryBaseQb().getCount();
+          const items = await buildHistoryDataQb()
+            .skip((page - 1) * limit)
+            .take(limit)
+            .getMany();
+          const enriched = await this.enrichWithEntityData(items, tenantId, em);
+          return { items: enriched, total, page, limit };
         }
 
+        if (view === 'all') {
+          const [pendingItems, historyItems] = await Promise.all([
+            buildPendingQb().getMany(),
+            buildHistoryDataQb().getMany(),
+          ]);
+
+          // Pending takes precedence: insert history first then overwrite with pending
+          const merged = new Map<string, WorkflowRequest>();
+          for (const item of historyItems) merged.set(item.id, item);
+          for (const item of pendingItems) merged.set(item.id, item);
+
+          const sorted = Array.from(merged.values()).sort((a, b) => {
+            const pa = STATUS_PRIORITY[a.status] ?? 99;
+            const pb = STATUS_PRIORITY[b.status] ?? 99;
+            if (pa !== pb) return pa - pb;
+            return (
+              new Date(b.updated_at).getTime() -
+              new Date(a.updated_at).getTime()
+            );
+          });
+
+          const total = sorted.length;
+          const sliced = sorted.slice((page - 1) * limit, page * limit);
+          const enriched = await this.enrichWithEntityData(
+            sliced,
+            tenantId,
+            em,
+          );
+          return { items: enriched, total, page, limit };
+        }
+
+        // view === 'pending' (default)
+        const qb = buildPendingQb();
         const total = await qb.getCount();
         const items = await qb
           .skip((page - 1) * limit)
           .take(limit)
           .getMany();
-
         const enriched = await this.enrichWithEntityData(items, tenantId, em);
         return { items: enriched, total, page, limit };
       },
