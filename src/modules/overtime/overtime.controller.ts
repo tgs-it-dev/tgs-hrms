@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Body,
   Query,
@@ -31,6 +32,8 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 
 import { OvertimeService } from './overtime.service';
 import { CreateOvertimeDto } from './dto/create-overtime.dto';
+import { UpdateOvertimeDto } from './dto/update-overtime.dto';
+import { RemoveAttachmentDto } from '../../common/dto/remove-attachment.dto';
 import { OvertimeStatus } from '../../common/constants/enums';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -220,6 +223,96 @@ Providing both \`hours\` and \`end_date\`, or neither, will return a 400 error.`
     return this.overtimeService.getOvertimeById(id, req.user.tenant_id);
   }
 
+  @Patch(':id')
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Edit a pending overtime request',
+    description: `All fields are optional. Mode rules still apply:
+- Provide \`hours\` (no \`end_date\`) → hours mode — start_date must be Saturday or Sunday.
+- Provide \`end_date\` (no \`hours\`) → range mode — all days must be Saturday or Sunday, hours auto-recalculated.
+- Provide neither → only reason/attachments updated, dates unchanged.`,
+  })
+  @ApiParam({ name: 'id', description: 'Overtime request UUID' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        start_date: {
+          type: 'string',
+          format: 'date',
+          example: '2026-05-10',
+          description: 'New start date — must be Saturday or Sunday',
+        },
+        end_date: {
+          type: 'string',
+          format: 'date',
+          example: '2026-05-11',
+          description: 'Range mode only — new end date',
+        },
+        hours: {
+          type: 'number',
+          minimum: 0.5,
+          maximum: 24,
+          example: 4,
+          description: 'Hours mode only — updated overtime hours',
+        },
+        reason: { type: 'string', minLength: 5, maxLength: 500 },
+        attachments_to_remove: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'URLs of existing attachments to delete',
+        },
+        attachments: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+          description: 'New files to add (max 5 MB each, up to 10)',
+        },
+      },
+    },
+  })
+  @ApiOkResponse({
+    description: 'Updated overtime request',
+    schema: { example: OVERTIME_EXAMPLE },
+  })
+  @ApiNotFoundResponse({ description: 'Overtime request not found' })
+  @ApiForbiddenResponse({
+    description: 'Not your request, or request is not in pending status',
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Validation error — e.g. both hours and end_date provided, weekday in range',
+  })
+  @UseInterceptors(
+    FilesInterceptor('attachments', 10, {
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        if (!file.mimetype?.startsWith('image/')) {
+          return cb(
+            new BadRequestException(
+              `Invalid file type: ${file.mimetype ?? 'unknown'}. Only images are allowed.`,
+            ),
+            false,
+          );
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  async edit(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateOvertimeDto,
+    @Req() req: AuthenticatedRequest,
+    @UploadedFiles() files?: Express.Multer.File[],
+  ) {
+    return this.overtimeService.editOvertimeRequest(
+      id,
+      req.user.id,
+      req.user.tenant_id,
+      dto,
+      files,
+    );
+  }
+
   @Patch(':id/cancel')
   @ApiOperation({ summary: 'Cancel a pending overtime request' })
   @ApiParam({ name: 'id', description: 'Overtime request UUID' })
@@ -239,6 +332,34 @@ Providing both \`hours\` and \`end_date\`, or neither, will return a 400 error.`
       id,
       req.user.id,
       req.user.tenant_id,
+    );
+  }
+
+  @Delete(':id/attachments')
+  @ApiOperation({
+    summary: 'Remove an attachment from a pending overtime request',
+  })
+  @ApiParam({ name: 'id', description: 'Overtime request UUID' })
+  @ApiBody({ type: RemoveAttachmentDto })
+  @ApiOkResponse({
+    description: 'Updated overtime request with the attachment removed',
+    schema: { example: OVERTIME_EXAMPLE },
+  })
+  @ApiNotFoundResponse({ description: 'Overtime request not found' })
+  @ApiBadRequestResponse({ description: 'URL not found on this request' })
+  @ApiForbiddenResponse({
+    description: 'Not your request, or request is not in pending status',
+  })
+  async removeAttachment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RemoveAttachmentDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.overtimeService.removeOvertimeAttachment(
+      id,
+      req.user.id,
+      req.user.tenant_id,
+      dto.url,
     );
   }
 }
