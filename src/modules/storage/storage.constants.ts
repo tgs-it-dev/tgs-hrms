@@ -33,6 +33,7 @@ export const FILE_URL_FIELD_NAMES = [
   "proofDocuments",
   "documents",
   "leave-documents",
+  "attachments",
 ] as const;
 
 export type FileUrlFieldName = (typeof FILE_URL_FIELD_NAMES)[number];
