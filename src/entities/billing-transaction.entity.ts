@@ -40,11 +40,19 @@ export class BillingTransaction {
   @Column({ type: 'varchar', length: 3, default: 'USD' })
   currency: string;
 
+  // ── Legacy Stripe fields (retained for backward compat) ──────────────────────
   @Column({ type: 'varchar', nullable: true })
   stripe_charge_id: string | null;
 
   @Column({ type: 'varchar', nullable: true })
   stripe_customer_id: string | null;
+
+  // ── PayPal fields ────────────────────────────────────────────────────────────
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  paypal_order_id: string | null;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  paypal_capture_id: string | null;
 
   @Column({ type: 'uuid', nullable: true })
   employee_id: string | null;
@@ -56,7 +64,7 @@ export class BillingTransaction {
   error_message: string | null;
 
   @Column({ type: 'jsonb', nullable: true })
-  metadata: Record<string, any> | null;
+  metadata: Record<string, unknown> | null;
 
   @CreateDateColumn()
   created_at: Date;
@@ -64,4 +72,3 @@ export class BillingTransaction {
   @UpdateDateColumn()
   updated_at: Date;
 }
-

@@ -113,7 +113,7 @@ export class EnvironmentVariables {
   @IsOptional()
   FRONTEND_URL: string;
 
-  // Stripe
+  // Stripe (legacy — retained for backward compat with existing records)
   @IsString()
   @IsOptional()
   STRIPE_SECRET_KEY: string;
@@ -121,6 +121,51 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   STRIPE_WEBHOOK_SECRET: string;
+
+  // PayPal
+  @IsString()
+  @IsOptional()
+  PAYPAL_CLIENT_ID: string;
+
+  @IsString()
+  @IsOptional()
+  PAYPAL_CLIENT_SECRET: string;
+
+  @IsString()
+  @IsOptional()
+  PAYPAL_ENV: string;
+
+  @IsString()
+  @IsOptional()
+  PAYPAL_WEBHOOK_ID: string;
+
+  @IsString()
+  @IsOptional()
+  PAYPAL_BASIC_PLAN_ID: string;
+
+  @IsString()
+  @IsOptional()
+  PAYPAL_PRO_PLAN_ID: string;
+
+  @IsString()
+  @IsOptional()
+  PAYPAL_ENTERPRISE_PLAN_ID: string;
+
+  @IsString()
+  @IsOptional()
+  PAYPAL_RETURN_URL: string;
+
+  @IsString()
+  @IsOptional()
+  PAYPAL_CANCEL_URL: string;
+
+  @IsString()
+  @IsOptional()
+  PAYPAL_ADDON_RETURN_URL: string;
+
+  @IsString()
+  @IsOptional()
+  PAYPAL_ADDON_CANCEL_URL: string;
 
   // AWS S3 (file storage)
   @IsString()

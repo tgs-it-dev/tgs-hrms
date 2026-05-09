@@ -7,10 +7,10 @@ import { CompanyDetails } from '../../entities/company-details.entity';
 import { Tenant } from '../../entities/tenant.entity';
 import { User } from '../../entities/user.entity';
 import { Role } from '../../entities/role.entity';
-import { SubscriptionPlan } from '../../entities/subscription-plan.entity';
 import { JwtModule } from '@nestjs/jwt';
 import { TenantModule } from '../tenant/tenant.module';
 import { SystemSettingsModule } from '../system/system-settings/system-settings.module';
+import { PaymentModule } from '../payment/payment.module';
 
 @Module({
   imports: [
@@ -20,7 +20,6 @@ import { SystemSettingsModule } from '../system/system-settings/system-settings.
       Tenant,
       User,
       Role,
-      SubscriptionPlan,
     ]),
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'default_secret',
@@ -28,6 +27,7 @@ import { SystemSettingsModule } from '../system/system-settings/system-settings.
     }),
     TenantModule,
     SystemSettingsModule,
+    PaymentModule,
   ],
   controllers: [SignupController],
   providers: [SignupService],

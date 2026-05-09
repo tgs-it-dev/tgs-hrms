@@ -1,0 +1,5 @@
+export enum PaymentType {
+  SUBSCRIPTION = 'SUBSCRIPTION',
+  ADDON = 'ADDON',
+  EMPLOYEE_SLOT = 'EMPLOYEE_SLOT',
+}

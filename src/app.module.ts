@@ -38,6 +38,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { GeofenceModule } from './modules/geofence/geofence.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { AnnouncementModule } from './modules/announcement/announcement.module';
+import { PaymentModule } from './modules/payment/payment.module';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { SystemLoggingInterceptor } from './common/interceptors/system-logging.interceptor';
 import { SignedFileUrlInterceptor } from "./modules/storage/signed-file-url.interceptor";
@@ -165,6 +166,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     GeofenceModule,
     NotificationModule,
     AnnouncementModule,
+    PaymentModule,
   ],
   providers: [
     {

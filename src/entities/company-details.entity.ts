@@ -30,6 +30,11 @@ export class CompanyDetails {
   @Column({ type: 'boolean', default: false })
   is_paid: boolean;
 
+  /** Active payment provider identifier. */
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  payment_provider: string | null;
+
+  // ── Legacy Stripe fields (kept for backward compat with existing records) ───
   @Column({ type: 'varchar', nullable: true })
   stripe_customer_id: string | null;
 
@@ -38,6 +43,15 @@ export class CompanyDetails {
 
   @Column({ type: 'varchar', nullable: true })
   stripe_payment_intent_id: string | null;
+
+  // ── PayPal fields ────────────────────────────────────────────────────────────
+  /** PayPal subscription ID (I-...) returned after subscription creation. */
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  paypal_subscription_id: string | null;
+
+  /** PayPal order ID for one-time payments. */
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  paypal_order_id: string | null;
 
   @Column({ type: 'varchar', nullable: true })
   logo_url: string | null;
