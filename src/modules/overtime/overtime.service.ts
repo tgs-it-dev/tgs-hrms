@@ -21,6 +21,7 @@ import { TenantDatabaseService } from '../../common/services/tenant-database.ser
 import { WorkflowService } from '../workflow/workflow.service';
 import { NotificationService } from '../notification/notification.service';
 import { CreateOvertimeDto } from './dto/create-overtime.dto';
+import { UpdateOvertimeDto } from './dto/update-overtime.dto';
 import { DocumentUploadService } from '../storage/document-upload.service';
 
 @Injectable()
@@ -353,6 +354,196 @@ export class OvertimeService {
       }
 
       return saved;
+    });
+  }
+
+  async editOvertimeRequest(
+    id: string,
+    employeeId: string,
+    tenantId: string,
+    dto: UpdateOvertimeDto,
+    files?: Express.Multer.File[],
+  ): Promise<Overtime> {
+    const hasHours = dto.hours !== undefined;
+    const hasEndDate = dto.end_date !== undefined;
+
+    if (hasHours && hasEndDate) {
+      throw new BadRequestException(
+        'Provide either hours (single-day mode) or end_date (range mode), not both.',
+      );
+    }
+
+    return this.runInTenantContext(tenantId, async (repo) => {
+      const overtime = await repo.findOne({
+        where: { id, tenant_id: tenantId },
+      });
+      if (!overtime) throw new NotFoundException('Overtime request not found');
+
+      if (overtime.employee_id !== employeeId) {
+        throw new ForbiddenException(
+          'You can only edit your own overtime requests',
+        );
+      }
+
+      if (overtime.status !== OvertimeStatus.PENDING) {
+        throw new ForbiddenException(
+          `Only pending overtime requests can be edited. Current status: "${overtime.status}"`,
+        );
+      }
+
+      const newStart = dto.start_date
+        ? new Date(dto.start_date)
+        : overtime.start_date;
+
+      if (hasHours) {
+        // ── Hours mode ────────────────────────────────────────────────────────
+        const dayOfWeek = newStart.getUTCDay();
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+          throw new BadRequestException(
+            `Overtime can only be requested on weekends. ${newStart.toISOString().slice(0, 10)} is a weekday.`,
+          );
+        }
+        overtime.start_date = newStart;
+        overtime.end_date = newStart;
+        overtime.hours = dto.hours!;
+      } else if (hasEndDate) {
+        // ── Range mode ────────────────────────────────────────────────────────
+        const newEnd = new Date(dto.end_date!);
+        if (newEnd < newStart) {
+          throw new BadRequestException('end_date cannot be before start_date');
+        }
+        const weekday = this.findWeekdayInRange(newStart, newEnd);
+        if (weekday) {
+          throw new BadRequestException(
+            `Overtime can only cover weekends. ${weekday.toISOString().slice(0, 10)} is a weekday.`,
+          );
+        }
+        const totalDays =
+          Math.round((newEnd.getTime() - newStart.getTime()) / 86_400_000) + 1;
+        overtime.start_date = newStart;
+        overtime.end_date = newEnd;
+        overtime.hours = totalDays * 8;
+      } else if (dto.start_date) {
+        // ── start_date only — keep existing mode ──────────────────────────────
+        const existingEnd = overtime.end_date;
+        const isSingleDay =
+          overtime.start_date.toISOString().slice(0, 10) ===
+          overtime.end_date.toISOString().slice(0, 10);
+
+        if (isSingleDay) {
+          const dayOfWeek = newStart.getUTCDay();
+          if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+            throw new BadRequestException(
+              `Overtime can only be requested on weekends. ${newStart.toISOString().slice(0, 10)} is a weekday.`,
+            );
+          }
+          overtime.start_date = newStart;
+          overtime.end_date = newStart;
+        } else {
+          const weekday = this.findWeekdayInRange(newStart, existingEnd);
+          if (weekday) {
+            throw new BadRequestException(
+              `Overtime can only cover weekends. ${weekday.toISOString().slice(0, 10)} is a weekday.`,
+            );
+          }
+          const totalDays =
+            Math.round(
+              (existingEnd.getTime() - newStart.getTime()) / 86_400_000,
+            ) + 1;
+          overtime.start_date = newStart;
+          overtime.hours = totalDays * 8;
+        }
+      }
+
+      if (dto.reason !== undefined) overtime.reason = dto.reason;
+
+      // ── Overlap check (only when dates changed) ───────────────────────────
+      if (dto.start_date || hasEndDate) {
+        const startStr = overtime.start_date.toISOString().slice(0, 10);
+        const endStr = overtime.end_date.toISOString().slice(0, 10);
+
+        const overlap = await repo
+          .createQueryBuilder('o')
+          .where('o.employee_id = :employeeId', { employeeId })
+          .andWhere('o.tenant_id = :tenantId', { tenantId })
+          .andWhere('o.id != :id', { id })
+          .andWhere('o.status IN (:...statuses)', {
+            statuses: [OvertimeStatus.PENDING, OvertimeStatus.APPROVED],
+          })
+          .andWhere('o.start_date <= :endDate', { endDate: endStr })
+          .andWhere('o.end_date >= :startDate', { startDate: startStr })
+          .getOne();
+
+        if (overlap) {
+          throw new ForbiddenException(
+            overlap.status === OvertimeStatus.APPROVED
+              ? 'You already have an approved overtime request that overlaps these dates'
+              : 'You already have a pending overtime request that overlaps these dates',
+          );
+        }
+      }
+
+      // ── New attachment upload ─────────────────────────────────────────────
+      if (files?.length) {
+        try {
+          const uploaded = await this.fileUploadService.uploadDocuments(
+            files,
+            'overtime-documents',
+            overtime.id,
+            employeeId,
+          );
+          overtime.attachments = [...overtime.attachments, ...uploaded];
+        } catch (err: unknown) {
+          this.logger.warn(
+            `Failed to upload overtime attachments for ${overtime.id}: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
+
+      return repo.save(overtime);
+    });
+  }
+
+  async removeOvertimeAttachment(
+    id: string,
+    employeeId: string,
+    tenantId: string,
+    url: string,
+  ): Promise<Overtime> {
+    return this.runInTenantContext(tenantId, async (repo) => {
+      const overtime = await repo.findOne({
+        where: { id, tenant_id: tenantId },
+      });
+      if (!overtime) throw new NotFoundException('Overtime request not found');
+
+      if (overtime.employee_id !== employeeId) {
+        throw new ForbiddenException(
+          'You can only edit your own overtime requests',
+        );
+      }
+
+      if (overtime.status !== OvertimeStatus.PENDING) {
+        throw new ForbiddenException(
+          `Only pending overtime requests can be edited. Current status: "${overtime.status}"`,
+        );
+      }
+
+      if (!overtime.attachments.includes(url)) {
+        throw new BadRequestException(
+          'Attachment URL not found on this request',
+        );
+      }
+
+      try {
+        await this.fileUploadService.deleteDocument(url);
+      } catch (err: unknown) {
+        this.logger.warn(
+          `Failed to delete overtime attachment ${url}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+
+      overtime.attachments = overtime.attachments.filter((a) => a !== url);
+      return repo.save(overtime);
     });
   }
 
