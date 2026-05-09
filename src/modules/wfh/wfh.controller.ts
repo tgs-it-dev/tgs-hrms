@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Body,
   Query,
@@ -31,6 +32,8 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 
 import { WfhService } from './wfh.service';
 import { CreateWfhDto } from './dto/create-wfh.dto';
+import { UpdateWfhDto } from './dto/update-wfh.dto';
+import { RemoveAttachmentDto } from '../../common/dto/remove-attachment.dto';
 import { WfhStatus } from '../../common/constants/enums';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -202,6 +205,72 @@ export class WfhController {
     return this.wfhService.getWfhById(id, req.user.tenant_id);
   }
 
+  @Patch(':id')
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Edit a pending WFH request' })
+  @ApiParam({ name: 'id', description: 'WFH request UUID' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        start_date: { type: 'string', format: 'date', example: '2026-05-12' },
+        end_date: { type: 'string', format: 'date', example: '2026-05-14' },
+        reason: { type: 'string', minLength: 5, maxLength: 500 },
+        attachments_to_remove: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'URLs of existing attachments to delete',
+        },
+        attachments: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+          description: 'New files to add (max 5 MB each, up to 10)',
+        },
+      },
+    },
+  })
+  @ApiOkResponse({
+    description: 'Updated WFH request',
+    schema: { example: WFH_EXAMPLE },
+  })
+  @ApiNotFoundResponse({ description: 'WFH request not found' })
+  @ApiForbiddenResponse({
+    description: 'Not your request, or request is not in pending status',
+  })
+  @ApiBadRequestResponse({
+    description: 'Validation error — e.g. end_date before start_date',
+  })
+  @UseInterceptors(
+    FilesInterceptor('attachments', 10, {
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        if (!file.mimetype?.startsWith('image/')) {
+          return cb(
+            new BadRequestException(
+              `Invalid file type: ${file.mimetype ?? 'unknown'}. Only images are allowed.`,
+            ),
+            false,
+          );
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  async edit(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateWfhDto,
+    @Request() req: AuthenticatedRequest,
+    @UploadedFiles() files?: Express.Multer.File[],
+  ) {
+    return this.wfhService.editWfhRequest(
+      id,
+      req.user.id,
+      req.user.tenant_id,
+      dto,
+      files,
+    );
+  }
+
   @Patch(':id/cancel')
   @ApiOperation({ summary: 'Cancel a pending WFH request' })
   @ApiParam({ name: 'id', description: 'WFH request UUID' })
@@ -221,6 +290,32 @@ export class WfhController {
       id,
       req.user.id,
       req.user.tenant_id,
+    );
+  }
+
+  @Delete(':id/attachments')
+  @ApiOperation({ summary: 'Remove an attachment from a pending WFH request' })
+  @ApiParam({ name: 'id', description: 'WFH request UUID' })
+  @ApiBody({ type: RemoveAttachmentDto })
+  @ApiOkResponse({
+    description: 'Updated WFH request with the attachment removed',
+    schema: { example: WFH_EXAMPLE },
+  })
+  @ApiNotFoundResponse({ description: 'WFH request not found' })
+  @ApiBadRequestResponse({ description: 'URL not found on this request' })
+  @ApiForbiddenResponse({
+    description: 'Not your request, or request is not in pending status',
+  })
+  async removeAttachment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RemoveAttachmentDto,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.wfhService.removeWfhAttachment(
+      id,
+      req.user.id,
+      req.user.tenant_id,
+      dto.url,
     );
   }
 }
