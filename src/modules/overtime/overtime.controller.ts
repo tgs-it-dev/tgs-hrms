@@ -20,6 +20,12 @@ import {
   ApiQuery,
   ApiConsumes,
   ApiBody,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiNotFoundResponse,
+  ApiForbiddenResponse,
+  ApiBadRequestResponse,
+  ApiParam,
 } from '@nestjs/swagger';
 import { FilesInterceptor } from '@nestjs/platform-express';
 
@@ -30,6 +36,28 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthenticatedRequest } from '../../common/types/request.types';
 
+const OVERTIME_EXAMPLE = {
+  id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  employee_id: 'b2c3d4e5-f6a7-8901-bcde-f12345678901',
+  tenant_id: 'c3d4e5f6-a7b8-9012-cdef-123456789012',
+  start_date: '2026-05-10',
+  end_date: '2026-05-10',
+  hours: 4,
+  reason: 'Critical deployment requiring after-hours work',
+  status: 'pending',
+  attachments: [],
+  workflow_request_id: 'd4e5f6a7-b8c9-0123-defa-234567890123',
+  created_at: '2026-05-09T08:00:00.000Z',
+  updated_at: '2026-05-09T08:00:00.000Z',
+};
+
+const PAGINATED_OVERTIME_EXAMPLE = {
+  items: [OVERTIME_EXAMPLE],
+  total: 1,
+  page: 1,
+  limit: 20,
+};
+
 @ApiTags('Overtime')
 @ApiBearerAuth()
 @Controller('overtime')
@@ -38,23 +66,64 @@ export class OvertimeController {
 
   @Post()
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Submit an overtime request' })
+  @ApiOperation({
+    summary: 'Submit an overtime request',
+    description: `Two mutually exclusive modes:
+- **Hours mode** — provide \`start_date\` + \`hours\`. The date must be a Saturday or Sunday.
+- **Range mode** — provide \`start_date\` + \`end_date\`. Every day in the range must be Saturday or Sunday. Hours are auto-calculated (8 h per day).
+
+Providing both \`hours\` and \`end_date\`, or neither, will return a 400 error.`,
+  })
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['start_date', 'end_date', 'hours', 'reason'],
+      required: ['start_date', 'reason'],
       properties: {
-        start_date: { type: 'string', format: 'date' },
-        end_date: { type: 'string', format: 'date' },
-        hours: { type: 'number' },
-        reason: { type: 'string' },
+        start_date: {
+          type: 'string',
+          format: 'date',
+          example: '2026-05-10',
+          description: 'Overtime date — must be Saturday or Sunday (ISO 8601)',
+        },
+        end_date: {
+          type: 'string',
+          format: 'date',
+          example: '2026-05-11',
+          description:
+            'Range mode only — last date of the range. Every day must be Saturday or Sunday. Omit when providing hours.',
+        },
+        hours: {
+          type: 'number',
+          minimum: 0.5,
+          maximum: 24,
+          example: 4,
+          description:
+            'Hours mode only — overtime hours for start_date. Omit when providing end_date.',
+        },
+        reason: {
+          type: 'string',
+          minLength: 5,
+          maxLength: 500,
+          example: 'Critical deployment requiring after-hours work',
+        },
         attachments: {
           type: 'array',
           items: { type: 'string', format: 'binary' },
-          description: 'Optional supporting documents (max 5 MB each)',
+          description: 'Optional supporting images (max 5 MB each, up to 10)',
         },
       },
     },
+  })
+  @ApiCreatedResponse({
+    description: 'Overtime request created and workflow initiated',
+    schema: { example: OVERTIME_EXAMPLE },
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Validation error — e.g. both hours and end_date provided, weekday in range, workflow disabled',
+  })
+  @ApiForbiddenResponse({
+    description: 'An overlapping pending or approved request already exists',
   })
   @UseInterceptors(
     FilesInterceptor('attachments', 10, {
@@ -90,8 +159,12 @@ export class OvertimeController {
   @ApiOperation({
     summary: 'List overtime requests submitted by the current user',
   })
-  @ApiQuery({ name: 'page', required: false })
-  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiOkResponse({
+    description: 'Paginated list of overtime requests for the logged-in user',
+    schema: { example: PAGINATED_OVERTIME_EXAMPLE },
+  })
   async getMyRequests(
     @Req() req: AuthenticatedRequest,
     @Query('page') page?: string,
@@ -111,9 +184,13 @@ export class OvertimeController {
   @ApiOperation({
     summary: 'List all overtime requests across the tenant (admin/manager)',
   })
-  @ApiQuery({ name: 'page', required: false })
-  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
   @ApiQuery({ name: 'status', enum: OvertimeStatus, required: false })
+  @ApiOkResponse({
+    description: 'Paginated list of all overtime requests with employee info',
+    schema: { example: PAGINATED_OVERTIME_EXAMPLE },
+  })
   async getAllRequests(
     @Req() req: AuthenticatedRequest,
     @Query('page') page?: string,
@@ -130,6 +207,12 @@ export class OvertimeController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a single overtime request by ID' })
+  @ApiParam({ name: 'id', description: 'Overtime request UUID' })
+  @ApiOkResponse({
+    description: 'Overtime request detail',
+    schema: { example: OVERTIME_EXAMPLE },
+  })
+  @ApiNotFoundResponse({ description: 'Overtime request not found' })
   async getById(
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req: AuthenticatedRequest,
@@ -139,6 +222,15 @@ export class OvertimeController {
 
   @Patch(':id/cancel')
   @ApiOperation({ summary: 'Cancel a pending overtime request' })
+  @ApiParam({ name: 'id', description: 'Overtime request UUID' })
+  @ApiOkResponse({
+    description: 'Overtime request cancelled',
+    schema: { example: { ...OVERTIME_EXAMPLE, status: 'cancelled' } },
+  })
+  @ApiNotFoundResponse({ description: 'Overtime request not found' })
+  @ApiForbiddenResponse({
+    description: 'Not your request, or request is not in pending status',
+  })
   async cancel(
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req: AuthenticatedRequest,
