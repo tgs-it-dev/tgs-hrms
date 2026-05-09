@@ -20,6 +20,12 @@ import {
   ApiQuery,
   ApiConsumes,
   ApiBody,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiNotFoundResponse,
+  ApiForbiddenResponse,
+  ApiBadRequestResponse,
+  ApiParam,
 } from '@nestjs/swagger';
 import { FilesInterceptor } from '@nestjs/platform-express';
 
@@ -29,6 +35,27 @@ import { WfhStatus } from '../../common/constants/enums';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthenticatedRequest } from 'src/common/types/request.types';
+
+const WFH_EXAMPLE = {
+  id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  employee_id: 'b2c3d4e5-f6a7-8901-bcde-f12345678901',
+  tenant_id: 'c3d4e5f6-a7b8-9012-cdef-123456789012',
+  start_date: '2026-05-12',
+  end_date: '2026-05-14',
+  reason: 'Working remotely during office renovation',
+  status: 'pending',
+  attachments: [],
+  workflow_request_id: 'd4e5f6a7-b8c9-0123-defa-234567890123',
+  created_at: '2026-05-09T08:00:00.000Z',
+  updated_at: '2026-05-09T08:00:00.000Z',
+};
+
+const PAGINATED_WFH_EXAMPLE = {
+  items: [WFH_EXAMPLE],
+  total: 1,
+  page: 1,
+  limit: 20,
+};
 
 @ApiTags('WFH')
 @ApiBearerAuth()
@@ -44,16 +71,43 @@ export class WfhController {
       type: 'object',
       required: ['start_date', 'end_date', 'reason'],
       properties: {
-        start_date: { type: 'string', format: 'date' },
-        end_date: { type: 'string', format: 'date' },
-        reason: { type: 'string' },
+        start_date: {
+          type: 'string',
+          format: 'date',
+          example: '2026-05-12',
+          description: 'First day of WFH (ISO 8601)',
+        },
+        end_date: {
+          type: 'string',
+          format: 'date',
+          example: '2026-05-14',
+          description: 'Last day of WFH — must be >= start_date (ISO 8601)',
+        },
+        reason: {
+          type: 'string',
+          minLength: 5,
+          maxLength: 500,
+          example: 'Working remotely during office renovation',
+        },
         attachments: {
           type: 'array',
           items: { type: 'string', format: 'binary' },
-          description: 'Optional supporting documents (max 5 MB each)',
+          description: 'Optional supporting images (max 5 MB each, up to 10)',
         },
       },
     },
+  })
+  @ApiCreatedResponse({
+    description: 'WFH request created and workflow initiated',
+    schema: { example: WFH_EXAMPLE },
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Validation error — e.g. end_date before start_date, workflow disabled',
+  })
+  @ApiForbiddenResponse({
+    description:
+      'An overlapping pending or approved WFH request already exists',
   })
   @UseInterceptors(
     FilesInterceptor('attachments', 10, {
@@ -87,8 +141,12 @@ export class WfhController {
   // must be before /:id so NestJS does not match 'me' as a UUID param
   @Get('me')
   @ApiOperation({ summary: 'List WFH requests submitted by the current user' })
-  @ApiQuery({ name: 'page', required: false })
-  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiOkResponse({
+    description: 'Paginated list of WFH requests for the logged-in user',
+    schema: { example: PAGINATED_WFH_EXAMPLE },
+  })
   async getMyRequests(
     @Request() req: AuthenticatedRequest,
     @Query('page') page?: string,
@@ -108,9 +166,13 @@ export class WfhController {
   @ApiOperation({
     summary: 'List all WFH requests across the tenant (admin/manager)',
   })
-  @ApiQuery({ name: 'page', required: false })
-  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
   @ApiQuery({ name: 'status', enum: WfhStatus, required: false })
+  @ApiOkResponse({
+    description: 'Paginated list of all WFH requests with employee info',
+    schema: { example: PAGINATED_WFH_EXAMPLE },
+  })
   async getAllRequests(
     @Request() req: AuthenticatedRequest,
     @Query('page') page?: string,
@@ -127,6 +189,12 @@ export class WfhController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a single WFH request by ID' })
+  @ApiParam({ name: 'id', description: 'WFH request UUID' })
+  @ApiOkResponse({
+    description: 'WFH request detail',
+    schema: { example: WFH_EXAMPLE },
+  })
+  @ApiNotFoundResponse({ description: 'WFH request not found' })
   async getById(
     @Param('id', ParseUUIDPipe) id: string,
     @Request() req: AuthenticatedRequest,
@@ -136,6 +204,15 @@ export class WfhController {
 
   @Patch(':id/cancel')
   @ApiOperation({ summary: 'Cancel a pending WFH request' })
+  @ApiParam({ name: 'id', description: 'WFH request UUID' })
+  @ApiOkResponse({
+    description: 'WFH request cancelled',
+    schema: { example: { ...WFH_EXAMPLE, status: 'cancelled' } },
+  })
+  @ApiNotFoundResponse({ description: 'WFH request not found' })
+  @ApiForbiddenResponse({
+    description: 'Not your request, or request is not in pending status',
+  })
   async cancel(
     @Param('id', ParseUUIDPipe) id: string,
     @Request() req: AuthenticatedRequest,
