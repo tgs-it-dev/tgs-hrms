@@ -47,7 +47,16 @@ export class WorkflowController {
   @UseGuards(RolesGuard)
   @Roles('manager', 'admin', 'hr-admin', 'system-admin', 'network-admin')
   @ApiOperation({
-    summary: `List pending requests awaiting approval by the current user's role`,
+    summary: `List approval requests for the current user's role`,
+    description: `**view=pending** (default) — requests awaiting this user's action now.
+**view=history** — requests on which this user has already approved or rejected a step.
+**view=all** — both combined, sorted by status priority: pending → in_review → approved → rejected.`,
+  })
+  @ApiQuery({
+    name: 'view',
+    required: false,
+    enum: ['pending', 'history', 'all'],
+    description: 'pending (default) | history | all',
   })
   @ApiQuery({
     name: 'type',
@@ -66,7 +75,7 @@ export class WorkflowController {
     description: 'Items per page (default 20)',
   })
   @ApiOkResponse({
-    description: `Paginated list of requests pending the current user's approval`,
+    description: `Paginated list of approval requests`,
     schema: {
       example: {
         items: [
@@ -101,8 +110,50 @@ export class WorkflowController {
               attachments: [],
             },
           },
+          {
+            id: 'd4e5f6a7-b8c9-0123-defa-234567890123',
+            request_type: 'overtime',
+            status: 'approved',
+            requestor_id: 'b2c3d4e5-f6a7-8901-bcde-f12345678901',
+            tenant_id: 'c3d4e5f6-a7b8-9012-cdef-123456789012',
+            current_step_order: 2,
+            total_steps: 2,
+            created_at: '2026-05-07T10:00:00.000Z',
+            updated_at: '2026-05-08T11:00:00.000Z',
+            steps: [
+              {
+                id: 'step-uuid-2',
+                step_order: 1,
+                step_label: 'Manager Approval',
+                approver_role: 'manager',
+                status: 'approved',
+                approver_id: 'mgr-uuid',
+                remarks: 'Looks good',
+                acted_at: '2026-05-08T11:00:00.000Z',
+              },
+              {
+                id: 'step-uuid-3',
+                step_order: 2,
+                step_label: 'HR Approval',
+                approver_role: 'hr-admin',
+                status: 'approved',
+                approver_id: 'hr-uuid',
+                remarks: null,
+                acted_at: '2026-05-08T12:00:00.000Z',
+              },
+            ],
+            request_data: {
+              id: 'd4e5f6a7-b8c9-0123-defa-234567890123',
+              start_date: '2026-05-10',
+              end_date: '2026-05-10',
+              hours: 4,
+              reason: 'Critical deployment on Saturday',
+              status: 'approved',
+              attachments: [],
+            },
+          },
         ],
-        total: 5,
+        total: 2,
         page: 1,
         limit: 20,
       },
@@ -110,13 +161,16 @@ export class WorkflowController {
   })
   async getPendingApprovals(
     @Request() req: AuthenticatedRequest,
+    @Query('view') view?: 'pending' | 'history' | 'all',
     @Query('type') type?: WorkflowRequestType,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     return this.workflowService.getPendingStepsForRole(
       req.user.tenant_id,
+      req.user.id,
       req.user.role,
+      view ?? 'pending',
       type,
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 20,
