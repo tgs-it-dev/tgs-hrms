@@ -611,36 +611,68 @@ export class WorkflowController {
 
   // ── Workflow engine toggle ────────────────────────────────────────────────
 
-  @Get('settings/enabled')
+  @Get('settings')
   @UseGuards(RolesGuard)
+  @Roles('admin', 'hr-admin', 'system-admin', 'network-admin')
   @ApiOperation({
-    summary: 'Check whether the workflow engine is enabled for this tenant',
+    summary: 'Get workflow enabled status for all request types',
   })
-  @ApiOkResponse({ description: '{ workflow_enabled: boolean }' })
-  async getWorkflowEnabled(@Request() req: AuthenticatedRequest) {
-    return this.workflowService.getWorkflowEnabled(req.user.tenant_id);
+  @ApiOkResponse({
+    description:
+      '{ leave_workflow_enabled, wfh_workflow_enabled, overtime_workflow_enabled }',
+    schema: {
+      example: {
+        leave_workflow_enabled: true,
+        wfh_workflow_enabled: false,
+        overtime_workflow_enabled: true,
+      },
+    },
+  })
+  async getWorkflowSettings(@Request() req: AuthenticatedRequest) {
+    return this.workflowService.getWorkflowSettings(req.user.tenant_id);
   }
 
-  @Patch('settings/enabled')
+  @Patch('settings')
   @UseGuards(RolesGuard)
   @Roles('admin', 'system-admin')
   @ApiOperation({
-    summary: 'Enable or disable the workflow engine for this tenant',
+    summary: 'Enable or disable workflow for a specific request type',
     description:
-      'When disabled, leave approvals fall back to the legacy direct-approve/reject flow.',
+      'Toggles the workflow engine for leave, wfh, or overtime independently. ' +
+      'When disabled for a type, requests of that type skip workflow and go directly to approved/rejected.',
   })
   @ApiBody({
     schema: {
       type: 'object',
-      properties: { enabled: { type: 'boolean' } },
-      required: ['enabled'],
+      required: ['request_type', 'enabled'],
+      properties: {
+        request_type: {
+          enum: Object.values(WorkflowRequestType),
+          example: WorkflowRequestType.LEAVE,
+        },
+        enabled: { type: 'boolean', example: true },
+      },
     },
   })
-  @ApiOkResponse({ description: '{ workflow_enabled: boolean }' })
+  @ApiOkResponse({
+    description: 'Updated workflow settings for all types',
+    schema: {
+      example: {
+        leave_workflow_enabled: true,
+        wfh_workflow_enabled: false,
+        overtime_workflow_enabled: true,
+      },
+    },
+  })
   async setWorkflowEnabled(
+    @Body('request_type') requestType: WorkflowRequestType,
     @Body('enabled') enabled: boolean,
     @Request() req: AuthenticatedRequest,
   ) {
-    return this.workflowService.setWorkflowEnabled(req.user.tenant_id, enabled);
+    return this.workflowService.setWorkflowEnabled(
+      req.user.tenant_id,
+      requestType,
+      enabled,
+    );
   }
 }

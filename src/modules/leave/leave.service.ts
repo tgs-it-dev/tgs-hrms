@@ -53,11 +53,13 @@ export class LeaveService {
   }
 
   async isWorkflowEnabled(tenantId: string): Promise<boolean> {
-    const result = await this.dataSource.query<{ workflow_enabled: boolean }[]>(
-      `SELECT workflow_enabled FROM public.tenants WHERE id = $1 LIMIT 1`,
+    const result = await this.dataSource.query<
+      { leave_workflow_enabled: boolean }[]
+    >(
+      `SELECT leave_workflow_enabled FROM public.tenants WHERE id = $1 LIMIT 1`,
       [tenantId],
     );
-    return result[0]?.workflow_enabled ?? false;
+    return result[0]?.leave_workflow_enabled ?? false;
   }
 
   private isDirectToAdminRole(roleName: string | null | undefined): boolean {
