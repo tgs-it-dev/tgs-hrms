@@ -613,7 +613,6 @@ export class WorkflowController {
 
   @Get('settings')
   @UseGuards(RolesGuard)
-  @Roles('admin', 'hr-admin', 'system-admin', 'network-admin')
   @ApiOperation({
     summary: 'Get workflow enabled status for all request types',
   })
