@@ -60,4 +60,8 @@ export class DocumentUploadService {
     if (!documentUrls?.length) return;
     await Promise.all(documentUrls.map((url) => this.deleteDocument(url)));
   }
+
+  sameObject(urlOrPathA: string, urlOrPathB: string): boolean {
+    return this.s3.sameObject(urlOrPathA, urlOrPathB);
+  }
 }
