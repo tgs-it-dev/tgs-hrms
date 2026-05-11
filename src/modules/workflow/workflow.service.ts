@@ -555,7 +555,11 @@ export class WorkflowService {
 
           const total = sorted.length;
           const sliced = sorted.slice((page - 1) * limit, page * limit);
-          const enriched = await this.enrichWithEntityData(sliced, tenantId, em);
+          const enriched = await this.enrichWithEntityData(
+            sliced,
+            tenantId,
+            em,
+          );
           const items = await this.enrichWithWorkflowActors(enriched);
           return { items, total, page, limit };
         }
@@ -618,24 +622,31 @@ export class WorkflowService {
     return this.runInTenantContext(
       tenantId,
       async (_configRepo, requestRepo, _stepRepo, em) => {
-        const qb = requestRepo
-          .createQueryBuilder('wr')
-          .leftJoinAndSelect('wr.steps', 'step')
-          .where('wr.tenant_id = :tenantId', { tenantId })
-          .andWhere('wr.requestor_id = :requestorId', { requestorId })
-          .orderBy('wr.created_at', 'DESC')
-          .addOrderBy('step.step_order', 'ASC');
+        const applyFilters = (
+          qb: ReturnType<typeof requestRepo.createQueryBuilder>,
+        ) => {
+          qb.where('wr.tenant_id = :tenantId', { tenantId }).andWhere(
+            'wr.requestor_id = :requestorId',
+            { requestorId },
+          );
+          if (requestType)
+            qb.andWhere('wr.request_type = :requestType', { requestType });
+          if (status) qb.andWhere('wr.status = :status', { status });
+          return qb;
+        };
 
-        if (requestType) {
-          qb.andWhere('wr.request_type = :requestType', { requestType });
-        }
+        // Count on a join-free QB — avoids TypeORM counting each step row separately
+        const total = await applyFilters(
+          requestRepo.createQueryBuilder('wr'),
+        ).getCount();
 
-        if (status) {
-          qb.andWhere('wr.status = :status', { status });
-        }
-
-        const total = await qb.getCount();
-        const raw = await qb
+        const raw = await applyFilters(
+          requestRepo
+            .createQueryBuilder('wr')
+            .leftJoinAndSelect('wr.steps', 'step')
+            .orderBy('wr.created_at', 'DESC')
+            .addOrderBy('step.step_order', 'ASC'),
+        )
           .skip((page - 1) * limit)
           .take(limit)
           .getMany();
@@ -771,7 +782,9 @@ export class WorkflowService {
   }
 
   private async enrichWithWorkflowActors(
-    items: Array<WorkflowRequest & { request_data: Record<string, unknown> | null }>,
+    items: Array<
+      WorkflowRequest & { request_data: Record<string, unknown> | null }
+    >,
   ): Promise<EnrichedRequest[]> {
     if (items.length === 0) return [];
     const userIds = new Set<string>();
