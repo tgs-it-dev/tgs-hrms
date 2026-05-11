@@ -308,14 +308,19 @@ export class OvertimeService {
     });
   }
 
-  async getOvertimeById(id: string, tenantId: string): Promise<Overtime> {
+  async getOvertimeById(id: string, tenantId: string) {
     return this.runInTenantContext(tenantId, async (repo) => {
       const overtime = await repo.findOne({
         where: { id, tenant_id: tenantId },
         relations: ['employee'],
       });
       if (!overtime) throw new NotFoundException('Overtime request not found');
-      return overtime;
+
+      const workflow = overtime.workflow_request_id
+        ? await this.workflowService.getWorkflowDetailForEntity(id, tenantId)
+        : null;
+
+      return { ...overtime, workflow };
     });
   }
 

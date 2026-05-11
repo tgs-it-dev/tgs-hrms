@@ -767,7 +767,7 @@ export class LeaveService {
     });
   }
 
-  async getLeaveById(id: string, employeeId: string, tenantId: string): Promise<Leave> {
+  async getLeaveById(id: string, employeeId: string, tenantId: string) {
     return this.runInTenantContext(tenantId, async (leaveRepo) => {
       const leave = await leaveRepo.findOne({
         where: { id, tenantId },
@@ -785,7 +785,11 @@ export class LeaveService {
         }
       }
 
-      return leave;
+      const workflow = leave.workflowRequestId
+        ? await this.workflowService.getWorkflowDetailForEntity(id, tenantId)
+        : null;
+
+      return { ...leave, workflow };
     });
   }
 

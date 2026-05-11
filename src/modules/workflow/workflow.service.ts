@@ -17,6 +17,42 @@ import {
   WorkflowRequestStatus,
   WorkflowStepStatus,
 } from '../../common/constants/enums';
+
+export type WorkflowActor = {
+  id: string;
+  first_name: string;
+  last_name: string;
+};
+
+export type WorkflowStepDetail = {
+  id: string;
+  step_order: number;
+  approver_role: string;
+  step_label: string;
+  status: WorkflowStepStatus;
+  approver_id: string | null;
+  remarks: string | null;
+  acted_at: Date | null;
+  approver: WorkflowActor | null;
+};
+
+export type WorkflowSummary = {
+  id: string;
+  status: WorkflowRequestStatus;
+  request_type: WorkflowRequestType;
+  current_step_order: number;
+  total_steps: number;
+  requestor: WorkflowActor | null;
+  steps: WorkflowStepDetail[];
+};
+
+type EnrichedStep = WorkflowStep & { approver: WorkflowActor | null };
+
+export type EnrichedRequest = WorkflowRequest & {
+  requestor: WorkflowActor | null;
+  request_data: Record<string, unknown> | null;
+  steps: EnrichedStep[];
+};
 import { TenantDatabaseService } from '../../common/services/tenant-database.service';
 import { UpsertWorkflowConfigDto } from './dto/upsert-workflow-config.dto';
 import { StepAction } from './dto/act-on-step.dto';
@@ -419,9 +455,7 @@ export class WorkflowService {
     page = 1,
     limit = 20,
   ): Promise<{
-    items: Array<
-      WorkflowRequest & { request_data: Record<string, unknown> | null }
-    >;
+    items: EnrichedRequest[];
     total: number;
     page: number;
     limit: number;
@@ -489,12 +523,13 @@ export class WorkflowService {
 
         if (view === 'history') {
           const total = await buildHistoryBaseQb().getCount();
-          const items = await buildHistoryDataQb()
+          const raw = await buildHistoryDataQb()
             .skip((page - 1) * limit)
             .take(limit)
             .getMany();
-          const enriched = await this.enrichWithEntityData(items, tenantId, em);
-          return { items: enriched, total, page, limit };
+          const enriched = await this.enrichWithEntityData(raw, tenantId, em);
+          const items = await this.enrichWithWorkflowActors(enriched);
+          return { items, total, page, limit };
         }
 
         if (view === 'all') {
@@ -520,23 +555,21 @@ export class WorkflowService {
 
           const total = sorted.length;
           const sliced = sorted.slice((page - 1) * limit, page * limit);
-          const enriched = await this.enrichWithEntityData(
-            sliced,
-            tenantId,
-            em,
-          );
-          return { items: enriched, total, page, limit };
+          const enriched = await this.enrichWithEntityData(sliced, tenantId, em);
+          const items = await this.enrichWithWorkflowActors(enriched);
+          return { items, total, page, limit };
         }
 
         // view === 'pending' (default)
         const qb = buildPendingQb();
         const total = await qb.getCount();
-        const items = await qb
+        const raw = await qb
           .skip((page - 1) * limit)
           .take(limit)
           .getMany();
-        const enriched = await this.enrichWithEntityData(items, tenantId, em);
-        return { items: enriched, total, page, limit };
+        const enriched = await this.enrichWithEntityData(raw, tenantId, em);
+        const items = await this.enrichWithWorkflowActors(enriched);
+        return { items, total, page, limit };
       },
     );
   }
@@ -544,9 +577,7 @@ export class WorkflowService {
   async getWorkflowRequestById(
     workflowRequestId: string,
     tenantId: string,
-  ): Promise<
-    WorkflowRequest & { request_data: Record<string, unknown> | null }
-  > {
+  ): Promise<EnrichedRequest> {
     return this.runInTenantContext(
       tenantId,
       async (_configRepo, requestRepo, _stepRepo, em) => {
@@ -560,11 +591,12 @@ export class WorkflowService {
           throw new NotFoundException('Workflow request not found');
         }
 
-        const [enriched] = await this.enrichWithEntityData(
+        const [withData] = await this.enrichWithEntityData(
           [request],
           tenantId,
           em,
         );
+        const [enriched] = await this.enrichWithWorkflowActors([withData]);
         return enriched;
       },
     );
@@ -578,9 +610,7 @@ export class WorkflowService {
     page = 1,
     limit = 20,
   ): Promise<{
-    items: Array<
-      WorkflowRequest & { request_data: Record<string, unknown> | null }
-    >;
+    items: EnrichedRequest[];
     total: number;
     page: number;
     limit: number;
@@ -605,13 +635,53 @@ export class WorkflowService {
         }
 
         const total = await qb.getCount();
-        const items = await qb
+        const raw = await qb
           .skip((page - 1) * limit)
           .take(limit)
           .getMany();
 
-        const enriched = await this.enrichWithEntityData(items, tenantId, em);
-        return { items: enriched, total, page, limit };
+        const withData = await this.enrichWithEntityData(raw, tenantId, em);
+        const items = await this.enrichWithWorkflowActors(withData);
+        return { items, total, page, limit };
+      },
+    );
+  }
+
+  async getWorkflowDetailForEntity(
+    relatedEntityId: string,
+    tenantId: string,
+  ): Promise<WorkflowSummary | null> {
+    return this.runInTenantContext(
+      tenantId,
+      async (_configRepo, requestRepo) => {
+        const request = await requestRepo.findOne({
+          where: { related_entity_id: relatedEntityId, tenant_id: tenantId },
+          relations: ['steps'],
+          order: { created_at: 'DESC', steps: { step_order: 'ASC' } },
+        });
+        if (!request) return null;
+
+        const userIds = new Set<string>();
+        userIds.add(request.requestor_id);
+        for (const step of request.steps ?? []) {
+          if (step.approver_id) userIds.add(step.approver_id);
+        }
+        const nameMap = await this.buildWorkflowActorMap(Array.from(userIds));
+
+        return {
+          id: request.id,
+          status: request.status,
+          request_type: request.request_type,
+          current_step_order: request.current_step_order,
+          total_steps: request.total_steps,
+          requestor: nameMap.get(request.requestor_id) ?? null,
+          steps: (request.steps ?? []).map((step) => ({
+            ...step,
+            approver: step.approver_id
+              ? (nameMap.get(step.approver_id) ?? null)
+              : null,
+          })),
+        };
       },
     );
   }
@@ -684,6 +754,43 @@ export class WorkflowService {
     return items.map((item) => ({
       ...item,
       request_data: entityMap.get(item.related_entity_id) ?? null,
+    }));
+  }
+
+  private async buildWorkflowActorMap(
+    userIds: string[],
+  ): Promise<Map<string, WorkflowActor>> {
+    if (userIds.length === 0) return new Map();
+    const rows = await this.dataSource.query<WorkflowActor[]>(
+      `SELECT id, first_name, last_name FROM users WHERE id = ANY($1::uuid[])`,
+      [userIds],
+    );
+    const map = new Map<string, WorkflowActor>();
+    for (const row of rows) map.set(row.id, row);
+    return map;
+  }
+
+  private async enrichWithWorkflowActors(
+    items: Array<WorkflowRequest & { request_data: Record<string, unknown> | null }>,
+  ): Promise<EnrichedRequest[]> {
+    if (items.length === 0) return [];
+    const userIds = new Set<string>();
+    for (const item of items) {
+      userIds.add(item.requestor_id);
+      for (const step of item.steps ?? []) {
+        if (step.approver_id) userIds.add(step.approver_id);
+      }
+    }
+    const nameMap = await this.buildWorkflowActorMap(Array.from(userIds));
+    return items.map((item) => ({
+      ...item,
+      requestor: nameMap.get(item.requestor_id) ?? null,
+      steps: (item.steps ?? []).map((step) => ({
+        ...step,
+        approver: step.approver_id
+          ? (nameMap.get(step.approver_id) ?? null)
+          : null,
+      })),
     }));
   }
 
