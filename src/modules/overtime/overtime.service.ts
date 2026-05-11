@@ -533,21 +533,27 @@ export class OvertimeService {
         );
       }
 
-      if (!overtime.attachments.includes(url)) {
+      const matchedIndex = overtime.attachments.findIndex((a) =>
+        this.fileUploadService.sameObject(a, url),
+      );
+      if (matchedIndex === -1) {
         throw new BadRequestException(
           'Attachment URL not found on this request',
         );
       }
 
+      const storedUrl = overtime.attachments[matchedIndex];
       try {
-        await this.fileUploadService.deleteDocument(url);
+        await this.fileUploadService.deleteDocument(storedUrl);
       } catch (err: unknown) {
         this.logger.warn(
-          `Failed to delete overtime attachment ${url}: ${err instanceof Error ? err.message : String(err)}`,
+          `Failed to delete overtime attachment ${storedUrl}: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
 
-      overtime.attachments = overtime.attachments.filter((a) => a !== url);
+      overtime.attachments = overtime.attachments.filter(
+        (_, i) => i !== matchedIndex,
+      );
       return repo.save(overtime);
     });
   }

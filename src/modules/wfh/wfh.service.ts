@@ -389,21 +389,25 @@ export class WfhService {
         );
       }
 
-      if (!wfh.attachments.includes(url)) {
+      const matchedIndex = wfh.attachments.findIndex((a) =>
+        this.fileUploadService.sameObject(a, url),
+      );
+      if (matchedIndex === -1) {
         throw new BadRequestException(
           'Attachment URL not found on this request',
         );
       }
 
+      const storedUrl = wfh.attachments[matchedIndex];
       try {
-        await this.fileUploadService.deleteDocument(url);
+        await this.fileUploadService.deleteDocument(storedUrl);
       } catch (err: unknown) {
         this.logger.warn(
-          `Failed to delete WFH attachment ${url}: ${err instanceof Error ? err.message : String(err)}`,
+          `Failed to delete WFH attachment ${storedUrl}: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
 
-      wfh.attachments = wfh.attachments.filter((a) => a !== url);
+      wfh.attachments = wfh.attachments.filter((_, i) => i !== matchedIndex);
       return wfhRepo.save(wfh);
     });
   }
