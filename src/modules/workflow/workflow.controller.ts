@@ -2,14 +2,15 @@ import {
   Controller,
   Get,
   Post,
-  Put,
   Patch,
+  Delete,
   Param,
   Body,
   Query,
   Request,
   UseGuards,
   ParseUUIDPipe,
+  ParseIntPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -26,7 +27,8 @@ import {
 
 import { WorkflowService } from './workflow.service';
 import { ActOnStepDto } from './dto/act-on-step.dto';
-import { UpsertWorkflowConfigDto } from './dto/upsert-workflow-config.dto';
+import { AddWorkflowConfigStepDto } from './dto/add-workflow-config-step.dto';
+import { UpdateWorkflowConfigStepDto } from './dto/update-workflow-config-step.dto';
 import {
   WorkflowRequestType,
   WorkflowRequestStatus,
@@ -534,21 +536,77 @@ export class WorkflowController {
     return this.workflowService.getWorkflowConfigs(req.user.tenant_id, type);
   }
 
-  @Put('configs')
+  @Post('configs/steps')
   @UseGuards(RolesGuard)
   @Roles('admin', 'system-admin')
   @ApiOperation({
-    summary: 'Create or update approval step configuration for a request type',
+    summary: 'Add a step to a workflow config',
+    description:
+      'Appends a new approval step at the end of the existing steps for ' +
+      'the given request_type. step_order is auto-assigned.',
   })
-  @ApiBody({ type: UpsertWorkflowConfigDto })
+  @ApiBody({ type: AddWorkflowConfigStepDto })
   @ApiOkResponse({
-    description: 'Updated config rows for the given request type',
+    description:
+      'All config steps for the request type after adding the new one',
   })
-  async upsertConfig(
-    @Body() dto: UpsertWorkflowConfigDto,
+  async addConfigStep(
+    @Body() dto: AddWorkflowConfigStepDto,
     @Request() req: AuthenticatedRequest,
   ) {
-    return this.workflowService.upsertWorkflowConfig(req.user.tenant_id, dto);
+    return this.workflowService.addWorkflowConfigStep(req.user.tenant_id, dto);
+  }
+
+  @Patch('configs/:requestType/steps/:stepOrder')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'system-admin')
+  @ApiOperation({ summary: 'Update a workflow config step' })
+  @ApiParam({ name: 'requestType', enum: WorkflowRequestType })
+  @ApiParam({ name: 'stepOrder', type: Number, example: 1 })
+  @ApiBody({ type: UpdateWorkflowConfigStepDto })
+  @ApiOkResponse({ description: 'Updated step' })
+  @ApiNotFoundResponse({ description: 'Step not found' })
+  @ApiBadRequestResponse({ description: 'No fields provided to update' })
+  async updateConfigStep(
+    @Param('requestType') requestType: WorkflowRequestType,
+    @Param('stepOrder', ParseIntPipe) stepOrder: number,
+    @Body() dto: UpdateWorkflowConfigStepDto,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.workflowService.updateWorkflowConfigStep(
+      req.user.tenant_id,
+      requestType,
+      stepOrder,
+      dto,
+    );
+  }
+
+  @Delete('configs/:requestType/steps/:stepOrder')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'system-admin')
+  @ApiOperation({
+    summary: 'Delete a step from a workflow config',
+    description:
+      'Removes the step and re-numbers remaining steps contiguously from 1. ' +
+      'Cannot delete the last remaining step.',
+  })
+  @ApiParam({ name: 'requestType', enum: WorkflowRequestType })
+  @ApiParam({ name: 'stepOrder', type: Number, example: 2 })
+  @ApiOkResponse({
+    description: 'Remaining config steps after deletion, re-numbered from 1',
+  })
+  @ApiNotFoundResponse({ description: 'Step not found' })
+  @ApiBadRequestResponse({ description: 'Cannot delete last remaining step' })
+  async deleteConfigStep(
+    @Param('requestType') requestType: WorkflowRequestType,
+    @Param('stepOrder', ParseIntPipe) stepOrder: number,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.workflowService.deleteWorkflowConfigStep(
+      req.user.tenant_id,
+      requestType,
+      stepOrder,
+    );
   }
 
   // ── Workflow engine toggle ────────────────────────────────────────────────
