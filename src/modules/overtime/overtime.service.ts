@@ -53,11 +53,13 @@ export class OvertimeService {
   }
 
   private async isWorkflowEnabled(tenantId: string): Promise<boolean> {
-    const result = await this.dataSource.query<{ workflow_enabled: boolean }[]>(
-      `SELECT workflow_enabled FROM public.tenants WHERE id = $1 LIMIT 1`,
+    const result = await this.dataSource.query<
+      { overtime_workflow_enabled: boolean }[]
+    >(
+      `SELECT overtime_workflow_enabled FROM public.tenants WHERE id = $1 LIMIT 1`,
       [tenantId],
     );
-    return result[0]?.workflow_enabled ?? false;
+    return result[0]?.overtime_workflow_enabled ?? false;
   }
 
   private async runInTenantContext<T>(

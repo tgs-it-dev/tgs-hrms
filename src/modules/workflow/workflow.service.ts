@@ -48,13 +48,26 @@ export type WorkflowSummary = {
 
 type EnrichedStep = WorkflowStep & { approver: WorkflowActor | null };
 
+export type WorkflowSettingsResponse = {
+  leave_workflow_enabled: boolean;
+  wfh_workflow_enabled: boolean;
+  overtime_workflow_enabled: boolean;
+};
+
+type WorkflowSettingsRow = {
+  leave_workflow_enabled: boolean;
+  wfh_workflow_enabled: boolean;
+  overtime_workflow_enabled: boolean;
+};
+
 export type EnrichedRequest = WorkflowRequest & {
   requestor: WorkflowActor | null;
   request_data: Record<string, unknown> | null;
   steps: EnrichedStep[];
 };
 import { TenantDatabaseService } from '../../common/services/tenant-database.service';
-import { UpsertWorkflowConfigDto } from './dto/upsert-workflow-config.dto';
+import { AddWorkflowConfigStepDto } from './dto/add-workflow-config-step.dto';
+import { UpdateWorkflowConfigStepDto } from './dto/update-workflow-config-step.dto';
 import { StepAction } from './dto/act-on-step.dto';
 import {
   WORKFLOW_EVENTS,
@@ -129,38 +142,113 @@ export class WorkflowService {
     });
   }
 
-  async upsertWorkflowConfig(
+  async addWorkflowConfigStep(
     tenantId: string,
-    dto: UpsertWorkflowConfigDto,
+    dto: AddWorkflowConfigStepDto,
   ): Promise<WorkflowConfig[]> {
     return this.runInTenantContext(tenantId, async (configRepo) => {
-      const results: WorkflowConfig[] = [];
-      for (const step of dto.steps) {
-        const existing = await configRepo.findOne({
-          where: {
-            tenant_id: tenantId,
-            request_type: dto.request_type,
-            step_order: step.step_order,
-          },
-        });
-        if (existing) {
-          existing.approver_role = step.approver_role;
-          existing.step_label = step.step_label;
-          existing.is_active = step.is_active ?? existing.is_active;
-          results.push(await configRepo.save(existing));
-        } else {
-          const created = configRepo.create({
-            tenant_id: tenantId,
-            request_type: dto.request_type,
-            step_order: step.step_order,
-            approver_role: step.approver_role,
-            step_label: step.step_label,
-            is_active: step.is_active ?? true,
-          });
-          results.push(await configRepo.save(created));
-        }
+      const existing = await configRepo.find({
+        where: { tenant_id: tenantId, request_type: dto.request_type },
+        order: { step_order: 'ASC' },
+      });
+
+      const nextOrder =
+        existing.length > 0 ? existing[existing.length - 1].step_order + 1 : 1;
+
+      const created = configRepo.create({
+        tenant_id: tenantId,
+        request_type: dto.request_type,
+        step_order: nextOrder,
+        approver_role: dto.approver_role,
+        step_label: dto.step_label,
+        is_active: dto.is_active ?? true,
+      });
+
+      await configRepo.save(created);
+      return [...existing, created].sort((a, b) => a.step_order - b.step_order);
+    });
+  }
+
+  async updateWorkflowConfigStep(
+    tenantId: string,
+    requestType: WorkflowRequestType,
+    stepOrder: number,
+    dto: UpdateWorkflowConfigStepDto,
+  ): Promise<WorkflowConfig> {
+    if (
+      dto.approver_role === undefined &&
+      dto.step_label === undefined &&
+      dto.is_active === undefined
+    ) {
+      throw new BadRequestException(
+        'Provide at least one field to update: approver_role, step_label, or is_active',
+      );
+    }
+
+    return this.runInTenantContext(tenantId, async (configRepo) => {
+      const step = await configRepo.findOne({
+        where: {
+          tenant_id: tenantId,
+          request_type: requestType,
+          step_order: stepOrder,
+        },
+      });
+      if (!step) {
+        throw new NotFoundException(
+          `No config step found for ${requestType} step_order ${stepOrder}`,
+        );
       }
-      return results.sort((a, b) => a.step_order - b.step_order);
+
+      if (dto.approver_role !== undefined)
+        step.approver_role = dto.approver_role;
+      if (dto.step_label !== undefined) step.step_label = dto.step_label;
+      if (dto.is_active !== undefined) step.is_active = dto.is_active;
+
+      return configRepo.save(step);
+    });
+  }
+
+  async deleteWorkflowConfigStep(
+    tenantId: string,
+    requestType: WorkflowRequestType,
+    stepOrder: number,
+  ): Promise<WorkflowConfig[]> {
+    return this.runInTenantContext(tenantId, async (configRepo) => {
+      const step = await configRepo.findOne({
+        where: {
+          tenant_id: tenantId,
+          request_type: requestType,
+          step_order: stepOrder,
+        },
+      });
+      if (!step) {
+        throw new NotFoundException(
+          `No config step found for ${requestType} step_order ${stepOrder}`,
+        );
+      }
+
+      const all = await configRepo.find({
+        where: { tenant_id: tenantId, request_type: requestType },
+        order: { step_order: 'ASC' },
+      });
+      if (all.length === 1) {
+        throw new BadRequestException(
+          'Cannot delete the last step — a workflow must have at least one step',
+        );
+      }
+
+      await configRepo.remove(step);
+
+      const remaining = all
+        .filter((r) => r.step_order !== stepOrder)
+        .sort((a, b) => a.step_order - b.step_order);
+
+      for (let i = 0; i < remaining.length; i++) {
+        remaining[i].step_order = i + 1;
+      }
+      return (await configRepo.save(remaining)).sort(
+        (a, b) => a.step_order - b.step_order,
+      );
     });
   }
 
@@ -825,27 +913,51 @@ export class WorkflowService {
 
   // ── Feature flag ──────────────────────────────────────────────────────────
 
+  private requestTypeToColumn(
+    requestType: WorkflowRequestType,
+  ):
+    | 'leave_workflow_enabled'
+    | 'wfh_workflow_enabled'
+    | 'overtime_workflow_enabled' {
+    switch (requestType) {
+      case WorkflowRequestType.LEAVE:
+        return 'leave_workflow_enabled';
+      case WorkflowRequestType.WFH:
+        return 'wfh_workflow_enabled';
+      case WorkflowRequestType.OVERTIME:
+        return 'overtime_workflow_enabled';
+    }
+  }
+
   async setWorkflowEnabled(
     tenantId: string,
+    requestType: WorkflowRequestType,
     enabled: boolean,
-  ): Promise<{ workflow_enabled: boolean }> {
+  ): Promise<WorkflowSettingsResponse> {
+    const column = this.requestTypeToColumn(requestType);
     await this.dataSource.query(
-      `UPDATE public.tenants SET workflow_enabled = $1, updated_at = NOW() WHERE id = $2`,
+      `UPDATE public.tenants SET "${column}" = $1, updated_at = NOW() WHERE id = $2`,
       [enabled, tenantId],
     );
     this.logger.log(
-      `Workflow engine ${enabled ? 'enabled' : 'disabled'} for tenant ${tenantId}`,
+      `Workflow ${enabled ? 'enabled' : 'disabled'} for ${requestType} on tenant ${tenantId}`,
     );
-    return { workflow_enabled: enabled };
+    return this.getWorkflowSettings(tenantId);
   }
 
-  async getWorkflowEnabled(
+  async getWorkflowSettings(
     tenantId: string,
-  ): Promise<{ workflow_enabled: boolean }> {
-    const result = await this.dataSource.query<{ workflow_enabled: boolean }[]>(
-      `SELECT workflow_enabled FROM public.tenants WHERE id = $1 LIMIT 1`,
+  ): Promise<WorkflowSettingsResponse> {
+    const result = await this.dataSource.query<WorkflowSettingsRow[]>(
+      `SELECT leave_workflow_enabled, wfh_workflow_enabled, overtime_workflow_enabled
+       FROM public.tenants WHERE id = $1 LIMIT 1`,
       [tenantId],
     );
-    return { workflow_enabled: result[0]?.workflow_enabled ?? false };
+    const row = result[0];
+    return {
+      leave_workflow_enabled: row?.leave_workflow_enabled ?? false,
+      wfh_workflow_enabled: row?.wfh_workflow_enabled ?? false,
+      overtime_workflow_enabled: row?.overtime_workflow_enabled ?? false,
+    };
   }
 }
