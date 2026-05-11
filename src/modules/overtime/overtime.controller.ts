@@ -212,8 +212,42 @@ Providing both \`hours\` and \`end_date\`, or neither, will return a 400 error.`
   @ApiOperation({ summary: 'Get a single overtime request by ID' })
   @ApiParam({ name: 'id', description: 'Overtime request UUID' })
   @ApiOkResponse({
-    description: 'Overtime request detail',
-    schema: { example: OVERTIME_EXAMPLE },
+    description:
+      'Overtime request detail with workflow status and approver names',
+    schema: {
+      example: {
+        ...OVERTIME_EXAMPLE,
+        workflow: {
+          id: 'd4e5f6a7-b8c9-0123-defa-234567890123',
+          status: 'approved',
+          request_type: 'overtime',
+          current_step_order: 1,
+          total_steps: 1,
+          requestor: {
+            id: OVERTIME_EXAMPLE.employee_id,
+            first_name: 'Ali',
+            last_name: 'Hassan',
+          },
+          steps: [
+            {
+              id: 'step-uuid-1',
+              step_order: 1,
+              step_label: 'Manager Approval',
+              approver_role: 'manager',
+              status: 'approved',
+              approver_id: 'mgr-uuid',
+              approver: {
+                id: 'mgr-uuid',
+                first_name: 'Sara',
+                last_name: 'Khan',
+              },
+              remarks: 'Approved',
+              acted_at: '2026-05-10T09:00:00.000Z',
+            },
+          ],
+        },
+      },
+    },
   })
   @ApiNotFoundResponse({ description: 'Overtime request not found' })
   async getById(

@@ -238,14 +238,19 @@ export class WfhService {
     });
   }
 
-  async getWfhById(id: string, tenantId: string): Promise<Wfh> {
+  async getWfhById(id: string, tenantId: string) {
     return this.runInTenantContext(tenantId, async (wfhRepo) => {
       const wfh = await wfhRepo.findOne({
         where: { id, tenant_id: tenantId },
         relations: ['employee'],
       });
       if (!wfh) throw new NotFoundException('WFH request not found');
-      return wfh;
+
+      const workflow = wfh.workflow_request_id
+        ? await this.workflowService.getWorkflowDetailForEntity(id, tenantId)
+        : null;
+
+      return { ...wfh, workflow };
     });
   }
 

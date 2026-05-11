@@ -194,8 +194,41 @@ export class WfhController {
   @ApiOperation({ summary: 'Get a single WFH request by ID' })
   @ApiParam({ name: 'id', description: 'WFH request UUID' })
   @ApiOkResponse({
-    description: 'WFH request detail',
-    schema: { example: WFH_EXAMPLE },
+    description: 'WFH request detail with workflow status and approver names',
+    schema: {
+      example: {
+        ...WFH_EXAMPLE,
+        workflow: {
+          id: 'd4e5f6a7-b8c9-0123-defa-234567890123',
+          status: 'approved',
+          request_type: 'wfh',
+          current_step_order: 1,
+          total_steps: 1,
+          requestor: {
+            id: WFH_EXAMPLE.employee_id,
+            first_name: 'Ali',
+            last_name: 'Hassan',
+          },
+          steps: [
+            {
+              id: 'step-uuid-1',
+              step_order: 1,
+              step_label: 'Manager Approval',
+              approver_role: 'manager',
+              status: 'approved',
+              approver_id: 'mgr-uuid',
+              approver: {
+                id: 'mgr-uuid',
+                first_name: 'Sara',
+                last_name: 'Khan',
+              },
+              remarks: 'Approved',
+              acted_at: '2026-05-10T09:00:00.000Z',
+            },
+          ],
+        },
+      },
+    },
   })
   @ApiNotFoundResponse({ description: 'WFH request not found' })
   async getById(
