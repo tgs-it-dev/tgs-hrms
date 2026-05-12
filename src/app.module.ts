@@ -21,7 +21,7 @@ import { EmployeeModule } from './modules/employee/employee.module';
 import { TenantModule } from './modules/tenant/tenant.module';
 import { RoleModule } from './modules/role/role.module';
 import { PermissionModule } from './modules/permission/permission.module';
-import { AttendanceModule } from './modules/attendance/attendace.module';
+import { AttendanceModule } from './modules/attendance/attendance.module';
 import { TimesheetModule } from './modules/timesheet/timesheet.module';
 import { LeaveModule } from './modules/leave/leave.module';
 import { LeaveTypeModule } from './modules/leave-type/leave-type.module';
