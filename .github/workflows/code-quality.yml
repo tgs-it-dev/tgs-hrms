@@ -8,22 +8,93 @@ on:
 
 jobs:
   lint-and-typecheck:
+    name: Lint & Type Check
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 18
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
 
-    - name: Install dependencies
-      run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-    - name: Run ESLint
-      run: npx eslint . --ext .ts,.tsx
+      - name: Run ESLint
+        run: npx eslint "{src,apps,libs,test}/**/*.ts" --max-warnings=0
 
-    - name: Run TypeScript type check
-      run: npx tsc --noEmit
+      - name: Run TypeScript type check
+        run: npx tsc --noEmit
+
+  test:
+    name: Tests & Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests with coverage
+        run: npm run test:cov -- --passWithNoTests --coverageThreshold='{"global":{"lines":40,"functions":40}}'
+
+  binary-files-check:
+    name: No Binary Files
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for binary files in PR
+        run: |
+          BINARY_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E "\.(png|jpg|jpeg|webp|gif|bmp|ico|pdf|zip|tar|gz|mp4|mp3|mov|avi)$" || true)
+          if [ -n "$BINARY_FILES" ]; then
+            echo "Binary files detected in this PR:"
+            echo "$BINARY_FILES"
+            echo ""
+            echo "Do NOT commit user-uploaded files to git."
+            echo "Use S3/cloud storage and store only the URL in the database."
+            exit 1
+          fi
+          echo "No binary files found."
+
+  commit-lint:
+    name: Conventional Commits
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint commit messages
+        run: npx commitlint --from origin/${{ github.base_ref }} --to HEAD --verbose
