@@ -562,7 +562,18 @@ export class WorkflowService {
         const buildPendingQb = () => {
           const qb = requestRepo
             .createQueryBuilder('wr')
-            .innerJoinAndSelect('wr.steps', 'step')
+            // Load ALL steps for display
+            .leftJoinAndSelect('wr.steps', 'step')
+            // Separate join used only for filtering — does not affect loaded steps
+            .innerJoin(
+              WorkflowStep,
+              'currentStep',
+              'currentStep.workflow_request_id = wr.id' +
+                ' AND currentStep.step_order = wr.current_step_order' +
+                ' AND currentStep.status = :stepStatus' +
+                ' AND LOWER(currentStep.approver_role) = LOWER(:actorRole)',
+              { stepStatus: WorkflowStepStatus.PENDING, actorRole },
+            )
             .where('wr.tenant_id = :tenantId', { tenantId })
             .andWhere('wr.status IN (:...statuses)', {
               statuses: [
@@ -570,14 +581,8 @@ export class WorkflowService {
                 WorkflowRequestStatus.IN_REVIEW,
               ],
             })
-            .andWhere('step.step_order = wr.current_step_order')
-            .andWhere('step.status = :stepStatus', {
-              stepStatus: WorkflowStepStatus.PENDING,
-            })
-            .andWhere('LOWER(step.approver_role) = LOWER(:actorRole)', {
-              actorRole,
-            })
-            .orderBy('wr.created_at', 'DESC');
+            .orderBy('wr.created_at', 'DESC')
+            .addOrderBy('step.step_order', 'ASC');
           if (requestType)
             qb.andWhere('wr.request_type = :requestType', { requestType });
           return qb;
