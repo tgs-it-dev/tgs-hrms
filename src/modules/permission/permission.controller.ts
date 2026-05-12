@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -14,138 +25,67 @@ import { RolesGuard } from 'src/common/guards/roles.guard';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { Permissions } from 'src/common/decorators/permissions.decorator';
 import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+import { PermissionService } from './permission.service';
 
 @ApiTags('Permissions')
 @ApiBearerAuth()
 @Controller('permissions')
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+@Roles('admin', 'system-admin')
+@Permissions('manage_permissions')
 export class PermissionController {
-  constructor() {}
+  constructor(private readonly permissionService: PermissionService) {}
 
   @Get()
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin')
-  @Permissions('manage_permissions')
   @ApiOperation({ summary: 'Get all permissions (Admin only)' })
-  @ApiResponse({
-    status: 200,
-    description: 'List of permissions retrieved successfully.',
-    schema: {
-      example: [
-        {
-          id: '7ca8c920-9dad-11d1-80b4-00c04fd430c8',
-          name: 'read:employee',
-          description: 'Can read employees',
-        },
-      ],
-    },
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized - Invalid or missing JWT token',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden - Insufficient permissions',
-  })
+  @ApiResponse({ status: 200, description: 'List of permissions' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
   getPermissions() {
-    return { message: 'Get all permissions - Implementation pending' };
+    return this.permissionService.findAll();
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin')
-  @Permissions('manage_permissions')
   @ApiOperation({ summary: 'Get permission by ID (Admin only)' })
-  @ApiParam({
-    name: 'id',
-    description: 'Permission UUID',
-    example: '7ca8c920-9dad-11d1-80b4-00c04fd430c8',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Permission retrieved successfully.',
-    schema: {
-      example: {
-        id: '7ca8c920-9dad-11d1-80b4-00c04fd430c8',
-        name: 'read:employee',
-        description: 'Can read employees',
-      },
-    },
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Permission not found',
-  })
+  @ApiParam({ name: 'id', description: 'Permission UUID' })
+  @ApiResponse({ status: 200, description: 'Permission retrieved' })
+  @ApiResponse({ status: 404, description: 'Permission not found' })
   getPermissionById(@Param('id') id: string) {
-    return { message: `Get permission by ID: ${id} - Implementation pending` };
+    return this.permissionService.findOne(id);
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin')
-  @Permissions('manage_permissions')
   @ApiOperation({ summary: 'Create a new permission (Admin only)' })
   @ApiBody({ type: CreatePermissionDto })
-  @ApiResponse({
-    status: 201,
-    description: 'Permission created successfully.',
-    schema: {
-      example: {
-        id: '7ca8c920-9dad-11d1-80b4-00c04fd430c8',
-        name: 'write:employee',
-        description: 'Can create and update employees',
-      },
-    },
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Bad Request - Invalid permission data',
-  })
-  createPermission(@Body() _createPermissionDto: CreatePermissionDto) {
-    return { message: 'Create permission - Implementation pending' };
+  @ApiResponse({ status: 201, description: 'Permission created' })
+  @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({ status: 409, description: 'Permission name already exists' })
+  createPermission(@Body() createPermissionDto: CreatePermissionDto) {
+    return this.permissionService.create(createPermissionDto);
   }
 
   @Put(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin')
-  @Permissions('manage_permissions')
   @ApiOperation({ summary: 'Update permission by ID (Admin only)' })
-  @ApiParam({
-    name: 'id',
-    description: 'Permission UUID',
-    example: '7ca8c920-9dad-11d1-80b4-00c04fd430c8',
-  })
+  @ApiParam({ name: 'id', description: 'Permission UUID' })
   @ApiBody({ type: UpdatePermissionDto })
-  @ApiResponse({
-    status: 200,
-    description: 'Permission updated successfully.',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Permission not found',
-  })
-  updatePermission(@Param('id') id: string, @Body() _updatePermissionDto: UpdatePermissionDto) {
-    return { message: `Update permission: ${id} - Implementation pending` };
+  @ApiResponse({ status: 200, description: 'Permission updated' })
+  @ApiResponse({ status: 404, description: 'Permission not found' })
+  @ApiResponse({ status: 409, description: 'Permission name already exists' })
+  updatePermission(
+    @Param('id') id: string,
+    @Body() updatePermissionDto: UpdatePermissionDto,
+  ) {
+    return this.permissionService.update(id, updatePermissionDto);
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin', 'system-admin')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete permission by ID (Admin only)' })
-  @ApiParam({
-    name: 'id',
-    description: 'Permission UUID',
-    example: '7ca8c920-9dad-11d1-80b4-00c04fd430c8',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Permission deleted successfully.',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Permission not found',
-  })
+  @ApiParam({ name: 'id', description: 'Permission UUID' })
+  @ApiResponse({ status: 200, description: 'Permission deleted' })
+  @ApiResponse({ status: 400, description: 'Permission still assigned to roles' })
+  @ApiResponse({ status: 404, description: 'Permission not found' })
   deletePermission(@Param('id') id: string) {
-    return { message: `Delete permission: ${id} - Implementation pending` };
+    return this.permissionService.remove(id);
   }
 }
