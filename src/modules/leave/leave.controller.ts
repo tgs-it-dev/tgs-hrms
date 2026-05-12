@@ -978,39 +978,7 @@ export class LeaveController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Download your leave requests as CSV' })
   async exportSelf(@Request() req: AuthenticatedRequest, @Res() res: Response) {
-    let page = 1;
-    const rows: any[] = [];
-    while (true) {
-      const { items, total, limit } = await this.leaveService.getLeaves(
-        req.user.id,
-        page,
-      );
-      for (const l of items) {
-        const empFirstName =
-          l.employee?.first_name || req.user.first_name || '';
-        const empLastName = l.employee?.last_name || req.user.last_name || '';
-        rows.push({
-          first_name: empFirstName,
-          last_name: empLastName,
-          user_name: `${empFirstName} ${empLastName}`.trim(),
-          leave_type: l.leaveType?.name || 'N/A',
-          start_date: l.startDate,
-          end_date: l.endDate,
-          total_days: l.totalDays,
-          status: l.status,
-          reason: l.reason,
-          applied_date: l.createdAt,
-          approved_by: l.approver?.first_name
-            ? `${l.approver.first_name} ${l.approver.last_name}`.trim()
-            : 'N/A',
-          approved_at: l.approvedAt || 'N/A',
-          remarks: l.remarks || 'N/A',
-        });
-      }
-      if (!items.length || rows.length >= total) break;
-      page += 1;
-      if (limit && items.length < limit) break;
-    }
+    const rows = await this.leaveService.getLeavesForExport(req.user.id, req.user.tenant_id);
     return sendCsvResponse(res, 'leaves-self.csv', rows);
   }
 
@@ -1034,54 +1002,11 @@ export class LeaveController {
     @Query('page') _page?: string,
     @Query('name') name?: string,
   ) {
-    // Fetch all pages of team leaves so CSV includes complete dataset (no pagination)
-    let currentPage = 1;
-    const rows: any[] = [];
-    const options = { name: name?.trim() || undefined, limit: 25 };
-
-    while (true) {
-      const { items, total, limit } = await this.leaveService.getTeamLeaves(
-        req.user.id,
-        req.user.tenant_id,
-        currentPage,
-        options,
-      );
-
-      for (const l of items || []) {
-        rows.push({
-          id: l.id,
-          user_id: l.employeeId,
-          first_name: l.employee?.first_name || '',
-          last_name: l.employee?.last_name || '',
-          user_name:
-            `${l.employee?.first_name || ''} ${l.employee?.last_name || ''}`.trim(),
-          leave_type: l.leaveType?.name || 'N/A',
-          start_date: l.startDate,
-          end_date: l.endDate,
-          total_days: l.totalDays,
-          status: l.status,
-          reason: l.reason,
-          applied_date: l.createdAt,
-          approved_by: l.approver?.first_name
-            ? `${l.approver.first_name} ${l.approver.last_name}`.trim()
-            : 'N/A',
-          approved_at: l.approvedAt || 'N/A',
-          remarks: l.remarks || 'N/A',
-        });
-      }
-
-      if (!items.length || rows.length >= total) {
-        break;
-      }
-
-      currentPage += 1;
-
-      // Safety: if last page returned fewer than limit, we are done
-      if (limit && items.length < limit) {
-        break;
-      }
-    }
-
+    const rows = await this.leaveService.getTeamLeavesForExport(
+      req.user.id,
+      req.user.tenant_id,
+      name,
+    );
     return sendCsvResponse(res, 'leaves-team.csv', rows);
   }
 
@@ -1126,43 +1051,13 @@ export class LeaveController {
     @Query('status') status?: string,
     @Query('name') name?: string,
   ) {
-    let page = 1;
-    const rows: any[] = [];
-    const monthNumber = month ? parseInt(month, 10) : undefined;
-    const yearNumber = year ? parseInt(year, 10) : undefined;
-    while (true) {
-      const { items, total, limit } = await this.leaveService.getAllLeaves(
-        req.user.tenant_id,
-        page,
-        status,
-        monthNumber,
-        yearNumber,
-        name,
-      );
-      for (const l of items) {
-        rows.push({
-          first_name: l.employee?.first_name || '',
-          last_name: l.employee?.last_name || '',
-          user_name:
-            `${l.employee?.first_name || ''} ${l.employee?.last_name || ''}`.trim(),
-          leave_type: l.leaveType?.name || 'N/A',
-          start_date: l.startDate,
-          end_date: l.endDate,
-          total_days: l.totalDays,
-          status: l.status,
-          reason: l.reason,
-          applied_date: l.createdAt,
-          approved_by: l.approver?.first_name
-            ? `${l.approver.first_name} ${l.approver.last_name}`.trim()
-            : 'N/A',
-          approved_at: l.approvedAt || 'N/A',
-          remarks: l.remarks || 'N/A',
-        });
-      }
-      if (!items.length || rows.length >= total) break;
-      page += 1;
-      if (limit && items.length < limit) break;
-    }
+    const rows = await this.leaveService.getAllLeavesForExport(
+      req.user.tenant_id,
+      status,
+      month ? parseInt(month, 10) : undefined,
+      year ? parseInt(year, 10) : undefined,
+      name,
+    );
     return sendCsvResponse(res, 'leaves-all.csv', rows);
   }
 }

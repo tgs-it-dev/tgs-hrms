@@ -1204,4 +1204,112 @@ export class LeaveService {
       return { teamMembers: transformedMembers, totalMembers: transformedMembers.length, membersWithLeave };
     });
   }
+
+  async getLeavesForExport(userId: string, tenantId: string): Promise<Record<string, unknown>[]> {
+    const rows: Record<string, unknown>[] = [];
+    let page = 1;
+    while (true) {
+      const { items, total, limit } = await this.getLeaves(userId, page, tenantId);
+      for (const l of items) {
+        const empFirstName = l.employee?.first_name || '';
+        const empLastName = l.employee?.last_name || '';
+        rows.push({
+          first_name: empFirstName,
+          last_name: empLastName,
+          user_name: `${empFirstName} ${empLastName}`.trim(),
+          leave_type: l.leaveType?.name || 'N/A',
+          start_date: l.startDate,
+          end_date: l.endDate,
+          total_days: l.totalDays,
+          status: l.status,
+          reason: l.reason,
+          applied_date: l.createdAt,
+          approved_by: l.approver?.first_name
+            ? `${l.approver.first_name} ${l.approver.last_name}`.trim()
+            : 'N/A',
+          approved_at: l.approvedAt || 'N/A',
+          remarks: l.remarks || 'N/A',
+        });
+      }
+      if (!items.length || rows.length >= total) break;
+      page += 1;
+      if (limit && items.length < limit) break;
+    }
+    return rows;
+  }
+
+  async getTeamLeavesForExport(
+    managerId: string,
+    tenantId: string,
+    name?: string,
+  ): Promise<Record<string, unknown>[]> {
+    const rows: Record<string, unknown>[] = [];
+    let currentPage = 1;
+    const options = { name: name?.trim() || undefined, limit: 25 };
+    while (true) {
+      const { items, total, limit } = await this.getTeamLeaves(managerId, tenantId, currentPage, options);
+      for (const l of items || []) {
+        rows.push({
+          id: l.id,
+          user_id: l.employeeId,
+          first_name: l.employee?.first_name || '',
+          last_name: l.employee?.last_name || '',
+          user_name: `${l.employee?.first_name || ''} ${l.employee?.last_name || ''}`.trim(),
+          leave_type: l.leaveType?.name || 'N/A',
+          start_date: l.startDate,
+          end_date: l.endDate,
+          total_days: l.totalDays,
+          status: l.status,
+          reason: l.reason,
+          applied_date: l.createdAt,
+          approved_by: l.approver?.first_name
+            ? `${l.approver.first_name} ${l.approver.last_name}`.trim()
+            : 'N/A',
+          approved_at: l.approvedAt || 'N/A',
+          remarks: l.remarks || 'N/A',
+        });
+      }
+      if (!items.length || rows.length >= total) break;
+      currentPage += 1;
+      if (limit && items.length < limit) break;
+    }
+    return rows;
+  }
+
+  async getAllLeavesForExport(
+    tenantId: string,
+    status?: string,
+    month?: number,
+    year?: number,
+    name?: string,
+  ): Promise<Record<string, unknown>[]> {
+    const rows: Record<string, unknown>[] = [];
+    let page = 1;
+    while (true) {
+      const { items, total, limit } = await this.getAllLeaves(tenantId, page, status, month, year, name);
+      for (const l of items) {
+        rows.push({
+          first_name: l.employee?.first_name || '',
+          last_name: l.employee?.last_name || '',
+          user_name: `${l.employee?.first_name || ''} ${l.employee?.last_name || ''}`.trim(),
+          leave_type: l.leaveType?.name || 'N/A',
+          start_date: l.startDate,
+          end_date: l.endDate,
+          total_days: l.totalDays,
+          status: l.status,
+          reason: l.reason,
+          applied_date: l.createdAt,
+          approved_by: l.approver?.first_name
+            ? `${l.approver.first_name} ${l.approver.last_name}`.trim()
+            : 'N/A',
+          approved_at: l.approvedAt || 'N/A',
+          remarks: l.remarks || 'N/A',
+        });
+      }
+      if (!items.length || rows.length >= total) break;
+      page += 1;
+      if (limit && items.length < limit) break;
+    }
+    return rows;
+  }
 }
