@@ -64,7 +64,6 @@ async function bootstrap() {
         'http://localhost:3000',
         'http://localhost:3001',
         'http://192.168.0.109:3001',
-        'http://192.168.0.109:3001',
         'http://dev.workonnect.ai',
         'https://dev.workonnect.ai',
         'https://api.workonnect.ai',
