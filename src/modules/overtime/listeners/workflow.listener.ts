@@ -18,6 +18,8 @@ export class OvertimeWorkflowListener {
       await this.overtimeService.markApproved(
         event.relatedEntityId,
         event.tenantId,
+        event.requestorId,
+        event.finalApproverId,
       );
     } catch (error) {
       this.logger.error(
@@ -34,6 +36,8 @@ export class OvertimeWorkflowListener {
       await this.overtimeService.markRejected(
         event.relatedEntityId,
         event.tenantId,
+        event.requestorId,
+        event.finalApproverId,
       );
     } catch (error) {
       this.logger.error(

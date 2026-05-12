@@ -225,6 +225,8 @@ export enum NotificationType {
   PUSH = 'push',
   IN_APP = 'in_app',
   LEAVE = 'leave',
+  WFH = 'wfh',
+  OVERTIME = 'overtime',
   ALERT = 'alert',
   ATTENDANCE = 'attendance',
   TASK = 'task',

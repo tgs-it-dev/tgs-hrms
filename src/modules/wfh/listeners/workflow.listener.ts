@@ -15,7 +15,12 @@ export class WfhWorkflowListener {
   async handleApproved(event: WorkflowCompletedEvent): Promise<void> {
     if (event.requestType !== (WorkflowRequestType.WFH as string)) return;
     try {
-      await this.wfhService.markApproved(event.relatedEntityId, event.tenantId);
+      await this.wfhService.markApproved(
+        event.relatedEntityId,
+        event.tenantId,
+        event.requestorId,
+        event.finalApproverId,
+      );
     } catch (err: unknown) {
       this.logger.error(
         `Failed to mark WFH ${event.relatedEntityId} as approved`,
@@ -28,7 +33,12 @@ export class WfhWorkflowListener {
   async handleRejected(event: WorkflowCompletedEvent): Promise<void> {
     if (event.requestType !== (WorkflowRequestType.WFH as string)) return;
     try {
-      await this.wfhService.markRejected(event.relatedEntityId, event.tenantId);
+      await this.wfhService.markRejected(
+        event.relatedEntityId,
+        event.tenantId,
+        event.requestorId,
+        event.finalApproverId,
+      );
     } catch (err: unknown) {
       this.logger.error(
         `Failed to mark WFH ${event.relatedEntityId} as rejected`,
