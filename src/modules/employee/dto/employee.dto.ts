@@ -3,7 +3,7 @@
  */
 
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsEmail, IsOptional, IsEnum, IsUUID } from 'class-validator';
+import { IsString, IsEmail, IsOptional, IsEnum, IsPhoneNumber, IsUUID } from 'class-validator';
 import { EmployeeStatus, UserGender } from '../../../common/constants/enums';
 import { BaseQueryDto } from '../../../common/dto/common.dto';
 
@@ -21,8 +21,8 @@ export class CreateEmployeeDto {
   @IsEmail()
   email: string;
 
-  @ApiProperty({ description: 'Employee phone number', example: '+1234567890' })
-  @IsString()
+  @ApiProperty({ description: 'Employee phone number in E.164 format', example: '+1234567890' })
+  @IsPhoneNumber(undefined, { message: 'Please provide a valid phone number in E.164 format (e.g. +1234567890)' })
   phone: string;
 
   @ApiProperty({ description: 'Employee designation ID', example: 'uuid-string' })
@@ -78,9 +78,9 @@ export class UpdateEmployeeDto {
   @IsEmail()
   email?: string;
 
-  @ApiPropertyOptional({ description: 'Employee phone number', example: '+1234567890' })
+  @ApiPropertyOptional({ description: 'Employee phone number in E.164 format', example: '+1234567890' })
   @IsOptional()
-  @IsString()
+  @IsPhoneNumber(undefined, { message: 'Please provide a valid phone number in E.164 format (e.g. +1234567890)' })
   phone?: string;
 
   @ApiPropertyOptional({ description: 'Employee designation ID', example: 'uuid-string' })

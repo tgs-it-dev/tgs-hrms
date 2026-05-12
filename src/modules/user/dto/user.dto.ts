@@ -3,7 +3,7 @@
  */
 
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsEmail, IsOptional, IsUUID, IsEnum, MinLength, MaxLength } from 'class-validator';
+import { IsString, IsEmail, IsOptional, IsPhoneNumber, IsUUID, IsEnum, MinLength, MaxLength } from 'class-validator';
 import { UserGender, UserStatus } from '../../../common/constants/enums';
 import { BaseQueryDto } from '../../../common/dto/common.dto';
 
@@ -13,8 +13,8 @@ export class CreateUserDto {
   @IsEmail()
   email: string;
 
-  @ApiProperty({ description: 'User phone number', example: '+1234567890' })
-  @IsString()
+  @ApiProperty({ description: 'User phone number in E.164 format', example: '+1234567890' })
+  @IsPhoneNumber(undefined, { message: 'Please provide a valid phone number in E.164 format (e.g. +1234567890)' })
   phone: string;
 
   @ApiProperty({ description: 'User password', example: 'SecurePassword123!' })
@@ -58,9 +58,9 @@ export class UpdateUserDto {
   @IsEmail()
   email?: string;
 
-  @ApiPropertyOptional({ description: 'User phone number', example: '+1234567890' })
+  @ApiPropertyOptional({ description: 'User phone number in E.164 format', example: '+1234567890' })
   @IsOptional()
-  @IsString()
+  @IsPhoneNumber(undefined, { message: 'Please provide a valid phone number in E.164 format (e.g. +1234567890)' })
   phone?: string;
 
   @ApiPropertyOptional({ description: 'User first name', example: 'John' })
@@ -110,9 +110,9 @@ export class UpdateProfileDto {
   @IsEmail()
   email?: string;
 
-  @ApiPropertyOptional({ description: 'User phone number', example: '+1234567890' })
+  @ApiPropertyOptional({ description: 'User phone number in E.164 format', example: '+1234567890' })
   @IsOptional()
-  @IsString()
+  @IsPhoneNumber(undefined, { message: 'Please provide a valid phone number in E.164 format (e.g. +1234567890)' })
   phone?: string;
 
   @ApiPropertyOptional({ description: 'User gender', enum: UserGender })
