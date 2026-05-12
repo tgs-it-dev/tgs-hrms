@@ -601,9 +601,10 @@ export class TenantSchemaProvisioningService {
         "approvedAt"      TIMESTAMP,
         "remarks"         TEXT,
         "managerRemarks"  TEXT,
-        "documents"       TEXT[]             DEFAULT '{}',
-        "createdAt"       TIMESTAMP NOT NULL DEFAULT now(),
-        "updatedAt"       TIMESTAMP NOT NULL DEFAULT now(),
+        "documents"           TEXT[]             DEFAULT '{}',
+        "workflow_request_id" UUID,
+        "createdAt"           TIMESTAMP NOT NULL DEFAULT now(),
+        "updatedAt"           TIMESTAMP NOT NULL DEFAULT now(),
         CONSTRAINT "pk_${schemaName}_lv"
           PRIMARY KEY ("id"),
         CONSTRAINT "fk_${schemaName}_lv_emp"
@@ -1260,12 +1261,12 @@ export class TenantSchemaProvisioningService {
       INSERT INTO "${schemaName}"."leaves"
         (id, "employeeId", "leaveTypeId", "startDate", "endDate", "totalDays",
          reason, status, "approvedBy", "tenantId", "approvedAt", remarks,
-         "managerRemarks", documents, "createdAt", "updatedAt")
+         "managerRemarks", documents, "workflow_request_id", "createdAt", "updatedAt")
       SELECT
         lv.id, lv."employeeId", lv."leaveTypeId", lv."startDate", lv."endDate",
         lv."totalDays", lv.reason, lv.status, lv."approvedBy", lv."tenantId",
         lv."approvedAt", lv.remarks, lv."managerRemarks", lv.documents,
-        lv."createdAt", lv."updatedAt"
+        lv."workflow_request_id", lv."createdAt", lv."updatedAt"
       FROM public.leaves lv
       WHERE lv."tenantId" = $1
         AND EXISTS (
