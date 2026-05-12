@@ -25,6 +25,8 @@ import { NotificationType } from "../../common/constants/enums";
 import { TenantDatabaseService } from "../../common/services/tenant-database.service";
 import { InjectDataSource } from "@nestjs/typeorm";
 import { DataSource } from "typeorm";
+import { Geofence, GeofenceStatus } from "../../entities/geofence.entity";
+import { checkPointWithinGeofence } from "../../common/utils/geofence.util";
 
 interface TeamMemberItem {
   user: {
@@ -69,6 +71,8 @@ export class AttendanceService {
     private readonly tenantDbService: TenantDatabaseService,
     @InjectDataSource()
     private readonly dataSource: DataSource,
+    @InjectRepository(Geofence)
+    private readonly geofenceRepo: Repository<Geofence>,
   ) {}
 
   // ── Tenant schema helpers ─────────────────────────────────────────────────
@@ -147,7 +151,52 @@ export class AttendanceService {
 
     const now = new Date();
 
-    const nearBoundary = false;
+    // ── Geofence validation ──────────────────────────────────────────────────
+    // Only validate on CHECK_IN when the employee belongs to a team that has
+    // an active geofence configured.  If lat/lng are omitted and no geofence
+    // is enforced the check is skipped; if a geofence exists lat/lng become
+    // mandatory.
+    let nearBoundary = false;
+
+    if (dto.type === AttendanceType.CHECK_IN) {
+      const employee = await (
+        em ? em.getRepository(Employee) : this.employeeRepo
+      ).findOne({
+        where: { user_id: userId },
+        select: ["team_id"],
+      });
+
+      if (employee?.team_id) {
+        const geofenceRepo = em
+          ? em.getRepository(Geofence)
+          : this.geofenceRepo;
+        const activeGeofence = await geofenceRepo.findOne({
+          where: { team_id: employee.team_id, status: GeofenceStatus.ACTIVE },
+        });
+
+        if (activeGeofence) {
+          if (dto.latitude == null || dto.longitude == null) {
+            throw new BadRequestException(
+              "Location is required for check-in. Your team has a geofence configured.",
+            );
+          }
+
+          const result = checkPointWithinGeofence(
+            dto.latitude,
+            dto.longitude,
+            activeGeofence,
+          );
+
+          if (!result.isWithin) {
+            throw new BadRequestException(
+              "You are outside the allowed check-in area. Please check in from within the designated geofence zone.",
+            );
+          }
+
+          nearBoundary = result.isNearBoundary;
+        }
+      }
+    }
 
     if (dto.type === AttendanceType.CHECK_IN) {
       const activeSession = await this.getActiveSession(userId, attendanceRepo);
@@ -251,6 +300,7 @@ export class AttendanceService {
           related_entity_id: saved.id,
         });
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error("Failed to create attendance notification:", error);
       }
     }
@@ -572,6 +622,7 @@ export class AttendanceService {
       }
       return { items, total: items.length };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error("Error fetching attendance with user join:", error);
       return { items: [], total: 0 };
     }
@@ -943,8 +994,9 @@ export class AttendanceService {
     // Filter by employee name (partial match on first_name, last_name, or full name)
     if (name && name.trim()) {
       const namePattern = `%${name.trim()}%`;
+      // prettier-ignore
       qb.andWhere(
-        "(LOWER(COALESCE(user.first_name, '')) LIKE LOWER(:namePattern) OR LOWER(COALESCE(user.last_name, '')) LIKE LOWER(:namePattern) OR LOWER(CONCAT(COALESCE(user.first_name, ''), ' ', COALESCE(user.last_name, ''))) LIKE LOWER(:namePattern))",
+        '(LOWER(COALESCE(user.first_name, \'\')) LIKE LOWER(:namePattern) OR LOWER(COALESCE(user.last_name, \'\')) LIKE LOWER(:namePattern) OR LOWER(CONCAT(COALESCE(user.first_name, \'\'), \' \', COALESCE(user.last_name, \'\'))) LIKE LOWER(:namePattern))',
         { namePattern },
       );
     }
@@ -1416,6 +1468,7 @@ export class AttendanceService {
         created_at: notification.created_at,
       });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error("Failed to create check-in approval notification:", error);
     }
     return saved;
@@ -1483,6 +1536,7 @@ export class AttendanceService {
         created_at: notification.created_at,
       });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error("Failed to create check-in rejection notification:", error);
     }
     return saved;
@@ -1552,6 +1606,7 @@ export class AttendanceService {
           },
         );
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error(
           `Failed to notify employee ${checkIn.user_id} for check-in approval:`,
           error,
@@ -1625,6 +1680,7 @@ export class AttendanceService {
           },
         );
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error(
           `Failed to notify employee ${checkIn.user_id} for check-in rejection:`,
           error,

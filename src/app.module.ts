@@ -1,51 +1,51 @@
-
-import { Module, Logger, MiddlewareConsumer, NestModule } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { typeOrmConfig } from './config/typeorm.config';
-import { ThrottlerModule } from '@nestjs/throttler';
-import { JwtModule } from '@nestjs/jwt';
-import { MailerModule } from '@nestjs-modules/mailer';
-import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
-import { ScheduleModule } from '@nestjs/schedule';
-import { EventEmitterModule } from '@nestjs/event-emitter';
-import { join } from 'path';
+import { Module, Logger, MiddlewareConsumer, NestModule } from "@nestjs/common";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { CorrelationIdMiddleware } from "./common/middleware/correlation-id.middleware";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { typeOrmConfig } from "./config/typeorm.config";
+import { ThrottlerModule } from "@nestjs/throttler";
+import { JwtModule } from "@nestjs/jwt";
+import { MailerModule } from "@nestjs-modules/mailer";
+import { HandlebarsAdapter } from "@nestjs-modules/mailer/dist/adapters/handlebars.adapter";
+import { ScheduleModule } from "@nestjs/schedule";
+import { EventEmitterModule } from "@nestjs/event-emitter";
+import { join } from "path";
 import { StorageModule } from "./modules/storage/storage.module";
-import { EmailModule } from './common/utils/email/email.module';
-import { UserModule } from './modules/user/user.module';
-import { AuthModule } from './modules/auth/auth.module';
-import { DepartmentModule } from './modules/department/department.module';
-import { DesignationModule } from './modules/designation/designation.module';
-import { EmployeeModule } from './modules/employee/employee.module';
-import { TenantModule } from './modules/tenant/tenant.module';
-import { RoleModule } from './modules/role/role.module';
-import { PermissionModule } from './modules/permission/permission.module';
-import { AttendanceModule } from './modules/attendance/attendace.module';
-import { TimesheetModule } from './modules/timesheet/timesheet.module';
-import { LeaveModule } from './modules/leave/leave.module';
-import { LeaveTypeModule } from './modules/leave-type/leave-type.module';
-import { LeaveReportsModule } from './modules/reports/leave-reports.module';
-import { ReportsModule } from './modules/reports/reports.module';
-import { TeamModule } from './modules/team/team.module';
-import { SignupModule } from './modules/signup/signup.module';
-import { SubscriptionModule } from './modules/subscription/subscription.module';
-import { CompanyModule } from './modules/company/company.module';
-import { SystemModule } from './modules/system/system.module';
-import { SearchModule } from './modules/search/search.module';
-import { BillingModule } from './modules/billing/billing.module';
-import { DashboardModule } from './modules/dashboard/dashboard.module';
-import { GeofenceModule } from './modules/geofence/geofence.module';
-import { NotificationModule } from './modules/notification/notification.module';
-import { AnnouncementModule } from './modules/announcement/announcement.module';
-import { WorkflowModule } from './modules/workflow/workflow.module';
-import { WfhModule } from './modules/wfh/wfh.module';
-import { OvertimeModule } from './modules/overtime/overtime.module';
-import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { SystemLoggingInterceptor } from './common/interceptors/system-logging.interceptor';
+import { EmailModule } from "./common/utils/email/email.module";
+import { UserModule } from "./modules/user/user.module";
+import { AuthModule } from "./modules/auth/auth.module";
+import { DepartmentModule } from "./modules/department/department.module";
+import { DesignationModule } from "./modules/designation/designation.module";
+import { EmployeeModule } from "./modules/employee/employee.module";
+import { TenantModule } from "./modules/tenant/tenant.module";
+import { RoleModule } from "./modules/role/role.module";
+import { PermissionModule } from "./modules/permission/permission.module";
+import { AttendanceModule } from "./modules/attendance/attendace.module";
+import { TimesheetModule } from "./modules/timesheet/timesheet.module";
+import { LeaveModule } from "./modules/leave/leave.module";
+import { LeaveTypeModule } from "./modules/leave-type/leave-type.module";
+import { LeaveReportsModule } from "./modules/reports/leave-reports.module";
+import { ReportsModule } from "./modules/reports/reports.module";
+import { TeamModule } from "./modules/team/team.module";
+import { SignupModule } from "./modules/signup/signup.module";
+import { SubscriptionModule } from "./modules/subscription/subscription.module";
+import { CompanyModule } from "./modules/company/company.module";
+import { SystemModule } from "./modules/system/system.module";
+import { SearchModule } from "./modules/search/search.module";
+import { BillingModule } from "./modules/billing/billing.module";
+import { DashboardModule } from "./modules/dashboard/dashboard.module";
+import { GeofenceModule } from "./modules/geofence/geofence.module";
+import { NotificationModule } from "./modules/notification/notification.module";
+import { AnnouncementModule } from "./modules/announcement/announcement.module";
+import { WorkflowModule } from "./modules/workflow/workflow.module";
+import { WfhModule } from "./modules/wfh/wfh.module";
+import { OvertimeModule } from "./modules/overtime/overtime.module";
+import { InviteStatusModule } from "./modules/invite-status/invite-status.module";
+import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
+import { SystemLoggingInterceptor } from "./common/interceptors/system-logging.interceptor";
 import { SignedFileUrlInterceptor } from "./modules/storage/signed-file-url.interceptor";
-import { SystemLog } from './entities/system-log.entity';
-import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { SystemLog } from "./entities/system-log.entity";
+import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 @Module({
   imports: [
     ScheduleModule.forRoot(),
@@ -63,56 +63,55 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
     ThrottlerModule.forRoot({
       throttlers: [
-      
-        { name: 'default', ttl: 900_000, limit: 100 },
-        
-        { name: 'short', ttl: 60_000, limit: 10 },
+        { name: "default", ttl: 900_000, limit: 100 },
+
+        { name: "short", ttl: 60_000, limit: 10 },
       ],
     }),
 
-    
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
+      // eslint-disable-next-line @typescript-eslint/require-await
       useFactory: async (config: ConfigService) => {
-        const secret = config.get<string>('JWT_SECRET');
-        if (!secret) throw new Error('JWT_SECRET not found');
+        const secret = config.get<string>("JWT_SECRET");
+        if (!secret) throw new Error("JWT_SECRET not found");
         return {
           secret,
           signOptions: {
-            expiresIn: config.get<string>('JWT_EXPIRES_IN', '24h'),
+            expiresIn: config.get<string>("JWT_EXPIRES_IN", "24h"),
           },
         };
       },
     }),
 
-  
     MailerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
+      // eslint-disable-next-line @typescript-eslint/require-await
       useFactory: async (config: ConfigService) => {
-        const logger = new Logger('MailerModule');
-        const sendgridApiKey = config.get<string>('SENDGRID_API_KEY');
-        const sendgridFrom = config.get<string>('SENDGRID_FROM');
+        const logger = new Logger("MailerModule");
+        const sendgridApiKey = config.get<string>("SENDGRID_API_KEY");
+        const sendgridFrom = config.get<string>("SENDGRID_FROM");
 
-        
         if (!sendgridApiKey || !sendgridFrom) {
-          logger.warn('SendGrid configuration incomplete. Using fallback configuration.');
-          logger.warn('Required: SENDGRID_API_KEY, SENDGRID_FROM');
-          
-          
+          logger.warn(
+            "SendGrid configuration incomplete. Using fallback configuration.",
+          );
+          logger.warn("Required: SENDGRID_API_KEY, SENDGRID_FROM");
+
           return {
             transport: {
-              service: 'sendgrid',
+              service: "sendgrid",
               auth: {
-                api_key: 'dummy-key',
+                api_key: "dummy-key",
               },
             },
             defaults: {
-              from: 'noreply@example.com',
+              from: "noreply@example.com",
             },
             template: {
-              dir: join(process.cwd(), 'src', 'templates'),
+              dir: join(process.cwd(), "src", "templates"),
               adapter: new HandlebarsAdapter(),
               options: {
                 strict: true,
@@ -123,7 +122,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
         return {
           transport: {
-            service: 'sendgrid',
+            service: "sendgrid",
             auth: {
               api_key: sendgridApiKey,
             },
@@ -132,7 +131,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
             from: sendgridFrom,
           },
           template: {
-            dir: join(process.cwd(), 'src', 'templates'),
+            dir: join(process.cwd(), "src", "templates"),
             adapter: new HandlebarsAdapter(),
             options: {
               strict: true,
@@ -142,7 +141,6 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
       },
     }),
 
-    
     UserModule,
     AuthModule,
     DepartmentModule,
@@ -171,6 +169,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     WorkflowModule,
     WfhModule,
     OvertimeModule,
+    InviteStatusModule,
   ],
   providers: [
     {
@@ -185,12 +184,10 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
       provide: APP_INTERCEPTOR,
       useClass: SignedFileUrlInterceptor,
     },
-  ]
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(CorrelationIdMiddleware)
-      .forRoutes('*');
+    consumer.apply(CorrelationIdMiddleware).forRoutes("*");
   }
 }
