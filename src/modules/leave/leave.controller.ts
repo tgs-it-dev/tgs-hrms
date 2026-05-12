@@ -44,7 +44,7 @@ import { PermissionsGuard } from 'src/common/guards/permissions.guard';
 import { Response } from 'express';
 import { sendCsvResponse } from 'src/common/utils/csv.util';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { validateImageFile } from 'src/common/utils/file-validation.util';
+import { validateImageFile, createImageFileFilter } from 'src/common/utils/file-validation.util';
 import { AuthenticatedRequest } from 'src/common/types/request.types';
 
 @ApiTags('Leaves')
@@ -99,45 +99,7 @@ export class LeaveController {
   @UseInterceptors(
     FilesInterceptor('documents', 10, {
       limits: { fileSize: 5 * 1024 * 1024 }, // 5MB per file
-      fileFilter: (_req, file, cb) => {
-        try {
-          // Check MIME type first
-          if (!file.mimetype || !file.mimetype.startsWith('image/')) {
-            return cb(
-              new BadRequestException(
-                `Invalid file type: ${file.mimetype || 'unknown'}. Only image files are allowed (JPG, JPEG, PNG, GIF, WebP)`,
-              ),
-              false,
-            );
-          }
-
-          // Check file extension
-          const fileExtension = file.originalname
-            .substring(file.originalname.lastIndexOf('.'))
-            .toLowerCase();
-          const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-
-          if (!allowedExtensions.includes(fileExtension)) {
-            return cb(
-              new BadRequestException(
-                `Invalid file extension: ${fileExtension}. Allowed extensions: ${allowedExtensions.join(', ')}`,
-              ),
-              false,
-            );
-          }
-
-          cb(null, true);
-        } catch (error) {
-          cb(
-            error instanceof BadRequestException
-              ? error
-              : new BadRequestException(
-                  'File validation failed. Please upload a valid image file',
-                ),
-            false,
-          );
-        }
-      },
+      fileFilter: createImageFileFilter(),
     }),
   )
   async create(
@@ -232,45 +194,7 @@ export class LeaveController {
   @UseInterceptors(
     FilesInterceptor('documents', 10, {
       limits: { fileSize: 5 * 1024 * 1024 }, // 5MB per file
-      fileFilter: (_req, file, cb) => {
-        try {
-          // Check MIME type first
-          if (!file.mimetype || !file.mimetype.startsWith('image/')) {
-            return cb(
-              new BadRequestException(
-                `Invalid file type: ${file.mimetype || 'unknown'}. Only image files are allowed (JPG, JPEG, PNG, GIF, WebP)`,
-              ),
-              false,
-            );
-          }
-
-          // Check file extension
-          const fileExtension = file.originalname
-            .substring(file.originalname.lastIndexOf('.'))
-            .toLowerCase();
-          const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-
-          if (!allowedExtensions.includes(fileExtension)) {
-            return cb(
-              new BadRequestException(
-                `Invalid file extension: ${fileExtension}. Allowed extensions: ${allowedExtensions.join(', ')}`,
-              ),
-              false,
-            );
-          }
-
-          cb(null, true);
-        } catch (error) {
-          cb(
-            error instanceof BadRequestException
-              ? error
-              : new BadRequestException(
-                  'File validation failed. Please upload a valid image file',
-                ),
-            false,
-          );
-        }
-      },
+      fileFilter: createImageFileFilter(),
     }),
   )
   async createLeaveForEmployee(
@@ -862,45 +786,7 @@ export class LeaveController {
   @UseInterceptors(
     FilesInterceptor('documents', 10, {
       limits: { fileSize: 5 * 1024 * 1024 }, // 5MB per file
-      fileFilter: (_req, file, cb) => {
-        try {
-          // Check MIME type first
-          if (!file.mimetype || !file.mimetype.startsWith('image/')) {
-            return cb(
-              new BadRequestException(
-                `Invalid file type: ${file.mimetype || 'unknown'}. Only image files are allowed (JPG, JPEG, PNG, GIF, WebP)`,
-              ),
-              false,
-            );
-          }
-
-          // Check file extension
-          const fileExtension = file.originalname
-            .substring(file.originalname.lastIndexOf('.'))
-            .toLowerCase();
-          const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-
-          if (!allowedExtensions.includes(fileExtension)) {
-            return cb(
-              new BadRequestException(
-                `Invalid file extension: ${fileExtension}. Allowed extensions: ${allowedExtensions.join(', ')}`,
-              ),
-              false,
-            );
-          }
-
-          cb(null, true);
-        } catch (error) {
-          cb(
-            error instanceof BadRequestException
-              ? error
-              : new BadRequestException(
-                  'File validation failed. Please upload a valid image file',
-                ),
-            false,
-          );
-        }
-      },
+      fileFilter: createImageFileFilter(),
     }),
   )
   async editLeave(
