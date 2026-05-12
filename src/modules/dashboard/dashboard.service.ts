@@ -69,8 +69,6 @@ export class DashboardService {
   }) {
     const { tenantId, userId, role } = params;
     const cacheKey = `kpi:${tenantId}:${role}:${userId}`;
-    const cached = this.getCache<Record<string, unknown>>(cacheKey);
-    if (cached) return cached;
 
     const now = new Date();
     const startOfDay = new Date(
@@ -101,7 +99,7 @@ export class DashboardService {
       });
       const members = teams.flatMap((t) => t.teamMembers || []);
       employeeIds = members
-        .filter((e) => e.user?.tenant_id === tenantId)
+        .filter((e) => e.user?.tenant_id === tenantId && !e.deleted_at)
         .map((e) => e.id);
     } else if (role === UserRole.EMPLOYEE) {
       const employee = await this.employeeRepo.findOne({
@@ -115,12 +113,13 @@ export class DashboardService {
         .createQueryBuilder("employee")
         .leftJoin("employee.user", "user")
         .where("user.tenant_id = :tenantId", { tenantId })
+        .andWhere("employee.deleted_at IS NULL")
         .getMany();
       employeeIds = employees.map((e) => e.id);
     }
 
     if (!employeeIds.length) {
-      const empty = {
+      return {
         total_employees: 0,
         total_salary: 0,
         salary_paid: 0,
@@ -129,8 +128,6 @@ export class DashboardService {
         employees_on_leave_today: 0,
         timestamp: now.toISOString(),
       };
-      this.setCache(cacheKey, empty);
-      return empty;
     }
 
     const totalEmployees = employeeIds.length;
@@ -155,15 +152,7 @@ export class DashboardService {
     );
 
     for (const checkIn of todayCheckIns) {
-      const matchingCheckOut = todayCheckOuts.find(
-        (co) =>
-          co.user_id === checkIn.user_id &&
-          co.timestamp > checkIn.timestamp &&
-          co.timestamp.toDateString() === checkIn.timestamp.toDateString(),
-      );
-      if (matchingCheckOut) {
-        presentUserIds.add(checkIn.user_id);
-      }
+      presentUserIds.add(checkIn.user_id);
     }
 
     const employeesForScope = await this.employeeRepo.find({
@@ -210,7 +199,6 @@ export class DashboardService {
       timestamp: now.toISOString(),
     };
 
-    this.setCache(cacheKey, result);
     return result;
   }
 

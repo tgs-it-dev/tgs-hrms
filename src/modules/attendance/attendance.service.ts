@@ -439,9 +439,16 @@ export class AttendanceService {
         .orderBy("a.timestamp", "ASC")
         .getOne();
 
+      const checkInTime = todayCheckIn.timestamp;
+      const checkOutTime = matchingCheckOut?.timestamp || null;
+      const elapsed_seconds = checkOutTime
+        ? null
+        : Math.floor((Date.now() - checkInTime.getTime()) / 1000);
+
       return {
-        checkIn: todayCheckIn.timestamp,
-        checkOut: matchingCheckOut?.timestamp || null,
+        checkIn: checkInTime,
+        checkOut: checkOutTime,
+        elapsed_seconds,
       };
     };
 
@@ -1232,6 +1239,8 @@ export class AttendanceService {
       profile_pic?: string;
       designation: string;
       department: string;
+      type: AttendanceType;
+      timestamp: Date;
       check_in_time: Date;
       approval_status: CheckInApprovalStatus | null;
       approved_by: string | null;
@@ -1293,62 +1302,47 @@ export class AttendanceService {
 
     const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
 
-    const fetchTodayCheckIns = (repo: Repository<Attendance>) =>
+    const fetchTodayAttendance = (repo: Repository<Attendance>) =>
       repo
         .createQueryBuilder("attendance")
         .leftJoinAndSelect("attendance.user", "user")
         .leftJoinAndSelect("attendance.approver", "approver")
         .where("attendance.user_id IN (:...userIds)", { userIds })
-        .andWhere("attendance.type = :type", { type: AttendanceType.CHECK_IN })
+        .andWhere("attendance.type IN (:...types)", {
+          types: [AttendanceType.CHECK_IN, AttendanceType.CHECK_OUT],
+        })
         .andWhere("attendance.timestamp >= :startOfDay", { startOfDay })
         .andWhere("attendance.timestamp < :endOfDay", { endOfDay })
         .orderBy("attendance.timestamp", "DESC")
         .getMany();
 
-    const todayCheckIns: Attendance[] = isProvisioned
+    const todayAttendance: Attendance[] = isProvisioned
       ? await this.tenantDbService.withTenantSchemaReadOnly(tenantId, (em) =>
-          fetchTodayCheckIns(em.getRepository(Attendance)),
+          fetchTodayAttendance(em.getRepository(Attendance)),
         )
-      : await fetchTodayCheckIns(this.attendanceRepo);
+      : await fetchTodayAttendance(this.attendanceRepo);
 
-    // Group by user and get the latest check-in per user
-    const userCheckInMap = new Map<string, Attendance>();
-    for (const checkIn of todayCheckIns) {
-      const userId = checkIn.user_id;
-      if (
-        !userCheckInMap.has(userId) ||
-        checkIn.timestamp > userCheckInMap.get(userId)!.timestamp
-      ) {
-        userCheckInMap.set(userId, checkIn);
-      }
-    }
-
-    // Transform to response format
-    const items = Array.from(userCheckInMap.values()).map((checkIn) => {
-      const member = allTeamMembers.find((m) => m.user.id === checkIn.user_id);
+    // Transform to response format — all entries, no deduplication
+    const items = todayAttendance.map((record) => {
+      const member = allTeamMembers.find((m) => m.user.id === record.user_id);
       return {
-        id: checkIn.id,
-        user_id: checkIn.user_id,
-        first_name: checkIn.user.first_name,
-        last_name: checkIn.user.last_name,
-        email: checkIn.user.email,
-        profile_pic: checkIn.user.profile_pic || undefined,
+        id: record.id,
+        user_id: record.user_id,
+        first_name: record.user.first_name,
+        last_name: record.user.last_name,
+        email: record.user.email,
+        profile_pic: record.user.profile_pic || undefined,
         designation: member?.designation?.title || "N/A",
         department: member?.department?.name || "N/A",
-        check_in_time: checkIn.timestamp,
-        approval_status: checkIn.approval_status,
-        approved_by: checkIn.approved_by,
-        approved_at: checkIn.approved_at,
-        approval_remarks: checkIn.approval_remarks,
+        type: record.type,
+        timestamp: record.timestamp,
+        check_in_time: record.timestamp,
+        approval_status: record.approval_status,
+        approved_by: record.approved_by,
+        approved_at: record.approved_at,
+        approval_remarks: record.approval_remarks,
       };
     });
-
-    // Sort by check-in time (latest first)
-    items.sort(
-      (a, b) =>
-        new Date(b.check_in_time).getTime() -
-        new Date(a.check_in_time).getTime(),
-    );
 
     return {
       items,

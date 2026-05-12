@@ -853,7 +853,13 @@ export class LeaveService {
         throw new ForbiddenException('You can only cancel your own leave requests');
       }
 
-      if (leave.status !== LeaveStatus.PENDING) {
+      const isManagerRole = requesterRole && ['manager'].includes(requesterRole.toLowerCase());
+      const canCancelProcessing = isAdminOrHrAdmin || isManagerRole;
+
+      if (
+        leave.status !== LeaveStatus.PENDING &&
+        !(canCancelProcessing && leave.status === LeaveStatus.PROCESSING)
+      ) {
         throw new ForbiddenException('You can only cancel pending leave requests');
       }
 
@@ -951,7 +957,8 @@ export class LeaveService {
         return updatedLeave || savedLeave;
       }
 
-      if (isEmployee && leave.status === LeaveStatus.PROCESSING) {
+      const isManagerRole = requesterRole && ['manager'].includes(requesterRole.toLowerCase());
+      if (isEmployee && !isAdminOrHrAdmin && !isManagerRole && leave.status === LeaveStatus.PROCESSING) {
         throw new ForbiddenException('You cannot edit the leave while it is awaiting admin approval');
       }
 
