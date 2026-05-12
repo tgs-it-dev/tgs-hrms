@@ -40,7 +40,7 @@ import { PermissionsGuard } from '../../../common/guards/permissions.guard';
 import { Response } from 'express';
 import { sendCsvResponse } from '../../../common/utils/csv.util';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
-import { validateImageFile } from '../../../common/utils/file-validation.util';
+import { validateImageFile, createImageFileFilter } from '../../../common/utils/file-validation.util';
 
 @ApiTags('Employees')
 @ApiBearerAuth()
@@ -63,19 +63,7 @@ export class EmployeeController {
         { name: 'cnic_back_picture', maxCount: 1 },
       ],
       {
-        fileFilter: (_req, file, cb) => {
-          try {
-            // Even if buffer is not available yet, we MUST validate metadata (extension, mimetype)
-            // This prevents invalid files from passing through to the service layer
-            validateImageFile(file);
-            cb(null, true);
-          } catch (error) {
-            cb(
-              error instanceof Error ? error : new Error("File validation failed"),
-              false,
-            );
-          }
-        },
+        fileFilter: createImageFileFilter(),
         limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
       },
     ),
@@ -156,18 +144,7 @@ export class EmployeeController {
         { name: 'cnic_back_picture', maxCount: 1 },
       ],
       {
-        fileFilter: (_req, file, cb) => {
-          try {
-            // Even if buffer is not available yet, we MUST validate metadata (extension, mimetype)
-            validateImageFile(file);
-            cb(null, true);
-          } catch (error) {
-            cb(
-              error instanceof Error ? error : new Error("File validation failed"),
-              false,
-            );
-          }
-        },
+        fileFilter: createImageFileFilter(),
         limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
       },
     ),
@@ -244,18 +221,7 @@ export class EmployeeController {
         { name: 'cnic_back_picture', maxCount: 1 },
       ],
       {
-        fileFilter: (_req, file, cb) => {
-          try {
-            // Even if buffer is not available yet, we MUST validate metadata (extension, mimetype)
-            validateImageFile(file);
-            cb(null, true);
-          } catch (error) {
-            cb(
-              error instanceof Error ? error : new Error("File validation failed"),
-              false,
-            );
-          }
-        },
+        fileFilter: createImageFileFilter(),
         limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
       },
     ),

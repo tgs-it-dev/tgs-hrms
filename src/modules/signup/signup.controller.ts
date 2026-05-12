@@ -22,6 +22,7 @@ import { CompanyLogoDto } from './dto/company-logo.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import * as path from 'path';
+import { createImageFileFilter } from '../common/utils/file-validation.util';
 
 @ApiTags('Signup')
 @Controller('signup')
@@ -89,29 +90,7 @@ export class SignupController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
-      fileFilter: (_req, file, cb) => {
-        const ext = (path.extname(file.originalname || '') || '').toLowerCase();
-        const allowed = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-        if (!allowed.includes(ext)) {
-          return cb(
-            new BadRequestException(
-              'Company logo: Only JPG, JPEG, PNG, GIF and WebP are accepted. Other formats (e.g. .jfif) are not allowed.',
-            ),
-            false,
-          );
-        }
-        const mimetype = (file.mimetype || '').toLowerCase();
-        const isImageMime = mimetype.startsWith('image/');
-        const isGenericMime =
-          !mimetype || mimetype === 'application/octet-stream';
-        if (!isImageMime && !isGenericMime) {
-          return cb(
-            new BadRequestException('Only image files are allowed.'),
-            false,
-          );
-        }
-        cb(null, true);
-      },
+      fileFilter: createImageFileFilter(),
       limits: { fileSize: 5 * 1024 * 1024 },
     }),
   )
