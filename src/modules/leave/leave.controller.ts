@@ -25,7 +25,7 @@ import {
   ApiConsumes,
   ApiBody,
 } from '@nestjs/swagger';
-import { ForbiddenException, ValidationPipe } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
 import { LeaveService } from './leave.service';
 import { CreateLeaveDto } from './dto/create-leave.dto';
 import { CreateLeaveForEmployeeDto } from './dto/create-leave-for-employee.dto';
@@ -371,10 +371,6 @@ export class LeaveController {
       ? Math.min(100, Math.max(1, parseInt(limit, 10) || 25))
       : undefined;
 
-    if (req.user.role !== 'manager') {
-      throw new ForbiddenException('Access denied. Manager role required.');
-    }
-
     return this.leaveService.getTeamLeaves(
       req.user.id,
       req.user.tenant_id,
@@ -432,10 +428,6 @@ export class LeaveController {
   async getTeamMembersWithLeaveApplications(
     @Request() req: AuthenticatedRequest,
   ) {
-    if (req.user.role !== 'manager') {
-      throw new ForbiddenException('Access denied. Manager role required.');
-    }
-
     return this.leaveService.getTeamMembersWithLeaveApplications(
       req.user.id,
       req.user.tenant_id,
