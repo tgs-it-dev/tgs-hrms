@@ -240,9 +240,14 @@ export class EmployeeService implements OnModuleInit {
         .where("u.phone = :phone", { phone });
       if (excludeUserId)
         qb.andWhere("u.id != :excludeUserId", { excludeUserId });
-      const existingPhone = await qb.getOne();
-      if (existingPhone) {
-        throw new ConflictException("Phone number already exists.");
+      const existingUser = await qb.getOne();
+      if (existingUser) {
+        const activeEmployee = await this.employeeRepo.findOne({
+          where: { user_id: existingUser.id, deleted_at: IsNull() },
+        });
+        if (activeEmployee) {
+          throw new ConflictException("Phone number already exists.");
+        }
       }
     }
     const cnic =
@@ -250,7 +255,8 @@ export class EmployeeService implements OnModuleInit {
     if (cnic) {
       const qb = this.employeeRepo
         .createQueryBuilder("e")
-        .where("e.cnic_number = :cnic", { cnic });
+        .where("e.cnic_number = :cnic", { cnic })
+        .andWhere("e.deleted_at IS NULL");
       if (excludeEmployeeId)
         qb.andWhere("e.id != :excludeEmployeeId", { excludeEmployeeId });
       const existingCnic = await qb.getOne();
@@ -334,10 +340,15 @@ export class EmployeeService implements OnModuleInit {
     const existingUser = await this.userRepo.findOne({
       where: { email: dto.email, tenant_id },
     });
-    if (existingUser)
-      throw new ConflictException(
-        "User with this email already exists in the tenant.",
-      );
+    if (existingUser) {
+      const activeEmployee = await this.employeeRepo.findOne({
+        where: { user_id: existingUser.id, deleted_at: IsNull() },
+      });
+      if (activeEmployee)
+        throw new ConflictException(
+          "User with this email already exists in the tenant.",
+        );
+    }
 
     await this.validateUniquePhoneAndCnic(dto.phone, dto.cnic_number);
 
@@ -520,10 +531,15 @@ export class EmployeeService implements OnModuleInit {
     const existingUser = await this.userRepo.findOne({
       where: { email: dto.email, tenant_id },
     });
-    if (existingUser)
-      throw new ConflictException(
-        "User with this email already exists in the tenant.",
-      );
+    if (existingUser) {
+      const activeEmployee = await this.employeeRepo.findOne({
+        where: { user_id: existingUser.id, deleted_at: IsNull() },
+      });
+      if (activeEmployee)
+        throw new ConflictException(
+          "User with this email already exists in the tenant.",
+        );
+    }
 
     await this.validateUniquePhoneAndCnic(dto.phone, dto.cnic_number);
 
@@ -916,10 +932,15 @@ export class EmployeeService implements OnModuleInit {
     const existingUser = await this.userRepo.findOne({
       where: { email: dto.email, tenant_id },
     });
-    if (existingUser)
-      throw new ConflictException(
-        "User with this email already exists in the tenant.",
-      );
+    if (existingUser) {
+      const activeEmployee = await this.employeeRepo.findOne({
+        where: { user_id: existingUser.id, deleted_at: IsNull() },
+      });
+      if (activeEmployee)
+        throw new ConflictException(
+          "User with this email already exists in the tenant.",
+        );
+    }
 
     await this.validateUniquePhoneAndCnic(dto.phone, dto.cnic_number);
 

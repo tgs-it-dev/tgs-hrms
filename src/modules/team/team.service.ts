@@ -149,6 +149,7 @@ export class TeamService {
         id: t.id,
         name: t.name,
         description: t.description,
+        memberCount: (t.teamMembers || []).length,
         manager: t.manager
           ? {
               id: t.manager.id,
@@ -228,6 +229,7 @@ export class TeamService {
             id: 'employee-pool',
             name: 'Employee Pool',
             description: 'Unassigned employees',
+            memberCount: employeePool.length,
             manager: undefined,
             created_at: undefined,
             members: employeePool,
@@ -790,6 +792,7 @@ export class TeamService {
         .where('u.tenant_id = :tenantId', { tenantId })
         .andWhere('e.team_id IS NULL')
         .andWhere('e.status = :status', { status: EmployeeStatus.ACTIVE })
+        .andWhere('e.deleted_at IS NULL')
         .orderBy('u.first_name', 'ASC');
 
       if (search) {
