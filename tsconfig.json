@@ -10,7 +10,7 @@
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
-    "paths": {                           // :white_check_mark: ADD THIS
+    "paths": {
       "src/*": ["src/*"]
     },
     "incremental": true,
