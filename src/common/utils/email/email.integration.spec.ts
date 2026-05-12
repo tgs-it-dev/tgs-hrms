@@ -120,7 +120,7 @@ describe('Email Integration Tests', () => {
     );
     if (!redisReady) {
       console.warn(
-        `\n⚠️  Redis not reachable at ${redisHost}:${redisPort}.\n` +
+        `\n⚠️  Redis not reachable at ${redisURL}.\n` +
           '   Start Redis (e.g. docker run -d -p 6379:6379 redis:alpine)\n' +
           '   and re-run the tests. Skipping all email integration tests.\n',
       );
