@@ -38,4 +38,11 @@ export default tseslint.config(
       "prettier/prettier": ["error", { "singleQuote": true }]
     },
   },
+  // Test files: allow console.* (Logger not available outside DI context)
+  {
+    files: ['**/*.spec.ts', '**/*.e2e-spec.ts', 'test/**/*.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
 );
