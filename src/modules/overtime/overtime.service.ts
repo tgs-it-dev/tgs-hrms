@@ -20,6 +20,7 @@ import {
 import { TenantDatabaseService } from '../../common/services/tenant-database.service';
 import { WorkflowService } from '../workflow/workflow.service';
 import { NotificationService } from '../notification/notification.service';
+import { NotificationGateway } from '../notification/notification.gateway';
 import { CreateOvertimeDto } from './dto/create-overtime.dto';
 import { UpdateOvertimeDto } from './dto/update-overtime.dto';
 import { DocumentUploadService } from '../storage/document-upload.service';
@@ -35,6 +36,7 @@ export class OvertimeService {
     private readonly userRepo: Repository<User>,
     private readonly workflowService: WorkflowService,
     private readonly notificationService: NotificationService,
+    private readonly notificationGateway: NotificationGateway,
     private readonly tenantDbService: TenantDatabaseService,
     private readonly fileUploadService: DocumentUploadService,
     @InjectDataSource()
@@ -562,7 +564,12 @@ export class OvertimeService {
 
   // ── Called by OvertimeWorkflowListener ───────────────────────────────────
 
-  async markApproved(relatedEntityId: string, tenantId: string): Promise<void> {
+  async markApproved(
+    relatedEntityId: string,
+    tenantId: string,
+    requestorId: string,
+    approverId: string | null,
+  ): Promise<void> {
     await this.runInTenantContext(tenantId, async (repo) => {
       const overtime = await repo.findOne({
         where: { id: relatedEntityId, tenant_id: tenantId },
@@ -574,9 +581,42 @@ export class OvertimeService {
         `Overtime ${relatedEntityId} marked APPROVED by workflow`,
       );
     });
+
+    try {
+      const notification = await this.notificationService.create(
+        requestorId,
+        tenantId,
+        'Your overtime request has been approved',
+        NotificationType.OVERTIME,
+        {
+          relatedEntityType: 'overtime',
+          relatedEntityId,
+          senderId: approverId ?? undefined,
+          action: NotificationAction.APPROVED,
+          isSystem: false,
+        },
+      );
+      this.notificationGateway.sendToUser(requestorId, 'new_notification', {
+        id: notification.id,
+        message: notification.message,
+        type: notification.type,
+        related_entity_type: 'overtime',
+        related_entity_id: relatedEntityId,
+        created_at: notification.created_at,
+      });
+    } catch (err: unknown) {
+      this.logger.warn(
+        `Failed to send approval notification for overtime ${relatedEntityId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
-  async markRejected(relatedEntityId: string, tenantId: string): Promise<void> {
+  async markRejected(
+    relatedEntityId: string,
+    tenantId: string,
+    requestorId: string,
+    approverId: string | null,
+  ): Promise<void> {
     await this.runInTenantContext(tenantId, async (repo) => {
       const overtime = await repo.findOne({
         where: { id: relatedEntityId, tenant_id: tenantId },
@@ -588,5 +628,33 @@ export class OvertimeService {
         `Overtime ${relatedEntityId} marked REJECTED by workflow`,
       );
     });
+
+    try {
+      const notification = await this.notificationService.create(
+        requestorId,
+        tenantId,
+        'Your overtime request has been rejected',
+        NotificationType.OVERTIME,
+        {
+          relatedEntityType: 'overtime',
+          relatedEntityId,
+          senderId: approverId ?? undefined,
+          action: NotificationAction.REJECTED,
+          isSystem: false,
+        },
+      );
+      this.notificationGateway.sendToUser(requestorId, 'new_notification', {
+        id: notification.id,
+        message: notification.message,
+        type: notification.type,
+        related_entity_type: 'overtime',
+        related_entity_id: relatedEntityId,
+        created_at: notification.created_at,
+      });
+    } catch (err: unknown) {
+      this.logger.warn(
+        `Failed to send rejection notification for overtime ${relatedEntityId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 }

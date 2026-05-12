@@ -926,6 +926,10 @@ export class WorkflowService {
         return 'wfh_workflow_enabled';
       case WorkflowRequestType.OVERTIME:
         return 'overtime_workflow_enabled';
+      default:
+        throw new BadRequestException(
+          `Invalid request_type: ${String(requestType)}`,
+        );
     }
   }
 

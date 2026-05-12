@@ -29,6 +29,7 @@ import { WorkflowService } from './workflow.service';
 import { ActOnStepDto } from './dto/act-on-step.dto';
 import { AddWorkflowConfigStepDto } from './dto/add-workflow-config-step.dto';
 import { UpdateWorkflowConfigStepDto } from './dto/update-workflow-config-step.dto';
+import { SetWorkflowEnabledDto } from './dto/set-workflow-enabled.dto';
 import {
   WorkflowRequestType,
   WorkflowRequestStatus,
@@ -640,19 +641,7 @@ export class WorkflowController {
       'Toggles the workflow engine for leave, wfh, or overtime independently. ' +
       'When disabled for a type, requests of that type skip workflow and go directly to approved/rejected.',
   })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      required: ['request_type', 'enabled'],
-      properties: {
-        request_type: {
-          enum: Object.values(WorkflowRequestType),
-          example: WorkflowRequestType.LEAVE,
-        },
-        enabled: { type: 'boolean', example: true },
-      },
-    },
-  })
+  @ApiBody({ type: SetWorkflowEnabledDto })
   @ApiOkResponse({
     description: 'Updated workflow settings for all types',
     schema: {
@@ -664,14 +653,13 @@ export class WorkflowController {
     },
   })
   async setWorkflowEnabled(
-    @Body('request_type') requestType: WorkflowRequestType,
-    @Body('enabled') enabled: boolean,
+    @Body() dto: SetWorkflowEnabledDto,
     @Request() req: AuthenticatedRequest,
   ) {
     return this.workflowService.setWorkflowEnabled(
       req.user.tenant_id,
-      requestType,
-      enabled,
+      dto.request_type,
+      dto.enabled,
     );
   }
 }

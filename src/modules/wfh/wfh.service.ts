@@ -20,6 +20,7 @@ import {
 import { TenantDatabaseService } from '../../common/services/tenant-database.service';
 import { WorkflowService } from '../workflow/workflow.service';
 import { NotificationService } from '../notification/notification.service';
+import { NotificationGateway } from '../notification/notification.gateway';
 import { CreateWfhDto } from './dto/create-wfh.dto';
 import { UpdateWfhDto } from './dto/update-wfh.dto';
 import { DocumentUploadService } from '../storage/document-upload.service';
@@ -35,6 +36,7 @@ export class WfhService {
     private readonly userRepo: Repository<User>,
     private readonly workflowService: WorkflowService,
     private readonly notificationService: NotificationService,
+    private readonly notificationGateway: NotificationGateway,
     private readonly tenantDbService: TenantDatabaseService,
     private readonly fileUploadService: DocumentUploadService,
     @InjectDataSource()
@@ -415,7 +417,12 @@ export class WfhService {
 
   // ── Called by WfhWorkflowListener ─────────────────────────────────────────
 
-  async markApproved(relatedEntityId: string, tenantId: string): Promise<void> {
+  async markApproved(
+    relatedEntityId: string,
+    tenantId: string,
+    requestorId: string,
+    approverId: string | null,
+  ): Promise<void> {
     await this.runInTenantContext(tenantId, async (wfhRepo) => {
       const wfh = await wfhRepo.findOne({
         where: { id: relatedEntityId, tenant_id: tenantId },
@@ -425,9 +432,42 @@ export class WfhService {
       await wfhRepo.save(wfh);
       this.logger.log(`WFH ${relatedEntityId} marked APPROVED by workflow`);
     });
+
+    try {
+      const notification = await this.notificationService.create(
+        requestorId,
+        tenantId,
+        'Your WFH request has been approved',
+        NotificationType.WFH,
+        {
+          relatedEntityType: 'wfh',
+          relatedEntityId,
+          senderId: approverId ?? undefined,
+          action: NotificationAction.APPROVED,
+          isSystem: false,
+        },
+      );
+      this.notificationGateway.sendToUser(requestorId, 'new_notification', {
+        id: notification.id,
+        message: notification.message,
+        type: notification.type,
+        related_entity_type: 'wfh',
+        related_entity_id: relatedEntityId,
+        created_at: notification.created_at,
+      });
+    } catch (err: unknown) {
+      this.logger.warn(
+        `Failed to send approval notification for WFH ${relatedEntityId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
-  async markRejected(relatedEntityId: string, tenantId: string): Promise<void> {
+  async markRejected(
+    relatedEntityId: string,
+    tenantId: string,
+    requestorId: string,
+    approverId: string | null,
+  ): Promise<void> {
     await this.runInTenantContext(tenantId, async (wfhRepo) => {
       const wfh = await wfhRepo.findOne({
         where: { id: relatedEntityId, tenant_id: tenantId },
@@ -437,5 +477,33 @@ export class WfhService {
       await wfhRepo.save(wfh);
       this.logger.log(`WFH ${relatedEntityId} marked REJECTED by workflow`);
     });
+
+    try {
+      const notification = await this.notificationService.create(
+        requestorId,
+        tenantId,
+        'Your WFH request has been rejected',
+        NotificationType.WFH,
+        {
+          relatedEntityType: 'wfh',
+          relatedEntityId,
+          senderId: approverId ?? undefined,
+          action: NotificationAction.REJECTED,
+          isSystem: false,
+        },
+      );
+      this.notificationGateway.sendToUser(requestorId, 'new_notification', {
+        id: notification.id,
+        message: notification.message,
+        type: notification.type,
+        related_entity_type: 'wfh',
+        related_entity_id: relatedEntityId,
+        created_at: notification.created_at,
+      });
+    } catch (err: unknown) {
+      this.logger.warn(
+        `Failed to send rejection notification for WFH ${relatedEntityId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 }
