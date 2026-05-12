@@ -251,7 +251,7 @@ export class AttendanceService {
           related_entity_id: saved.id,
         });
       } catch (error) {
-        console.error("Failed to create attendance notification:", error);
+        this.logger.error("Failed to create attendance notification:", error);
       }
     }
 
@@ -572,7 +572,7 @@ export class AttendanceService {
       }
       return { items, total: items.length };
     } catch (error) {
-      console.error("Error fetching attendance with user join:", error);
+      this.logger.error("Error fetching attendance with user join:", error);
       return { items: [], total: 0 };
     }
   }
@@ -1416,7 +1416,7 @@ export class AttendanceService {
         created_at: notification.created_at,
       });
     } catch (error) {
-      console.error("Failed to create check-in approval notification:", error);
+      this.logger.error("Failed to create check-in approval notification:", error);
     }
     return saved;
   }
@@ -1483,7 +1483,7 @@ export class AttendanceService {
         created_at: notification.created_at,
       });
     } catch (error) {
-      console.error("Failed to create check-in rejection notification:", error);
+      this.logger.error("Failed to create check-in rejection notification:", error);
     }
     return saved;
   }
@@ -1552,7 +1552,7 @@ export class AttendanceService {
           },
         );
       } catch (error) {
-        console.error(
+        this.logger.error(
           `Failed to notify employee ${checkIn.user_id} for check-in approval:`,
           error,
         );
@@ -1625,7 +1625,7 @@ export class AttendanceService {
           },
         );
       } catch (error) {
-        console.error(
+        this.logger.error(
           `Failed to notify employee ${checkIn.user_id} for check-in rejection:`,
           error,
         );

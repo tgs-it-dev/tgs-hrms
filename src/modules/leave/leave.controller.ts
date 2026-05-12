@@ -925,10 +925,7 @@ export class LeaveController {
       }
     }
 
-    // Debug: Log the DTO to verify values are being received
-    // console.log('EditLeave DTO received:', JSON.stringify(dto, null, 2));
-
-    return this.leaveService.editLeave(
+        return this.leaveService.editLeave(
       id,
       req.user.id,
       req.user.tenant_id,

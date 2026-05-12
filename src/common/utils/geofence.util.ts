@@ -1,8 +1,10 @@
 
 
+import { Logger } from '@nestjs/common';
 import { Geofence, GeofenceType } from '../../entities/geofence.entity';
 
 const GEOFENCE_MARGIN_METERS = 20;
+const logger = new Logger('GeofenceUtil');
 
 
 export function calculateDistance(
@@ -285,7 +287,7 @@ export function checkPointWithinGeofence(
   const geofenceLng = parseFloat(geofence.longitude);
 
   if (isNaN(geofenceLat) || isNaN(geofenceLng)) {
-    console.error(
+    logger.error(
       `Invalid geofence coordinates: lat=${geofence.latitude}, lng=${geofence.longitude}`,
     );
     return { isWithin: false, isNearBoundary: false };
@@ -387,7 +389,7 @@ export function isPointWithinGeofence(
 
   
   if (isNaN(geofenceLat) || isNaN(geofenceLng)) {
-    console.error(
+    logger.error(
       `Invalid geofence coordinates: lat=${geofence.latitude}, lng=${geofence.longitude}`,
     );
     return false;
@@ -447,7 +449,7 @@ export function isPointWithinGeofence(
           !isNaN(coord[1]),
       );
       if (!validRectCoords) {
-        console.error('Invalid rectangle coordinates format:', geofence.coordinates);
+        logger.error('Invalid rectangle coordinates format:', geofence.coordinates);
         return false;
       }
       return isPointInRectangle(pointLat, pointLng, normalizedRectCoords);
@@ -477,7 +479,7 @@ export function isPointWithinGeofence(
           !isNaN(coord[1]),
       );
       if (!validPolyCoords) {
-        console.error('Invalid polygon coordinates format:', geofence.coordinates);
+        logger.error('Invalid polygon coordinates format:', geofence.coordinates);
         return false;
       }
       return isPointInPolygon(pointLat, pointLng, normalizedPolyCoords);
