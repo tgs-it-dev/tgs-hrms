@@ -15,12 +15,11 @@ async function bootstrap() {
   app.use((_req: Request, res: Response, next: NextFunction) => {
     const start = Date.now();
 
-    res.on('finish', () => {
-      const duration = Date.now() - start;
-      try {
-        res.setHeader('X-Response-Time', `${duration}ms`);
-      } catch {}
-    });
+    const originalEnd = res.end.bind(res);
+    (res as any).end = (...args: any[]) => {
+      res.setHeader('X-Response-Time', `${Date.now() - start}ms`);
+      return originalEnd(...args);
+    };
 
     next();
   });
