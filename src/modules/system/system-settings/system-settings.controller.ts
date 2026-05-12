@@ -12,12 +12,15 @@ import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { SystemSettingsService } from './system-settings.service';
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 class UpdateSettingDto {
-  @IsString({ message: 'Domain must be a string' })
+  @IsString({ message: 'Value must be a string' })
   @IsNotEmpty({ message: 'Value is required' })
   value!: string;
+
+  @IsOptional()
+  @IsString({ message: 'Description must be a string' })
   description?: string;
 }
 
