@@ -27,7 +27,7 @@ jobs:
         run: npm ci
 
       - name: Run ESLint
-        run: npx eslint "{src,apps,libs,test}/**/*.ts" --max-warnings=0
+        run: npx eslint "{src,apps,libs,test}/**/*.ts" --max-warnings 0
 
       - name: Run TypeScript type check
         run: npx tsc --noEmit
@@ -50,7 +50,7 @@ jobs:
         run: npm ci
 
       - name: Run tests with coverage
-        run: npm run test:cov -- --passWithNoTests --coverageThreshold='{"global":{"lines":40,"functions":40}}'
+        run: npm run test:cov -- --passWithNoTests
 
   binary-files-check:
     name: No Binary Files

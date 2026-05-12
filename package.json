@@ -29,7 +29,7 @@
   },
   "lint-staged": {
     "*.ts": [
-      "eslint --fix",
+      "eslint --fix --max-warnings 9999",
       "prettier --write"
     ]
   },
@@ -131,6 +131,12 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "coverageThreshold": {
+      "global": {
+        "lines": 40,
+        "functions": 40
+      }
+    }
   }
 }
