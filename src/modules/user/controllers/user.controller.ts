@@ -21,16 +21,16 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../../../common/types/request.types';
 import { UserService } from '../services/user.service';
 import { CreateUserDto, UpdateUserDto } from '../dto/user.dto';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
-import { Roles } from 'src/common/decorators/roles.decorator';
-import { RolesGuard } from 'src/common/guards/roles.guard';
-import { Public } from 'src/common/decorators/public.decorator';
-import { TenantId } from 'src/common/decorators/company.deorator';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { Roles } from '../../../common/decorators/roles.decorator';
+import { RolesGuard } from '../../../common/guards/roles.guard';
+import { Public } from '../../../common/decorators/public.decorator';
+import { TenantId } from '../../../common/decorators/company.deorator';
 import { ApiBearerAuth, ApiTags, ApiConsumes, ApiBody, ApiOperation } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ParseFilePipe, MaxFileSizeValidator, FileTypeValidator } from '@nestjs/common';
-import { Permissions } from 'src/common/decorators/permissions.decorator';
-import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+import { Permissions } from '../../../common/decorators/permissions.decorator';
+import { PermissionsGuard } from '../../../common/guards/permissions.guard';
 import { validateImageFile } from '../../../common/utils/file-validation.util';
 
 @ApiTags('Users')

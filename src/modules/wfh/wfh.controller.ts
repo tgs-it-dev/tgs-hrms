@@ -37,7 +37,7 @@ import { RemoveAttachmentDto } from '../../common/dto/remove-attachment.dto';
 import { WfhStatus } from '../../common/constants/enums';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { AuthenticatedRequest } from 'src/common/types/request.types';
+import { AuthenticatedRequest } from '../../common/types/request.types';
 
 const WFH_EXAMPLE = {
   id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',

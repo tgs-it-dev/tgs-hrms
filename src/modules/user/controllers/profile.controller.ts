@@ -1,6 +1,6 @@
 import { Controller, Get, UseGuards, Req, Body, Put } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { ProfileService } from '../services/profile.service';
 import { Request } from 'express';
 import { UpdateProfileDto } from '../dto/user.dto';
