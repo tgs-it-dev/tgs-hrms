@@ -1168,6 +1168,7 @@ export class EmployeeService implements OnModuleInit {
 
     const currentStatus = await this.inviteStatusService.getInviteStatus(
       employee.id,
+      tenant_id,
     );
     if (currentStatus && currentStatus !== employee.invite_status) {
       employee.invite_status = currentStatus as InviteStatus;

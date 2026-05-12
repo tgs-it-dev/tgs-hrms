@@ -534,6 +534,17 @@ export class AuthService {
         first_login_time: new Date(),
       });
       await this.inviteStatusService.updateInviteStatusOnLogin(user.id);
+    } else {
+      // Backfill: catch employees whose invite_status is still "Invite Sent"
+      // from before the tenant-schema fix. updateInviteStatusOnLogin is a no-op
+      // once the status is already "Joined", so this is safe to run every login.
+      this.inviteStatusService
+        .updateInviteStatusOnLogin(user.id)
+        .catch((error) => {
+          this.logger.error(
+            `Invite status backfill failed for user ${user.id}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        });
     }
 
     // Find SignupSession by email to get session_id
