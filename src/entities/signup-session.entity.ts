@@ -29,7 +29,11 @@ export class SignupSession {
   phone: string;
 
   @Column({ type: 'varchar', length: 30, default: 'personal_completed' })
-  status: 'personal_completed' | 'company_completed' | 'payment_completed' | 'completed';
+  status:
+    | 'personal_completed'
+    | 'company_completed'
+    | 'payment_completed'
+    | 'completed';
 
   @CreateDateColumn()
   created_at: Date;

@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -124,7 +133,10 @@ export class PermissionController {
     status: 404,
     description: 'Permission not found',
   })
-  updatePermission(@Param('id') id: string, @Body() _updatePermissionDto: UpdatePermissionDto) {
+  updatePermission(
+    @Param('id') id: string,
+    @Body() _updatePermissionDto: UpdatePermissionDto,
+  ) {
     return { message: `Update permission: ${id} - Implementation pending` };
   }
 

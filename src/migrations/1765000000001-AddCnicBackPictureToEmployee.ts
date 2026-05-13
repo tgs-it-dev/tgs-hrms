@@ -1,6 +1,8 @@
 import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
 
-export class AddCnicBackPictureToEmployee1765000000001 implements MigrationInterface {
+export class AddCnicBackPictureToEmployee1765000000001
+  implements MigrationInterface
+{
   name = 'AddCnicBackPictureToEmployee1765000000001';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -11,7 +13,7 @@ export class AddCnicBackPictureToEmployee1765000000001 implements MigrationInter
         type: 'varchar',
         length: '500',
         isNullable: true,
-      })
+      }),
     );
   }
 

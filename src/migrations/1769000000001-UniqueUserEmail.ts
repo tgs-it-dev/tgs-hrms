@@ -1,4 +1,4 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 /**
  * Prevents any NEW duplicate emails, without touching existing data.
@@ -10,7 +10,7 @@ import { MigrationInterface, QueryRunner } from "typeorm";
  * so that historical duplicates do not break the migration.
  */
 export class UniqueUserEmail1769000000001 implements MigrationInterface {
-  name = "UniqueUserEmail1769000000001";
+  name = 'UniqueUserEmail1769000000001';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Create a function that prevents inserting/updating duplicate emails
@@ -54,5 +54,3 @@ export class UniqueUserEmail1769000000001 implements MigrationInterface {
     `);
   }
 }
-
-

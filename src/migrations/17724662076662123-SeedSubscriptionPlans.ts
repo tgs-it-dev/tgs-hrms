@@ -1,6 +1,8 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class SeedSubscriptionPlans17724662076662123 implements MigrationInterface {
+export class SeedSubscriptionPlans17724662076662123
+  implements MigrationInterface
+{
   public async up(queryRunner: QueryRunner): Promise<void> {
     const hasTable = await queryRunner.hasTable('subscription_plans');
     if (!hasTable) return;

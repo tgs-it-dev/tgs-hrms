@@ -9,7 +9,11 @@ import { TenantDatabaseService } from '../../common/services/tenant-database.ser
 
 @Module({
   imports: [TypeOrmModule.forFeature([Employee, User, Tenant])],
-  providers: [InviteStatusService, InviteStatusCronService, TenantDatabaseService],
+  providers: [
+    InviteStatusService,
+    InviteStatusCronService,
+    TenantDatabaseService,
+  ],
   exports: [InviteStatusService],
 })
 export class InviteStatusModule {}

@@ -1,9 +1,10 @@
-
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsString } from 'class-validator';
 
 export class GoogleSignupInitDto {
-  @ApiProperty({ description: 'Google ID token from client-side Google Sign-In' })
+  @ApiProperty({
+    description: 'Google ID token from client-side Google Sign-In',
+  })
   @IsString()
   @IsNotEmpty()
   idToken: string;
@@ -14,7 +15,7 @@ export interface GoogleSignupInitResponse {
   email: string;
   first_name: string;
   last_name: string;
-  signupToken: string; 
+  signupToken: string;
   suggested: {
     companyName: string;
     domain: string;

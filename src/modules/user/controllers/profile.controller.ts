@@ -5,7 +5,10 @@ import { ProfileService } from '../services/profile.service';
 import { Request } from 'express';
 import { UpdateProfileDto } from '../dto/user.dto';
 import { AuthService } from '../../auth/auth.service';
-import { UnauthorizedException, InternalServerErrorException } from '@nestjs/common';
+import {
+  UnauthorizedException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 @ApiTags('Profile')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
@@ -13,12 +16,11 @@ import { UnauthorizedException, InternalServerErrorException } from '@nestjs/com
 export class ProfileController {
   constructor(
     private readonly profileService: ProfileService,
-    private readonly authService: AuthService
+    private readonly authService: AuthService,
   ) {}
 
   @Get('me')
   async getMyProfile(@Req() req: Request) {
-    
     const userId = (req.user as any).id;
     return this.profileService.getUserProfile(userId);
   }
@@ -43,7 +45,4 @@ export class ProfileController {
       throw new InternalServerErrorException('Failed to fetch profile');
     }
   }
-
-
-
 }

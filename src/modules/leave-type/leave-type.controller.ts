@@ -10,7 +10,12 @@ import {
   UseGuards,
   Request,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { LeaveTypeService } from './leave-type.service';
 import { CreateLeaveTypeDto } from './dto/create-leave-type.dto';
 import { UpdateLeaveTypeDto } from './dto/update-leave-type.dto';
@@ -30,35 +35,64 @@ export class LeaveTypeController {
 
   @Post()
   @Roles('hr-admin', 'system-admin', 'Admin')
-@Permissions('manage_leave_types')
+  @Permissions('manage_leave_types')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new leave type' })
   @ApiResponse({
     status: 201,
     description: 'Leave type created successfully',
   })
-  async create(@Body() createLeaveTypeDto: CreateLeaveTypeDto, @Request() req: any) {
-    return this.leaveTypeService.create(createLeaveTypeDto, req.user.tenant_id, req.user.id);
+  async create(
+    @Body() createLeaveTypeDto: CreateLeaveTypeDto,
+    @Request() req: any,
+  ) {
+    return this.leaveTypeService.create(
+      createLeaveTypeDto,
+      req.user.tenant_id,
+      req.user.id,
+    );
   }
 
   @Get()
-  @Roles('hr-admin', 'system-admin','manager', 'employee', 'admin' , 'network-admin')
-@Permissions('manage_leave_types', 'view_leave_types','request_leave')
+  @Roles(
+    'hr-admin',
+    'system-admin',
+    'manager',
+    'employee',
+    'admin',
+    'network-admin',
+  )
+  @Permissions('manage_leave_types', 'view_leave_types', 'request_leave')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get list of leave types (filter by tenant)' })
   @ApiResponse({
     status: 200,
     description: 'Returns list of leave types',
   })
-  async findAll(@Request() req: any, @Query('page') page?: string, @Query('limit') limit?: string) {
+  async findAll(
+    @Request() req: any,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
     const limitNumber = Math.max(1, parseInt(limit || '10', 10) || 10);
-    return this.leaveTypeService.findAll(req.user.tenant_id, pageNumber, limitNumber);
+    return this.leaveTypeService.findAll(
+      req.user.tenant_id,
+      pageNumber,
+      limitNumber,
+    );
   }
 
   @Get(':id')
-  @Roles('hr-admin', 'system-admin','manager', 'employee', 'admin' , 'network-admin')
-@Permissions('manage_leave_types', 'view_leave_types')
+  @Roles(
+    'hr-admin',
+    'system-admin',
+    'manager',
+    'employee',
+    'admin',
+    'network-admin',
+  )
+  @Permissions('manage_leave_types', 'view_leave_types')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get details of a specific leave type' })
   @ApiResponse({
@@ -71,20 +105,28 @@ export class LeaveTypeController {
 
   @Patch(':id')
   @Roles('hr-admin', 'system-admin')
-@Permissions('manage_leave_types')
+  @Permissions('manage_leave_types')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update leave type details' })
   @ApiResponse({
     status: 200,
     description: 'Leave type updated successfully',
   })
-  async update(@Param('id') id: string, @Body() updateLeaveTypeDto: UpdateLeaveTypeDto, @Request() req: any) {
-    return this.leaveTypeService.update(id, updateLeaveTypeDto, req.user.tenant_id);
+  async update(
+    @Param('id') id: string,
+    @Body() updateLeaveTypeDto: UpdateLeaveTypeDto,
+    @Request() req: any,
+  ) {
+    return this.leaveTypeService.update(
+      id,
+      updateLeaveTypeDto,
+      req.user.tenant_id,
+    );
   }
 
   @Delete(':id')
   @Roles('hr-admin', 'system-admin')
-@Permissions('manage_leave_types')
+  @Permissions('manage_leave_types')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Soft delete or deactivate leave type' })
   @ApiResponse({

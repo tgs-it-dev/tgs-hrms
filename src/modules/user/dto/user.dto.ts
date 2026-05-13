@@ -3,13 +3,24 @@
  */
 
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsEmail, IsOptional, IsUUID, IsEnum, MinLength, MaxLength } from 'class-validator';
+import {
+  IsString,
+  IsEmail,
+  IsOptional,
+  IsUUID,
+  IsEnum,
+  MinLength,
+  MaxLength,
+} from 'class-validator';
 import { UserGender, UserStatus } from '../../../common/constants/enums';
 import { BaseQueryDto } from '../../../common/dto/common.dto';
 
 // Create User DTO
 export class CreateUserDto {
-  @ApiProperty({ description: 'User email address', example: 'john.doe@company.com' })
+  @ApiProperty({
+    description: 'User email address',
+    example: 'john.doe@company.com',
+  })
   @IsEmail()
   email: string;
 
@@ -41,7 +52,11 @@ export class CreateUserDto {
   @IsEnum(UserGender)
   gender?: UserGender;
 
-  @ApiPropertyOptional({ description: 'User status', enum: UserStatus, default: UserStatus.ACTIVE })
+  @ApiPropertyOptional({
+    description: 'User status',
+    enum: UserStatus,
+    default: UserStatus.ACTIVE,
+  })
   @IsOptional()
   @IsEnum(UserStatus)
   status?: UserStatus;
@@ -53,12 +68,18 @@ export class CreateUserDto {
 
 // Update User DTO
 export class UpdateUserDto {
-  @ApiPropertyOptional({ description: 'User email address', example: 'john.doe@company.com' })
+  @ApiPropertyOptional({
+    description: 'User email address',
+    example: 'john.doe@company.com',
+  })
   @IsOptional()
   @IsEmail()
   email?: string;
 
-  @ApiPropertyOptional({ description: 'User phone number', example: '+1234567890' })
+  @ApiPropertyOptional({
+    description: 'User phone number',
+    example: '+1234567890',
+  })
   @IsOptional()
   @IsString()
   phone?: string;
@@ -105,12 +126,18 @@ export class UpdateProfileDto {
   @MaxLength(50)
   last_name?: string;
 
-  @ApiPropertyOptional({ description: 'User email address', example: 'john.doe@company.com' })
+  @ApiPropertyOptional({
+    description: 'User email address',
+    example: 'john.doe@company.com',
+  })
   @IsOptional()
   @IsEmail()
   email?: string;
 
-  @ApiPropertyOptional({ description: 'User phone number', example: '+1234567890' })
+  @ApiPropertyOptional({
+    description: 'User phone number',
+    example: '+1234567890',
+  })
   @IsOptional()
   @IsString()
   phone?: string;
@@ -120,7 +147,10 @@ export class UpdateProfileDto {
   @IsEnum(UserGender)
   gender?: UserGender;
 
-  @ApiPropertyOptional({ description: 'Profile picture URL', example: 'https://example.com/profile.jpg' })
+  @ApiPropertyOptional({
+    description: 'Profile picture URL',
+    example: 'https://example.com/profile.jpg',
+  })
   @IsOptional()
   @IsString()
   profile_pic?: string;
@@ -133,7 +163,10 @@ export class UserQueryDto extends BaseQueryDto {
   @IsEnum(UserStatus)
   status?: UserStatus;
 
-  @ApiPropertyOptional({ description: 'Filter by role ID', example: 'uuid-role-id' })
+  @ApiPropertyOptional({
+    description: 'Filter by role ID',
+    example: 'uuid-role-id',
+  })
   @IsOptional()
   @IsUUID()
   role_id?: string;
@@ -170,7 +203,10 @@ export class UserResponseDto {
   @ApiProperty({ description: 'User gender', enum: UserGender })
   gender: UserGender;
 
-  @ApiProperty({ description: 'Profile picture URL', example: 'https://example.com/profile.jpg' })
+  @ApiProperty({
+    description: 'Profile picture URL',
+    example: 'https://example.com/profile.jpg',
+  })
   profile_pic: string;
 
   @ApiProperty({ description: 'Role information' })
@@ -212,7 +248,10 @@ export class UserProfileDto {
   @ApiProperty({ description: 'User gender', enum: UserGender })
   gender: UserGender;
 
-  @ApiProperty({ description: 'Profile picture URL', example: 'https://example.com/profile.jpg' })
+  @ApiProperty({
+    description: 'Profile picture URL',
+    example: 'https://example.com/profile.jpg',
+  })
   profile_pic: string;
 
   @ApiProperty({ description: 'Role information' })

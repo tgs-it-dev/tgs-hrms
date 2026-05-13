@@ -1,4 +1,3 @@
-
 import { Module, Logger, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
@@ -11,7 +10,7 @@ import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handleba
 import { ScheduleModule } from '@nestjs/schedule';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { join } from 'path';
-import { StorageModule } from "./modules/storage/storage.module";
+import { StorageModule } from './modules/storage/storage.module';
 import { EmailModule } from './common/utils/email/email.module';
 import { UserModule } from './modules/user/user.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -43,7 +42,7 @@ import { WfhModule } from './modules/wfh/wfh.module';
 import { OvertimeModule } from './modules/overtime/overtime.module';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { SystemLoggingInterceptor } from './common/interceptors/system-logging.interceptor';
-import { SignedFileUrlInterceptor } from "./modules/storage/signed-file-url.interceptor";
+import { SignedFileUrlInterceptor } from './modules/storage/signed-file-url.interceptor';
 import { SystemLog } from './entities/system-log.entity';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 @Module({
@@ -63,14 +62,12 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
     ThrottlerModule.forRoot({
       throttlers: [
-      
         { name: 'default', ttl: 900_000, limit: 100 },
-        
+
         { name: 'short', ttl: 60_000, limit: 10 },
       ],
     }),
 
-    
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -86,7 +83,6 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
       },
     }),
 
-  
     MailerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -95,12 +91,12 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
         const sendgridApiKey = config.get<string>('SENDGRID_API_KEY');
         const sendgridFrom = config.get<string>('SENDGRID_FROM');
 
-        
         if (!sendgridApiKey || !sendgridFrom) {
-          logger.warn('SendGrid configuration incomplete. Using fallback configuration.');
+          logger.warn(
+            'SendGrid configuration incomplete. Using fallback configuration.',
+          );
           logger.warn('Required: SENDGRID_API_KEY, SENDGRID_FROM');
-          
-          
+
           return {
             transport: {
               service: 'sendgrid',
@@ -142,7 +138,6 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
       },
     }),
 
-    
     UserModule,
     AuthModule,
     DepartmentModule,
@@ -185,12 +180,10 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
       provide: APP_INTERCEPTOR,
       useClass: SignedFileUrlInterceptor,
     },
-  ]
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(CorrelationIdMiddleware)
-      .forRoutes('*');
+    consumer.apply(CorrelationIdMiddleware).forRoutes('*');
   }
 }

@@ -1,5 +1,10 @@
 import { Controller, Post, Get, UseGuards, Req, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { TimesheetService } from './timesheet.service';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { Request } from 'express';
@@ -33,7 +38,10 @@ export class TimesheetController {
 
   @Get()
   @ApiOperation({ summary: 'List timesheet sessions for a user' })
-  @ApiResponse({ status: 200, description: 'Returns paginated timesheet sessions' })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns paginated timesheet sessions',
+  })
   async list(@Req() req: Request, @Query('page') page?: string) {
     const userId = (req.user as any).id;
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
@@ -44,7 +52,9 @@ export class TimesheetController {
   @UseGuards(RolesGuard, PermissionsGuard)
   @Roles('admin', 'system-admin', 'manager')
   @Permissions('manage_timesheets', 'view_team_timesheets')
-  @ApiOperation({ summary: 'Get tenant-wide timesheet summary (Admin/Manager only)' })
+  @ApiOperation({
+    summary: 'Get tenant-wide timesheet summary (Admin/Manager only)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Returns paginated timesheet summary for all employees',
@@ -53,10 +63,15 @@ export class TimesheetController {
     @Req() req: any,
     @Query('from') from?: string,
     @Query('to') to?: string,
-    @Query('page') page?: string
+    @Query('page') page?: string,
   ) {
     const tenantId = req.user.tenant_id;
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-    return this.timesheetService.summaryByTenant(tenantId, from, to, pageNumber);
+    return this.timesheetService.summaryByTenant(
+      tenantId,
+      from,
+      to,
+      pageNumber,
+    );
   }
 }

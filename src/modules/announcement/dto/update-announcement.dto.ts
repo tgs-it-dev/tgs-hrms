@@ -53,7 +53,8 @@ export class UpdateAnnouncementDto {
 
   @ApiPropertyOptional({
     example: '2025-02-01T09:00:00.000Z',
-    description: 'Schedule date/time to send. Set to null to remove scheduling.',
+    description:
+      'Schedule date/time to send. Set to null to remove scheduling.',
   })
   @IsOptional()
   @IsDateString()
