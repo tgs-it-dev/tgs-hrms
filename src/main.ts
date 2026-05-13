@@ -7,10 +7,17 @@ import { join } from 'path';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { Request, Response, NextFunction } from 'express';
 
-// express-basic-auth uses module.exports = fn (CommonJS), so require() returns the callable directly
-const basicAuth = require('express-basic-auth') as (
-  options: import('express-basic-auth').IUsersOptions,
-) => import('express').RequestHandler;
+// express-basic-auth is a CommonJS module (export =). Cast to its callable shape explicitly
+// so TypeScript 5.x does not fail on the merged function+namespace type resolution.
+type BasicAuthFn = (options: {
+  users?: Record<string, string>;
+  authorizer?: (u: string, p: string) => boolean;
+  authorizeAsync?: boolean;
+  challenge?: boolean;
+  realm?: string | ((req: unknown) => string);
+  unauthorizedResponse?: unknown;
+}) => import('express').RequestHandler;
+const basicAuth = require('express-basic-auth') as BasicAuthFn;
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
