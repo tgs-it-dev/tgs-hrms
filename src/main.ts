@@ -7,8 +7,11 @@ import { join } from 'path';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { Request, Response, NextFunction } from 'express';
 
-const basicAuth =
-  require('express-basic-auth') as typeof import('express-basic-auth');
+// express-basic-auth uses module.exports = fn (CommonJS), so require() returns the callable directly
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const basicAuth = require('express-basic-auth') as (
+  options: import('express-basic-auth').IUsersOptions,
+) => import('express').RequestHandler;
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
