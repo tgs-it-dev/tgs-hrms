@@ -9,7 +9,6 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
-import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { SystemSettingsService } from './system-settings.service';
 import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
@@ -28,7 +27,7 @@ class UpdateSettingDto {
 @Controller('system/settings')
 @Roles('system-admin')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard)
 export class SystemSettingsController {
   constructor(private readonly settingsService: SystemSettingsService) {}
 

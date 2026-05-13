@@ -7,7 +7,6 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { JwtAuthGuard } from "src/common/guards/jwt-auth.guard";
-import { RolesGuard } from "src/common/guards/roles.guard";
 import { Roles } from "src/common/decorators/roles.decorator";
 import { SystemLeaveService } from "./system-leave.service";
 import { LeaveStatus } from "src/common/constants/enums";
@@ -15,7 +14,7 @@ import { LeaveStatus } from "src/common/constants/enums";
 @ApiTags("System (Leaves)")
 @Controller("system/leaves")
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard)
 @Roles("system-admin")
 export class SystemLeaveController {
   constructor(private readonly systemLeaveService: SystemLeaveService) {}

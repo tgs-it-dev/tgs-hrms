@@ -9,7 +9,6 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { LeaveReportsService } from './leave-reports.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Permissions } from '../../common/decorators/permissions.decorator';
@@ -49,7 +48,7 @@ export class LeaveReportsController {
   }
 
   @Get('team-leave-summary')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('manager', 'hr-admin', 'admin', 'system-admin')
   @Permissions('view_team_reports')
   @ApiBearerAuth()
@@ -114,7 +113,7 @@ export class LeaveReportsController {
 
   // CSV Export: Team-leave summary
   @Get('team-leave-summary/export')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('manager', 'hr-admin', 'admin', 'system-admin')
   @Permissions('view_team_reports')
   @ApiBearerAuth()
@@ -195,7 +194,7 @@ export class LeaveReportsController {
 
   // Comprehensive Leave Reports for Admin, HR-Admin, and System-Admin
   @Get('all-leave-reports')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('admin', 'hr-admin', 'system-admin')
   @Permissions('view_leave_reports')
   @ApiBearerAuth()
@@ -304,7 +303,7 @@ export class LeaveReportsController {
   }
 
   @Get('export/all-leave-reports')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('admin', 'hr-admin', 'system-admin')
   @Permissions('view_leave_reports')
   @ApiBearerAuth()

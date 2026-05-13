@@ -37,7 +37,6 @@ import {
   RemoveLeaveDocumentDto,
 } from './dto/update-leave.dto';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
-import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Permissions } from 'src/common/decorators/permissions.decorator';
 import { PermissionsGuard } from 'src/common/guards/permissions.guard';
@@ -131,7 +130,7 @@ export class LeaveController {
   }
 
   @Post('for-employee')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('admin', 'hr-admin', 'system-admin')
   @Permissions('manage_leaves')
   @ApiBearerAuth()
@@ -226,7 +225,7 @@ export class LeaveController {
   }
 
   @Get('team')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('manager')
   @Permissions('manage_team_leaves')
   @ApiBearerAuth()
@@ -307,7 +306,7 @@ export class LeaveController {
   }
 
   @Get('team/members')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('manager')
   @Permissions('manage_team_leaves', 'view_team_leaves')
   @ApiBearerAuth()
@@ -376,7 +375,7 @@ export class LeaveController {
   }
 
   @Get('all')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('admin', 'system-admin', 'hr-admin', 'network-admin')
   @Permissions('manage_leaves', 'view_leaves')
   @ApiBearerAuth()
@@ -492,7 +491,7 @@ export class LeaveController {
   // ── Approve / Reject (legacy path — active when workflow_enabled = false) ──
 
   @Patch(':id/approve')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('admin', 'system-admin', 'manager')
   @Permissions('approve_leaves', 'manage_leaves')
   @ApiBearerAuth()
@@ -517,7 +516,7 @@ export class LeaveController {
   }
 
   @Patch(':id/reject')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('admin', 'system-admin', 'manager')
   @Permissions('approve_leaves', 'manage_leaves')
   @ApiBearerAuth()
@@ -541,7 +540,7 @@ export class LeaveController {
   }
 
   @Put(':id/approve')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('admin', 'system-admin', 'manager')
   @Permissions('approve_leaves', 'manage_leaves')
   @ApiBearerAuth()
@@ -563,7 +562,7 @@ export class LeaveController {
   }
 
   @Put(':id/reject')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('admin', 'system-admin', 'manager')
   @Permissions('approve_leaves', 'manage_leaves')
   @ApiBearerAuth()
@@ -583,7 +582,7 @@ export class LeaveController {
   }
 
   @Patch(':id/manager-remarks')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('manager')
   @Permissions('manage_team_leaves')
   @ApiBearerAuth()
@@ -608,7 +607,7 @@ export class LeaveController {
   }
 
   @Patch(':id/approve-manager')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('manager')
   @Permissions('approve_leaves')
   @ApiBearerAuth()
@@ -631,7 +630,7 @@ export class LeaveController {
   }
 
   @Patch(':id/reject-manager')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('manager')
   @Permissions('approve_leaves')
   @ApiBearerAuth()
@@ -861,7 +860,7 @@ export class LeaveController {
   }
 
   @Get('export/team')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('manager')
   @Permissions('manage_team_leaves')
   @ApiBearerAuth()
@@ -889,7 +888,6 @@ export class LeaveController {
   }
 
   @Get('export/all')
-  @UseGuards(RolesGuard)
   @Roles('admin', 'system-admin', 'hr-admin', 'network-admin')
   @ApiBearerAuth()
   @ApiOperation({

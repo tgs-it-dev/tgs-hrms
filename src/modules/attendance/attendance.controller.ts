@@ -5,7 +5,6 @@ import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { ApproveCheckInDto, BulkApproveCheckInDto } from './dto/approve-checkin.dto';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { AuthenticatedRequest } from 'src/common/types/request.types';
-import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Permissions } from 'src/common/decorators/permissions.decorator';
 import { PermissionsGuard } from 'src/common/guards/permissions.guard';
@@ -47,7 +46,7 @@ export class AttendanceController {
   }
 
   @Get('all')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('hr-admin', 'admin', 'system-admin', 'network-admin')
   @Permissions('manage_attendance')
   async findAllForAdmin(
@@ -63,7 +62,7 @@ export class AttendanceController {
   }
 
   @Get('system/all')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('system-admin')
   @Permissions('manage_attendance')
   @ApiOperation({ 
@@ -133,7 +132,6 @@ export class AttendanceController {
     return this.attendanceService.getAttendanceByTenant(tenantId, startDate, endDate);
   }
   @Get('events')
-  @UseGuards(RolesGuard)
   @Roles('employee', 'manager', 'hr-admin', 'admin', 'system-admin', 'network-admin')
   @ApiOperation({ summary: 'Get attendance events for a user' })
   @ApiQuery({
@@ -176,7 +174,7 @@ export class AttendanceController {
   }
 
   @Get('team')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('manager')
   @Permissions('manage_attendance')
   @ApiOperation({ summary: 'Get team attendance records (Manager only)' })
@@ -315,7 +313,7 @@ export class AttendanceController {
   }
 
   @Get('export/team')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('manager')
   @Permissions('manage_attendance')
   @ApiOperation({ summary: 'Download team attendance as CSV (Manager only)' })
@@ -354,7 +352,7 @@ export class AttendanceController {
   }
 
   @Get('export/all')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('hr-admin', 'admin', 'system-admin', 'network-admin')
   @Permissions('manage_attendance')
   @ApiOperation({
@@ -490,7 +488,7 @@ export class AttendanceController {
   }
 
   @Get('export/system')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('system-admin')
   @Permissions('manage_attendance')
   @ApiOperation({
@@ -571,7 +569,7 @@ export class AttendanceController {
   }
 
   @Get('team/today')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('manager')
   @Permissions('manage_attendance')
   @ApiOperation({ summary: 'Get today\'s check-ins for team members (Manager only)' })
@@ -606,7 +604,7 @@ export class AttendanceController {
   }
 
   @Get('team/today/attendance')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('manager')
   @Permissions('manage_attendance')
   @ApiOperation({ summary: 'Get today\'s attendance (check-in/out) for team members who marked attendance today (Manager only)' })
@@ -661,7 +659,7 @@ export class AttendanceController {
   }
 
   @Patch('check-in/:id/approve')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('manager')
   @Permissions('manage_attendance')
   @ApiBearerAuth()
@@ -697,7 +695,7 @@ export class AttendanceController {
   }
 
   @Patch('check-in/:id/disapprove')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('manager')
   @Permissions('manage_attendance')
   @ApiBearerAuth()
@@ -733,7 +731,7 @@ export class AttendanceController {
   }
 
   @Patch('check-in/approve-all')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('manager')
   @Permissions('manage_attendance')
   @ApiBearerAuth()
@@ -760,7 +758,7 @@ export class AttendanceController {
   }
 
   @Patch('check-in/disapprove-all')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('manager')
   @Permissions('manage_attendance')
   @ApiBearerAuth()

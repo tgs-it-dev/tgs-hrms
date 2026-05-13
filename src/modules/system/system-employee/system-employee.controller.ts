@@ -7,14 +7,13 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { JwtAuthGuard } from "src/common/guards/jwt-auth.guard";
-import { RolesGuard } from "src/common/guards/roles.guard";
 import { Roles } from "src/common/decorators/roles.decorator";
 import { SystemEmployeeService } from "./system-employee.service";
 
 @ApiTags("System (Employees)")
 @Controller("system/employees")
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard)
 @Roles("system-admin")
 export class SystemEmployeeController {
   constructor(private readonly systemEmployeeService: SystemEmployeeService) {}

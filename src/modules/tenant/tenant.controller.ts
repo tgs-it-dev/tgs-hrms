@@ -22,7 +22,6 @@ import {
   ApiQuery,
 } from "@nestjs/swagger";
 import { JwtAuthGuard } from "src/common/guards/jwt-auth.guard";
-import { RolesGuard } from "src/common/guards/roles.guard";
 import { Roles } from "src/common/decorators/roles.decorator";
 import { Permissions } from "src/common/decorators/permissions.decorator";
 import { PermissionsGuard } from "src/common/guards/permissions.guard";
@@ -41,7 +40,7 @@ export class TenantController {
   ) {}
 
   @Get()
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Roles("system-admin")
   @Permissions("manage_tenants")
   @ApiOperation({ summary: "Get all tenants (Admin only) - Paginated" })
@@ -91,7 +90,7 @@ export class TenantController {
   }
 
   @Get(":id")
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Roles("system-admin")
   @Permissions("manage_tenants")
   @ApiOperation({ summary: "Get tenant by ID (Admin only)" })
@@ -130,7 +129,7 @@ export class TenantController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Roles("system-admin")
   @Permissions("manage_tenants")
   @ApiOperation({ summary: "Create a new tenant (Admin only)" })
@@ -164,7 +163,7 @@ export class TenantController {
   }
 
   @Put(":id")
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Roles("system-admin")
   @Permissions("manage_tenants")
   @ApiOperation({ summary: "Update tenant by ID (Admin only)" })
@@ -200,7 +199,7 @@ export class TenantController {
   }
 
   @Delete(":id")
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard)
   @Roles("system-admin")
   @ApiOperation({ summary: "Delete tenant by ID (Admin only)" })
   @ApiParam({
@@ -236,7 +235,7 @@ export class TenantController {
   }
 
   @Post(":id/restore")
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Roles("system-admin")
   @Permissions("manage_tenants")
   @ApiOperation({ summary: "Restore a deleted tenant (Admin only)" })
@@ -273,7 +272,7 @@ export class TenantController {
   }
 
   @Post(":id/upgrade-schema")
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Roles("system-admin")
   @Permissions("manage_tenants")
   @ApiOperation({

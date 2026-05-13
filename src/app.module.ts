@@ -46,6 +46,7 @@ import { SystemLoggingInterceptor } from './common/interceptors/system-logging.i
 import { SignedFileUrlInterceptor } from './modules/storage/signed-file-url.interceptor';
 import { SystemLog } from './entities/system-log.entity';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { RolesGuard } from './common/guards/roles.guard';
 @Module({
   imports: [
     ScheduleModule.forRoot(),
@@ -173,6 +174,12 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      // Runs after JwtAuthGuard on every route.
+      // Routes decorated with @Public() are skipped automatically.
+      provide: APP_GUARD,
+      useClass: RolesGuard,
     },
     {
       provide: APP_INTERCEPTOR,

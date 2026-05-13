@@ -34,7 +34,6 @@ import {
   WorkflowRequestType,
   WorkflowRequestStatus,
 } from '../../common/constants/enums';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthenticatedRequest } from '../../common/types/request.types';
 
@@ -47,7 +46,6 @@ export class WorkflowController {
   // ── Approver inbox: requests waiting on the current user's role ──────────
 
   @Get('approvals')
-  @UseGuards(RolesGuard)
   @Roles('manager', 'admin', 'hr-admin', 'system-admin', 'network-admin')
   @ApiOperation({
     summary: `List approval requests for the current user's role`,
@@ -479,7 +477,6 @@ export class WorkflowController {
   // ── Approve or reject the current pending step ────────────────────────────
 
   @Post('requests/:id/decision')
-  @UseGuards(RolesGuard)
   @Roles('manager', 'admin', 'hr-admin', 'system-admin', 'network-admin')
   @ApiOperation({
     summary: 'Approve or reject the current pending step of a workflow request',
@@ -516,7 +513,6 @@ export class WorkflowController {
   // ── Approval step configuration ───────────────────────────────────────────
 
   @Get('configs')
-  @UseGuards(RolesGuard)
   @Roles('admin', 'hr-admin', 'system-admin', 'network-admin')
   @ApiOperation({
     summary: 'Get approval step configuration for one or all request types',
@@ -538,7 +534,6 @@ export class WorkflowController {
   }
 
   @Post('configs/steps')
-  @UseGuards(RolesGuard)
   @Roles('admin', 'system-admin')
   @ApiOperation({
     summary: 'Add a step to a workflow config',
@@ -559,7 +554,6 @@ export class WorkflowController {
   }
 
   @Patch('configs/:requestType/steps/:stepOrder')
-  @UseGuards(RolesGuard)
   @Roles('admin', 'system-admin')
   @ApiOperation({ summary: 'Update a workflow config step' })
   @ApiParam({ name: 'requestType', enum: WorkflowRequestType })
@@ -583,7 +577,6 @@ export class WorkflowController {
   }
 
   @Delete('configs/:requestType/steps/:stepOrder')
-  @UseGuards(RolesGuard)
   @Roles('admin', 'system-admin')
   @ApiOperation({
     summary: 'Delete a step from a workflow config',
@@ -613,7 +606,6 @@ export class WorkflowController {
   // ── Workflow engine toggle ────────────────────────────────────────────────
 
   @Get('settings')
-  @UseGuards(RolesGuard)
   @ApiOperation({
     summary: 'Get workflow enabled status for all request types',
   })
@@ -633,7 +625,6 @@ export class WorkflowController {
   }
 
   @Patch('settings')
-  @UseGuards(RolesGuard)
   @Roles('admin', 'system-admin')
   @ApiOperation({
     summary: 'Enable or disable workflow for a specific request type',

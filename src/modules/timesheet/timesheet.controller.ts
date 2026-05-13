@@ -3,7 +3,6 @@ import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagg
 import { TimesheetService } from './timesheet.service';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { Request } from 'express';
-import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Permissions } from 'src/common/decorators/permissions.decorator';
 import { PermissionsGuard } from 'src/common/guards/permissions.guard';
@@ -41,7 +40,7 @@ export class TimesheetController {
   }
 
   @Get('summary')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(PermissionsGuard)
   @Roles('admin', 'system-admin', 'manager')
   @Permissions('manage_timesheets', 'view_team_timesheets')
   @ApiOperation({ summary: 'Get tenant-wide timesheet summary (Admin/Manager only)' })

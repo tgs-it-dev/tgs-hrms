@@ -29,7 +29,6 @@ import { CreateEmployeeDto, UpdateEmployeeDto, EmployeeQueryDto } from '../dto/e
 import { RemoveEmployeeDocumentDto } from '../dto/update-employee.dto';
 
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../../common/guards/roles.guard';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { TenantGuard } from '../../../common/guards/tenant.guard';
 import { TenantId } from '../../../common/decorators/company.deorator';
@@ -44,7 +43,7 @@ import { validateImageFile, createImageFileFilter } from '../../../common/utils/
 
 @ApiTags('Employees')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, TenantGuard, RolesGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, TenantGuard, PermissionsGuard)
 @Controller('employees')
 export class EmployeeController {
   constructor(

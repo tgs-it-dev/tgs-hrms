@@ -14,7 +14,6 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { TenantId } from '../../common/decorators/company.deorator';
 import { SearchService } from './search.service';
@@ -30,7 +29,7 @@ import { Team } from '../../entities/team.entity';
 
 @ApiTags('Global Search')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('search')
 export class SearchController {
   constructor(

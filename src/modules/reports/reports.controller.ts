@@ -2,7 +2,6 @@ import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 import { ReportsService } from './reports.service';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
-import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 
 @ApiTags('Reports')
@@ -14,7 +13,6 @@ export class ReportsController {
 
  
   @Get('attendance-summary')
-  @UseGuards(RolesGuard)
   @Roles('hr-admin', 'system-admin', 'network-admin')
   @ApiOperation({ summary: 'Get attendance summary for all active employees for current month (default) or last X days' })
   @ApiQuery({ name: 'days', required: false, type: Number, description: 'If provided, returns summary for last X days (from today, inclusive). If not provided, returns current month (1st to today).' })
