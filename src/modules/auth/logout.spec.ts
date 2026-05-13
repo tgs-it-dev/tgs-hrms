@@ -9,7 +9,12 @@ import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Role } from '../../entities/role.entity';
 import { Tenant } from '../../entities/tenant.entity';
+import { Employee } from '../../entities/employee.entity';
+import { CompanyDetails } from '../../entities/company-details.entity';
+import { SignupSession } from '../../entities/signup-session.entity';
+import { UserToken } from '../../entities/user-token.entity';
 import { EmailService } from '../../common/utils/email';
+import { InviteStatusService } from '../invite-status/invite-status.service';
 
 const mockPassword = bcrypt.hashSync('123456', 10);
 
@@ -60,15 +65,25 @@ const mockUser: User = {
 };
 
 const mockUserRepository = () => ({
+  find: jest.fn().mockResolvedValue([mockUser]),
   findOneBy: jest.fn().mockResolvedValue(mockUser),
   save: jest.fn(),
   create: jest.fn(),
-  findOne: jest.fn().mockImplementation(({ where }: { where: { email: string } }) => {
+  findOne: jest.fn().mockImplementation(({ where }: { where: { email?: string; id?: string } }) => {
     if (where.email === mockUser.email) return Promise.resolve(mockUser);
+    if (where.id) return Promise.resolve(mockUser);
     return Promise.resolve(null);
   }),
   update: jest.fn().mockResolvedValue({ affected: 1 }),
   query: jest.fn().mockResolvedValue([]),
+  createQueryBuilder: jest.fn(() => ({
+    leftJoin: jest.fn().mockReturnThis(),
+    leftJoinAndSelect: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    select: jest.fn().mockReturnThis(),
+    getRawMany: jest.fn().mockResolvedValue([]),
+    getOne: jest.fn().mockResolvedValue(mockUser),
+  })),
 });
 
 const mockJwtService = {
@@ -90,16 +105,23 @@ const mockEmailService = {
 
 describe('AuthService - Login', () => {
   let service: AuthService;
-  let userRepo: Repository<User>;
+  let userRepo: any;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
         { provide: getRepositoryToken(User), useFactory: mockUserRepository },
+        { provide: getRepositoryToken(Employee), useValue: { findOne: jest.fn() } },
+        { provide: getRepositoryToken(CompanyDetails), useValue: { findOne: jest.fn() } },
+        { provide: getRepositoryToken(SignupSession), useValue: { findOne: jest.fn(), save: jest.fn(), create: jest.fn() } },
+        { provide: getRepositoryToken(Role), useValue: { findOne: jest.fn() } },
+        { provide: getRepositoryToken(Tenant), useValue: { findOne: jest.fn().mockResolvedValue({ ...mockTenant, status: 'active', deleted_at: null }) } },
+        { provide: getRepositoryToken(UserToken), useValue: { findOne: jest.fn(), save: jest.fn().mockResolvedValue({}), create: jest.fn(), delete: jest.fn(), update: jest.fn().mockResolvedValue({ affected: 1 }) } },
         { provide: JwtService, useValue: mockJwtService },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: EmailService, useValue: mockEmailService },
+        { provide: InviteStatusService, useValue: { getInviteStatus: jest.fn(), setInviteStatus: jest.fn() } },
       ],
     }).compile();
 
@@ -117,6 +139,7 @@ describe('AuthService - Login', () => {
   });
 
   it('should throw error for invalid email', async () => {
+    jest.spyOn(userRepo, 'find').mockResolvedValue([]);
     await expect(service.validateUser('wrong@company.com', '123456')).rejects.toThrow(
       BadRequestException
     );
