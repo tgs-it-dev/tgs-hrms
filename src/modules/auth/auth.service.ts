@@ -267,6 +267,9 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
     const user = this.userRepository.create({
       email: dto.email.toLowerCase(),
       password: hashedPassword,
@@ -275,10 +278,101 @@ export class AuthService {
       phone: dto.phone,
       role_id: dto.role_id,
       tenant_id: finalTenantId,
+      email_verified: false,
+      email_verification_token: verificationToken,
+      email_verification_expires_at: verificationExpiry,
     });
 
     await this.userRepository.save(user);
-    return { message: 'User registered successfully' };
+
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+    const userName = `${dto.first_name} ${dto.last_name}`;
+    await this.emailService.sendVerificationEmail(
+      dto.email.toLowerCase(),
+      verificationToken,
+      userName,
+      frontendUrl,
+      user.id,
+    );
+
+    return {
+      message:
+        'User registered successfully. Please check your email to verify your account.',
+    };
+  }
+
+  async verifyEmail(token: string): Promise<{ message: string }> {
+    const user = await this.userRepository.findOne({
+      where: { email_verification_token: token },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Invalid or expired verification token.');
+    }
+
+    if (
+      !user.email_verification_expires_at ||
+      user.email_verification_expires_at < new Date()
+    ) {
+      throw new BadRequestException(
+        'Verification token has expired. Please request a new one.',
+      );
+    }
+
+    if (user.email_verified) {
+      return { message: 'Email is already verified.' };
+    }
+
+    await this.userRepository.update(user.id, {
+      email_verified: true,
+      email_verification_token: null,
+      email_verification_expires_at: null,
+    });
+
+    return { message: 'Email verified successfully. You can now log in.' };
+  }
+
+  async resendVerificationEmail(email: string): Promise<{ message: string }> {
+    const user = await this.userRepository.findOne({
+      where: { email: email.toLowerCase() },
+    });
+
+    if (!user) {
+      // Return generic message to avoid user enumeration
+      return {
+        message:
+          'If that email is registered and unverified, a new link has been sent.',
+      };
+    }
+
+    if (user.email_verified) {
+      return { message: 'Email is already verified.' };
+    }
+
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    await this.userRepository.update(user.id, {
+      email_verification_token: verificationToken,
+      email_verification_expires_at: verificationExpiry,
+    });
+
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+    const userName = `${user.first_name} ${user.last_name}`;
+    await this.emailService.sendVerificationEmail(
+      user.email,
+      verificationToken,
+      userName,
+      frontendUrl,
+      user.id,
+    );
+
+    return {
+      message:
+        'If that email is registered and unverified, a new link has been sent.',
+    };
   }
 
   async validateToken(userId: string) {

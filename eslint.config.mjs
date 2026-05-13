@@ -24,13 +24,24 @@ export default tseslint.config(
       },
     },
   },
-{
+  {
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/no-unsafe-argument': 'warn',
-      'quotes': ['error', 'single', { 'allowTemplateLiterals': true }],
-      "prettier/prettier": ["error", { "singleQuote": true }]
+      'quotes': ['error', 'single', { allowTemplateLiterals: true }],
+      'prettier/prettier': ['error', { singleQuote: true }],
+    },
+  },
+  // Test files: relax rules that are impractical in jest mock patterns
+  {
+    files: ['**/*.spec.ts', '**/*.e2e-spec.ts', 'test/**/*.ts'],
+    rules: {
+      '@typescript-eslint/unbound-method': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-misused-promises': 'off',
+      '@typescript-eslint/require-await': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
     },
   },
 );
