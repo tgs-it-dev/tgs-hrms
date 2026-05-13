@@ -1,14 +1,12 @@
 import {
   Entity,
-  PrimaryGeneratedColumn,
   Column,
-  CreateDateColumn,
-  UpdateDateColumn,
   ManyToOne,
   JoinColumn,
   OneToMany,
   Index,
 } from "typeorm";
+import { BaseEntity } from "./base.entity";
 import { Tenant } from "./tenant.entity";
 import { Role } from "./role.entity";
 import { Employee } from "./employee.entity";
@@ -21,10 +19,7 @@ import { UserGender } from "../common/constants/enums";
 @Index(["email", "tenant_id"], { unique: true })
 @Index(["phone"], { unique: true })
 @Entity("users")
-export class User {
-  @PrimaryGeneratedColumn("uuid")
-  id: string;
-
+export class User extends BaseEntity {
   @Column({ type: "varchar" })
   email: string;
 
@@ -51,12 +46,6 @@ export class User {
 
   @Column({ type: "uuid" })
   tenant_id: string;
-
-  @CreateDateColumn()
-  created_at: Date;
-
-  @UpdateDateColumn()
-  updated_at: Date;
 
   @Column({ type: "timestamptz", nullable: true })
   first_login_time: Date;

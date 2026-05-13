@@ -12,28 +12,22 @@ const basicAuth = require('express-basic-auth');
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
- 
   app.use((_req: Request, res: Response, next: NextFunction) => {
     const start = Date.now();
 
-    res.on('finish', () => {
-      const duration = Date.now() - start;
-      try {
-        res.setHeader('X-Response-Time', `${duration}ms`);
-      } catch {
-        
-      }
-    });
+    const originalEnd = res.end.bind(res);
+    (res as any).end = (...args: any[]) => {
+      res.setHeader('X-Response-Time', `${Date.now() - start}ms`);
+      return originalEnd(...args);
+    };
 
     next();
   });
 
-  
   app.useStaticAssets(join(process.cwd(), 'public'), {
     prefix: '/',
   });
 
-  
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -52,15 +46,13 @@ async function bootstrap() {
           errors: errorMessages,
         });
       },
-    })
+    }),
   );
-
 
   app.useGlobalFilters(new HttpExceptionFilter());
 
-  
   const allowedOrigins = process.env.CORS_ORIGINS
-    ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
+    ? process.env.CORS_ORIGINS.split(',').map((origin) => origin.trim())
     : [
         'https://snazzy-raindrop-644615.netlify.app',
         'https://deploy-preview-288--snazzy-raindrop-644615.netlify.app',
@@ -71,25 +63,28 @@ async function bootstrap() {
         'http://localhost:3000',
         'http://localhost:3001',
         'http://192.168.0.109:3001',
-         'http://192.168.0.109:3001',
-         'http://dev.workonnect.ai',
-         'https://dev.workonnect.ai',
+        'http://dev.workonnect.ai',
+        'https://dev.workonnect.ai',
+        'https://api.workonnect.ai',
+        'http://api.workonnect.ai',
       ];
 
   app.enableCors({
     origin: (origin, callback) => {
-      
       if (!origin) {
         return callback(null, true);
       }
-      
-      
-      if (allowedOrigins.includes('*') || allowedOrigins.indexOf(origin) !== -1) {
+
+      if (
+        allowedOrigins.includes('*') ||
+        allowedOrigins.indexOf(origin) !== -1
+      ) {
         callback(null, true);
       } else {
-      
         if (process.env.NODE_ENV !== 'production') {
-          console.warn(`CORS: Rejected origin: ${origin}. Allowed origins: ${allowedOrigins.join(', ')}`);
+          console.warn(
+            `CORS: Rejected origin: ${origin}. Allowed origins: ${allowedOrigins.join(', ')}`,
+          );
         }
         callback(new Error(`Not allowed by CORS. Origin: ${origin}`));
       }
@@ -109,7 +104,6 @@ async function bootstrap() {
     optionsSuccessStatus: 204,
   });
 
-  
   // Protect Swagger with Basic Auth when SWAGGER_PASSWORD is set (e.g. on Render/live)
   const swaggerPassword = process.env.SWAGGER_PASSWORD;
   const swaggerUser = process.env.SWAGGER_USER || 'admin';
@@ -128,7 +122,9 @@ async function bootstrap() {
 
   const config = new DocumentBuilder()
     .setTitle('HRMS Backend APIs')
-    .setDescription('APIs for login, registration and tenant-based access for Department and Designation')
+    .setDescription(
+      'APIs for login, registration and tenant-based access for Department and Designation',
+    )
     .setVersion('1.0')
     .addBearerAuth()
     .build();
@@ -137,10 +133,10 @@ async function bootstrap() {
   SwaggerModule.setup('api', app, document, {
     swaggerOptions: {
       docExpansion: 'none',
-    }
+      persistAuthorization: true,
+    },
   });
 
-  
   const port = parseInt(process.env.PORT || '3001', 10);
   await app.listen(port, '0.0.0.0');
 }

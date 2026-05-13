@@ -21,7 +21,7 @@ import { EmployeeModule } from './modules/employee/employee.module';
 import { TenantModule } from './modules/tenant/tenant.module';
 import { RoleModule } from './modules/role/role.module';
 import { PermissionModule } from './modules/permission/permission.module';
-import { AttendanceModule } from './modules/attendance/attendace.module';
+import { AttendanceModule } from './modules/attendance/attendance.module';
 import { TimesheetModule } from './modules/timesheet/timesheet.module';
 import { LeaveModule } from './modules/leave/leave.module';
 import { LeaveTypeModule } from './modules/leave-type/leave-type.module';
@@ -38,6 +38,9 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { GeofenceModule } from './modules/geofence/geofence.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { AnnouncementModule } from './modules/announcement/announcement.module';
+import { WorkflowModule } from './modules/workflow/workflow.module';
+import { WfhModule } from './modules/wfh/wfh.module';
+import { OvertimeModule } from './modules/overtime/overtime.module';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { SystemLoggingInterceptor } from './common/interceptors/system-logging.interceptor';
 import { SignedFileUrlInterceptor } from "./modules/storage/signed-file-url.interceptor";
@@ -165,6 +168,9 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     GeofenceModule,
     NotificationModule,
     AnnouncementModule,
+    WorkflowModule,
+    WfhModule,
+    OvertimeModule,
   ],
   providers: [
     {

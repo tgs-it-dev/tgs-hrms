@@ -26,7 +26,6 @@ import {
 } from "@nestjs/swagger";
 import { FileInterceptor } from "@nestjs/platform-express";
 // import { CreateTenantDto } from "../dto/system-tenant/create-tenant.dto";
-import { JwtAuthGuard } from "src/common/guards/jwt-auth.guard";
 import { RolesGuard } from "src/common/guards/roles.guard";
 import { Roles } from "src/common/decorators/roles.decorator";
 import { SystemTenantService } from "./system-tenant.service";
@@ -36,7 +35,7 @@ import { UpdateTenantDto } from "../dto/system-tenant/update-tenant.dto";
 @ApiTags("System (Tenants)")
 @ApiBearerAuth()
 @Roles("system-admin")
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(RolesGuard)
 @Controller("system/tenants")
 export class SystemTenantController {
   constructor(private readonly tenantService: SystemTenantService) {}
