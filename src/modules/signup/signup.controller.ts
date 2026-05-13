@@ -21,8 +21,7 @@ import { GoogleSignupInitDto } from './dto/google-signup-init.dto';
 import { CompanyLogoDto } from './dto/company-logo.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
-import * as path from 'path';
-import { createImageFileFilter } from '../common/utils/file-validation.util';
+import { createImageFileFilter } from '../../common/utils/file-validation.util';
 
 @ApiTags('Signup')
 @Controller('signup')
