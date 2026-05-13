@@ -1,22 +1,70 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { OrgMember } from '../../entities/org-member.entity';
+import { User } from '../../entities/user.entity';
 import { OrgMemberRole } from '../../common/constants/enums';
+import { GLOBAL_SYSTEM_TENANT_ID } from '../../common/constants/enums';
 
 @Injectable()
 export class OrgsService {
   constructor(
     @InjectRepository(OrgMember)
     private readonly orgMemberRepository: Repository<OrgMember>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
   ) {}
 
   /**
-   * Returns the membership record for a given user + org pair.
-   * Returns null when no membership exists.
+   * Asserts that `userId` is allowed to access `orgId`.
    *
-   * All queries use parameterised placeholders (:userId, :orgId) —
-   * no string interpolation anywhere.
+   * Two paths grant access:
+   *   1. The user's primary tenant_id matches the requested org (the normal
+   *      case — every user belongs to exactly one tenant/org).
+   *   2. An explicit org_members row exists for the pair (future cross-org
+   *      invited members).
+   *
+   * System-admin users (tenant_id = GLOBAL_SYSTEM_TENANT_ID) bypass the
+   * check because they administer the whole platform.
+   *
+   * Throws ForbiddenException (HTTP 403) when neither path grants access.
+   * All queries are parameterised — no string interpolation.
+   */
+  async validateOrgAccess(userId: string, orgId: string): Promise<void> {
+    const user = await this.userRepository
+      .createQueryBuilder('u')
+      .select(['u.id', 'u.tenant_id'])
+      .where('u.id = :userId', { userId })
+      .getOne();
+
+    if (!user) {
+      throw new ForbiddenException('Access denied.');
+    }
+
+    // System-admins manage the whole platform — exempt from tenant scoping
+    if (user.tenant_id === GLOBAL_SYSTEM_TENANT_ID) {
+      return;
+    }
+
+    // Primary check: user's own tenant matches the requested org
+    if (user.tenant_id === orgId) {
+      return;
+    }
+
+    // Secondary check: explicit membership row (cross-org invited users)
+    const membership = await this.getMembership(userId, orgId);
+    if (membership) {
+      return;
+    }
+
+    throw new ForbiddenException(
+      'You do not have access to this organisation.',
+    );
+  }
+
+  /**
+   * Returns the membership record for a given user + org pair,
+   * or null when no explicit membership exists.
    */
   async getMembership(
     userId: string,
@@ -29,9 +77,7 @@ export class OrgsService {
       .getOne();
   }
 
-  /**
-   * Returns all members of an org, ordered by role then created date.
-   */
+  /** Returns all members of an org ordered by role then join date. */
   async listMembers(orgId: string): Promise<OrgMember[]> {
     return this.orgMemberRepository
       .createQueryBuilder('om')
@@ -44,8 +90,7 @@ export class OrgsService {
 
   /**
    * Adds a user to an org with the given role.
-   * The member_role column is a native PostgreSQL ENUM so the DB will
-   * reject any value not in ('owner', 'admin', 'member').
+   * member_role is a native PostgreSQL ENUM — the DB rejects invalid values.
    */
   async addMember(
     orgId: string,
@@ -60,9 +105,7 @@ export class OrgsService {
     return this.orgMemberRepository.save(member);
   }
 
-  /**
-   * Updates the role of an existing member.
-   */
+  /** Updates the role of an existing member. */
   async updateRole(
     orgId: string,
     userId: string,
@@ -77,9 +120,7 @@ export class OrgsService {
       .execute();
   }
 
-  /**
-   * Removes a user from an org.
-   */
+  /** Removes a user from an org. */
   async removeMember(orgId: string, userId: string): Promise<void> {
     await this.orgMemberRepository
       .createQueryBuilder()
