@@ -41,6 +41,7 @@ import { AnnouncementModule } from './modules/announcement/announcement.module';
 import { WorkflowModule } from './modules/workflow/workflow.module';
 import { WfhModule } from './modules/wfh/wfh.module';
 import { OvertimeModule } from './modules/overtime/overtime.module';
+import { ShiftModule } from './modules/shift/shift.module';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { SystemLoggingInterceptor } from './common/interceptors/system-logging.interceptor';
 import { SignedFileUrlInterceptor } from "./modules/storage/signed-file-url.interceptor";
@@ -171,6 +172,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     WorkflowModule,
     WfhModule,
     OvertimeModule,
+    ShiftModule,
   ],
   providers: [
     {

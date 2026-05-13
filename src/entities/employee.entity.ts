@@ -11,6 +11,7 @@ import {
 import { User } from "./user.entity";
 import { Designation } from "./designation.entity";
 import { Team } from "./team.entity";
+import { Shift } from "./shift.entity";
 import { EmployeeStatus, InviteStatus } from "../common/constants/enums";
 
 @Index(["user_id"])
@@ -54,8 +55,15 @@ export class Employee {
   @CreateDateColumn()
   created_at: Date;
 
+  @Column({ type: "uuid", nullable: true })
+  shift_id: string | null;
+
   @Column({ type: "timestamptz", nullable: true })
   deleted_at: Date | null;
+
+  @ManyToOne(() => Shift, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'shift_id' })
+  shift: Shift;
 
   @ManyToOne(() => User, (user) => user.employees, {
     nullable: false,

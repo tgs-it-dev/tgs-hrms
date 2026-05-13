@@ -359,6 +359,7 @@ export class TenantSchemaProvisioningService {
         "cnic_number"       VARCHAR(15),
         "cnic_picture"      VARCHAR(500),
         "cnic_back_picture" VARCHAR(500),
+        "shift_id"          UUID,
         "created_at"        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         "deleted_at"        TIMESTAMPTZ,
         CONSTRAINT "pk_${schemaName}_emp"
@@ -499,8 +500,9 @@ export class TenantSchemaProvisioningService {
         "approved_by"      UUID,
         "approved_at"      TIMESTAMPTZ,
         "approval_remarks" TEXT,
-        "near_boundary"    BOOLEAN      NOT NULL DEFAULT false,
-        "updated_at"       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+        "near_boundary"     BOOLEAN      NOT NULL DEFAULT false,
+        "is_auto_checkout"  BOOLEAN      NOT NULL DEFAULT false,
+        "updated_at"        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
         CONSTRAINT "pk_${schemaName}_att"
           PRIMARY KEY ("id"),
         CONSTRAINT "fk_${schemaName}_att_usr"

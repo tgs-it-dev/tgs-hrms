@@ -66,6 +66,13 @@ export class Attendance {
   @Column({ type: 'boolean', default: false })
   near_boundary: boolean;
 
+  /**
+   * True when this record was created automatically by the end-of-shift
+   * cron job because the employee did not manually check out.
+   */
+  @Column({ type: 'boolean', default: false })
+  is_auto_checkout: boolean;
+
   @UpdateDateColumn({ type: 'timestamptz' })
   updated_at: Date;
 }
