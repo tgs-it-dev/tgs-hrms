@@ -15,7 +15,6 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { LogoutDto } from './dto/logout.dto';
 import { Throttle } from '@nestjs/throttler';
 import { RolesGuard } from 'src/common/guards/roles.guard';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Permissions } from 'src/common/decorators/permissions.decorator';
 import { PermissionsGuard } from 'src/common/guards/permissions.guard';
@@ -294,7 +293,7 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Post('admin-data')
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @UseGuards(RolesGuard, PermissionsGuard)
   @Roles('admin', 'system-admin')
   @Permissions('manage_users')
   getAdminData() {
@@ -303,7 +302,7 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Get('test-permissions')
-  @UseGuards(JwtAuthGuard)
+
   testPermissions(@Req() req: AuthenticatedRequest) {
     return {
       message: 'Permissions test endpoint',
@@ -348,7 +347,7 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Get('validate-token')
-  @UseGuards(JwtAuthGuard)
+
   @ApiOperation({
     summary: 'Validate current token',
     description:
@@ -365,7 +364,7 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Post('logout-all')
-  @UseGuards(JwtAuthGuard)
+
   @ApiOperation({
     summary: 'Logout from all devices',
     description:
@@ -378,7 +377,7 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Get('sessions')
-  @UseGuards(JwtAuthGuard)
+
   @ApiOperation({
     summary: 'List active sessions',
     description:

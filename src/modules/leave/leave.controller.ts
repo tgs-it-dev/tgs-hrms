@@ -36,7 +36,6 @@ import {
   EditLeaveDto,
   RemoveLeaveDocumentDto,
 } from './dto/update-leave.dto';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Permissions } from 'src/common/decorators/permissions.decorator';
@@ -49,7 +48,7 @@ import { AuthenticatedRequest } from 'src/common/types/request.types';
 
 @ApiTags('Leaves')
 @Controller('leaves')
-@UseGuards(JwtAuthGuard)
+
 export class LeaveController {
   constructor(private readonly leaveService: LeaveService) {}
 
@@ -359,7 +358,7 @@ export class LeaveController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all leaves for logged-in employee' })
   @ApiResponse({ status: 200, description: 'Returns leave requests' })
@@ -656,7 +655,7 @@ export class LeaveController {
   }
 
   @Patch(':id/cancel')
-  @UseGuards(JwtAuthGuard)
+
   @ApiBearerAuth()
   @ApiOperation({
     summary:
