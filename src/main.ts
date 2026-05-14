@@ -17,7 +17,9 @@ async function bootstrap() {
 
     const originalEnd = res.end.bind(res);
     (res as any).end = (...args: any[]) => {
-      res.setHeader('X-Response-Time', `${Date.now() - start}ms`);
+      if (!res.headersSent) {
+        res.setHeader('X-Response-Time', `${Date.now() - start}ms`);
+      }
       return originalEnd(...args);
     };
 
