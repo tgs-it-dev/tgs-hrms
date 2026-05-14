@@ -210,20 +210,38 @@ export class WfhService {
             ? dto.start_date
             : `${dto.start_date} to ${dto.end_date}`;
 
-        await this.notificationService.create(
-          employeeId,
-          tenantId,
-          `${employeeName} has submitted a WFH request for ${dateRange}`,
-          NotificationType.IN_APP,
-          {
-            relatedEntityType: WorkflowRequestType.WFH,
-            relatedEntityId: savedWfh.id,
-            senderId: employeeId,
-            senderRole: UserRole.EMPLOYEE,
-            action: NotificationAction.APPLIED,
-            isSystem: false,
-          },
+        // Notify the manager (step-1 approver), not the employee who submitted
+        const managerRows = await runQuery<{ manager_id: string }[]>(
+          `SELECT t.manager_id FROM employees e
+           JOIN teams t ON e.team_id = t.id
+           WHERE e.user_id = $1 AND e.tenant_id = $2 LIMIT 1`,
+          [employeeId, tenantId],
         );
+        const managerId = managerRows[0]?.manager_id;
+        if (managerId && managerId !== employeeId) {
+          const notification = await this.notificationService.create(
+            managerId,
+            tenantId,
+            `${employeeName} has submitted a WFH request for ${dateRange}`,
+            NotificationType.WFH,
+            {
+              relatedEntityType: 'wfh',
+              relatedEntityId: savedWfh.id,
+              senderId: employeeId,
+              senderRole: UserRole.EMPLOYEE,
+              action: NotificationAction.APPLIED,
+              isSystem: false,
+            },
+          );
+          this.notificationGateway.sendToUser(managerId, 'new_notification', {
+            id: notification.id,
+            message: notification.message,
+            type: notification.type,
+            related_entity_type: 'wfh',
+            related_entity_id: savedWfh.id,
+            created_at: notification.created_at,
+          });
+        }
       } catch (err: unknown) {
         this.logger.warn(
           `Failed to send WFH notification for ${savedWfh.id}`,

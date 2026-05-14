@@ -272,20 +272,38 @@ export class OvertimeService {
         const dateRange =
           startLabel === endLabel ? startLabel : `${startLabel} to ${endLabel}`;
 
-        await this.notificationService.create(
-          employeeId,
-          tenantId,
-          `${employeeName} submitted an overtime request for ${dateRange} (${hours}h)`,
-          NotificationType.IN_APP,
-          {
-            relatedEntityType: WorkflowRequestType.OVERTIME,
-            relatedEntityId: saved.id,
-            senderId: employeeId,
-            senderRole: UserRole.EMPLOYEE,
-            action: NotificationAction.APPLIED,
-            isSystem: false,
-          },
+        // Notify the manager (step-1 approver), not the employee who submitted
+        const managerRows = await runQuery<{ manager_id: string }[]>(
+          `SELECT t.manager_id FROM employees e
+           JOIN teams t ON e.team_id = t.id
+           WHERE e.user_id = $1 AND e.tenant_id = $2 LIMIT 1`,
+          [employeeId, tenantId],
         );
+        const managerId = managerRows[0]?.manager_id;
+        if (managerId && managerId !== employeeId) {
+          const notification = await this.notificationService.create(
+            managerId,
+            tenantId,
+            `${employeeName} submitted an overtime request for ${dateRange} (${hours}h)`,
+            NotificationType.OVERTIME,
+            {
+              relatedEntityType: 'overtime',
+              relatedEntityId: saved.id,
+              senderId: employeeId,
+              senderRole: UserRole.EMPLOYEE,
+              action: NotificationAction.APPLIED,
+              isSystem: false,
+            },
+          );
+          this.notificationGateway.sendToUser(managerId, 'new_notification', {
+            id: notification.id,
+            message: notification.message,
+            type: notification.type,
+            related_entity_type: 'overtime',
+            related_entity_id: saved.id,
+            created_at: notification.created_at,
+          });
+        }
       } catch (err: unknown) {
         this.logger.warn(
           `Failed to send overtime notification for ${saved.id}`,
@@ -640,6 +658,99 @@ export class OvertimeService {
     } catch (err: unknown) {
       this.logger.warn(
         `Failed to send approval notification for overtime ${relatedEntityId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  private async getHrAdminUserIds(tenantId: string): Promise<string[]> {
+    const users = await this.userRepo
+      .createQueryBuilder('user')
+      .innerJoin('user.role', 'role')
+      .where('user.tenant_id = :tenantId', { tenantId })
+      .andWhere('LOWER(role.name) IN (:...names)', {
+        names: ['admin', 'hr-admin', 'system-admin'],
+      })
+      .select(['user.id'])
+      .getMany();
+    return users.map((u) => u.id);
+  }
+
+  /**
+   * Called when an intermediate workflow step is approved (e.g. manager approved,
+   * hr-admin approval still pending). Notifies the employee and the next approvers.
+   */
+  async markStepApproved(
+    relatedEntityId: string,
+    tenantId: string,
+    requestorId: string,
+    approverId: string | null,
+  ): Promise<void> {
+    try {
+      const notification = await this.notificationService.create(
+        requestorId,
+        tenantId,
+        'Your overtime request has been approved by your manager and is now pending HR approval',
+        NotificationType.OVERTIME,
+        {
+          relatedEntityType: 'overtime',
+          relatedEntityId,
+          senderId: approverId ?? undefined,
+          action: NotificationAction.PROCESSING,
+          isSystem: false,
+        },
+      );
+      this.notificationGateway.sendToUser(requestorId, 'new_notification', {
+        id: notification.id,
+        message: notification.message,
+        type: notification.type,
+        related_entity_type: 'overtime',
+        related_entity_id: relatedEntityId,
+        created_at: notification.created_at,
+      });
+    } catch (err: unknown) {
+      this.logger.warn(
+        `Failed to send step-approved employee notification for overtime ${relatedEntityId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
+    try {
+      const hrAdminIds = await this.getHrAdminUserIds(tenantId);
+      const eligible = hrAdminIds.filter((id) => id !== approverId);
+      if (eligible.length === 0) return;
+
+      const employee = await this.userRepo.findOne({
+        where: { id: requestorId },
+      });
+      const name = employee
+        ? `${employee.first_name} ${employee.last_name}`.trim()
+        : 'An employee';
+
+      const notifications = await this.notificationService.sendToUsers(
+        eligible,
+        tenantId,
+        `${name}'s overtime request is awaiting your approval`,
+        NotificationType.OVERTIME,
+        {
+          relatedEntityType: 'overtime',
+          relatedEntityId,
+          senderId: approverId ?? undefined,
+          action: NotificationAction.PROCESSING,
+          isSystem: false,
+        },
+      );
+      for (const n of notifications) {
+        this.notificationGateway.sendToUser(n.user_id, 'new_notification', {
+          id: n.id,
+          message: n.message,
+          type: n.type,
+          related_entity_type: 'overtime',
+          related_entity_id: relatedEntityId,
+          created_at: n.created_at,
+        });
+      }
+    } catch (err: unknown) {
+      this.logger.warn(
+        `Failed to send step-approved hr-admin notification for overtime ${relatedEntityId}: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }
