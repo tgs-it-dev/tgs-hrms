@@ -3,11 +3,13 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Post,
   Put,
   Query,
+  Req,
   UseGuards,
   UseInterceptors,
   UploadedFile,
@@ -15,6 +17,7 @@ import {
   MaxFileSizeValidator,
   FileTypeValidator,
 } from '@nestjs/common';
+import { AuthenticatedRequest } from 'src/common/types/request.types';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -259,18 +262,25 @@ export class SystemTenantController {
   }
 
   /**
-   * Toggle mobile login access for a tenant
+   * Toggle mobile login access for a tenant.
+   * System admin can update any tenant; tenant/admin can only update their own.
    */
   @Put(':id/mobile-login')
+  @Roles('system-admin', 'tenant-admin', 'admin')
   @ApiOperation({
-    summary: 'Enable or disable mobile login for a tenant (System Admin only)',
+    summary: 'Enable or disable mobile login for a tenant',
   })
   @ApiResponse({ status: 200, description: 'Mobile login setting updated.' })
+  @ApiResponse({ status: 403, description: 'Cannot modify another tenant.' })
   @ApiResponse({ status: 404, description: 'Tenant not found.' })
   async setMobileLogin(
     @Param('id') id: string,
     @Body() dto: ToggleMobileLoginDto,
+    @Req() req: AuthenticatedRequest,
   ) {
+    if (req.user.role !== 'system-admin' && req.user.tenant_id !== id) {
+      throw new ForbiddenException('You can only modify your own tenant.');
+    }
     return this.tenantService.setMobileLoginEnabled(id, dto.enabled);
   }
 
