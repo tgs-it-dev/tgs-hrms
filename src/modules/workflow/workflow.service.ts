@@ -482,10 +482,15 @@ export class WorkflowService {
           }
         }
 
-        return requestRepo.findOne({
+        const result = await requestRepo.findOne({
           where: { id: workflowRequestId },
           relations: ['steps'],
-        }) as Promise<WorkflowRequest>;
+          order: { steps: { step_order: 'ASC' } },
+        });
+        if (result) {
+          result.steps = this.truncateStepsAtRejection(result.steps ?? []);
+        }
+        return result as WorkflowRequest;
       },
     );
   }
@@ -542,12 +547,30 @@ export class WorkflowService {
     requestType?: WorkflowRequestType,
     page = 1,
     limit = 20,
+    search?: string,
   ): Promise<{
     items: EnrichedRequest[];
     total: number;
     page: number;
     limit: number;
   }> {
+    let requestorIds: string[] | null = null;
+    if (search?.trim()) {
+      const pattern = `%${search.trim()}%`;
+      const users = await this.dataSource.query<{ id: string }[]>(
+        `SELECT id FROM public.users
+         WHERE tenant_id = $1
+           AND (LOWER(first_name) LIKE LOWER($2)
+                OR LOWER(last_name) LIKE LOWER($2)
+                OR LOWER(CONCAT(first_name, ' ', last_name)) LIKE LOWER($2))`,
+        [tenantId, pattern],
+      );
+      requestorIds = users.map((u) => u.id);
+      if (requestorIds.length === 0) {
+        return { items: [], total: 0, page, limit };
+      }
+    }
+
     return this.runInTenantContext(
       tenantId,
       async (_configRepo, requestRepo, _stepRepo, em) => {
@@ -585,6 +608,10 @@ export class WorkflowService {
             .addOrderBy('step.step_order', 'ASC');
           if (requestType)
             qb.andWhere('wr.request_type = :requestType', { requestType });
+          if (requestorIds)
+            qb.andWhere('wr.requestor_id IN (:...requestorIds)', {
+              requestorIds,
+            });
           return qb;
         };
 
@@ -605,6 +632,10 @@ export class WorkflowService {
             );
           if (requestType)
             qb.andWhere('wr.request_type = :requestType', { requestType });
+          if (requestorIds)
+            qb.andWhere('wr.requestor_id IN (:...requestorIds)', {
+              requestorIds,
+            });
           return qb;
         };
 
@@ -779,12 +810,14 @@ export class WorkflowService {
           current_step_order: request.current_step_order,
           total_steps: request.total_steps,
           requestor: nameMap.get(request.requestor_id) ?? null,
-          steps: (request.steps ?? []).map((step) => ({
-            ...step,
-            approver: step.approver_id
-              ? (nameMap.get(step.approver_id) ?? null)
-              : null,
-          })),
+          steps: this.truncateStepsAtRejection(
+            (request.steps ?? []).map((step) => ({
+              ...step,
+              approver: step.approver_id
+                ? (nameMap.get(step.approver_id) ?? null)
+                : null,
+            })),
+          ),
         };
       },
     );
@@ -874,6 +907,14 @@ export class WorkflowService {
     return map;
   }
 
+  private truncateStepsAtRejection<
+    T extends { step_order: number; status: string },
+  >(steps: T[]): T[] {
+    const sorted = [...steps].sort((a, b) => a.step_order - b.step_order);
+    const rejectedIdx = sorted.findIndex((s) => s.status === 'rejected');
+    return rejectedIdx === -1 ? sorted : sorted.slice(0, rejectedIdx + 1);
+  }
+
   private async enrichWithWorkflowActors(
     items: Array<
       WorkflowRequest & { request_data: Record<string, unknown> | null }
@@ -891,12 +932,14 @@ export class WorkflowService {
     return items.map((item) => ({
       ...item,
       requestor: nameMap.get(item.requestor_id) ?? null,
-      steps: (item.steps ?? []).map((step) => ({
-        ...step,
-        approver: step.approver_id
-          ? (nameMap.get(step.approver_id) ?? null)
-          : null,
-      })),
+      steps: this.truncateStepsAtRejection(
+        (item.steps ?? []).map((step) => ({
+          ...step,
+          approver: step.approver_id
+            ? (nameMap.get(step.approver_id) ?? null)
+            : null,
+        })),
+      ),
     }));
   }
 

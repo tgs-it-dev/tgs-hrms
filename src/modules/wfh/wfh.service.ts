@@ -98,8 +98,8 @@ export class WfhService {
       throw new BadRequestException('end_date cannot be before start_date');
     }
 
-    return this.runInTenantContext(tenantId, async (wfhRepo) => {
-      // Overlap check: reject if any active request spans any of the requested dates
+    return this.runInTenantContext(tenantId, async (wfhRepo, em) => {
+      // Overlap check: reject if any active WFH request spans the requested dates
       const overlap = await wfhRepo
         .createQueryBuilder('w')
         .where('w.employee_id = :employeeId', { employeeId })
@@ -118,6 +118,38 @@ export class WfhService {
             : 'You already have a pending WFH request that overlaps these dates',
         );
       }
+
+      // Cross-type check: block if any Leave or Overtime request overlaps these dates
+      const runQuery = <T>(sql: string, params: unknown[]) =>
+        em ? em.query<T>(sql, params) : this.dataSource.query<T>(sql, params);
+
+      const [leaveRows, overtimeRows] = await Promise.all([
+        runQuery<{ id: string }[]>(
+          `SELECT id FROM leaves
+           WHERE "employeeId" = $1 AND "tenantId" = $2
+             AND status IN ('pending','processing','approved')
+             AND "startDate"::date <= $3::date AND "endDate"::date >= $4::date
+           LIMIT 1`,
+          [employeeId, tenantId, dto.end_date, dto.start_date],
+        ),
+        runQuery<{ id: string }[]>(
+          `SELECT id FROM overtime_requests
+           WHERE employee_id = $1 AND tenant_id = $2
+             AND status IN ('pending','approved')
+             AND start_date <= $3 AND end_date >= $4
+           LIMIT 1`,
+          [employeeId, tenantId, dto.end_date, dto.start_date],
+        ),
+      ]);
+
+      if (leaveRows.length > 0)
+        throw new ForbiddenException(
+          'You already have a leave request on these dates',
+        );
+      if (overtimeRows.length > 0)
+        throw new ForbiddenException(
+          'You already have an overtime request on these dates',
+        );
 
       const wfh = wfhRepo.create({
         employee_id: employeeId,

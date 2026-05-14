@@ -372,7 +372,8 @@ export class AttendanceService {
         groupedByDate[dateKey].checkOut = session.checkOut;
       }
     }
-    const items = Object.entries(groupedByDate).map(
+    const dates = Object.keys(groupedByDate);
+    const baseItems = Object.entries(groupedByDate).map(
       ([date, { checkIn, checkOut }]) => {
         let workedHours = 0;
         if (
@@ -395,10 +396,49 @@ export class AttendanceService {
               ? checkOut.timestamp
               : null,
           workedHours,
+          tags: [] as string[],
         };
       },
     );
-    return { items, total: items.length };
+
+    if (userId && tenantId && dates.length > 0) {
+      const minDate = dates.reduce((a, b) => (a < b ? a : b));
+      const maxDate = dates.reduce((a, b) => (a > b ? a : b));
+
+      const runQuery = <T>(sql: string, params: unknown[]) =>
+        isProvisioned && tenantId
+          ? this.tenantDbService.withTenantSchemaReadOnly(tenantId, (em) =>
+              em.query<T>(sql, params),
+            )
+          : this.dataSource.query<T>(sql, params);
+
+      const [wfhRows, overtimeRows] = await Promise.all([
+        runQuery<{ start_date: string; end_date: string }[]>(
+          `SELECT start_date::text, end_date::text FROM wfh_requests
+           WHERE employee_id = $1 AND tenant_id = $2
+             AND status IN ('pending','approved')
+             AND start_date <= $3 AND end_date >= $4`,
+          [userId, tenantId, maxDate, minDate],
+        ),
+        runQuery<{ start_date: string; end_date: string }[]>(
+          `SELECT start_date::text, end_date::text FROM overtime_requests
+           WHERE employee_id = $1 AND tenant_id = $2
+             AND status IN ('pending','approved')
+             AND start_date <= $3 AND end_date >= $4`,
+          [userId, tenantId, maxDate, minDate],
+        ),
+      ]);
+
+      for (const item of baseItems) {
+        const d = item.date;
+        if (wfhRows.some((r) => r.start_date <= d && r.end_date >= d))
+          item.tags.push('wfh');
+        if (overtimeRows.some((r) => r.start_date <= d && r.end_date >= d))
+          item.tags.push('overtime');
+      }
+    }
+
+    return { items: baseItems, total: baseItems.length };
   }
 
   async getTodaySummary(userId: string) {
