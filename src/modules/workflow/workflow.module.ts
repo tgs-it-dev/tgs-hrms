@@ -9,12 +9,14 @@ import { WorkflowController } from './workflow.controller';
 import { TenantCreatedWorkflowListener } from './listeners/tenant-created.listener';
 import { TenantModule } from '../tenant/tenant.module';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
+import { TenantSettingsModule } from '../tenant-settings/tenant-settings.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([WorkflowConfig, WorkflowRequest, WorkflowStep]),
     SharedJwtModule,
     TenantModule,
+    TenantSettingsModule,
   ],
   providers: [WorkflowService, TenantCreatedWorkflowListener],
   controllers: [WorkflowController],

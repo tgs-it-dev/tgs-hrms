@@ -24,6 +24,10 @@ import { NotificationGateway } from '../notification/notification.gateway';
 import { CreateOvertimeDto } from './dto/create-overtime.dto';
 import { UpdateOvertimeDto } from './dto/update-overtime.dto';
 import { DocumentUploadService } from '../storage/document-upload.service';
+import {
+  TenantSettingsService,
+  TenantSettingKey,
+} from '../tenant-settings/tenant-settings.service';
 
 @Injectable()
 export class OvertimeService {
@@ -39,6 +43,7 @@ export class OvertimeService {
     private readonly notificationGateway: NotificationGateway,
     private readonly tenantDbService: TenantDatabaseService,
     private readonly fileUploadService: DocumentUploadService,
+    private readonly tenantSettings: TenantSettingsService,
     @InjectDataSource()
     private readonly dataSource: DataSource,
   ) {}
@@ -55,13 +60,10 @@ export class OvertimeService {
   }
 
   private async isWorkflowEnabled(tenantId: string): Promise<boolean> {
-    const result = await this.dataSource.query<
-      { overtime_workflow_enabled: boolean }[]
-    >(
-      `SELECT overtime_workflow_enabled FROM public.tenants WHERE id = $1 LIMIT 1`,
-      [tenantId],
+    return this.tenantSettings.getBoolean(
+      tenantId,
+      TenantSettingKey.OVERTIME_WORKFLOW_ENABLED,
     );
-    return result[0]?.overtime_workflow_enabled ?? false;
   }
 
   private async runInTenantContext<T>(

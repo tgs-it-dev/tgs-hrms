@@ -17,6 +17,10 @@ import {
   WorkflowRequestStatus,
   WorkflowStepStatus,
 } from '../../common/constants/enums';
+import {
+  TenantSettingsService,
+  TenantSettingKey,
+} from '../tenant-settings/tenant-settings.service';
 
 export type WorkflowActor = {
   id: string;
@@ -54,12 +58,6 @@ export type WorkflowSettingsResponse = {
   overtime_workflow_enabled: boolean;
 };
 
-type WorkflowSettingsRow = {
-  leave_workflow_enabled: boolean;
-  wfh_workflow_enabled: boolean;
-  overtime_workflow_enabled: boolean;
-};
-
 export type EnrichedRequest = WorkflowRequest & {
   requestor: WorkflowActor | null;
   request_data: Record<string, unknown> | null;
@@ -90,6 +88,7 @@ export class WorkflowService {
     private readonly tenantDbService: TenantDatabaseService,
     @InjectDataSource()
     private readonly dataSource: DataSource,
+    private readonly tenantSettings: TenantSettingsService,
   ) {}
 
   // ── Tenant context helpers ────────────────────────────────────────────────
@@ -961,19 +960,14 @@ export class WorkflowService {
 
   // ── Feature flag ──────────────────────────────────────────────────────────
 
-  private requestTypeToColumn(
-    requestType: WorkflowRequestType,
-  ):
-    | 'leave_workflow_enabled'
-    | 'wfh_workflow_enabled'
-    | 'overtime_workflow_enabled' {
+  private requestTypeToKey(requestType: WorkflowRequestType): TenantSettingKey {
     switch (requestType) {
       case WorkflowRequestType.LEAVE:
-        return 'leave_workflow_enabled';
+        return TenantSettingKey.LEAVE_WORKFLOW_ENABLED;
       case WorkflowRequestType.WFH:
-        return 'wfh_workflow_enabled';
+        return TenantSettingKey.WFH_WORKFLOW_ENABLED;
       case WorkflowRequestType.OVERTIME:
-        return 'overtime_workflow_enabled';
+        return TenantSettingKey.OVERTIME_WORKFLOW_ENABLED;
       default:
         throw new BadRequestException(
           `Invalid request_type: ${String(requestType)}`,
@@ -986,11 +980,8 @@ export class WorkflowService {
     requestType: WorkflowRequestType,
     enabled: boolean,
   ): Promise<WorkflowSettingsResponse> {
-    const column = this.requestTypeToColumn(requestType);
-    await this.dataSource.query(
-      `UPDATE public.tenants SET "${column}" = $1, updated_at = NOW() WHERE id = $2`,
-      [enabled, tenantId],
-    );
+    const key = this.requestTypeToKey(requestType);
+    await this.tenantSettings.set(tenantId, key, String(enabled));
     this.logger.log(
       `Workflow ${enabled ? 'enabled' : 'disabled'} for ${requestType} on tenant ${tenantId}`,
     );
@@ -1000,16 +991,24 @@ export class WorkflowService {
   async getWorkflowSettings(
     tenantId: string,
   ): Promise<WorkflowSettingsResponse> {
-    const result = await this.dataSource.query<WorkflowSettingsRow[]>(
-      `SELECT leave_workflow_enabled, wfh_workflow_enabled, overtime_workflow_enabled
-       FROM public.tenants WHERE id = $1 LIMIT 1`,
-      [tenantId],
-    );
-    const row = result[0];
+    const [leave, wfh, overtime] = await Promise.all([
+      this.tenantSettings.getBoolean(
+        tenantId,
+        TenantSettingKey.LEAVE_WORKFLOW_ENABLED,
+      ),
+      this.tenantSettings.getBoolean(
+        tenantId,
+        TenantSettingKey.WFH_WORKFLOW_ENABLED,
+      ),
+      this.tenantSettings.getBoolean(
+        tenantId,
+        TenantSettingKey.OVERTIME_WORKFLOW_ENABLED,
+      ),
+    ]);
     return {
-      leave_workflow_enabled: row?.leave_workflow_enabled ?? false,
-      wfh_workflow_enabled: row?.wfh_workflow_enabled ?? false,
-      overtime_workflow_enabled: row?.overtime_workflow_enabled ?? false,
+      leave_workflow_enabled: leave,
+      wfh_workflow_enabled: wfh,
+      overtime_workflow_enabled: overtime,
     };
   }
 }
