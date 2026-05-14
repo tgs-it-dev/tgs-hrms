@@ -124,8 +124,8 @@ export class LeaveService {
     dto: CreateLeaveDto,
     files?: Express.Multer.File[],
   ): Promise<Leave> {
-    return this.runInTenantContext(tenantId, async (leaveRepo, leaveTypeRepo, employeeRepo) => {
-      return this.doCreateLeave(employeeId, tenantId, dto, files, leaveRepo, leaveTypeRepo, employeeRepo);
+    return this.runInTenantContext(tenantId, async (leaveRepo, leaveTypeRepo, employeeRepo, _teamRepo, em) => {
+      return this.doCreateLeave(employeeId, tenantId, dto, files, leaveRepo, leaveTypeRepo, employeeRepo, em);
     });
   }
 
@@ -137,6 +137,7 @@ export class LeaveService {
     leaveRepo: Repository<Leave>,
     leaveTypeRepo: Repository<LeaveType>,
     employeeRepo: Repository<Employee>,
+    em?: EntityManager | null,
   ): Promise<Leave> {
     const leaveType = await leaveTypeRepo.findOne({
       where: { id: dto.leaveTypeId, tenantId, status: 'active' }
@@ -188,6 +189,41 @@ export class LeaveService {
         'You already have a leave request that overlaps with these dates',
       );
     }
+
+    // Cross-type check: block if any WFH or Overtime request overlaps these dates
+    const runQuery = <T>(sql: string, params: unknown[]) =>
+      em ? em.query<T>(sql, params) : this.dataSource.query<T>(sql, params);
+
+    const startStr = startDate.toISOString().slice(0, 10);
+    const endStr = endDate.toISOString().slice(0, 10);
+
+    const [wfhRows, overtimeRows] = await Promise.all([
+      runQuery<{ id: string }[]>(
+        `SELECT id FROM wfh_requests
+         WHERE employee_id = $1 AND tenant_id = $2
+           AND status IN ('pending','approved')
+           AND start_date <= $3 AND end_date >= $4
+         LIMIT 1`,
+        [employeeId, tenantId, endStr, startStr],
+      ),
+      runQuery<{ id: string }[]>(
+        `SELECT id FROM overtime_requests
+         WHERE employee_id = $1 AND tenant_id = $2
+           AND status IN ('pending','approved')
+           AND start_date <= $3 AND end_date >= $4
+         LIMIT 1`,
+        [employeeId, tenantId, endStr, startStr],
+      ),
+    ]);
+
+    if (wfhRows.length > 0)
+      throw new ForbiddenException(
+        'You already have a WFH request on these dates',
+      );
+    if (overtimeRows.length > 0)
+      throw new ForbiddenException(
+        'You already have an overtime request on these dates',
+      );
 
     // Calculate working days only (exclude weekends)
     const totalDays = this.calculateWorkingDays(startDate, endDate);

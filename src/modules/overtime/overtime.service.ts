@@ -154,8 +154,8 @@ export class OvertimeService {
       hours = totalDays * 8;
     }
 
-    return this.runInTenantContext(tenantId, async (repo) => {
-      // Overlap check against active requests
+    return this.runInTenantContext(tenantId, async (repo, em) => {
+      // Overlap check against active overtime requests
       const overlap = await repo
         .createQueryBuilder('o')
         .where('o.employee_id = :employeeId', { employeeId })
@@ -178,6 +178,39 @@ export class OvertimeService {
             : 'You already have a pending overtime request that overlaps these dates',
         );
       }
+
+      // Cross-type check: block if any Leave or WFH request overlaps these dates
+      const endStr = endDate.toISOString().slice(0, 10);
+      const runQuery = <T>(sql: string, params: unknown[]) =>
+        em ? em.query<T>(sql, params) : this.dataSource.query<T>(sql, params);
+
+      const [leaveRows, wfhRows] = await Promise.all([
+        runQuery<{ id: string }[]>(
+          `SELECT id FROM leaves
+           WHERE "employeeId" = $1 AND "tenantId" = $2
+             AND status IN ('pending','processing','approved')
+             AND "startDate"::date <= $3::date AND "endDate"::date >= $4::date
+           LIMIT 1`,
+          [employeeId, tenantId, endStr, dto.start_date],
+        ),
+        runQuery<{ id: string }[]>(
+          `SELECT id FROM wfh_requests
+           WHERE employee_id = $1 AND tenant_id = $2
+             AND status IN ('pending','approved')
+             AND start_date <= $3 AND end_date >= $4
+           LIMIT 1`,
+          [employeeId, tenantId, endStr, dto.start_date],
+        ),
+      ]);
+
+      if (leaveRows.length > 0)
+        throw new ForbiddenException(
+          'You already have a leave request on these dates',
+        );
+      if (wfhRows.length > 0)
+        throw new ForbiddenException(
+          'You already have a WFH request on these dates',
+        );
 
       const overtime = repo.create({
         employee_id: employeeId,
