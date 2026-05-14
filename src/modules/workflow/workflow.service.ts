@@ -17,7 +17,10 @@ import {
   WorkflowRequestStatus,
   WorkflowStepStatus,
 } from '../../common/constants/enums';
-import { TenantSettingsService, TenantSettingKey } from '../tenant-settings/tenant-settings.service';
+import {
+  TenantSettingsService,
+  TenantSettingKey,
+} from '../tenant-settings/tenant-settings.service';
 
 export type WorkflowActor = {
   id: string;

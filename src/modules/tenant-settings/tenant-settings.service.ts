@@ -37,13 +37,22 @@ export class TenantSettingsService {
 
   async get(tenantId: string, key: TenantSettingKey): Promise<string> {
     const tenantCache = await this.loadTenant(tenantId);
-    return tenantCache.get(key) ?? TenantSettingsService.DEFAULTS[key] ?? 'false';
+    return (
+      tenantCache.get(key) ?? TenantSettingsService.DEFAULTS[key] ?? 'false'
+    );
   }
 
-  async set(tenantId: string, key: TenantSettingKey, value: string): Promise<void> {
+  async set(
+    tenantId: string,
+    key: TenantSettingKey,
+    value: string,
+  ): Promise<void> {
     await this.repo.upsert(
       { tenant_id: tenantId, key, value },
-      { conflictPaths: ['tenant_id', 'key'], skipUpdateIfNoValuesChanged: true },
+      {
+        conflictPaths: ['tenant_id', 'key'],
+        skipUpdateIfNoValuesChanged: true,
+      },
     );
     const tenantCache = await this.loadTenant(tenantId);
     tenantCache.set(key, value);
@@ -51,8 +60,12 @@ export class TenantSettingsService {
 
   async getAll(tenantId: string): Promise<Record<string, string>> {
     const tenantCache = await this.loadTenant(tenantId);
-    const result: Record<string, string> = { ...TenantSettingsService.DEFAULTS };
-    tenantCache.forEach((value, key) => { result[key] = value; });
+    const result: Record<string, string> = {
+      ...TenantSettingsService.DEFAULTS,
+    };
+    tenantCache.forEach((value, key) => {
+      result[key] = value;
+    });
     return result;
   }
 
