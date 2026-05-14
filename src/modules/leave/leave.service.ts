@@ -16,6 +16,7 @@ import { NotificationService } from '../notification/notification.service';
 import { NotificationGateway } from '../notification/notification.gateway';
 import { Team } from '../../entities/team.entity';
 import { TenantDatabaseService } from '../../common/services/tenant-database.service';
+import { TenantSettingsService, TenantSettingKey } from '../tenant-settings/tenant-settings.service';
 
 @Injectable()
 export class LeaveService {
@@ -38,6 +39,7 @@ export class LeaveService {
     @InjectDataSource()
     private readonly dataSource: DataSource,
     private readonly workflowService: WorkflowService,
+    private readonly tenantSettings: TenantSettingsService,
   ) { }
 
   private readonly logger = new Logger(LeaveService.name);
@@ -53,13 +55,10 @@ export class LeaveService {
   }
 
   async isWorkflowEnabled(tenantId: string): Promise<boolean> {
-    const result = await this.dataSource.query<
-      { leave_workflow_enabled: boolean }[]
-    >(
-      `SELECT leave_workflow_enabled FROM public.tenants WHERE id = $1 LIMIT 1`,
-      [tenantId],
+    return this.tenantSettings.getBoolean(
+      tenantId,
+      TenantSettingKey.LEAVE_WORKFLOW_ENABLED,
     );
-    return result[0]?.leave_workflow_enabled ?? false;
   }
 
   private isDirectToAdminRole(roleName: string | null | undefined): boolean {

@@ -30,6 +30,7 @@ import { SignupSession } from "src/entities/signup-session.entity";
 import { getPostgresErrorCode } from "src/common/types/database.types";
 import { validateImageFile } from "src/common/utils/file-validation.util";
 import { S3StorageService } from "../../storage";
+import { TenantSettingsService, TenantSettingKey } from "../../tenant-settings/tenant-settings.service";
 
 const PREFIX_COMPANY_LOGOS = "company-logos";
 
@@ -51,6 +52,7 @@ export class SystemTenantService {
     private readonly dataSource: DataSource,
     private readonly emailService: EmailService,
     private readonly s3: S3StorageService,
+    private readonly tenantSettings: TenantSettingsService,
   ) {}
 
   async create(dto: CreateTenantDto, file?: Express.Multer.File) {
@@ -700,6 +702,20 @@ export class SystemTenantService {
       }
       throw err;
     }
+
+    const settingUpdates: Array<[TenantSettingKey, boolean | undefined]> = [
+      [TenantSettingKey.MOBILE_LOGIN_ENABLED, dto.mobileLoginEnabled],
+      [TenantSettingKey.LEAVE_WORKFLOW_ENABLED, dto.leaveWorkflowEnabled],
+      [TenantSettingKey.WFH_WORKFLOW_ENABLED, dto.wfhWorkflowEnabled],
+      [TenantSettingKey.OVERTIME_WORKFLOW_ENABLED, dto.overtimeWorkflowEnabled],
+    ];
+    await Promise.all(
+      settingUpdates
+        .filter(([, v]) => v !== undefined)
+        .map(([key, v]) =>
+          this.tenantSettings.set(result.tenant.id, key, String(v)),
+        ),
+    );
 
     return {
       id: result.tenant.id,

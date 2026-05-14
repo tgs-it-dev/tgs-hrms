@@ -27,18 +27,8 @@ export class Tenant {
   @Column({ type: 'boolean', default: false })
   schema_provisioned: boolean;
 
-  // Master switch — kept for reference; per-type flags below take precedence
   @Column({ type: 'boolean', default: false })
   workflow_enabled: boolean = false;
-
-  @Column({ type: 'boolean', default: false })
-  leave_workflow_enabled: boolean = false;
-
-  @Column({ type: 'boolean', default: false })
-  wfh_workflow_enabled: boolean = false;
-
-  @Column({ type: 'boolean', default: false })
-  overtime_workflow_enabled: boolean = false;
 
   @CreateDateColumn()
   created_at: Date;

@@ -24,6 +24,10 @@ import { NotificationGateway } from '../notification/notification.gateway';
 import { CreateWfhDto } from './dto/create-wfh.dto';
 import { UpdateWfhDto } from './dto/update-wfh.dto';
 import { DocumentUploadService } from '../storage/document-upload.service';
+import {
+  TenantSettingsService,
+  TenantSettingKey,
+} from '../tenant-settings/tenant-settings.service';
 
 @Injectable()
 export class WfhService {
@@ -39,6 +43,7 @@ export class WfhService {
     private readonly notificationGateway: NotificationGateway,
     private readonly tenantDbService: TenantDatabaseService,
     private readonly fileUploadService: DocumentUploadService,
+    private readonly tenantSettings: TenantSettingsService,
     @InjectDataSource()
     private readonly dataSource: DataSource,
   ) {}
@@ -55,12 +60,10 @@ export class WfhService {
   }
 
   private async isWorkflowEnabled(tenantId: string): Promise<boolean> {
-    const result = await this.dataSource.query<
-      { wfh_workflow_enabled: boolean }[]
-    >(`SELECT wfh_workflow_enabled FROM public.tenants WHERE id = $1 LIMIT 1`, [
+    return this.tenantSettings.getBoolean(
       tenantId,
-    ]);
-    return result[0]?.wfh_workflow_enabled ?? false;
+      TenantSettingKey.WFH_WORKFLOW_ENABLED,
+    );
   }
 
   private async runInTenantContext<T>(

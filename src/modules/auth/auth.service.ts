@@ -22,10 +22,10 @@ import { InviteStatusService } from '../invite-status/invite-status.service';
 import { Employee } from 'src/entities/employee.entity';
 import { SignupSession } from 'src/entities/signup-session.entity';
 import { GLOBAL_SYSTEM_TENANT_ID } from '../../common/constants/enums';
-import { SystemSettingsService } from '../system/system-settings/system-settings.service';
 import { isMobileRequest } from '../../common/utils/mobile-detection';
 import { Role } from '../../entities/role.entity';
 import { Tenant } from '../../entities/tenant.entity';
+import { TenantSettingsService, TenantSettingKey } from '../tenant-settings/tenant-settings.service';
 
 interface RefreshTokenPayload {
   sub: string;
@@ -57,7 +57,7 @@ export class AuthService {
     private configService: ConfigService,
     private emailService: EmailService,
     private inviteStatusService: InviteStatusService,
-    private systemSettings: SystemSettingsService,
+    private tenantSettings: TenantSettingsService,
   ) {}
 
   // ── Token helpers ──────────────────────────────────────────────────────────
@@ -446,26 +446,7 @@ export class AuthService {
     const isSystemAdmin = this.isSystemAdminRole(user.role.name);
     const tenantId = isSystemAdmin ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
 
-    // Block mobile logins when the system setting is disabled (system-admins are exempt)
-    if (!isSystemAdmin) {
-      const mobileLoginEnabled = this.systemSettings.getBoolean(
-        'mobile_login_enabled',
-        true,
-      );
-      if (
-        !mobileLoginEnabled &&
-        isMobileRequest({ platform, userAgent, appPlatform })
-      ) {
-        this.logger.warn(
-          `Mobile login blocked for email: ${normalizedEmail} (platform=${platform}, appPlatform=${appPlatform})`,
-        );
-        throw new ForbiddenException(
-          'Mobile app login is currently disabled. Please contact your administrator.',
-        );
-      }
-    }
-
-    // Check if tenant is deleted or suspended (for non-system-admin users)
+    // Check tenant status and per-tenant flags (system-admins are exempt)
     if (!isSystemAdmin && tenantId) {
       const tenant = await this.tenantRepository.findOne({
         where: { id: tenantId },
@@ -485,6 +466,21 @@ export class AuthService {
         );
         throw new UnauthorizedException(
           'Your organization account has been suspended. Please contact support.',
+        );
+      }
+      const mobileLoginEnabled = await this.tenantSettings.getBoolean(
+        tenantId,
+        TenantSettingKey.MOBILE_LOGIN_ENABLED,
+      );
+      if (
+        !mobileLoginEnabled &&
+        isMobileRequest({ platform, userAgent, appPlatform })
+      ) {
+        this.logger.warn(
+          `Mobile login blocked for email: ${normalizedEmail} (platform=${platform}, appPlatform=${appPlatform})`,
+        );
+        throw new ForbiddenException(
+          'Mobile app login is currently disabled. Please contact your administrator.',
         );
       }
     }
