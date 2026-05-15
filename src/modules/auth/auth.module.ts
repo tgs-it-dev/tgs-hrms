@@ -13,6 +13,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EmailModule } from '../../common/utils/email';
 import { InviteStatusModule } from '../invite-status/invite-status.module';
 import { TenantSettingsModule } from '../tenant-settings/tenant-settings.module';
+import { IpWhitelistModule } from '../ip-whitelist/ip-whitelist.module';
 import { Employee } from '../../entities/employee.entity';
 import { SignupSession } from '../../entities/signup-session.entity';
 
@@ -40,6 +41,7 @@ import { SignupSession } from '../../entities/signup-session.entity';
     InviteStatusModule,
     EmailModule,
     TenantSettingsModule,
+    IpWhitelistModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, AuthTokenCleanupService],

@@ -12,12 +12,16 @@ import { CompanyDetails } from '../../entities/company-details.entity';
 import { Tenant } from '../../entities/tenant.entity';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CompanyResponseDto } from './dto/company-response.dto';
-import { TenantSettingsService, TenantSettingKey } from '../tenant-settings/tenant-settings.service';
+import {
+  TenantSettingsService,
+  TenantSettingKey,
+} from '../tenant-settings/tenant-settings.service';
+import { UserRole } from '../../common/constants/enums';
 import * as fs from 'fs';
 import * as path from 'path';
 import { createReadStream, statSync, existsSync } from 'fs';
 import { validateImageFile } from '../../common/utils/file-validation.util';
-import { S3StorageService } from "../storage";
+import { S3StorageService } from '../storage';
 
 const PREFIX_COMPANY_LOGOS = 'company-logos';
 
@@ -34,22 +38,25 @@ export class CompanyService {
     private readonly tenantSettings: TenantSettingsService,
   ) {}
 
-  async getCompanyDetails(tenantId: string): Promise<CompanyResponseDto> {
+  async getCompanyDetails(
+    tenantId: string,
+    currentIp: string | null,
+  ): Promise<CompanyResponseDto> {
     this.logger.log(`Getting company details for tenant: ${tenantId}`);
 
     const company = await this.companyDetailsRepo.findOne({
       where: { tenant_id: tenantId },
     });
-    this.logger.log(`Fetched logo_url from DB for tenant ${tenantId}: ${company?.logo_url}`);
+    this.logger.log(
+      `Fetched logo_url from DB for tenant ${tenantId}: ${company?.logo_url}`,
+    );
 
     if (!company) {
       throw new NotFoundException('Company details not found');
     }
 
     if (!company.tenant_id) {
-      throw new NotFoundException(
-        'Company is not associated with any tenant',
-      );
+      throw new NotFoundException('Company is not associated with any tenant');
     }
 
     const mobileLoginEnabled = await this.tenantSettings.getBoolean(
@@ -74,6 +81,7 @@ export class CompanyService {
       updated_at: company.updated_at,
       mobile_login_enabled: mobileLoginEnabled,
       ip_restriction_enabled: ipRestrictionEnabled,
+      current_ip: currentIp,
     };
   }
 
@@ -81,12 +89,14 @@ export class CompanyService {
     tenantId: string,
     userRole: string,
     updateDto: UpdateCompanyDto,
+    currentIp: string | null,
   ): Promise<CompanyResponseDto> {
     this.logger.log(
       `Updating company details for tenant: ${tenantId}, role: ${userRole}`,
     );
 
-    if (userRole !== 'admin' && userRole !== 'system-admin') {
+    const adminRoles: string[] = [UserRole.ADMIN, UserRole.SYSTEM_ADMIN];
+    if (!adminRoles.includes(userRole)) {
       throw new ForbiddenException(
         'Only admin users can update company details',
       );
@@ -134,9 +144,7 @@ export class CompanyService {
     }
 
     if (!updatedCompany.tenant_id) {
-      throw new NotFoundException(
-        'Company is not associated with any tenant',
-      );
+      throw new NotFoundException('Company is not associated with any tenant');
     }
 
     const mobileLoginEnabled = await this.tenantSettings.getBoolean(
@@ -161,6 +169,7 @@ export class CompanyService {
       updated_at: updatedCompany.updated_at,
       mobile_login_enabled: mobileLoginEnabled,
       ip_restriction_enabled: ipRestrictionEnabled,
+      current_ip: currentIp,
     };
   }
 
@@ -168,6 +177,7 @@ export class CompanyService {
     tenantId: string,
     userRole: string,
     file: Express.Multer.File,
+    currentIp: string | null,
   ): Promise<CompanyResponseDto> {
     this.logger.log(
       `Updating company logo for tenant: ${tenantId}, role: ${userRole}`,
@@ -177,10 +187,9 @@ export class CompanyService {
       validateImageFile(file);
     }
 
-    if (userRole !== 'admin' && userRole !== 'system-admin') {
-      throw new ForbiddenException(
-        'Only admin users can update company logo',
-      );
+    const adminRoles: string[] = [UserRole.ADMIN, UserRole.SYSTEM_ADMIN];
+    if (!adminRoles.includes(userRole)) {
+      throw new ForbiddenException('Only admin users can update company logo');
     }
 
     const company = await this.companyDetailsRepo.findOne({
@@ -204,7 +213,7 @@ export class CompanyService {
     } else {
       const uploadsDir = path.join(
         process.cwd(),
-        "public",
+        'public',
         PREFIX_COMPANY_LOGOS,
         tenantId,
       );
@@ -221,19 +230,20 @@ export class CompanyService {
         await this.s3.deleteByUrl(company.logo_url);
         this.logger.log('Deleted old logo from S3');
       } else {
-        const relative = (company.logo_url.split("?")[0] || "").replace(
+        const relative = (company.logo_url.split('?')[0] || '').replace(
           /^\/+/,
-          "",
+          '',
         );
-        if (relative.startsWith(PREFIX_COMPANY_LOGOS + "/")) {
-          const oldFilePath = path.join(process.cwd(), "public", relative);
+        if (relative.startsWith(PREFIX_COMPANY_LOGOS + '/')) {
+          const oldFilePath = path.join(process.cwd(), 'public', relative);
           try {
             if (fs.existsSync(oldFilePath)) {
               await fs.promises.unlink(oldFilePath);
               this.logger.log(`Deleted old logo: ${relative}`);
             }
           } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : String(err);
+            const errorMessage =
+              err instanceof Error ? err.message : String(err);
             this.logger.error(`Failed to delete old logo: ${errorMessage}`);
           }
         }
@@ -245,9 +255,7 @@ export class CompanyService {
     const updatedCompany = await this.companyDetailsRepo.save(company);
 
     if (!updatedCompany.tenant_id) {
-      throw new NotFoundException(
-        'Company is not associated with any tenant',
-      );
+      throw new NotFoundException('Company is not associated with any tenant');
     }
 
     this.logger.log(
@@ -276,12 +284,11 @@ export class CompanyService {
       updated_at: updatedCompany.updated_at,
       mobile_login_enabled: mobileLoginEnabled,
       ip_restriction_enabled: ipRestrictionEnabled,
+      current_ip: currentIp,
     };
   }
 
-  async getCompanyLogoStream(
-    tenantId: string,
-  ): Promise<{
+  async getCompanyLogoStream(tenantId: string): Promise<{
     fileStream: fs.ReadStream | NodeJS.ReadableStream | null;
     contentType: string;
     fileSize: number;
@@ -299,7 +306,12 @@ export class CompanyService {
 
     const logoUrl = company.logo_url;
     if (logoUrl.startsWith('http://') || logoUrl.startsWith('https://')) {
-      return { fileStream: null, contentType: 'image/jpeg', fileSize: 0, redirectUrl: logoUrl };
+      return {
+        fileStream: null,
+        contentType: 'image/jpeg',
+        fileSize: 0,
+        redirectUrl: logoUrl,
+      };
     }
 
     const fileName = logoUrl.split('/').pop()?.split('?')[0];
@@ -324,7 +336,9 @@ export class CompanyService {
     }
 
     const stats = statSync(filePath);
-    const contentType = this.getContentTypeFromExt(path.extname(filePath).toLowerCase());
+    const contentType = this.getContentTypeFromExt(
+      path.extname(filePath).toLowerCase(),
+    );
     const fileStream = createReadStream(filePath);
     return { fileStream, contentType, fileSize: stats.size };
   }

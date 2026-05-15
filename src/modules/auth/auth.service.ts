@@ -32,6 +32,7 @@ import {
   TenantSettingsService,
   TenantSettingKey,
 } from '../tenant-settings/tenant-settings.service';
+import { IpWhitelistService } from '../ip-whitelist/ip-whitelist.service';
 
 interface RefreshTokenPayload {
   sub: string;
@@ -64,6 +65,7 @@ export class AuthService {
     private emailService: EmailService,
     private inviteStatusService: InviteStatusService,
     private tenantSettings: TenantSettingsService,
+    private ipWhitelistService: IpWhitelistService,
   ) {}
 
   // ── Token helpers ──────────────────────────────────────────────────────────
@@ -497,6 +499,28 @@ export class AuthService {
           );
           throw new ForbiddenException(
             'Mobile app login is currently disabled for your role. Please contact your administrator.',
+          );
+        }
+      }
+
+      const ipRestrictionExempt: string[] = [
+        UserRole.ADMIN,
+        UserRole.SYSTEM_ADMIN,
+      ];
+      const isIpExempt = ipRestrictionExempt.includes(
+        user.role.name.toLowerCase(),
+      );
+      if (!isIpExempt && ipAddress) {
+        const isWhitelisted = await this.ipWhitelistService.isIpWhitelisted(
+          tenantId,
+          ipAddress,
+        );
+        if (!isWhitelisted) {
+          this.logger.warn(
+            `Login blocked: IP ${ipAddress} not whitelisted for tenant ${tenantId}, email: ${normalizedEmail}`,
+          );
+          throw new ForbiddenException(
+            'Login is not allowed from your current IP address. Please contact your administrator.',
           );
         }
       }

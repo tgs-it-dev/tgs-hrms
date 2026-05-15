@@ -68,4 +68,11 @@ export class CompanyResponseDto {
     example: false
   })
   ip_restriction_enabled: boolean;
+
+  @ApiProperty({
+    description: 'Current client IP address — only returned for admin and system-admin roles',
+    example: '192.168.1.100',
+    nullable: true,
+  })
+  current_ip: string | null;
 }
