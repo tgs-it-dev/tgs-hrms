@@ -28,6 +28,7 @@ import {
   IpWhitelistEntryDto,
   IpRestrictionToggleResponseDto,
   RemoveIpResponseDto,
+  CurrentIpResponseDto,
 } from './dto/ip-whitelist-response.dto';
 import { AuthenticatedRequest } from 'src/common/types/request.types';
 
@@ -39,6 +40,30 @@ export class IpWhitelistController {
   private readonly logger = new Logger(IpWhitelistController.name);
 
   constructor(private readonly ipWhitelistService: IpWhitelistService) {}
+
+  @Get('my-ip')
+  @Roles('admin', 'system-admin', 'hr-admin', 'manager', 'employee')
+  @ApiOperation({
+    summary: 'Get current request IP address',
+    description:
+      'Returns the detected IP address of the current request as seen by the server. Useful for admins to find their own IP before adding it to the whitelist.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Current IP address detected successfully.',
+    type: CurrentIpResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized — bearer token missing or invalid.',
+  })
+  getMyIp(@Request() req: AuthenticatedRequest): CurrentIpResponseDto {
+    const ip_address = req.clientIp ?? req.ip ?? '0.0.0.0';
+    this.logger.log(
+      `IP detection requested by tenant: ${req.user.tenant_id}, ip: ${ip_address}`,
+    );
+    return { ip_address };
+  }
 
   @Post('enable')
   @Roles('admin', 'system-admin')

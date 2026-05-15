@@ -24,3 +24,11 @@ export class RemoveIpResponseDto {
   @ApiProperty({ example: '192.168.1.100' })
   ip_address!: string;
 }
+
+export class CurrentIpResponseDto {
+  @ApiProperty({
+    description: 'The detected public IP address of the current request',
+    example: '192.168.1.100',
+  })
+  ip_address!: string;
+}
