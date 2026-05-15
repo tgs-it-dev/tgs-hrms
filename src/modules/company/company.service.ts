@@ -12,6 +12,7 @@ import { CompanyDetails } from '../../entities/company-details.entity';
 import { Tenant } from '../../entities/tenant.entity';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CompanyResponseDto } from './dto/company-response.dto';
+import { TenantSettingsService, TenantSettingKey } from '../tenant-settings/tenant-settings.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import { createReadStream, statSync, existsSync } from 'fs';
@@ -30,6 +31,7 @@ export class CompanyService {
     @InjectRepository(Tenant)
     private readonly tenantRepo: Repository<Tenant>,
     private readonly s3: S3StorageService,
+    private readonly tenantSettings: TenantSettingsService,
   ) {}
 
   async getCompanyDetails(tenantId: string): Promise<CompanyResponseDto> {
@@ -50,6 +52,16 @@ export class CompanyService {
       );
     }
 
+    const mobileLoginEnabled = await this.tenantSettings.getBoolean(
+      tenantId,
+      TenantSettingKey.MOBILE_LOGIN_ENABLED,
+    );
+
+    const ipRestrictionEnabled = await this.tenantSettings.getBoolean(
+      tenantId,
+      TenantSettingKey.IP_RESTRICTION_ENABLED,
+    );
+
     return {
       id: company.id,
       company_name: company.company_name,
@@ -60,6 +72,8 @@ export class CompanyService {
       tenant_id: company.tenant_id,
       created_at: company.created_at,
       updated_at: company.updated_at,
+      mobile_login_enabled: mobileLoginEnabled,
+      ip_restriction_enabled: ipRestrictionEnabled,
     };
   }
 
@@ -125,6 +139,16 @@ export class CompanyService {
       );
     }
 
+    const mobileLoginEnabled = await this.tenantSettings.getBoolean(
+      tenantId,
+      TenantSettingKey.MOBILE_LOGIN_ENABLED,
+    );
+
+    const ipRestrictionEnabled = await this.tenantSettings.getBoolean(
+      tenantId,
+      TenantSettingKey.IP_RESTRICTION_ENABLED,
+    );
+
     return {
       id: updatedCompany.id,
       company_name: updatedCompany.company_name,
@@ -135,6 +159,8 @@ export class CompanyService {
       tenant_id: updatedCompany.tenant_id,
       created_at: updatedCompany.created_at,
       updated_at: updatedCompany.updated_at,
+      mobile_login_enabled: mobileLoginEnabled,
+      ip_restriction_enabled: ipRestrictionEnabled,
     };
   }
 
@@ -228,6 +254,16 @@ export class CompanyService {
       `Company logo updated successfully for tenant: ${tenantId}`,
     );
 
+    const mobileLoginEnabled = await this.tenantSettings.getBoolean(
+      tenantId,
+      TenantSettingKey.MOBILE_LOGIN_ENABLED,
+    );
+
+    const ipRestrictionEnabled = await this.tenantSettings.getBoolean(
+      tenantId,
+      TenantSettingKey.IP_RESTRICTION_ENABLED,
+    );
+
     return {
       id: updatedCompany.id,
       company_name: updatedCompany.company_name,
@@ -238,6 +274,8 @@ export class CompanyService {
       tenant_id: updatedCompany.tenant_id,
       created_at: updatedCompany.created_at,
       updated_at: updatedCompany.updated_at,
+      mobile_login_enabled: mobileLoginEnabled,
+      ip_restriction_enabled: ipRestrictionEnabled,
     };
   }
 
