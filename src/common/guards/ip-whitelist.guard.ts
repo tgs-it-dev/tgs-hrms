@@ -9,6 +9,7 @@ import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { IpWhitelistService } from '../../modules/ip-whitelist/ip-whitelist.service';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { UserRole } from '../constants/enums';
 
 @Injectable()
 export class IpWhitelistGuard implements CanActivate {
@@ -32,9 +33,18 @@ export class IpWhitelistGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const clientIp = request.clientIp || request.ip || '0.0.0.0';
     const tenantId = request.user?.tenant_id;
+    const userRole = request.user?.role as string | undefined;
 
     if (!tenantId) {
       this.logger.debug('No tenant_id in request, skipping IP whitelist check');
+      return true;
+    }
+
+    const adminRoles: string[] = [UserRole.ADMIN, UserRole.SYSTEM_ADMIN];
+    if (userRole && adminRoles.includes(userRole)) {
+      this.logger.debug(
+        `IP check skipped for ${userRole} (tenant: ${tenantId})`,
+      );
       return true;
     }
 
