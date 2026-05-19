@@ -60,7 +60,7 @@ interface EmployeeExportItem {
   team?: { name?: string };
   status?: string;
   invite_status?: string;
-  created_at?: string;
+  created_at?: Date | string;
 }
 
 @ApiTags('Employees')

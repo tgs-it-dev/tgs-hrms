@@ -114,7 +114,9 @@ export class CompanyController {
     @Request() req: AuthenticatedRequest,
     @Body() updateDto: UpdateCompanyDto,
   ): Promise<CompanyResponseDto> {
-    this.logger.log(`Updating company details for tenant: ${req.user.tenant_id}, user: ${req.user.id}`);
+    this.logger.log(
+      `Updating company details for tenant: ${req.user.tenant_id}, user: ${req.user.id}`,
+    );
     const clientIp = req.clientIp ?? req.ip ?? '0.0.0.0'; // PUT is admin-only so IP is always present
     return this.companyService.updateCompanyDetails(
       req.user.tenant_id,
@@ -170,7 +172,9 @@ export class CompanyController {
     file: Express.Multer.File,
   ): Promise<CompanyResponseDto> {
     validateImageFile(file);
-    this.logger.log(`Updating company logo for tenant: ${req.user.tenant_id}, user: ${req.user.id}`);
+    this.logger.log(
+      `Updating company logo for tenant: ${req.user.tenant_id}, user: ${req.user.id}`,
+    );
     const clientIp = req.clientIp ?? req.ip ?? '0.0.0.0'; // POST logo is admin-only so IP is always present
     return this.companyService.updateCompanyLogo(
       req.user.tenant_id,

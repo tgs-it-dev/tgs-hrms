@@ -122,7 +122,7 @@ export class TenantController {
         message: 'Tenant retrieved successfully.',
         data: tenant,
       };
-    } catch (_err) {
+    } catch (err) {
       if (err instanceof NotFoundException) throw err;
       throw new BadRequestException('Failed to fetch tenant');
     }
@@ -192,7 +192,7 @@ export class TenantController {
         message: 'Tenant updated successfully.',
         data: tenant,
       };
-    } catch (_err) {
+    } catch (err) {
       if (err instanceof NotFoundException) throw err;
       throw new BadRequestException('Failed to update tenant');
     }
@@ -227,9 +227,9 @@ export class TenantController {
         message: 'Tenant deleted successfully.',
         id,
       };
-    } catch (_err) {
+    } catch (err) {
       if (err instanceof NotFoundException) throw err;
-      if (err instanceof BadRequestException) throw err; // Already deleted case
+      if (err instanceof BadRequestException) throw err;
       throw new BadRequestException('Failed to delete tenant');
     }
   }
@@ -264,7 +264,7 @@ export class TenantController {
         message: 'Tenant restored successfully.',
         data: tenant,
       };
-    } catch (_err) {
+    } catch (err) {
       if (err instanceof NotFoundException) throw err;
       if (err instanceof BadRequestException) throw err;
       throw new BadRequestException('Failed to restore tenant');
@@ -309,9 +309,9 @@ export class TenantController {
         message: `Schema for tenant "${tenant.name}" upgraded successfully.`,
         schema: this.tenantSchemaProvisioning.getSchemaName(id),
       };
-    } catch (_err) {
+    } catch (err) {
       throw new InternalServerErrorException(
-        `Schema upgrade failed for tenant ${id}: ${(err as Error).message}`,
+        `Schema upgrade failed for tenant ${id}: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }
