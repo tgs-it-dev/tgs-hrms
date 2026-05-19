@@ -1,7 +1,9 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 
-export class AddTaskPermissionsToManager1769000000000 implements MigrationInterface {
+export class AddTaskPermissionsToManager1769000000000
+  implements MigrationInterface
+{
   public async up(queryRunner: QueryRunner): Promise<void> {
     // 1. Insert task permissions in JSON format (matching roles-permissions.json)
     const taskPermissions = [
@@ -13,18 +15,18 @@ export class AddTaskPermissionsToManager1769000000000 implements MigrationInterf
 
     for (const perm of taskPermissions) {
       await queryRunner.query(
-        `INSERT INTO permissions (id, name, description) 
-         VALUES ($1, $2, $3) 
+        `INSERT INTO permissions (id, name, description)
+         VALUES ($1, $2, $3)
          ON CONFLICT (name) DO UPDATE SET description = EXCLUDED.description`,
         [uuidv4(), perm.name, perm.description],
       );
     }
 
     // 2. Get manager role ID (case-insensitive)
-    const managerRole = await queryRunner.query(
+    const managerRole = (await queryRunner.query(
       `SELECT id FROM roles WHERE LOWER(name) = LOWER($1) LIMIT 1`,
       ['manager'],
-    );
+    )) as Array<{ id: string }>;
 
     if (!managerRole.length) {
       console.warn('Manager role not found. Skipping permission assignment.');
@@ -36,10 +38,10 @@ export class AddTaskPermissionsToManager1769000000000 implements MigrationInterf
     // 3. Get task permission IDs
     const permissionIds: string[] = [];
     for (const perm of taskPermissions) {
-      const permResult = await queryRunner.query(
+      const permResult = (await queryRunner.query(
         `SELECT id FROM permissions WHERE name = $1 LIMIT 1`,
         [perm.name],
-      );
+      )) as Array<{ id: string }>;
       if (permResult.length > 0) {
         permissionIds.push(permResult[0].id);
       }
@@ -60,10 +62,10 @@ export class AddTaskPermissionsToManager1769000000000 implements MigrationInterf
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     // Get manager role ID
-    const managerRole = await queryRunner.query(
+    const managerRole = (await queryRunner.query(
       `SELECT id FROM roles WHERE LOWER(name) = LOWER($1) LIMIT 1`,
       ['manager'],
-    );
+    )) as Array<{ id: string }>;
 
     if (!managerRole.length) {
       return;
@@ -72,14 +74,19 @@ export class AddTaskPermissionsToManager1769000000000 implements MigrationInterf
     const managerRoleId = managerRole[0].id;
 
     // Get task permission IDs
-    const taskPermissionNames = ['task.create', 'task.read', 'task.update', 'task.delete'];
+    const taskPermissionNames = [
+      'task.create',
+      'task.read',
+      'task.update',
+      'task.delete',
+    ];
     const permissionIds: string[] = [];
 
     for (const permName of taskPermissionNames) {
-      const permResult = await queryRunner.query(
+      const permResult = (await queryRunner.query(
         `SELECT id FROM permissions WHERE name = $1 LIMIT 1`,
         [permName],
-      );
+      )) as Array<{ id: string }>;
       if (permResult.length > 0) {
         permissionIds.push(permResult[0].id);
       }
@@ -88,7 +95,7 @@ export class AddTaskPermissionsToManager1769000000000 implements MigrationInterf
     // Remove task permissions from manager role
     if (permissionIds.length > 0) {
       await queryRunner.query(
-        `DELETE FROM role_permissions 
+        `DELETE FROM role_permissions
          WHERE role_id = $1 AND permission_id = ANY($2::uuid[])`,
         [managerRoleId, permissionIds],
       );

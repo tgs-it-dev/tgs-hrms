@@ -9,8 +9,6 @@ import { UnauthorizedException, BadRequestException } from '@nestjs/common';
 
 describe('AuthService - Refresh Token', () => {
   let service: AuthService;
-  let jwtService: JwtService;
-  let userRepository: any;
 
   const mockUserRepository = {
     findOne: jest.fn(),
@@ -62,8 +60,6 @@ describe('AuthService - Refresh Token', () => {
     }).compile();
 
     service = module.get<AuthService>(AuthService);
-    jwtService = module.get<JwtService>(JwtService);
-    userRepository = module.get(getRepositoryToken(User));
   });
 
   afterEach(() => {
@@ -119,12 +115,14 @@ describe('AuthService - Refresh Token', () => {
         {
           secret: 'mocked-secret',
           expiresIn: '24h',
-        }
+        },
       );
     });
 
     it('should throw BadRequestException when refresh token is missing', async () => {
-      await expect(service.refreshToken('')).rejects.toThrow(BadRequestException);
+      await expect(service.refreshToken('')).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw UnauthorizedException when user is not found', async () => {
@@ -132,7 +130,9 @@ describe('AuthService - Refresh Token', () => {
       mockJwtService.verify.mockReturnValue(mockPayload);
       mockUserRepository.findOne.mockResolvedValue(null);
 
-      await expect(service.refreshToken(mockRefreshToken)).rejects.toThrow(UnauthorizedException);
+      await expect(service.refreshToken(mockRefreshToken)).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
 
     it('should throw UnauthorizedException when user role is missing', async () => {
@@ -142,17 +142,24 @@ describe('AuthService - Refresh Token', () => {
       mockJwtService.verify.mockReturnValue(mockPayload);
       mockUserRepository.findOne.mockResolvedValue(userWithoutRole);
 
-      await expect(service.refreshToken(mockRefreshToken)).rejects.toThrow(UnauthorizedException);
+      await expect(service.refreshToken(mockRefreshToken)).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
 
     it('should throw UnauthorizedException when stored refresh token does not match', async () => {
       const mockPayload = { sub: 1 };
-      const userWithDifferentToken = { ...mockUser, refresh_token: 'different-token' };
+      const userWithDifferentToken = {
+        ...mockUser,
+        refresh_token: 'different-token',
+      };
 
       mockJwtService.verify.mockReturnValue(mockPayload);
       mockUserRepository.findOne.mockResolvedValue(userWithDifferentToken);
 
-      await expect(service.refreshToken(mockRefreshToken)).rejects.toThrow(UnauthorizedException);
+      await expect(service.refreshToken(mockRefreshToken)).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
 
     it('should throw UnauthorizedException when JWT verification fails', async () => {
@@ -160,7 +167,9 @@ describe('AuthService - Refresh Token', () => {
         throw new Error('Invalid token');
       });
 
-      await expect(service.refreshToken(mockRefreshToken)).rejects.toThrow(UnauthorizedException);
+      await expect(service.refreshToken(mockRefreshToken)).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
   });
 });

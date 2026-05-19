@@ -7,7 +7,11 @@ import {
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository, In, Not } from 'typeorm';
-import { Geofence, GeofenceStatus, GeofenceType } from '../../entities/geofence.entity';
+import {
+  Geofence,
+  GeofenceStatus,
+  GeofenceType,
+} from '../../entities/geofence.entity';
 import { Team } from '../../entities/team.entity';
 import { Employee } from '../../entities/employee.entity';
 import { CreateGeofenceDto } from './dto/create-geofence.dto';
@@ -31,25 +35,39 @@ export class GeofenceService {
   ) {}
 
   private async isTenantSchemaProvisioned(tenantId: string): Promise<boolean> {
-    const result = await this.dataSource.query<{ schema_provisioned: boolean }[]>(
-      `SELECT schema_provisioned FROM public.tenants WHERE id = $1 LIMIT 1`,
-      [tenantId],
-    );
+    const result = await this.dataSource.query<
+      { schema_provisioned: boolean }[]
+    >(`SELECT schema_provisioned FROM public.tenants WHERE id = $1 LIMIT 1`, [
+      tenantId,
+    ]);
     return result[0]?.schema_provisioned ?? false;
   }
 
-  private validateCoordinates(coordinates: unknown): asserts coordinates is number[][] {
+  private validateCoordinates(
+    coordinates: unknown,
+  ): asserts coordinates is number[][] {
     if (!Array.isArray(coordinates)) {
-      throw new BadRequestException('coordinates must be an array of [latitude, longitude] pairs');
+      throw new BadRequestException(
+        'coordinates must be an array of [latitude, longitude] pairs',
+      );
     }
 
     for (const pair of coordinates) {
       if (!Array.isArray(pair) || pair.length !== 2) {
-        throw new BadRequestException('coordinates must be an array of [latitude, longitude] pairs');
+        throw new BadRequestException(
+          'coordinates must be an array of [latitude, longitude] pairs',
+        );
       }
-      const [lat, lng] = pair;
-      if (typeof lat !== 'number' || Number.isNaN(lat) || typeof lng !== 'number' || Number.isNaN(lng)) {
-        throw new BadRequestException('coordinates must contain numeric [latitude, longitude] pairs');
+      const [lat, lng] = pair as [number, number];
+      if (
+        typeof lat !== 'number' ||
+        Number.isNaN(lat) ||
+        typeof lng !== 'number' ||
+        Number.isNaN(lng)
+      ) {
+        throw new BadRequestException(
+          'coordinates must contain numeric [latitude, longitude] pairs',
+        );
       }
       if (lat < -90 || lat > 90) {
         throw new BadRequestException('latitude must be between -90 and 90');
@@ -60,7 +78,10 @@ export class GeofenceService {
     }
   }
 
-  private getCentroidOrFirstVertex(coordinates: number[][]): { latitude: number; longitude: number } {
+  private getCentroidOrFirstVertex(coordinates: number[][]): {
+    latitude: number;
+    longitude: number;
+  } {
     if (coordinates.length === 0) {
       throw new BadRequestException('coordinates cannot be empty');
     }
@@ -71,10 +92,13 @@ export class GeofenceService {
       sumLat += lat;
       sumLng += lng;
     }
-    return { latitude: sumLat / coordinates.length, longitude: sumLng / coordinates.length };
+    return {
+      latitude: sumLat / coordinates.length,
+      longitude: sumLng / coordinates.length,
+    };
   }
 
-    async create(
+  async create(
     tenant_id: string,
     dto: CreateGeofenceDto,
     user_id?: string,
@@ -82,7 +106,9 @@ export class GeofenceService {
   ): Promise<Geofence> {
     const isProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
     if (isProvisioned) {
-      return this.tenantDbService.withTenantSchema(tenant_id, (em) => this.doCreate(em, tenant_id, dto, user_id, user_role));
+      return this.tenantDbService.withTenantSchema(tenant_id, (em) =>
+        this.doCreate(em, tenant_id, dto, user_id, user_role),
+      );
     }
     return this.doCreate(null, tenant_id, dto, user_id, user_role);
   }
@@ -96,7 +122,7 @@ export class GeofenceService {
   ): Promise<Geofence> {
     const repo = em ? em.getRepository(Geofence) : this.repo;
     const teamRepo = em ? em.getRepository(Team) : this.teamRepo;
-    const employeeRepo = em ? em.getRepository(Employee) : this.employeeRepo;
+    const _employeeRepo = em ? em.getRepository(Employee) : this.employeeRepo;
 
     // Verify team exists and belongs to tenant
     const team = await teamRepo.findOne({
@@ -110,13 +136,17 @@ export class GeofenceService {
 
     // Check if team belongs to tenant (via manager's tenant_id)
     if (team.manager.tenant_id !== tenant_id) {
-      throw new BadRequestException('Team does not belong to your organization.');
+      throw new BadRequestException(
+        'Team does not belong to your organization.',
+      );
     }
 
     // If user is a manager, verify they manage this team
     if (user_role === 'manager' && user_id) {
       if (team.manager_id !== user_id) {
-        throw new ForbiddenException('You can only create geofences for teams you manage.');
+        throw new ForbiddenException(
+          'You can only create geofences for teams you manage.',
+        );
       }
     }
 
@@ -131,11 +161,18 @@ export class GeofenceService {
     }
 
     try {
-      const hasCoords = dto.coordinates !== undefined && dto.coordinates !== null && dto.coordinates.length > 0;
+      const hasCoords =
+        dto.coordinates !== undefined &&
+        dto.coordinates !== null &&
+        dto.coordinates.length > 0;
       const coordCount = dto.coordinates?.length ?? 0;
       const type =
         dto.type ??
-        (coordCount === 4 ? GeofenceType.RECTANGLE : hasCoords ? GeofenceType.POLYGON : null);
+        (coordCount === 4
+          ? GeofenceType.RECTANGLE
+          : hasCoords
+            ? GeofenceType.POLYGON
+            : null);
 
       let latitude = dto.latitude;
       let longitude = dto.longitude;
@@ -149,7 +186,7 @@ export class GeofenceService {
         if (type === GeofenceType.RECTANGLE) {
           if (coords.length !== 4) {
             throw new BadRequestException(
-              "Rectangle geofence requires exactly 4 coordinates [lat, lng].",
+              'Rectangle geofence requires exactly 4 coordinates [lat, lng].',
             );
           }
           coordinates = coords;
@@ -162,7 +199,12 @@ export class GeofenceService {
           longitude = center.longitude;
           let maxDist = 0;
           for (const [lat, lng] of coords) {
-            const d = calculateDistance(center.latitude, center.longitude, lat, lng);
+            const d = calculateDistance(
+              center.latitude,
+              center.longitude,
+              lat,
+              lng,
+            );
             if (d > maxDist) maxDist = d;
           }
           radius = maxDist;
@@ -177,7 +219,9 @@ export class GeofenceService {
 
       if (type === GeofenceType.CIRCLE && !hasCoords) {
         if (radius === null || radius === undefined) {
-          throw new BadRequestException("radius is required when type='circle'");
+          throw new BadRequestException(
+            "radius is required when type='circle'",
+          );
         }
         if (latitude === undefined || longitude === undefined) {
           throw new BadRequestException(
@@ -220,7 +264,11 @@ export class GeofenceService {
         latitude: String(latitude),
         longitude: String(longitude),
         status: newStatus,
-        threshold_distance: dto.threshold_distance !== undefined && dto.threshold_distance !== null ? String(dto.threshold_distance) : null,
+        threshold_distance:
+          dto.threshold_distance !== undefined &&
+          dto.threshold_distance !== null
+            ? String(dto.threshold_distance)
+            : null,
         threshold_enabled: dto.threshold_enabled ?? false,
       });
       return await repo.save(geofence);
@@ -240,7 +288,7 @@ export class GeofenceService {
     }
   }
 
-    async findAll(
+  async findAll(
     tenant_id: string,
     team_id?: string,
     user_id?: string,
@@ -248,7 +296,9 @@ export class GeofenceService {
   ): Promise<Geofence[]> {
     const isProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
     if (isProvisioned) {
-      return this.tenantDbService.withTenantSchemaReadOnly(tenant_id, (em) => this.doFindAll(em, tenant_id, team_id, user_id, user_role));
+      return this.tenantDbService.withTenantSchemaReadOnly(tenant_id, (em) =>
+        this.doFindAll(em, tenant_id, team_id, user_id, user_role),
+      );
     }
     return this.doFindAll(null, tenant_id, team_id, user_id, user_role);
   }
@@ -337,7 +387,9 @@ export class GeofenceService {
     }
 
     if (team.manager.tenant_id !== tenant_id) {
-      throw new BadRequestException('Team does not belong to your organization.');
+      throw new BadRequestException(
+        'Team does not belong to your organization.',
+      );
     }
 
     return repo.find({
@@ -347,7 +399,7 @@ export class GeofenceService {
     });
   }
 
-    async findOne(
+  async findOne(
     tenant_id: string,
     id: string,
     user_id?: string,
@@ -355,7 +407,9 @@ export class GeofenceService {
   ): Promise<Geofence> {
     const isProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
     if (isProvisioned) {
-      return this.tenantDbService.withTenantSchemaReadOnly(tenant_id, (em) => this.doFindOne(em, tenant_id, id, user_id, user_role));
+      return this.tenantDbService.withTenantSchemaReadOnly(tenant_id, (em) =>
+        this.doFindOne(em, tenant_id, id, user_id, user_role),
+      );
     }
     return this.doFindOne(null, tenant_id, id, user_id, user_role);
   }
@@ -368,8 +422,8 @@ export class GeofenceService {
     user_role?: string,
   ): Promise<Geofence> {
     const repo = em ? em.getRepository(Geofence) : this.repo;
-    const teamRepo = em ? em.getRepository(Team) : this.teamRepo;
-    const employeeRepo = em ? em.getRepository(Employee) : this.employeeRepo;
+    const _teamRepo = em ? em.getRepository(Team) : this.teamRepo;
+    const _employeeRepo = em ? em.getRepository(Employee) : this.employeeRepo;
 
     const geofence = await repo.findOne({
       where: { id, tenant_id },
@@ -392,7 +446,7 @@ export class GeofenceService {
     return geofence;
   }
 
-    async update(
+  async update(
     tenant_id: string,
     id: string,
     dto: UpdateGeofenceDto,
@@ -401,7 +455,9 @@ export class GeofenceService {
   ): Promise<Geofence> {
     const isProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
     if (isProvisioned) {
-      return this.tenantDbService.withTenantSchema(tenant_id, (em) => this.doUpdate(em, tenant_id, id, dto, user_id, user_role));
+      return this.tenantDbService.withTenantSchema(tenant_id, (em) =>
+        this.doUpdate(em, tenant_id, id, dto, user_id, user_role),
+      );
     }
     return this.doUpdate(null, tenant_id, id, dto, user_id, user_role);
   }
@@ -416,7 +472,7 @@ export class GeofenceService {
   ): Promise<Geofence> {
     const repo = em ? em.getRepository(Geofence) : this.repo;
     const teamRepo = em ? em.getRepository(Team) : this.teamRepo;
-    const employeeRepo = em ? em.getRepository(Employee) : this.employeeRepo;
+    const _employeeRepo = em ? em.getRepository(Employee) : this.employeeRepo;
 
     const geofence = await repo.findOne({
       where: { id, tenant_id },
@@ -448,7 +504,9 @@ export class GeofenceService {
       }
 
       if (newTeam.manager.tenant_id !== tenant_id) {
-        throw new BadRequestException('Team does not belong to your organization.');
+        throw new BadRequestException(
+          'Team does not belong to your organization.',
+        );
       }
 
       // If user is a manager, verify they manage the new team
@@ -461,7 +519,10 @@ export class GeofenceService {
       }
 
       // Business Logic: If geofence is ACTIVE and being moved to a new team, deactivate all ACTIVE geofences in the new team
-      const willBeActive = dto.status !== undefined ? dto.status === GeofenceStatus.ACTIVE : geofence.status === GeofenceStatus.ACTIVE;
+      const willBeActive =
+        dto.status !== undefined
+          ? dto.status === GeofenceStatus.ACTIVE
+          : geofence.status === GeofenceStatus.ACTIVE;
       if (willBeActive) {
         await repo.update(
           {
@@ -500,7 +561,8 @@ export class GeofenceService {
       geofence.description = dto.description === '' ? null : dto.description;
     // Shape fields
     if (dto.type !== undefined) geofence.type = dto.type ?? null;
-    if (dto.radius !== undefined) geofence.radius = dto.radius === null ? null : String(dto.radius);
+    if (dto.radius !== undefined)
+      geofence.radius = dto.radius === null ? null : String(dto.radius);
     if (dto.coordinates !== undefined) {
       if (dto.coordinates === null || dto.coordinates.length === 0) {
         geofence.coordinates = null;
@@ -519,7 +581,7 @@ export class GeofenceService {
         if (effectiveType === GeofenceType.RECTANGLE) {
           if (coords.length !== 4) {
             throw new BadRequestException(
-              "Rectangle geofence requires exactly 4 coordinates [lat, lng].",
+              'Rectangle geofence requires exactly 4 coordinates [lat, lng].',
             );
           }
           geofence.coordinates = coords;
@@ -532,7 +594,12 @@ export class GeofenceService {
           geofence.longitude = String(center.longitude);
           let maxDist = 0;
           for (const [lat, lng] of coords) {
-            const d = calculateDistance(center.latitude, center.longitude, lat, lng);
+            const d = calculateDistance(
+              center.latitude,
+              center.longitude,
+              lat,
+              lng,
+            );
             if (d > maxDist) maxDist = d;
           }
           geofence.radius = String(maxDist);
@@ -556,13 +623,18 @@ export class GeofenceService {
         throw new BadRequestException("radius is required when type='circle'");
       }
       if (!geofence.latitude || !geofence.longitude) {
-        throw new BadRequestException("latitude and longitude are required when type='circle'");
+        throw new BadRequestException(
+          "latitude and longitude are required when type='circle'",
+        );
       }
     }
 
     // Business Logic: If geofence status is being changed to ACTIVE, deactivate all other ACTIVE geofences for this team
     if (dto.status !== undefined) {
-      if (dto.status === GeofenceStatus.ACTIVE && geofence.status !== GeofenceStatus.ACTIVE) {
+      if (
+        dto.status === GeofenceStatus.ACTIVE &&
+        geofence.status !== GeofenceStatus.ACTIVE
+      ) {
         // Deactivate all existing active geofences for this team (except the current one)
         await repo.update(
           {
@@ -581,7 +653,8 @@ export class GeofenceService {
 
     // Threshold fields
     if (dto.threshold_distance !== undefined) {
-      geofence.threshold_distance = dto.threshold_distance === null ? null : String(dto.threshold_distance);
+      geofence.threshold_distance =
+        dto.threshold_distance === null ? null : String(dto.threshold_distance);
     }
     if (dto.threshold_enabled !== undefined) {
       geofence.threshold_enabled = dto.threshold_enabled;
@@ -600,7 +673,7 @@ export class GeofenceService {
     }
   }
 
-    async remove(
+  async remove(
     tenant_id: string,
     id: string,
     user_id?: string,
@@ -608,7 +681,9 @@ export class GeofenceService {
   ): Promise<{ deleted: true; id: string }> {
     const isProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
     if (isProvisioned) {
-      return this.tenantDbService.withTenantSchema(tenant_id, (em) => this.doRemove(em, tenant_id, id, user_id, user_role));
+      return this.tenantDbService.withTenantSchema(tenant_id, (em) =>
+        this.doRemove(em, tenant_id, id, user_id, user_role),
+      );
     }
     return this.doRemove(null, tenant_id, id, user_id, user_role);
   }
@@ -621,8 +696,8 @@ export class GeofenceService {
     user_role?: string,
   ): Promise<{ deleted: true; id: string }> {
     const repo = em ? em.getRepository(Geofence) : this.repo;
-    const teamRepo = em ? em.getRepository(Team) : this.teamRepo;
-    const employeeRepo = em ? em.getRepository(Employee) : this.employeeRepo;
+    const _teamRepo = em ? em.getRepository(Team) : this.teamRepo;
+    const _employeeRepo = em ? em.getRepository(Employee) : this.employeeRepo;
 
     const geofence = await repo.findOne({
       where: { id, tenant_id },
@@ -646,4 +721,3 @@ export class GeofenceService {
     return { deleted: true, id };
   }
 }
-

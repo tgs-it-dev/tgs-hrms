@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class UpdateEmployeeDto {
@@ -35,13 +41,19 @@ export class UpdateEmployeeDto {
 
   @ApiPropertyOptional({
     example: 'uuid-of-team',
-    description: 'Team ID to assign the employee to. Set to null to remove from team.',
+    description:
+      'Team ID to assign the employee to. Set to null to remove from team.',
   })
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }) => {
     if (value === undefined || value === null || value === '') return undefined;
     if (typeof value === 'string') {
       const v = value.trim();
-      if (v === '' || v.toLowerCase() === 'null' || v.toLowerCase() === 'undefined') return undefined;
+      if (
+        v === '' ||
+        v.toLowerCase() === 'null' ||
+        v.toLowerCase() === 'undefined'
+      )
+        return undefined;
       return v;
     }
     return value;
@@ -52,13 +64,19 @@ export class UpdateEmployeeDto {
 
   @ApiPropertyOptional({
     example: 'uuid-of-role',
-    description: 'Optional. Role ID to assign to the employee. If not provided, role will not be changed.',
+    description:
+      'Optional. Role ID to assign to the employee. If not provided, role will not be changed.',
   })
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }) => {
     if (value === undefined || value === null || value === '') return undefined;
     if (typeof value === 'string') {
       const v = value.trim();
-      if (v === '' || v.toLowerCase() === 'null' || v.toLowerCase() === 'undefined') return undefined;
+      if (
+        v === '' ||
+        v.toLowerCase() === 'null' ||
+        v.toLowerCase() === 'undefined'
+      )
+        return undefined;
       return v;
     }
     return value;
@@ -69,7 +87,7 @@ export class UpdateEmployeeDto {
 
   @ApiPropertyOptional({
     example: '12345-1234567-1',
-    description: 'CNIC number in format: XXXXX-XXXXXXX-X'
+    description: 'CNIC number in format: XXXXX-XXXXXXX-X',
   })
   @IsOptional()
   @IsString()
@@ -79,7 +97,8 @@ export class UpdateEmployeeDto {
 export class RemoveEmployeeDocumentDto {
   @ApiProperty({
     description: 'Document URL to remove (e.g. /profile-pictures/xxx.png)',
-    example: '/profile-pictures/8afaf744-278d-4905-aecd-79bff53941f0-1769611361810.png',
+    example:
+      '/profile-pictures/8afaf744-278d-4905-aecd-79bff53941f0-1769611361810.png',
   })
   @IsString()
   @IsNotEmpty()

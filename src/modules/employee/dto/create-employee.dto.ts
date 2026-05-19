@@ -1,5 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsOptional, IsString, IsUUID, IsEnum } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  IsEnum,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 import { UserGender } from '../../../common/constants/enums';
 
@@ -16,7 +23,8 @@ export class CreateEmployeeDto {
   @ApiProperty({
     example: 'securePassword123',
     required: false,
-    description: 'Optional. If not provided, a temporary password will be generated',
+    description:
+      'Optional. If not provided, a temporary password will be generated',
   })
   @IsString()
   @IsOptional()
@@ -44,11 +52,16 @@ export class CreateEmployeeDto {
     description: 'Optional. Team ID to assign the employee to during creation',
   })
   @IsOptional()
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }) => {
     if (value === undefined || value === null) return undefined;
     if (typeof value === 'string') {
       const v = value.trim();
-      if (v === '' || v.toLowerCase() === 'null' || v.toLowerCase() === 'undefined') return undefined;
+      if (
+        v === '' ||
+        v.toLowerCase() === 'null' ||
+        v.toLowerCase() === 'undefined'
+      )
+        return undefined;
       return v;
     }
     return value;
@@ -60,13 +73,19 @@ export class CreateEmployeeDto {
     example: 'admin',
     required: false,
     nullable: true,
-    description: 'Optional. Role name to assign to the employee. If not provided, defaults to Employee role.',
+    description:
+      'Optional. Role name to assign to the employee. If not provided, defaults to Employee role.',
   })
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }) => {
     if (value === undefined || value === null || value === '') return undefined;
     if (typeof value === 'string') {
       const v = value.trim();
-      if (v === '' || v.toLowerCase() === 'null' || v.toLowerCase() === 'undefined') return undefined;
+      if (
+        v === '' ||
+        v.toLowerCase() === 'null' ||
+        v.toLowerCase() === 'undefined'
+      )
+        return undefined;
       return v;
     }
     return value;
@@ -79,13 +98,19 @@ export class CreateEmployeeDto {
     example: 'uuid-of-role',
     required: false,
     nullable: true,
-    description: 'Optional. Role ID to assign to the employee during invite. If not provided, defaults to Employee or Manager as before.',
+    description:
+      'Optional. Role ID to assign to the employee during invite. If not provided, defaults to Employee or Manager as before.',
   })
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }) => {
     if (value === undefined || value === null || value === '') return undefined;
     if (typeof value === 'string') {
       const v = value.trim();
-      if (v === '' || v.toLowerCase() === 'null' || v.toLowerCase() === 'undefined') return undefined;
+      if (
+        v === '' ||
+        v.toLowerCase() === 'null' ||
+        v.toLowerCase() === 'undefined'
+      )
+        return undefined;
       return v;
     }
     return value;
@@ -99,10 +124,10 @@ export class CreateEmployeeDto {
   @IsEnum(UserGender)
   gender?: UserGender;
 
-  @ApiProperty({ 
+  @ApiProperty({
     example: '12345-1234567-1',
     required: false,
-    description: 'CNIC number in format: XXXXX-XXXXXXX-X'
+    description: 'CNIC number in format: XXXXX-XXXXXXX-X',
   })
   @IsOptional()
   @IsString()

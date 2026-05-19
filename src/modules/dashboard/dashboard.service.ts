@@ -1,18 +1,18 @@
-import { Injectable } from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, Between, In } from "typeorm";
-import { Employee } from "../../entities/employee.entity";
-import { Attendance } from "../../entities/attendance.entity";
-import { Team } from "../../entities/team.entity";
-import { User } from "../../entities/user.entity";
-import { Leave } from "../../entities/leave.entity";
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, Between, In } from 'typeorm';
+import { Employee } from '../../entities/employee.entity';
+import { Attendance } from '../../entities/attendance.entity';
+import { Team } from '../../entities/team.entity';
+import { User } from '../../entities/user.entity';
+import { Leave } from '../../entities/leave.entity';
 import {
   AttendanceType,
   CheckInApprovalStatus,
   LeaveStatus,
   UserRole,
-} from "../../common/constants/enums";
-import { EmployeeService } from "../employee/services/employee.service";
+} from '../../common/constants/enums';
+import { EmployeeService } from '../employee/services/employee.service';
 
 type CacheEntry<T> = {
   value: T;
@@ -94,27 +94,27 @@ export class DashboardService {
 
     let employeeIds: string[] = [];
 
-    if (role === UserRole.MANAGER) {
+    if (role === (UserRole.MANAGER as string)) {
       const teams = await this.teamRepo.find({
         where: { manager_id: userId },
-        relations: ["teamMembers", "teamMembers.user"],
+        relations: ['teamMembers', 'teamMembers.user'],
       });
       const members = teams.flatMap((t) => t.teamMembers || []);
       employeeIds = members
         .filter((e) => e.user?.tenant_id === tenantId)
         .map((e) => e.id);
-    } else if (role === UserRole.EMPLOYEE) {
+    } else if (role === (UserRole.EMPLOYEE as string)) {
       const employee = await this.employeeRepo.findOne({
         where: { user_id: userId },
-        relations: ["user"],
+        relations: ['user'],
       });
       employeeIds =
         employee && employee.user?.tenant_id === tenantId ? [employee.id] : [];
     } else {
       const employees = await this.employeeRepo
-        .createQueryBuilder("employee")
-        .leftJoin("employee.user", "user")
-        .where("user.tenant_id = :tenantId", { tenantId })
+        .createQueryBuilder('employee')
+        .leftJoin('employee.user', 'user')
+        .where('user.tenant_id = :tenantId', { tenantId })
         .getMany();
       employeeIds = employees.map((e) => e.id);
     }
@@ -140,7 +140,7 @@ export class DashboardService {
         timestamp: Between(startOfDay, endOfDay),
         type: In([AttendanceType.CHECK_IN, AttendanceType.CHECK_OUT]),
       },
-      relations: ["user"],
+      relations: ['user'],
     });
 
     const presentUserIds = new Set<string>();
@@ -151,7 +151,8 @@ export class DashboardService {
         a.approval_status !== CheckInApprovalStatus.REJECTED,
     );
     const todayCheckOuts = attendanceRecords.filter(
-      (a) => a.type === AttendanceType.CHECK_OUT && a.user?.tenant_id === tenantId,
+      (a) =>
+        a.type === AttendanceType.CHECK_OUT && a.user?.tenant_id === tenantId,
     );
 
     for (const checkIn of todayCheckIns) {
@@ -168,7 +169,7 @@ export class DashboardService {
 
     const employeesForScope = await this.employeeRepo.find({
       where: { id: In(employeeIds) },
-      relations: ["user"],
+      relations: ['user'],
     });
     const scopedPresentEmployeeIds = new Set(
       employeesForScope
@@ -184,11 +185,11 @@ export class DashboardService {
       now.getDate(),
     );
     const leavesToday = await this.leaveRepo
-      .createQueryBuilder("leave")
-      .where("leave.tenantId = :tenantId", { tenantId })
-      .andWhere("leave.status = :status", { status: LeaveStatus.APPROVED })
-      .andWhere("leave.startDate <= :today", { today: todayDate })
-      .andWhere("leave.endDate >= :today", { today: todayDate })
+      .createQueryBuilder('leave')
+      .where('leave.tenantId = :tenantId', { tenantId })
+      .andWhere('leave.status = :status', { status: LeaveStatus.APPROVED })
+      .andWhere('leave.startDate <= :today', { today: todayDate })
+      .andWhere('leave.endDate >= :today', { today: todayDate })
       .getMany();
 
     const leaveUserIds = new Set(leavesToday.map((l) => l.employeeId));
@@ -220,18 +221,18 @@ export class DashboardService {
     if (cached) return cached;
 
     const monthNames = [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec",
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     const joiningReport =
       await this.employeeService.getEmployeeJoiningReport(tenantId);
@@ -241,10 +242,15 @@ export class DashboardService {
       return [];
     }
 
-    joiningReport.sort((a: { year: number; month: number }, b: { year: number; month: number }) => {
-      if (a.year !== b.year) return a.year - b.year;
-      return a.month - b.month;
-    });
+    joiningReport.sort(
+      (
+        a: { year: number; month: number },
+        b: { year: number; month: number },
+      ) => {
+        if (a.year !== b.year) return a.year - b.year;
+        return a.month - b.month;
+      },
+    );
 
     let cumulative = 0;
     const result = joiningReport.map(
@@ -299,18 +305,18 @@ export class DashboardService {
     if (cached) return cached;
 
     const employeeQb = this.employeeRepo
-      .createQueryBuilder("employee")
-      .leftJoinAndSelect("employee.user", "user")
-      .leftJoinAndSelect("employee.designation", "designation")
-      .leftJoinAndSelect("designation.department", "department")
-      .where("user.tenant_id = :tenantId", { tenantId });
+      .createQueryBuilder('employee')
+      .leftJoinAndSelect('employee.user', 'user')
+      .leftJoinAndSelect('employee.designation', 'designation')
+      .leftJoinAndSelect('designation.department', 'department')
+      .where('user.tenant_id = :tenantId', { tenantId });
 
-    if (role === UserRole.MANAGER) {
+    if (role === (UserRole.MANAGER as string)) {
       employeeQb
-        .leftJoin("employee.team", "team")
-        .andWhere("team.manager_id = :managerId", { managerId: userId });
-    } else if (role === UserRole.EMPLOYEE) {
-      employeeQb.andWhere("employee.user_id = :userId", { userId });
+        .leftJoin('employee.team', 'team')
+        .andWhere('team.manager_id = :managerId', { managerId: userId });
+    } else if (role === (UserRole.EMPLOYEE as string)) {
+      employeeQb.andWhere('employee.user_id = :userId', { userId });
     }
 
     const employees = await employeeQb.getMany();
@@ -352,12 +358,12 @@ export class DashboardService {
     }
 
     const leaveRecords = await this.leaveRepo
-      .createQueryBuilder("leave")
-      .where("leave.tenantId = :tenantId", { tenantId })
-      .andWhere("leave.status = :status", { status: LeaveStatus.APPROVED })
-      .andWhere("leave.startDate <= :day", { day })
-      .andWhere("leave.endDate >= :day", { day })
-      .andWhere("leave.employeeId IN (:...userIds)", { userIds })
+      .createQueryBuilder('leave')
+      .where('leave.tenantId = :tenantId', { tenantId })
+      .andWhere('leave.status = :status', { status: LeaveStatus.APPROVED })
+      .andWhere('leave.startDate <= :day', { day })
+      .andWhere('leave.endDate >= :day', { day })
+      .andWhere('leave.employeeId IN (:...userIds)', { userIds })
       .getMany();
 
     const leaveUserIds = new Set(leaveRecords.map((l) => l.employeeId));
@@ -368,7 +374,7 @@ export class DashboardService {
     > = {};
 
     for (const emp of employees) {
-      const deptName = emp.designation?.department?.name || "Unassigned";
+      const deptName = emp.designation?.department?.name || 'Unassigned';
       if (!summaryMap[deptName]) {
         summaryMap[deptName] = {
           department: deptName,
@@ -443,16 +449,16 @@ export class DashboardService {
 
     let scopedUserIds: string[] = [];
 
-    if (role === UserRole.MANAGER) {
+    if (role === (UserRole.MANAGER as string)) {
       const teams = await this.teamRepo.find({
         where: { manager_id: userId },
-        relations: ["teamMembers", "teamMembers.user"],
+        relations: ['teamMembers', 'teamMembers.user'],
       });
       const members = teams.flatMap((t) => t.teamMembers || []);
       scopedUserIds = members
         .filter((e) => e.user?.tenant_id === tenantId)
         .map((e) => e.user_id);
-    } else if (role === UserRole.EMPLOYEE) {
+    } else if (role === (UserRole.EMPLOYEE as string)) {
       scopedUserIds = [userId];
     } else {
       const users = await this.userRepo.find({
@@ -478,11 +484,15 @@ export class DashboardService {
         timestamp: Between(yesterdayStart, yesterdayEnd),
         type: In([AttendanceType.CHECK_IN, AttendanceType.CHECK_OUT]),
       },
-      relations: ["user"],
+      relations: ['user'],
     });
 
-    const yCheckIns = yAttendances.filter((a) => a.type === AttendanceType.CHECK_IN);
-    const yCheckOuts = yAttendances.filter((a) => a.type === AttendanceType.CHECK_OUT);
+    const yCheckIns = yAttendances.filter(
+      (a) => a.type === AttendanceType.CHECK_IN,
+    );
+    const yCheckOuts = yAttendances.filter(
+      (a) => a.type === AttendanceType.CHECK_OUT,
+    );
 
     const autoCheckouts: Array<Record<string, unknown>> = [];
     for (const checkIn of yCheckIns) {
@@ -501,8 +511,7 @@ export class DashboardService {
             email: checkIn.user?.email,
           },
           check_in_time: checkIn.timestamp,
-          message:
-            "Check-in without matching check-out detected (yesterday)",
+          message: 'Check-in without matching check-out detected (yesterday)',
         });
       }
     }
@@ -514,7 +523,7 @@ export class DashboardService {
         type: AttendanceType.CHECK_IN,
         approval_status: CheckInApprovalStatus.PENDING,
       },
-      relations: ["user"],
+      relations: ['user'],
     });
 
     const pendingApprovals = todayCheckIns.map((checkIn) => ({
@@ -527,7 +536,7 @@ export class DashboardService {
       },
       check_in_time: checkIn.timestamp,
       approval_status: checkIn.approval_status,
-      message: "Pending check-in approval",
+      message: 'Pending check-in approval',
     }));
 
     const result = {

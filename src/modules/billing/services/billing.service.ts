@@ -1,6 +1,6 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, EntityManager } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import {
@@ -52,8 +52,12 @@ export class BillingService {
     return tenant?.schema_provisioned ?? false;
   }
 
-  private getBillingRepo(em: any): Repository<BillingTransaction> {
-    return em ? em.getRepository(BillingTransaction) : this.billingTransactionRepo;
+  private getBillingRepo(
+    em: EntityManager | null,
+  ): Repository<BillingTransaction> {
+    return em
+      ? em.getRepository(BillingTransaction)
+      : this.billingTransactionRepo;
   }
 
   // ---------------------------------------------------------------------------
@@ -119,7 +123,9 @@ export class BillingService {
                 name: `Employee Creation: ${employeeName}`,
                 description: `One-time payment for adding employee ${employeeName} (${employeeData.email})`,
               },
-              unit_amount: Math.round(this.EMPLOYEE_CREATION_CHARGE_AMOUNT * 100),
+              unit_amount: Math.round(
+                this.EMPLOYEE_CREATION_CHARGE_AMOUNT * 100,
+              ),
             },
             quantity: 1,
           },
@@ -149,12 +155,16 @@ export class BillingService {
         checkoutUrl: checkoutSession.url || '',
         checkoutSessionId: checkoutSession.id,
       };
-    } catch (stripeError: any) {
-      const errorMessage = stripeError?.message || 'Unknown Stripe error';
-      const errorCode = stripeError?.code || 'unknown';
+    } catch (stripeError: unknown) {
+      const errorMessage =
+        stripeError instanceof Error
+          ? stripeError.message
+          : 'Unknown Stripe error';
+      const se = stripeError as { code?: string; stack?: string };
+      const errorCode = se.code ?? 'unknown';
       this.logger.error(
         `Stripe checkout session creation failed: ${errorMessage} (code: ${errorCode})`,
-        stripeError?.stack,
+        se.stack,
       );
       throw new Error(
         `Failed to create Stripe checkout session: ${errorMessage} (code: ${errorCode})`,
@@ -190,7 +200,10 @@ export class BillingService {
         currency: 'USD',
         employee_id: employeeId,
         description: `Employee creation charge for ${employeeName} (${employeeEmail})`,
-        metadata: { employee_email: employeeEmail, employee_name: employeeName },
+        metadata: {
+          employee_email: employeeEmail,
+          employee_name: employeeName,
+        },
       });
 
       try {
@@ -262,12 +275,13 @@ export class BillingService {
           this.logger.log(
             `Successfully charged $${this.EMPLOYEE_CREATION_CHARGE_AMOUNT} for employee: ${employeeId}`,
           );
-        } catch (paymentError: any) {
+        } catch (paymentError: unknown) {
+          const pe = paymentError as { code?: string; message?: string };
           if (
-            paymentError?.code === 'payment_intent_authentication_required' ||
-            paymentError?.message?.includes('requires customer action') ||
-            paymentError?.message?.includes('Payment method') ||
-            paymentError?.message === 'PAYMENT_METHOD_REQUIRED'
+            pe.code === 'payment_intent_authentication_required' ||
+            pe.message?.includes('requires customer action') ||
+            pe.message?.includes('Payment method') ||
+            pe.message === 'PAYMENT_METHOD_REQUIRED'
           ) {
             throw new Error('PAYMENT_METHOD_REQUIRED');
           }
@@ -349,7 +363,9 @@ export class BillingService {
 
     const metadata = checkoutSession.metadata;
     if (!metadata || !metadata.employee_email) {
-      throw new BadRequestException('Employee data not found in payment metadata');
+      throw new BadRequestException(
+        'Employee data not found in payment metadata',
+      );
     }
 
     if (metadata.tenant_id !== tenantId) {
@@ -369,17 +385,23 @@ export class BillingService {
       cnic_number: metadata.cnic_number || undefined,
     };
 
-    const saveTransaction = async (billingRepo: Repository<BillingTransaction>) => {
+    const saveTransaction = async (
+      billingRepo: Repository<BillingTransaction>,
+    ) => {
       const existingTransactions = await billingRepo.find({
-        where: { tenant_id: tenantId, type: BillingTransactionType.EMPLOYEE_CREATION },
+        where: {
+          tenant_id: tenantId,
+          type: BillingTransactionType.EMPLOYEE_CREATION,
+        },
         order: { created_at: 'DESC' },
       });
 
-      let existingTransaction = existingTransactions.find(
+      const existingTransaction = existingTransactions.find(
         (t) =>
           t.metadata &&
           typeof t.metadata === 'object' &&
-          (t.metadata as any).employee_email === metadata.employee_email &&
+          (t.metadata as Record<string, unknown>).employee_email ===
+            metadata.employee_email &&
           (t.status === BillingTransactionStatus.FAILED ||
             t.status === BillingTransactionStatus.PENDING),
       );
@@ -424,8 +446,9 @@ export class BillingService {
 
     let transaction: BillingTransaction;
     if (isProvisioned) {
-      transaction = await this.tenantDbService.withTenantSchema(tenantId, (em) =>
-        saveTransaction(em.getRepository(BillingTransaction)),
+      transaction = await this.tenantDbService.withTenantSchema(
+        tenantId,
+        (em) => saveTransaction(em.getRepository(BillingTransaction)),
       );
     } else {
       transaction = await saveTransaction(this.billingTransactionRepo);
@@ -447,7 +470,9 @@ export class BillingService {
         if (isProvisioned) {
           await this.tenantDbService.withTenantSchema(tenantId, async (em) => {
             const billingRepo = em.getRepository(BillingTransaction);
-            await billingRepo.update(transaction.id, { employee_id: createdEmployee.id });
+            await billingRepo.update(transaction.id, {
+              employee_id: createdEmployee.id,
+            });
           });
         } else {
           await this.billingTransactionRepo.update(transaction.id, {
@@ -455,12 +480,15 @@ export class BillingService {
           });
         }
 
-        this.logger.log(`Employee created after payment: ${createdEmployee.id}`);
+        this.logger.log(
+          `Employee created after payment: ${createdEmployee.id}`,
+        );
 
         return {
           success: true,
           paymentConfirmed: true,
-          paymentStatus: checkoutSession.payment_status || checkoutSession.status,
+          paymentStatus:
+            checkoutSession.payment_status || checkoutSession.status,
           paymentIntentId:
             typeof checkoutSession.payment_intent === 'string'
               ? checkoutSession.payment_intent
@@ -518,7 +546,9 @@ export class BillingService {
     const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
 
     const doQuery = async (billingRepo: Repository<BillingTransaction>) =>
-      billingRepo.findOne({ where: { id: transactionId, tenant_id: tenantId } });
+      billingRepo.findOne({
+        where: { id: transactionId, tenant_id: tenantId },
+      });
 
     if (isProvisioned) {
       return this.tenantDbService.withTenantSchemaReadOnly(tenantId, (em) =>

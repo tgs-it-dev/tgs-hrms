@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { User } from "../../entities/user.entity";
+import { User } from '../../entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
@@ -20,9 +20,9 @@ const mockRole: Role = {
 };
 
 const mockTenant: Tenant = {
-  id: "11111111-1111-1111-1111-111111111111",
-  name: "Test Company",
-  status: "active",
+  id: '11111111-1111-1111-1111-111111111111',
+  name: 'Test Company',
+  status: 'active',
   schema_provisioned: false,
   workflow_enabled: false,
   created_at: new Date(),
@@ -75,7 +75,7 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
   let service: AuthService;
   let userRepo: Repository<User>;
   let jwtService: JwtService;
-  let configService: ConfigService;
+  let updateSpy: jest.SpyInstance;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -111,29 +111,31 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
     service = module.get<AuthService>(AuthService);
     userRepo = module.get<Repository<User>>(getRepositoryToken(User));
     jwtService = module.get<JwtService>(JwtService);
-    configService = module.get<ConfigService>(ConfigService);
+    updateSpy = jest.spyOn(userRepo, 'update');
   });
 
   describe('forgotPassword', () => {
     it('should generate reset token for valid email', async () => {
-      const result = await service.forgotPassword({ email: 'admin@company.com' });
+      const result = await service.forgotPassword({
+        email: 'admin@company.com',
+      });
       expect(result).toEqual({
         message: 'Check your email for the password reset link.',
       });
-      expect(userRepo.update).toHaveBeenCalledWith(
+      expect(updateSpy).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
-          reset_token: expect.any(String),
-          reset_token_expiry: expect.any(Date),
-        })
+          reset_token: expect.any(String) as unknown,
+          reset_token_expiry: expect.any(Date) as unknown,
+        }),
       );
     });
 
     it('should throw BadRequestException for unknown email', async () => {
       jest.spyOn(userRepo, 'findOne').mockResolvedValue(null);
-      await expect(service.forgotPassword({ email: 'invalid@example.com' })).rejects.toThrow(
-        BadRequestException
-      );
+      await expect(
+        service.forgotPassword({ email: 'invalid@example.com' }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -149,7 +151,7 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
         reset_token_expiry: new Date(Date.now() + 60000),
       });
 
-      jest.spyOn(bcrypt, 'hash').mockImplementation(async () => 'hashedPassword');
+      jest.spyOn(bcrypt, 'hash').mockResolvedValue('hashedPassword');
 
       const result = await service.resetPassword({
         token,
@@ -158,13 +160,13 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
       });
 
       expect(result).toEqual({ message: 'Password reset successfully' });
-      expect(userRepo.update).toHaveBeenCalledWith(
+      expect(updateSpy).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
           password: 'hashedPassword',
           reset_token: null,
           reset_token_expiry: null,
-        })
+        }),
       );
     });
 
@@ -176,7 +178,7 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
           token: 'wrong',
           password: 'newpass123',
           confirmPassword: 'newpass123',
-        })
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -194,7 +196,7 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
           token: 'valid-token',
           password: 'newpass123',
           confirmPassword: 'newpass123',
-        })
+        }),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -207,7 +209,9 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
 
     it('should throw UnauthorizedException if user not found', async () => {
       jest.spyOn(userRepo, 'findOne').mockResolvedValue(null);
-      await expect(service.refreshToken('invalid')).rejects.toThrow(UnauthorizedException);
+      await expect(service.refreshToken('invalid')).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
 
     it('should throw UnauthorizedException if refresh token is tampered', async () => {
@@ -215,7 +219,9 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
         throw new Error();
       });
 
-      await expect(service.refreshToken('bad-token')).rejects.toThrow(UnauthorizedException);
+      await expect(service.refreshToken('bad-token')).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
   });
 
@@ -223,9 +229,9 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
     it('should clear refresh token on logout', async () => {
       const result = await service.logout('refresh-token');
       expect(result).toEqual({ message: 'Successfully logged out' });
-      expect(userRepo.update).toHaveBeenCalledWith(
+      expect(updateSpy).toHaveBeenCalledWith(
         expect.any(String),
-        expect.objectContaining({ refresh_token: null })
+        expect.objectContaining({ refresh_token: null }),
       );
     });
 
@@ -235,7 +241,9 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
 
     it('should throw UnauthorizedException for invalid token', async () => {
       jest.spyOn(userRepo, 'findOne').mockResolvedValue(null);
-      await expect(service.logout('invalid')).rejects.toThrow(UnauthorizedException);
+      await expect(service.logout('invalid')).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
   });
 });

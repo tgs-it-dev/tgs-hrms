@@ -14,7 +14,14 @@ import {
   Logger,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiBody,
+} from '@nestjs/swagger';
 import { Response } from 'express';
 import { Res, Param } from '@nestjs/common';
 import { CompanyService } from './company.service';
@@ -45,8 +52,12 @@ export class CompanyController {
     type: CompanyResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Company details not found' })
-  async getCompanyDetails(@Request() req: AuthenticatedRequest): Promise<CompanyResponseDto> {
-    this.logger.log(`Getting company details for tenant: ${req.user.tenant_id}`);
+  async getCompanyDetails(
+    @Request() req: AuthenticatedRequest,
+  ): Promise<CompanyResponseDto> {
+    this.logger.log(
+      `Getting company details for tenant: ${req.user.tenant_id}`,
+    );
     const adminRoles: string[] = [UserRole.ADMIN, UserRole.SYSTEM_ADMIN];
     const clientIp = adminRoles.includes(req.user.role)
       ? (req.clientIp ?? req.ip ?? '0.0.0.0')
@@ -80,7 +91,7 @@ export class CompanyController {
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
       result.fileStream.pipe(res);
       return;
-    } catch (e) {
+    } catch (_e) {
       return res.status(500).json({ message: 'Error serving company logo' });
     }
   }
@@ -94,7 +105,10 @@ export class CompanyController {
     description: 'Company details updated successfully',
     type: CompanyResponseDto,
   })
-  @ApiResponse({ status: 403, description: 'Forbidden - Admin access required' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Admin access required',
+  })
   @ApiResponse({ status: 404, description: 'Company details not found' })
   async updateCompanyDetails(
     @Request() req: AuthenticatedRequest,
@@ -124,7 +138,8 @@ export class CompanyController {
         logo: {
           type: 'string',
           format: 'binary',
-          description: 'Logo file - only JPG, JPEG, PNG, GIF or WebP allowed (max 5MB). JFIF and other formats are not accepted.',
+          description:
+            'Logo file - only JPG, JPEG, PNG, GIF or WebP allowed (max 5MB). JFIF and other formats are not accepted.',
         },
       },
     },
@@ -134,7 +149,10 @@ export class CompanyController {
     description: 'Company logo updated successfully',
     type: CompanyResponseDto,
   })
-  @ApiResponse({ status: 403, description: 'Forbidden - Admin access required' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Admin access required',
+  })
   @ApiResponse({ status: 404, description: 'Company details not found' })
   @ApiResponse({ status: 400, description: 'Invalid file type or size' })
   async updateCompanyLogo(

@@ -161,7 +161,9 @@ export class CreateWorkflowTables1772900000000 implements MigrationInterface {
     await queryRunner.query(
       `DROP INDEX IF EXISTS "${schema}"."IDX_workflow_steps_approver_${schema}"`,
     );
-    await queryRunner.query(`DROP TABLE IF EXISTS "${schema}"."workflow_steps"`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "${schema}"."workflow_steps"`,
+    );
 
     await queryRunner.query(
       `DROP INDEX IF EXISTS "${schema}"."IDX_workflow_requests_tenant_status_${schema}"`,
@@ -175,12 +177,16 @@ export class CreateWorkflowTables1772900000000 implements MigrationInterface {
     await queryRunner.query(
       `DROP INDEX IF EXISTS "${schema}"."IDX_workflow_requests_tenant_type_${schema}"`,
     );
-    await queryRunner.query(`DROP TABLE IF EXISTS "${schema}"."workflow_requests"`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "${schema}"."workflow_requests"`,
+    );
 
     await queryRunner.query(
       `DROP INDEX IF EXISTS "${schema}"."IDX_workflow_configs_tenant_type_${schema}"`,
     );
-    await queryRunner.query(`DROP TABLE IF EXISTS "${schema}"."workflow_configs"`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "${schema}"."workflow_configs"`,
+    );
   }
 
   // ── up ─────────────────────────────────────────────────────────────────────
@@ -197,12 +203,11 @@ export class CreateWorkflowTables1772900000000 implements MigrationInterface {
     `);
 
     // 3. For each provisioned tenant: create tables + add column in their schema
-    const provisionedRows: unknown[] = await queryRunner.query(
+    const provisionedRows = (await queryRunner.query(
       `SELECT id FROM public.tenants WHERE schema_provisioned = true`,
-    );
-    const provisionedTenants = provisionedRows as { id: string }[];
+    )) as Array<{ id: string }>;
 
-    for (const tenant of provisionedTenants) {
+    for (const tenant of provisionedRows) {
       const schema = this.getSchemaName(tenant.id);
       await this.createTablesInSchema(queryRunner, schema);
       await queryRunner.query(`
@@ -212,10 +217,9 @@ export class CreateWorkflowTables1772900000000 implements MigrationInterface {
     }
 
     // 4. Seed default WorkflowConfig rows for every tenant in the correct schema
-    const allRows: unknown[] = await queryRunner.query(
+    const allTenants = (await queryRunner.query(
       `SELECT id, schema_provisioned FROM public.tenants`,
-    );
-    const allTenants = allRows as { id: string; schema_provisioned: boolean }[];
+    )) as Array<{ id: string; schema_provisioned: boolean }>;
 
     for (const tenant of allTenants) {
       const schema = tenant.schema_provisioned
@@ -239,13 +243,9 @@ export class CreateWorkflowTables1772900000000 implements MigrationInterface {
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     // 1. Clean up each provisioned tenant schema
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const provisionedRowsDown = await queryRunner.query(
+    const provisionedTenants = (await queryRunner.query(
       `SELECT id FROM public.tenants WHERE schema_provisioned = true`,
-    );
-    const provisionedTenants = provisionedRowsDown as unknown as {
-      id: string;
-    }[];
+    )) as Array<{ id: string }>;
 
     for (const tenant of provisionedTenants) {
       const schema = this.getSchemaName(tenant.id);

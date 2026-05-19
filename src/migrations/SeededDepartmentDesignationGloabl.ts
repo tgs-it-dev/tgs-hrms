@@ -1,6 +1,8 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class SeedGlobalDepartmentsDesignations1759000000000 implements MigrationInterface {
+export class SeedGlobalDepartmentsDesignations1759000000000
+  implements MigrationInterface
+{
   public async up(queryRunner: QueryRunner): Promise<void> {
     const GLOBAL_TENANT_ID = `'00000000-0000-0000-0000-000000000000'`;
 

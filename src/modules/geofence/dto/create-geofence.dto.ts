@@ -13,7 +13,10 @@ import {
   Min,
   Max,
 } from 'class-validator';
-import { GeofenceStatus, GeofenceType } from '../../../entities/geofence.entity';
+import {
+  GeofenceStatus,
+  GeofenceType,
+} from '../../../entities/geofence.entity';
 
 export class CreateGeofenceDto {
   @ApiProperty({ example: 'Head Office' })
@@ -25,7 +28,9 @@ export class CreateGeofenceDto {
   @ApiProperty({ example: 'Main building entrance area', required: false })
   @IsOptional()
   @IsString()
-  @Transform(({ value }) => (value === '' ? null : value))
+  @Transform(({ value }: { value: unknown }) =>
+    value === '' ? null : (value as string | null),
+  )
   description?: string | null;
 
   @ApiProperty({ example: 'uuid-of-team' })
@@ -33,14 +38,26 @@ export class CreateGeofenceDto {
   @IsNotEmpty()
   team_id: string;
 
-  @ApiProperty({ example: GeofenceType.POLYGON, enum: GeofenceType, required: false })
+  @ApiProperty({
+    example: GeofenceType.POLYGON,
+    enum: GeofenceType,
+    required: false,
+  })
   @IsOptional()
   @IsEnum(GeofenceType)
   type?: GeofenceType;
 
-  @ApiProperty({ example: 150, required: false, description: "Circle radius (meters). Required when type='circle'." })
+  @ApiProperty({
+    example: 150,
+    required: false,
+    description: "Circle radius (meters). Required when type='circle'.",
+  })
   @IsOptional()
-  @Transform(({ value }) => (value === '' || value === null || value === undefined ? value : Number(value)))
+  @Transform(({ value }: { value: unknown }) =>
+    value === '' || value === null || value === undefined
+      ? value
+      : Number(value),
+  )
   @IsNumber()
   @Min(0)
   radius?: number;
@@ -57,46 +74,73 @@ export class CreateGeofenceDto {
   @IsArray()
   coordinates?: number[][];
 
-  @ApiProperty({ example: 24.860734, required: false, description: 'Backward compatible center/point latitude.' })
-  @Transform(({ value }) => (value === '' || value === null || value === undefined ? value : Number(value)))
+  @ApiProperty({
+    example: 24.860734,
+    required: false,
+    description: 'Backward compatible center/point latitude.',
+  })
+  @Transform(({ value }: { value: unknown }) =>
+    value === '' || value === null || value === undefined
+      ? value
+      : Number(value),
+  )
   @IsOptional()
   @IsNumber()
   @Min(-90)
   @Max(90)
   latitude?: number;
 
-  @ApiProperty({ example: 67.001136, required: false, description: 'Backward compatible center/point longitude.' })
-  @Transform(({ value }) => (value === '' || value === null || value === undefined ? value : Number(value)))
+  @ApiProperty({
+    example: 67.001136,
+    required: false,
+    description: 'Backward compatible center/point longitude.',
+  })
+  @Transform(({ value }: { value: unknown }) =>
+    value === '' || value === null || value === undefined
+      ? value
+      : Number(value),
+  )
   @IsOptional()
   @IsNumber()
   @Min(-180)
   @Max(180)
   longitude?: number;
 
-  @ApiProperty({ example: GeofenceStatus.ACTIVE, enum: GeofenceStatus, required: false })
+  @ApiProperty({
+    example: GeofenceStatus.ACTIVE,
+    enum: GeofenceStatus,
+    required: false,
+  })
   @IsOptional()
   @IsEnum(GeofenceStatus)
   status?: GeofenceStatus;
 
-  @ApiProperty({ 
-    example: 50, 
-    required: false, 
-    description: 'Threshold distance in meters (tolerance outside the boundary). Only used when threshold_enabled is true.' 
+  @ApiProperty({
+    example: 50,
+    required: false,
+    description:
+      'Threshold distance in meters (tolerance outside the boundary). Only used when threshold_enabled is true.',
   })
   @IsOptional()
-  @Transform(({ value }) => (value === '' || value === null || value === undefined ? value : Number(value)))
+  @Transform(({ value }: { value: unknown }) =>
+    value === '' || value === null || value === undefined
+      ? value
+      : Number(value),
+  )
   @IsNumber()
   @Min(0)
   threshold_distance?: number;
 
-  @ApiProperty({ 
-    example: false, 
-    required: false, 
-    description: 'Whether threshold distance is enabled. If enabled, employees within threshold can check in and action is marked as "Near Boundary".' 
+  @ApiProperty({
+    example: false,
+    required: false,
+    description:
+      'Whether threshold distance is enabled. If enabled, employees within threshold can check in and action is marked as "Near Boundary".',
   })
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Transform(
+    ({ value }: { value: unknown }) => value === 'true' || value === true,
+  )
   @IsBoolean()
   threshold_enabled?: boolean;
 }
-

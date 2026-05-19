@@ -21,7 +21,7 @@ describe('DepartmentService', () => {
     tenant: {
       id: tenantId,
       name: 'Mock Tenant',
-    } as any,
+    } as Department['tenant'],
     designations: [],
   };
 
@@ -64,14 +64,16 @@ describe('DepartmentService', () => {
     jest.spyOn(repo, 'findOne').mockResolvedValue(mockDepartment);
 
     await expect(
-      service.create(tenantId, { name: 'Engineering', description: '' })
+      service.create(tenantId, { name: 'Engineering', description: '' }),
     ).rejects.toThrow(ConflictException);
   });
 
   it('should update department if name is unique', async () => {
     jest.spyOn(repo, 'findOneBy').mockResolvedValue(mockDepartment);
     jest.spyOn(repo, 'findOne').mockResolvedValue(null);
-    jest.spyOn(repo, 'save').mockResolvedValue({ ...mockDepartment, name: 'Ops' });
+    jest
+      .spyOn(repo, 'save')
+      .mockResolvedValue({ ...mockDepartment, name: 'Ops' });
 
     const result = await service.update(tenantId, deptId, { name: 'Ops' });
 
@@ -83,7 +85,9 @@ describe('DepartmentService', () => {
     jest.spyOn(repo, 'findOne').mockResolvedValue(mockDepartment);
     jest.spyOn(repo, 'save').mockResolvedValue(mockDepartment);
 
-    const result = await service.update(tenantId, deptId, { name: 'Operations' });
+    const result = await service.update(tenantId, deptId, {
+      name: 'Operations',
+    });
 
     expect(result.name).toBe('Operations');
   });
@@ -98,24 +102,24 @@ describe('DepartmentService', () => {
       tenant: {
         id: tenantId,
         name: 'Mock Tenant',
-      } as any,
+      } as Department['tenant'],
       designations: [],
     };
 
     jest.spyOn(repo, 'findOneBy').mockResolvedValue(mockDepartment);
     jest.spyOn(repo, 'findOne').mockResolvedValue(anotherDepartment);
 
-    await expect(service.update(tenantId, deptId, { name: 'Engineering' })).rejects.toThrow(
-      ConflictException
-    );
+    await expect(
+      service.update(tenantId, deptId, { name: 'Engineering' }),
+    ).rejects.toThrow(ConflictException);
   });
 
   it('should throw NotFoundException when updating non-existent department', async () => {
     jest.spyOn(repo, 'findOneBy').mockResolvedValue(null);
 
-    await expect(service.update(tenantId, 'non-existent-id', { name: 'New Name' })).rejects.toThrow(
-      NotFoundException
-    );
+    await expect(
+      service.update(tenantId, 'non-existent-id', { name: 'New Name' }),
+    ).rejects.toThrow(NotFoundException);
   });
 
   it('should delete department successfully', async () => {
@@ -130,6 +134,8 @@ describe('DepartmentService', () => {
   it('should throw NotFoundException on delete if department does not exist', async () => {
     jest.spyOn(repo, 'findOne').mockResolvedValue(null);
 
-    await expect(service.remove(tenantId, 'bad-id')).rejects.toThrow(NotFoundException);
+    await expect(service.remove(tenantId, 'bad-id')).rejects.toThrow(
+      NotFoundException,
+    );
   });
 });

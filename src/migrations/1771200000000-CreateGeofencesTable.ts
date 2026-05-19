@@ -22,14 +22,21 @@ export class CreateGeofencesTable1771200000000 implements MigrationInterface {
       );
     `);
 
-    await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_geofences_tenant_id ON geofences(tenant_id);`);
-    await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_geofences_team_id ON geofences(team_id);`);
-    await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_geofences_name ON geofences(name);`);
-    await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_geofences_status ON geofences(status);`);
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_geofences_tenant_id ON geofences(tenant_id);`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_geofences_team_id ON geofences(team_id);`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_geofences_name ON geofences(name);`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_geofences_status ON geofences(status);`,
+    );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`DROP TABLE IF EXISTS geofences;`);
   }
 }
-

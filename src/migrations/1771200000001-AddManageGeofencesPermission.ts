@@ -1,7 +1,9 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 
-export class AddManageGeofencesPermission1771200000001 implements MigrationInterface {
+export class AddManageGeofencesPermission1771200000001
+  implements MigrationInterface
+{
   name = 'AddManageGeofencesPermission1771200000001';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -14,21 +16,27 @@ export class AddManageGeofencesPermission1771200000001 implements MigrationInter
     );
 
     // 2) Get permission id
-    const perm = await queryRunner.query(
+    const perm = (await queryRunner.query(
       `SELECT id FROM permissions WHERE name = $1 LIMIT 1`,
       ['manage_geofences'],
-    );
+    )) as Array<{ id: string }>;
     if (!perm.length) return;
     const permissionId = perm[0].id;
 
     // 3) Assign permission to roles (idempotent)
-    const targetRoles = ['system-admin', 'admin', 'network-admin', 'hr-admin', 'manager'];
+    const targetRoles = [
+      'system-admin',
+      'admin',
+      'network-admin',
+      'hr-admin',
+      'manager',
+    ];
 
     for (const roleName of targetRoles) {
-      const role = await queryRunner.query(
+      const role = (await queryRunner.query(
         `SELECT id FROM roles WHERE LOWER(name) = LOWER($1) LIMIT 1`,
         [roleName],
-      );
+      )) as Array<{ id: string }>;
       if (!role.length) continue;
 
       await queryRunner.query(
@@ -41,20 +49,26 @@ export class AddManageGeofencesPermission1771200000001 implements MigrationInter
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    const perm = await queryRunner.query(
+    const perm = (await queryRunner.query(
       `SELECT id FROM permissions WHERE name = $1 LIMIT 1`,
       ['manage_geofences'],
-    );
+    )) as Array<{ id: string }>;
     if (!perm.length) return;
 
     const permissionId = perm[0].id;
-    const targetRoles = ['system-admin', 'admin', 'network-admin', 'hr-admin', 'manager'];
+    const targetRoles = [
+      'system-admin',
+      'admin',
+      'network-admin',
+      'hr-admin',
+      'manager',
+    ];
 
     for (const roleName of targetRoles) {
-      const role = await queryRunner.query(
+      const role = (await queryRunner.query(
         `SELECT id FROM roles WHERE LOWER(name) = LOWER($1) LIMIT 1`,
         [roleName],
-      );
+      )) as Array<{ id: string }>;
       if (!role.length) continue;
 
       await queryRunner.query(
@@ -64,4 +78,3 @@ export class AddManageGeofencesPermission1771200000001 implements MigrationInter
     }
   }
 }
-

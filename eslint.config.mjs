@@ -29,7 +29,16 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/no-unsafe-argument': 'warn',
-      'quotes': ['error', 'single', { 'allowTemplateLiterals': true }],
+      '@typescript-eslint/only-throw-error': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
+      'quotes': ['error', 'single', { 'allowTemplateLiterals': true, 'avoidEscape': true }],
       "prettier/prettier": ["error", { "singleQuote": true }]
     },
   },

@@ -14,10 +14,10 @@ export class AddManageDepartmentsPermissionToManager1771100000000
     );
 
     // 2) Get manager role id (case-insensitive)
-    const managerRole = await queryRunner.query(
+    const managerRole = (await queryRunner.query(
       `SELECT id FROM roles WHERE LOWER(name) = LOWER($1) LIMIT 1`,
       ['manager'],
-    );
+    )) as Array<{ id: string }>;
 
     if (!managerRole.length) {
       // Safe no-op if manager role doesn't exist in this environment
@@ -27,10 +27,10 @@ export class AddManageDepartmentsPermissionToManager1771100000000
     const managerRoleId = managerRole[0].id;
 
     // 3) Get permission id
-    const perm = await queryRunner.query(
+    const perm = (await queryRunner.query(
       `SELECT id FROM permissions WHERE name = $1 LIMIT 1`,
       ['manage_departments'],
-    );
+    )) as Array<{ id: string }>;
 
     if (!perm.length) return;
 
@@ -46,16 +46,16 @@ export class AddManageDepartmentsPermissionToManager1771100000000
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    const managerRole = await queryRunner.query(
+    const managerRole = (await queryRunner.query(
       `SELECT id FROM roles WHERE LOWER(name) = LOWER($1) LIMIT 1`,
       ['manager'],
-    );
+    )) as Array<{ id: string }>;
     if (!managerRole.length) return;
 
-    const perm = await queryRunner.query(
+    const perm = (await queryRunner.query(
       `SELECT id FROM permissions WHERE name = $1 LIMIT 1`,
       ['manage_departments'],
-    );
+    )) as Array<{ id: string }>;
     if (!perm.length) return;
 
     await queryRunner.query(
@@ -64,4 +64,3 @@ export class AddManageDepartmentsPermissionToManager1771100000000
     );
   }
 }
-

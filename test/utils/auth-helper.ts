@@ -2,7 +2,7 @@ import * as jwt from 'jsonwebtoken';
 
 export function makeBearerToken(
   role: string,
-  overrides: Partial<{ sub: string; tenantId: string }> = {}
+  overrides: Partial<{ sub: string; tenantId: string }> = {},
 ) {
   const payload = {
     sub: overrides.sub ?? `e2e-${role}-${Date.now()}`, // unique user id

@@ -19,10 +19,13 @@ export class InviteStatusCronService {
   async handleExpiredInvitesCheck(): Promise<void> {
     try {
       this.logger.log('Starting scheduled expired invites check...');
-      const expiredCount = await this.inviteStatusService.checkAndUpdateExpiredInvites();
-      
+      const expiredCount =
+        await this.inviteStatusService.checkAndUpdateExpiredInvites();
+
       if (expiredCount > 0) {
-        this.logger.log(`Updated ${expiredCount} expired invites to 'Invite Expired'`);
+        this.logger.log(
+          `Updated ${expiredCount} expired invites to 'Invite Expired'`,
+        );
       } else {
         this.logger.debug('No expired invites found');
       }
@@ -35,7 +38,7 @@ export class InviteStatusCronService {
    * Daily cleanup of old expired invites (runs at 2 AM)
    */
   @Cron('0 2 * * *')
-  async handleDailyCleanup(): Promise<void> {
+  handleDailyCleanup(): void {
     try {
       this.logger.log('Starting daily cleanup of old expired invites...');
       // Add cleanup logic here if needed
@@ -49,7 +52,7 @@ export class InviteStatusCronService {
    * Weekly report of invite statistics (runs every Monday at 9 AM)
    */
   @Cron('0 9 * * 1')
-  async handleWeeklyInviteReport(): Promise<void> {
+  handleWeeklyInviteReport(): void {
     try {
       this.logger.log('Generating weekly invite statistics report...');
       // Add report generation logic here if needed

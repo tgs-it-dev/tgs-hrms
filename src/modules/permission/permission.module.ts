@@ -5,10 +5,7 @@ import { PermissionController } from './permission.controller';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Permission]),
-    SharedJwtModule,
-  ],
+  imports: [TypeOrmModule.forFeature([Permission]), SharedJwtModule],
   providers: [],
   controllers: [PermissionController],
 })

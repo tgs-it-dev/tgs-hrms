@@ -22,7 +22,7 @@ describe('DesignationService', () => {
     description: 'Engineering department',
     tenant_id: tenantId,
     created_at: new Date(),
-    tenant: {} as any,
+    tenant: {} as Department['tenant'],
     designations: [],
   };
 
@@ -30,10 +30,10 @@ describe('DesignationService', () => {
     id: designationId,
     department_id: departmentId,
     tenant_id: tenantId,
-    title: "Manager",
+    title: 'Manager',
     created_at: new Date(),
     department: mockDepartment,
-    tenant: {} as Designation["tenant"],
+    tenant: {} as Designation['tenant'],
     employees: [],
   };
 
@@ -93,34 +93,43 @@ describe('DesignationService', () => {
       service.create(tenantId, {
         title: 'Manager',
         department_id: departmentId,
-      })
+      }),
     ).rejects.toThrow(ConflictException);
   });
 
   it('should update designation if title is unique', async () => {
     jest.spyOn(designationRepo, 'findOneBy').mockResolvedValue(mockDesignation);
     jest.spyOn(designationRepo, 'findOne').mockResolvedValue(null);
-    jest.spyOn(designationRepo, 'save').mockResolvedValue({ ...mockDesignation, title: 'Lead' });
+    jest
+      .spyOn(designationRepo, 'save')
+      .mockResolvedValue({ ...mockDesignation, title: 'Lead' });
 
-    const result = await service.update(tenantId, designationId, { title: "Lead" });
+    const result = await service.update(tenantId, designationId, {
+      title: 'Lead',
+    });
     expect(result.title).toBe('Lead');
   });
 
   it('should throw ConflictException when updating to duplicate title', async () => {
-    const anotherDesignation = { ...mockDesignation, id: '6ba7b812-9dad-11d1-80b4-00c04fd430c8' };
+    const anotherDesignation = {
+      ...mockDesignation,
+      id: '6ba7b812-9dad-11d1-80b4-00c04fd430c8',
+    };
     jest.spyOn(designationRepo, 'findOneBy').mockResolvedValue(mockDesignation);
-    jest.spyOn(designationRepo, 'findOne').mockResolvedValue(anotherDesignation);
+    jest
+      .spyOn(designationRepo, 'findOne')
+      .mockResolvedValue(anotherDesignation);
 
     await expect(
-      service.update(tenantId, designationId, { title: "Manager" }),
-    ).rejects.toThrow(
-      ConflictException
-    );
+      service.update(tenantId, designationId, { title: 'Manager' }),
+    ).rejects.toThrow(ConflictException);
   });
 
   it('should delete designation', async () => {
     jest.spyOn(designationRepo, 'findOneBy').mockResolvedValue(mockDesignation);
-    jest.spyOn(designationRepo, 'delete').mockResolvedValue({ affected: 1 } as any);
+    jest
+      .spyOn(designationRepo, 'delete')
+      .mockResolvedValue({ affected: 1 } as any);
 
     const result = await service.remove(tenantId, designationId);
     expect(result).toEqual({ deleted: true, id: designationId });
@@ -130,9 +139,7 @@ describe('DesignationService', () => {
     jest.spyOn(designationRepo, 'findOneBy').mockResolvedValue(null);
 
     await expect(
-      service.remove(tenantId, "6ba7b813-9dad-11d1-80b4-00c04fd430c8"),
-    ).rejects.toThrow(
-      NotFoundException
-    );
+      service.remove(tenantId, '6ba7b813-9dad-11d1-80b4-00c04fd430c8'),
+    ).rejects.toThrow(NotFoundException);
   });
 });

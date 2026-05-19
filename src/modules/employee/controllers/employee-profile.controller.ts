@@ -1,18 +1,23 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Controller, Get, Param } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { EmployeeProfileService } from '../services/employee-profile.service';
 import { EmployeeProfileDto } from '../dto/employee.dto';
 
 @ApiTags('Employee Profile')
 @ApiBearerAuth()
-
 @Controller('employees')
 export class EmployeeProfileController {
   constructor(private readonly profileService: EmployeeProfileService) {}
 
   @Get('users/:user_id/profile')
   @ApiOperation({
-    summary: 'Get full employee profile (designation, department, attendance, leaves)',
+    summary:
+      'Get full employee profile (designation, department, attendance, leaves)',
   })
   @ApiResponse({
     status: 200,

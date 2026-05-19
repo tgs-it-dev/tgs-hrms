@@ -15,16 +15,19 @@ import { v4 as uuidv4 } from 'uuid';
  * - Admin: asset CRUD + assign/unassign; view all requests; approve/reject (asset.*, asset-request.read, approve, reject).
  * - System-Admin: same as Admin + manage all tenants' assets (app logic by role).
  */
-export class SeedAnnouncementAndAssetPermissions1772400000000 implements MigrationInterface {
+export class SeedAnnouncementAndAssetPermissions1772400000000
+  implements MigrationInterface
+{
   name = 'SeedAnnouncementAndAssetPermissions1772400000000';
 
-  private readonly announcementPerms: { name: string; description: string }[] = [
-    { name: 'announcement.create', description: 'Create announcements' },
-    { name: 'announcement.read', description: 'View announcements' },
-    { name: 'announcement.update', description: 'Update announcements' },
-    { name: 'announcement.delete', description: 'Delete announcements' },
-    { name: 'announcement.send', description: 'Send announcement emails' },
-  ];
+  private readonly announcementPerms: { name: string; description: string }[] =
+    [
+      { name: 'announcement.create', description: 'Create announcements' },
+      { name: 'announcement.read', description: 'View announcements' },
+      { name: 'announcement.update', description: 'Update announcements' },
+      { name: 'announcement.delete', description: 'Delete announcements' },
+      { name: 'announcement.send', description: 'Send announcement emails' },
+    ];
 
   private readonly assetPerms: { name: string; description: string }[] = [
     { name: 'asset.create', description: 'Create assets' },
@@ -35,14 +38,18 @@ export class SeedAnnouncementAndAssetPermissions1772400000000 implements Migrati
     { name: 'asset.unassign', description: 'Unassign assets from employees' },
   ];
 
-  private readonly assetRequestPerms: { name: string; description: string }[] = [
-    { name: 'asset-request.create', description: 'Create asset requests' },
-    { name: 'asset-request.read', description: 'View asset request information' },
-    { name: 'asset-request.update', description: 'Update asset requests' },
-    { name: 'asset-request.delete', description: 'Delete asset requests' },
-    { name: 'asset-request.approve', description: 'Approve asset requests' },
-    { name: 'asset-request.reject', description: 'Reject asset requests' },
-  ];
+  private readonly assetRequestPerms: { name: string; description: string }[] =
+    [
+      { name: 'asset-request.create', description: 'Create asset requests' },
+      {
+        name: 'asset-request.read',
+        description: 'View asset request information',
+      },
+      { name: 'asset-request.update', description: 'Update asset requests' },
+      { name: 'asset-request.delete', description: 'Delete asset requests' },
+      { name: 'asset-request.approve', description: 'Approve asset requests' },
+      { name: 'asset-request.reject', description: 'Reject asset requests' },
+    ];
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     const allPerms = [
@@ -61,26 +68,26 @@ export class SeedAnnouncementAndAssetPermissions1772400000000 implements Migrati
     }
 
     const getRoleId = async (roleName: string): Promise<string | null> => {
-      const rows = await queryRunner.query(
+      const rows = (await queryRunner.query(
         `SELECT id FROM roles WHERE LOWER(name) = LOWER($1) LIMIT 1`,
         [roleName],
-      );
+      )) as Array<{ id: string }>;
       return rows.length ? rows[0].id : null;
     };
 
     const getPermId = async (permName: string): Promise<string | null> => {
-      const rows = await queryRunner.query(
+      const rows = (await queryRunner.query(
         `SELECT id FROM permissions WHERE name = $1 LIMIT 1`,
         [permName],
-      );
+      )) as Array<{ id: string }>;
       return rows.length ? rows[0].id : null;
     };
 
     const grant = async (roleId: string, permId: string) => {
-      const existing = await queryRunner.query(
+      const existing = (await queryRunner.query(
         `SELECT id FROM role_permissions WHERE role_id = $1 AND permission_id = $2`,
         [roleId, permId],
-      );
+      )) as Array<{ id: string }>;
       if (existing.length === 0) {
         await queryRunner.query(
           `INSERT INTO role_permissions (id, role_id, permission_id) VALUES ($1, $2, $3)`,
@@ -105,8 +112,14 @@ export class SeedAnnouncementAndAssetPermissions1772400000000 implements Migrati
     await grantPermsToRole('hr-admin', announcementNames);
 
     // ——— Asset Requests: Employee & Manager (request + view own / team)
-    await grantPermsToRole('employee', ['asset-request.create', 'asset-request.read']);
-    await grantPermsToRole('manager', ['asset-request.create', 'asset-request.read']);
+    await grantPermsToRole('employee', [
+      'asset-request.create',
+      'asset-request.read',
+    ]);
+    await grantPermsToRole('manager', [
+      'asset-request.create',
+      'asset-request.read',
+    ]);
 
     // ——— Assets + Asset Request approve/reject: Admin & System-Admin
     const adminAssetPerms = [
@@ -130,18 +143,18 @@ export class SeedAnnouncementAndAssetPermissions1772400000000 implements Migrati
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     const getRoleId = async (roleName: string): Promise<string | null> => {
-      const rows = await queryRunner.query(
+      const rows = (await queryRunner.query(
         `SELECT id FROM roles WHERE LOWER(name) = LOWER($1) LIMIT 1`,
         [roleName],
-      );
+      )) as Array<{ id: string }>;
       return rows.length ? rows[0].id : null;
     };
 
     const getPermId = async (permName: string): Promise<string | null> => {
-      const rows = await queryRunner.query(
+      const rows = (await queryRunner.query(
         `SELECT id FROM permissions WHERE name = $1 LIMIT 1`,
         [permName],
-      );
+      )) as Array<{ id: string }>;
       return rows.length ? rows[0].id : null;
     };
 
@@ -152,7 +165,10 @@ export class SeedAnnouncementAndAssetPermissions1772400000000 implements Migrati
       );
     };
 
-    const revokePermsFromRole = async (roleName: string, permNames: string[]) => {
+    const revokePermsFromRole = async (
+      roleName: string,
+      permNames: string[],
+    ) => {
       const roleId = await getRoleId(roleName);
       if (!roleId) return;
       for (const name of permNames) {
@@ -166,8 +182,14 @@ export class SeedAnnouncementAndAssetPermissions1772400000000 implements Migrati
     await revokePermsFromRole('system-admin', announcementNames);
     await revokePermsFromRole('hr-admin', announcementNames);
 
-    await revokePermsFromRole('employee', ['asset-request.create', 'asset-request.read']);
-    await revokePermsFromRole('manager', ['asset-request.create', 'asset-request.read']);
+    await revokePermsFromRole('employee', [
+      'asset-request.create',
+      'asset-request.read',
+    ]);
+    await revokePermsFromRole('manager', [
+      'asset-request.create',
+      'asset-request.read',
+    ]);
 
     const adminAssetPerms = [
       ...this.assetPerms.map((p) => p.name),

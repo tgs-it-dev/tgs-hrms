@@ -302,7 +302,6 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Get('test-permissions')
-
   testPermissions(@Req() req: AuthenticatedRequest) {
     return {
       message: 'Permissions test endpoint',
@@ -347,7 +346,6 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Get('validate-token')
-
   @ApiOperation({
     summary: 'Validate current token',
     description:
@@ -364,7 +362,6 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Post('logout-all')
-
   @ApiOperation({
     summary: 'Logout from all devices',
     description:
@@ -377,7 +374,6 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Get('sessions')
-
   @ApiOperation({
     summary: 'List active sessions',
     description:

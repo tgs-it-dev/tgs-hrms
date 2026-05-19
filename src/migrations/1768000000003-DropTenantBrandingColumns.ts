@@ -1,9 +1,9 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class DropTenantBrandingColumns1768000000003
   implements MigrationInterface
 {
-  name = "DropTenantBrandingColumns1768000000003";
+  name = 'DropTenantBrandingColumns1768000000003';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(

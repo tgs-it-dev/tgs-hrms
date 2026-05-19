@@ -41,7 +41,12 @@ import { TenantModule } from '../tenant/tenant.module';
     TenantModule,
   ],
   controllers: [EmployeeController, EmployeeProfileController],
-  providers: [EmployeeService, EmployeeProfileService, SendGridService, EmployeeFileUploadService],
+  providers: [
+    EmployeeService,
+    EmployeeProfileService,
+    SendGridService,
+    EmployeeFileUploadService,
+  ],
   exports: [EmployeeService],
 })
 export class EmployeeModule {}

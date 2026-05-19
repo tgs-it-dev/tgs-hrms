@@ -10,7 +10,12 @@ import {
   DefaultValuePipe,
   BadRequestException,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { TenantGuard } from '../../../common/guards/tenant.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { PermissionsGuard } from '../../../common/guards/permissions.guard';
@@ -75,7 +80,9 @@ export class BillingController {
     @Query('checkoutSessionId') checkoutSessionId: string,
   ) {
     if (!checkoutSessionId) {
-      throw new BadRequestException('checkoutSessionId is required as query parameter');
+      throw new BadRequestException(
+        'checkoutSessionId is required as query parameter',
+      );
     }
 
     return this.billingService.confirmEmployeePayment(
@@ -84,4 +91,3 @@ export class BillingController {
     );
   }
 }
-

@@ -12,7 +12,6 @@ import {
   ParseUUIDPipe,
   UseInterceptors,
   UploadedFiles,
-  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,

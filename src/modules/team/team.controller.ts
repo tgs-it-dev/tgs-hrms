@@ -29,8 +29,30 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { TenantGuard } from '../../common/guards/tenant.guard';
 import { TenantId } from '../../common/decorators/company.deorator';
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { sendCsvResponse } from '../../common/utils/csv.util';
+import { AuthenticatedRequest } from '../../common/types/request.types';
+
+interface TeamMemberUser {
+  name?: string;
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+}
+
+interface TeamMember {
+  user?: TeamMemberUser;
+  designation?: { title?: string };
+  department?: { name?: string };
+  status?: string;
+}
+
+interface TeamExportData {
+  id: string;
+  name: string;
+  manager?: { first_name?: string; last_name?: string };
+  members?: TeamMember[];
+}
 
 @ApiTags('Teams')
 @ApiBearerAuth()
@@ -76,14 +98,14 @@ export class TeamController {
   ) {
     // Fetch all pages of teams so CSV includes complete dataset (no pagination)
     let pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-    const allItems: any[] = [];
+    const allItems: TeamExportData[] = [];
 
     while (true) {
       const { items, total, totalPages } = await this.teamService.findAll(
         tenantId,
         pageNumber,
       );
-      allItems.push(...(items || []));
+      allItems.push(...(items as TeamExportData[]));
 
       if (
         !items.length ||
@@ -97,7 +119,7 @@ export class TeamController {
     }
 
     // Flatten all team members including employee pool into rows
-    const rows: any[] = [];
+    const rows: Record<string, unknown>[] = [];
     let employeePoolProcessed = false;
 
     for (const team of allItems) {
@@ -210,8 +232,11 @@ export class TeamController {
     status: 200,
     description: 'Returns teams managed by the current user',
   })
-  async getMyTeams(@TenantId() tenantId: string, @Req() req: Request) {
-    const userId = (req.user as any).id;
+  async getMyTeams(
+    @TenantId() tenantId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const userId = req.user.id;
     return this.teamService.getManagerTeams(userId, tenantId);
   }
 
@@ -238,11 +263,11 @@ export class TeamController {
   })
   async getAvailableEmployees(
     @TenantId() tenantId: string,
-    @Req() req: Request,
+    @Req() req: AuthenticatedRequest,
     @Query('page') page?: string,
     @Query('search') search?: string,
   ) {
-    const managerId = (req.user as any).id;
+    const managerId = req.user.id;
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
     return this.teamService.getAvailableEmployees(
       tenantId,
@@ -269,10 +294,10 @@ export class TeamController {
   })
   async getMyMembers(
     @TenantId() tenantId: string,
-    @Req() req: Request,
+    @Req() req: AuthenticatedRequest,
     @Query('page') page?: string,
   ) {
-    const managerId = (req.user as any).id;
+    const managerId = req.user.id;
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
     return this.teamService.getAllMembersForManager(
       tenantId,
