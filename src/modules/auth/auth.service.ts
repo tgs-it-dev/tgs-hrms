@@ -34,6 +34,7 @@ import {
   TenantSettingKey,
 } from '../tenant-settings/tenant-settings.service';
 import { IpWhitelistService } from '../ip-whitelist/ip-whitelist.service';
+import axios from 'axios';
 
 interface RefreshTokenPayload {
   sub: string;
@@ -105,7 +106,7 @@ export class AuthService {
     return this.jwtService.sign(
       { sub: userId, jti, type: 'refresh' },
       {
-        secret: this.configService.get<string>('JWT_SECRET'),
+        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
         expiresIn: '7d',
       },
     );
@@ -915,7 +916,7 @@ export class AuthService {
       const payload = this.jwtService.verify<RefreshTokenPayload>(
         refreshToken,
         {
-          secret: this.configService.get<string>('JWT_SECRET'),
+          secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
         },
       );
 
@@ -1112,6 +1113,110 @@ export class AuthService {
     return {
       message: 'Successfully logged out from all devices',
       revoked: result.affected ?? 0,
+    };
+  }
+
+  async googleLogin(
+    idToken: string,
+    platform?: string,
+    deviceInfo?: string,
+    ipAddress?: string,
+  ) {
+    interface GoogleTokenPayload {
+      email?: string;
+      given_name?: string;
+      family_name?: string;
+      name?: string;
+      sub?: string;
+      email_verified?: string;
+    }
+
+    let googlePayload: GoogleTokenPayload;
+    try {
+      const resp = await axios.get<GoogleTokenPayload>(
+        'https://oauth2.googleapis.com/tokeninfo',
+        { params: { id_token: idToken } },
+      );
+      googlePayload = resp.data;
+    } catch {
+      throw new UnauthorizedException('Invalid Google ID token');
+    }
+
+    const email = String(googlePayload.email ?? '').toLowerCase();
+    if (!email) {
+      throw new UnauthorizedException('Google token is missing email');
+    }
+
+    const users = await this.userRepository.find({
+      where: { email },
+      relations: ['role'],
+    });
+
+    if (!users.length) {
+      throw new BadRequestException({
+        field: 'email',
+        message: 'No account found for this Google email. Please register first.',
+      });
+    }
+
+    const user = users[0];
+
+    if (!user.role?.name) {
+      throw new UnauthorizedException('User role not found');
+    }
+
+    const isSystemAdmin = this.isSystemAdminRole(user.role.name);
+    const tenantId = isSystemAdmin ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
+
+    if (!isSystemAdmin && tenantId) {
+      const tenant = await this.tenantRepository.findOne({
+        where: { id: tenantId },
+      });
+      if (!tenant || tenant.deleted_at) {
+        throw new UnauthorizedException(
+          'Your organization account has been deleted. Please contact support.',
+        );
+      }
+      if (tenant.status === 'suspended') {
+        throw new UnauthorizedException(
+          'Your organization account has been suspended. Please contact support.',
+        );
+      }
+    }
+
+    const employee = await this.employeeRepository.findOne({
+      where: { user_id: user.id },
+    });
+    if (employee?.deleted_at) {
+      throw new UnauthorizedException(
+        'Your employee account has been deactivated. Please contact your administrator.',
+      );
+    }
+
+    const permissions = await this.getUserPermissions(user.id);
+    const companyDetails = await this.getCompanyDetails(tenantId);
+
+    const jti = crypto.randomUUID();
+    await this.createUserTokenRecord(user.id, jti, platform, deviceInfo, ipAddress);
+
+    const accessToken = this.buildAccessToken(user, tenantId, permissions, jti);
+    const refreshToken = this.buildRefreshToken(user.id, jti);
+
+    if (!user.first_login_time) {
+      await this.userRepository.update(user.id, { first_login_time: new Date() });
+      await this.inviteStatusService.updateInviteStatusOnLogin(user.id);
+    }
+
+    this.logger.log(`Google login successful for email: ${this.sanitizeEmailForLogging(email)}`);
+
+    return {
+      accessToken,
+      refreshToken,
+      user,
+      permissions,
+      employee,
+      company: companyDetails,
+      requiresPayment: companyDetails ? !companyDetails.is_paid : false,
     };
   }
 

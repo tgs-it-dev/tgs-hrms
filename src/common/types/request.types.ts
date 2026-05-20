@@ -10,5 +10,6 @@ export interface AuthenticatedRequest extends Request {
     role: string;
     tenant_id: string;
     permissions: string[];
+    is_mobile?: boolean;
   };
 }
