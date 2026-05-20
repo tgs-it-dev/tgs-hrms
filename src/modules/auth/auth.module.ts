@@ -9,15 +9,18 @@ import { Role } from '../../entities/role.entity';
 import { Tenant } from '../../entities/tenant.entity';
 import { UserToken } from '../../entities/user-token.entity';
 import { JwtModule } from '@nestjs/jwt';
+import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EmailModule } from '../../common/utils/email';
 import { InviteStatusModule } from '../invite-status/invite-status.module';
 import { TenantSettingsModule } from '../tenant-settings/tenant-settings.module';
 import { Employee } from '../../entities/employee.entity';
 import { SignupSession } from '../../entities/signup-session.entity';
+import { JwtStrategy } from './strategies/jwt.strategy';
 
 @Module({
   imports: [
+    PassportModule.register({ defaultStrategy: 'jwt' }),
     TypeOrmModule.forFeature([
       User,
       CompanyDetails,
@@ -42,7 +45,7 @@ import { SignupSession } from '../../entities/signup-session.entity';
     TenantSettingsModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, AuthTokenCleanupService],
+  providers: [AuthService, AuthTokenCleanupService, JwtStrategy],
   exports: [AuthService],
 })
 export class AuthModule {}

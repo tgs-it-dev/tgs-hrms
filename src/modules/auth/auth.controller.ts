@@ -9,11 +9,13 @@ import {
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { GoogleLoginDto } from './dto/google-login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { LogoutDto } from './dto/logout.dto';
 import { Throttle } from '@nestjs/throttler';
+import { LoginThrottlerGuard } from 'src/common/guards/login-throttler.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Permissions } from 'src/common/decorators/permissions.decorator';
@@ -60,7 +62,8 @@ export class AuthController {
 
   @Post('login')
   @Public()
-  @Throttle({ default: { limit: 5, ttl: 60_000 } }) // 5 requests per minute (stricter for auth)
+  @UseGuards(LoginThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 900_000 } }) // 5 attempts per 15 min per IP+email
   @ApiBody({ type: LoginDto })
   @ApiResponse({
     status: 200,
@@ -313,6 +316,34 @@ export class AuthController {
         permissions: req.user.permissions,
       },
     };
+  }
+
+  @Post('google')
+  @Public()
+  @UseGuards(LoginThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 900_000 } })
+  @ApiOperation({
+    summary: 'Login with Google',
+    description: 'Authenticate using a Google ID token obtained from the client-side Google Sign-In SDK.',
+  })
+  @ApiBody({ type: GoogleLoginDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Login successful',
+    schema: {
+      example: {
+        accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+        refreshToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Invalid Google ID token or no matching account' })
+  async googleLogin(@Body() dto: GoogleLoginDto, @Req() req: AuthenticatedRequest) {
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ??
+      req.socket?.remoteAddress ??
+      null;
+    return this.authService.googleLogin(dto.idToken, undefined, undefined, ipAddress ?? undefined);
   }
 
   @Post('logout')
