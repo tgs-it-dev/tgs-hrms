@@ -64,9 +64,7 @@ export class AttendanceService {
   constructor(
     @InjectRepository(Attendance)
     private readonly attendanceRepo: Repository<Attendance>,
-    @InjectRepository(Employee)
-    private readonly employeeRepo: Repository<Employee>,
-    @InjectRepository(User)
+@InjectRepository(User)
     private readonly userRepo: Repository<User>,
     private readonly timesheetService: TimesheetService,
     private readonly teamService: TeamService,
@@ -146,135 +144,147 @@ export class AttendanceService {
     tenantId: string | undefined,
     em: EntityManager | null,
   ) {
-    const attendanceRepo = em
-      ? em.getRepository(Attendance)
-      : this.attendanceRepo;
-    const employeeRepo = em ? em.getRepository(Employee) : this.employeeRepo;
+    // pg_advisory_xact_lock serialises concurrent check-in/out requests for
+    // the same user so the session-existence check and the INSERT are atomic.
+    // The lock is transaction-scoped and releases automatically on commit/rollback.
+    const execute = async (txEm: EntityManager): Promise<Attendance> => {
+      await txEm.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [userId]);
 
-    const now = new Date();
+      const attendanceRepo = txEm.getRepository(Attendance);
+      const employeeRepo = txEm.getRepository(Employee);
 
-    const nearBoundary = false;
+      const now = new Date();
+      const nearBoundary = false;
 
-    if (dto.type === AttendanceType.CHECK_IN) {
-      const activeSession = await this.getActiveSession(userId, attendanceRepo);
-      if (activeSession) {
-        throw new BadRequestException(
-          "You already have an active session. Please check out first.",
-        );
+      if (dto.type === AttendanceType.CHECK_IN) {
+        const activeSession = await this.getActiveSession(userId, attendanceRepo);
+        if (activeSession) {
+          throw new BadRequestException(
+            "You already have an active session. Please check out first.",
+          );
+        }
+      } else if (dto.type === AttendanceType.CHECK_OUT) {
+        const activeSession = await this.getActiveSession(userId, attendanceRepo);
+        if (!activeSession) {
+          throw new BadRequestException(
+            "No active session found. Please check in first.",
+          );
+        }
       }
-    } else if (dto.type === AttendanceType.CHECK_OUT) {
-      const activeSession = await this.getActiveSession(userId, attendanceRepo);
-      if (!activeSession) {
-        throw new BadRequestException(
-          "No active session found. Please check in first.",
-        );
+
+      // Get employee info for manager notification
+      const employee = await employeeRepo.findOne({
+        where: { user_id: userId },
+        relations: ["user", "team"],
+      });
+
+      // Managers and network-admins: auto-approve their own check-in. Team members: PENDING (need manager approval).
+      let approvalStatus: CheckInApprovalStatus | null = null;
+      let approvedBy: string | null = null;
+      let approvedAt: Date | null = null;
+      if (dto.type === AttendanceType.CHECK_IN) {
+        const [managerResult, userResult] = await Promise.allSettled([
+          tenantId
+            ? this.teamService.getManagerTeams(userId, tenantId)
+            : Promise.resolve([]),
+          this.userRepo.findOne({
+            where: { id: userId },
+            relations: ["role"],
+          }),
+        ]);
+        const isManager =
+          tenantId &&
+          managerResult.status === "fulfilled" &&
+          (managerResult.value?.length ?? 0) > 0;
+        const isNetworkAdmin =
+          userResult.status === "fulfilled" &&
+          userResult.value?.role?.name?.toLowerCase() ===
+            UserRole.NETWORK_ADMIN.toLowerCase();
+        if (isManager || isNetworkAdmin) {
+          approvalStatus = CheckInApprovalStatus.APPROVED;
+          approvedBy = userId;
+          approvedAt = now;
+        } else {
+          approvalStatus = CheckInApprovalStatus.PENDING;
+        }
       }
-    }
 
-    // Get employee info for manager notification
-    const employee = await employeeRepo.findOne({
-      where: { user_id: userId },
-      relations: ["user", "team"],
-    });
+      const attendance = attendanceRepo.create({
+        type: dto.type,
+        user_id: userId,
+        timestamp: now,
+        approval_status: approvalStatus,
+        approved_by: approvedBy,
+        approved_at: approvedAt,
+        near_boundary: nearBoundary,
+      });
+      const saved = await attendanceRepo.save(attendance);
 
-    // Managers and network-admins: auto-approve their own check-in. Team members: PENDING (need manager approval).
-    let approvalStatus: CheckInApprovalStatus | null = null;
-    let approvedBy: string | null = null;
-    let approvedAt: Date | null = null;
-    if (dto.type === AttendanceType.CHECK_IN) {
-      const [managerResult, userResult] = await Promise.allSettled([
-        tenantId
-          ? this.teamService.getManagerTeams(userId, tenantId)
-          : Promise.resolve([]),
-        this.userRepo.findOne({
-          where: { id: userId },
-          relations: ["role"],
-        }),
-      ]);
-      const isManager =
-        tenantId &&
-        managerResult.status === "fulfilled" &&
-        (managerResult.value?.length ?? 0) > 0;
-      const isNetworkAdmin =
-        userResult.status === "fulfilled" &&
-        userResult.value?.role?.name?.toLowerCase() ===
-          UserRole.NETWORK_ADMIN.toLowerCase();
-      if (isManager || isNetworkAdmin) {
-        approvalStatus = CheckInApprovalStatus.APPROVED;
-        approvedBy = userId;
-        approvedAt = now;
-      } else {
-        approvalStatus = CheckInApprovalStatus.PENDING;
+      // Notify manager: save in DB (record) + real-time WebSocket. Skip when manager is notifying themselves (own attendance).
+      const managerId = employee?.team?.manager_id;
+      if (employee && managerId && tenantId && managerId !== userId) {
+        const employeeName =
+          `${employee.user.first_name} ${employee.user.last_name}`.trim();
+        const actionType =
+          dto.type === AttendanceType.CHECK_IN ? "checked in" : "checked out";
+        const nearBoundaryText = saved.near_boundary ? " (Near Boundary)" : "";
+        const message = `${employeeName} ${actionType}${nearBoundaryText}`;
+
+        try {
+          const notification = await this.notificationService.create(
+            managerId,
+            tenantId,
+            message,
+            NotificationType.ATTENDANCE,
+            { relatedEntityType: "attendance", relatedEntityId: saved.id },
+          );
+          this.notificationGateway.sendToUser(managerId, "new_notification", {
+            id: notification.id,
+            message: notification.message,
+            type: notification.type,
+            related_entity_type: "attendance",
+            related_entity_id: saved.id,
+            created_at: notification.created_at,
+          });
+          this.notificationGateway.sendToUser(managerId, "attendance_event", {
+            type: dto.type,
+            employee_id: userId,
+            employee_name: employeeName,
+            timestamp: saved.timestamp,
+            message,
+            near_boundary: saved.near_boundary,
+            notification_id: notification.id,
+            related_entity_type: "attendance",
+            related_entity_id: saved.id,
+          });
+        } catch (error) {
+          console.error("Failed to create attendance notification:", error);
+        }
       }
-    }
 
-    const attendance = attendanceRepo.create({
-      type: dto.type,
-      user_id: userId,
-      timestamp: now,
-      approval_status: approvalStatus,
-      approved_by: approvedBy,
-      approved_at: approvedAt,
-      near_boundary: nearBoundary,
-    });
-    const saved = await attendanceRepo.save(attendance);
-
-    // Notify manager: save in DB (record) + real-time WebSocket. Skip when manager is notifying themselves (own attendance).
-    const managerId = employee?.team?.manager_id;
-    if (employee && managerId && tenantId && managerId !== userId) {
-      const employeeName =
-        `${employee.user.first_name} ${employee.user.last_name}`.trim();
-      const actionType =
-        dto.type === AttendanceType.CHECK_IN ? "checked in" : "checked out";
-      const nearBoundaryText = saved.near_boundary ? " (Near Boundary)" : "";
-      const message = `${employeeName} ${actionType}${nearBoundaryText}`;
-
-      try {
-        const notification = await this.notificationService.create(
-          managerId,
-          tenantId,
-          message,
-          NotificationType.ATTENDANCE,
-          { relatedEntityType: "attendance", relatedEntityId: saved.id },
-        );
-        this.notificationGateway.sendToUser(managerId, "new_notification", {
-          id: notification.id,
-          message: notification.message,
-          type: notification.type,
-          related_entity_type: "attendance",
-          related_entity_id: saved.id,
-          created_at: notification.created_at,
-        });
-        this.notificationGateway.sendToUser(managerId, "attendance_event", {
-          type: dto.type,
-          employee_id: userId,
-          employee_name: employeeName,
-          timestamp: saved.timestamp,
-          message,
-          near_boundary: saved.near_boundary,
-          notification_id: notification.id,
-          related_entity_type: "attendance",
-          related_entity_id: saved.id,
-        });
-      } catch (error) {
-        console.error("Failed to create attendance notification:", error);
+      if (dto.type === AttendanceType.CHECK_OUT) {
+        await this.timesheetService.autoEndIfActive(userId);
       }
-    }
 
-    if (dto.type === AttendanceType.CHECK_OUT) {
-      await this.timesheetService.autoEndIfActive(userId);
-    }
+      return saved;
+    };
 
-    return saved;
+    // Tenant-provisioned path already runs inside withTenantSchema's connection;
+    // pass the provided EntityManager so the advisory lock shares that transaction.
+    // For the non-tenant path, open a new transaction explicitly.
+    if (em) {
+      return execute(em);
+    }
+    return this.dataSource.transaction(execute);
   }
 
   private async getActiveSession(
     userId: string,
     attendanceRepo: Repository<Attendance> = this.attendanceRepo,
   ): Promise<Attendance | null> {
-    // Use a 24-hour rolling window so shifts that span UTC midnight (e.g. a
-    // 9-hour shift started before UTC 00:00) are found. Records older than
-    // 24 hours are considered stale and will not block a new check-in.
+    // Use a MAX_SESSION_HOURS rolling window so shifts that span UTC midnight
+    // are found. Records older than MAX_SESSION_HOURS are considered abandoned
+    // and will not block a new check-in.
     const lookback = new Date(Date.now() - AttendanceService.MAX_SESSION_HOURS * 60 * 60 * 1000);
 
     const latestCheckIn = await attendanceRepo
@@ -344,8 +354,14 @@ export class AttendanceService {
     }
     for (const checkIn of checkIns) {
       const startDate = checkIn.timestamp.toISOString().split("T")[0] || "";
+      const sessionDeadline = new Date(
+        new Date(checkIn.timestamp).getTime() +
+          AttendanceService.MAX_SESSION_HOURS * 60 * 60 * 1000,
+      );
       const matchingCheckOut = checkOuts.find(
-        (checkout) => checkout.timestamp > checkIn.timestamp,
+        (checkout) =>
+          checkout.timestamp > checkIn.timestamp &&
+          checkout.timestamp <= sessionDeadline,
       );
       sessions.push({
         checkIn,
@@ -449,29 +465,52 @@ export class AttendanceService {
     const lookback = new Date(Date.now() - AttendanceService.MAX_SESSION_HOURS * 60 * 60 * 1000);
 
     const run = async (repo: Repository<Attendance>) => {
-      const todayCheckIn = await repo
+      const records = await repo
         .createQueryBuilder("a")
         .where("a.user_id = :userId", { userId })
-        .andWhere("a.type = :type", { type: AttendanceType.CHECK_IN })
         .andWhere("a.timestamp >= :lookback", { lookback })
-        .orderBy("a.timestamp", "DESC")
-        .getOne();
+        .orderBy("a.timestamp", "ASC")
+        .getMany();
 
-      if (!todayCheckIn) {
-        return { checkIn: null, checkOut: null };
+      if (records.length === 0) {
+        return { checkIn: null, checkOut: null, totalWorkedHours: 0 };
       }
 
-      const matchingCheckOut = await repo
-        .createQueryBuilder("a")
-        .where("a.user_id = :userId", { userId })
-        .andWhere("a.type = :type", { type: AttendanceType.CHECK_OUT })
-        .andWhere("a.timestamp > :after", { after: todayCheckIn.timestamp })
-        .orderBy("a.timestamp", "ASC")
-        .getOne();
+      const checkIns = records.filter((r) => r.type === AttendanceType.CHECK_IN);
+      const checkOuts = records.filter((r) => r.type === AttendanceType.CHECK_OUT);
+
+      // Pair each check-in with the next checkout within MAX_SESSION_HOURS.
+      const sessions: Array<{ checkIn: Date; checkOut: Date | null }> = [];
+      const remainingCheckOuts = [...checkOuts];
+      for (const ci of checkIns) {
+        const deadline = new Date(
+          new Date(ci.timestamp).getTime() +
+            AttendanceService.MAX_SESSION_HOURS * 60 * 60 * 1000,
+        );
+        const coIdx = remainingCheckOuts.findIndex(
+          (co) => co.timestamp > ci.timestamp && co.timestamp <= deadline,
+        );
+        const co = coIdx !== -1 ? remainingCheckOuts.splice(coIdx, 1)[0] : null;
+        sessions.push({ checkIn: ci.timestamp, checkOut: co?.timestamp ?? null });
+      }
+
+      const firstCheckIn = sessions[0]?.checkIn ?? null;
+      const lastSession = sessions[sessions.length - 1];
+      const lastCheckOut = lastSession?.checkOut ?? null;
+
+      let totalWorkedHours = 0;
+      for (const s of sessions) {
+        if (s.checkOut) {
+          totalWorkedHours +=
+            (new Date(s.checkOut).getTime() - new Date(s.checkIn).getTime()) /
+            (1000 * 60 * 60);
+        }
+      }
 
       return {
-        checkIn: todayCheckIn.timestamp,
-        checkOut: matchingCheckOut?.timestamp || null,
+        checkIn: firstCheckIn,
+        checkOut: lastCheckOut,
+        totalWorkedHours: Math.round(totalWorkedHours * 100) / 100,
       };
     };
 
@@ -1064,8 +1103,14 @@ export class AttendanceService {
 
         for (const checkIn of checkIns) {
           const startDate = checkIn.timestamp.toISOString().split("T")[0] || "";
+          const sessionDeadline = new Date(
+            new Date(checkIn.timestamp).getTime() +
+              AttendanceService.MAX_SESSION_HOURS * 60 * 60 * 1000,
+          );
           const matchingCheckOut = remainingCheckOuts.find(
-            (checkout) => checkout.timestamp > checkIn.timestamp,
+            (checkout) =>
+              checkout.timestamp > checkIn.timestamp &&
+              checkout.timestamp <= sessionDeadline,
           );
           sessions.push({
             checkIn,
@@ -1284,29 +1329,11 @@ export class AttendanceService {
 
     const userIds = allTeamMembers.map((member) => member.user.id);
 
-    // Get today's date range
-    const now = new Date();
-    const startOfDay = new Date(
-      Date.UTC(
-        now.getUTCFullYear(),
-        now.getUTCMonth(),
-        now.getUTCDate(),
-        0,
-        0,
-        0,
-        0,
-      ),
-    );
-    const endOfDay = new Date(
-      Date.UTC(
-        now.getUTCFullYear(),
-        now.getUTCMonth(),
-        now.getUTCDate() + 1,
-        0,
-        0,
-        0,
-        0,
-      ),
+    // Use the same MAX_SESSION_HOURS lookback as getActiveSession so that
+    // cross-midnight check-ins (e.g. UTC+5 users who clocked in before 5 AM
+    // local) are visible to the manager and not silently dropped.
+    const lookback = new Date(
+      Date.now() - AttendanceService.MAX_SESSION_HOURS * 60 * 60 * 1000,
     );
 
     const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
@@ -1318,8 +1345,7 @@ export class AttendanceService {
         .leftJoinAndSelect("attendance.approver", "approver")
         .where("attendance.user_id IN (:...userIds)", { userIds })
         .andWhere("attendance.type = :type", { type: AttendanceType.CHECK_IN })
-        .andWhere("attendance.timestamp >= :startOfDay", { startOfDay })
-        .andWhere("attendance.timestamp < :endOfDay", { endOfDay })
+        .andWhere("attendance.timestamp >= :lookback", { lookback })
         .orderBy("attendance.timestamp", "DESC")
         .getMany();
 
