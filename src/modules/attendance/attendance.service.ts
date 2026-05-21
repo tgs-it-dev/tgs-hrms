@@ -55,6 +55,12 @@ interface AttendanceEvent {
 export class AttendanceService {
   private readonly logger = new Logger(AttendanceService.name);
 
+  // A session older than this is treated as abandoned. Prevents a forgotten
+  // check-in from blocking the next day's clock-in. Set to 20h to cover any
+  // realistic extended shift (standard 9h + overtime buffer); sessions longer
+  // than this cannot be checked out and will appear in admin reports as stale.
+  private static readonly MAX_SESSION_HOURS = 20;
+
   constructor(
     @InjectRepository(Attendance)
     private readonly attendanceRepo: Repository<Attendance>,
@@ -266,18 +272,16 @@ export class AttendanceService {
     userId: string,
     attendanceRepo: Repository<Attendance> = this.attendanceRepo,
   ): Promise<Attendance | null> {
-    // Only consider check-ins from today onwards — a stale migrated check-in
-    // from a previous day should never block a new clock-in.
-    const now = new Date();
-    const startOfToday = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
-    );
+    // Use a 24-hour rolling window so shifts that span UTC midnight (e.g. a
+    // 9-hour shift started before UTC 00:00) are found. Records older than
+    // 24 hours are considered stale and will not block a new check-in.
+    const lookback = new Date(Date.now() - AttendanceService.MAX_SESSION_HOURS * 60 * 60 * 1000);
 
     const latestCheckIn = await attendanceRepo
       .createQueryBuilder("a")
       .where("a.user_id = :userId", { userId })
       .andWhere("a.type = :type", { type: AttendanceType.CHECK_IN })
-      .andWhere("a.timestamp >= :startOfToday", { startOfToday })
+      .andWhere("a.timestamp >= :lookback", { lookback })
       .orderBy("a.timestamp", "DESC")
       .getOne();
 
@@ -355,45 +359,38 @@ export class AttendanceService {
     }
     const groupedByDate: Record<
       string,
-      { checkIn?: Attendance; checkOut?: Attendance }
+      Array<{ checkIn: Attendance; checkOut?: Attendance }>
     > = {};
     for (const session of sessions) {
       const dateKey = session.startDate;
       if (!dateKey) continue;
       if (!groupedByDate[dateKey]) {
-        groupedByDate[dateKey] = {};
+        groupedByDate[dateKey] = [];
       }
-      if (
-        !groupedByDate[dateKey].checkIn ||
-        session.checkIn.timestamp >
-          (groupedByDate[dateKey].checkIn?.timestamp || new Date(0))
-      ) {
-        groupedByDate[dateKey].checkIn = session.checkIn;
-        groupedByDate[dateKey].checkOut = session.checkOut;
-      }
+      groupedByDate[dateKey].push({
+        checkIn: session.checkIn,
+        checkOut: session.checkOut,
+      });
     }
     const dates = Object.keys(groupedByDate);
     const baseItems = Object.entries(groupedByDate).map(
-      ([date, { checkIn, checkOut }]) => {
-        let workedHours = 0;
-        if (
-          checkIn &&
-          checkOut &&
-          new Date(checkOut.timestamp) > new Date(checkIn.timestamp)
-        ) {
-          const diffMs =
-            new Date(checkOut.timestamp).getTime() -
-            new Date(checkIn.timestamp).getTime();
-          workedHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
-        }
+      ([date, daySessions]) => {
+        daySessions.sort(
+          (a, b) =>
+            new Date(a.checkIn.timestamp).getTime() -
+            new Date(b.checkIn.timestamp).getTime(),
+        );
+        const firstCheckIn = daySessions[0]?.checkIn;
+        const lastCheckOut = daySessions[daySessions.length - 1]?.checkOut;
+        const workedHours = this.sumSessionHours(daySessions);
         return {
           date,
-          checkIn: checkIn?.timestamp || null,
+          checkIn: firstCheckIn?.timestamp || null,
           checkOut:
-            checkOut &&
-            checkIn &&
-            new Date(checkOut.timestamp) > new Date(checkIn.timestamp)
-              ? checkOut.timestamp
+            lastCheckOut &&
+            firstCheckIn &&
+            new Date(lastCheckOut.timestamp) > new Date(firstCheckIn.timestamp)
+              ? lastCheckOut.timestamp
               : null,
           workedHours,
           tags: [] as string[],
@@ -447,23 +444,16 @@ export class AttendanceService {
       ? await this.isTenantSchemaProvisioned(tenantId)
       : false;
 
-    const now = new Date();
-    const startOfDay = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
-    );
-    const startOfNextDay = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1),
-    );
+    // Use a 24-hour rolling window so a check-in from before UTC midnight is
+    // still surfaced when the shift spans into the next UTC day.
+    const lookback = new Date(Date.now() - AttendanceService.MAX_SESSION_HOURS * 60 * 60 * 1000);
 
     const run = async (repo: Repository<Attendance>) => {
       const todayCheckIn = await repo
         .createQueryBuilder("a")
         .where("a.user_id = :userId", { userId })
         .andWhere("a.type = :type", { type: AttendanceType.CHECK_IN })
-        .andWhere(
-          "a.timestamp >= :startOfDay AND a.timestamp < :startOfNextDay",
-          { startOfDay, startOfNextDay },
-        )
+        .andWhere("a.timestamp >= :lookback", { lookback })
         .orderBy("a.timestamp", "DESC")
         .getOne();
 
@@ -783,7 +773,7 @@ export class AttendanceService {
 
     const groupedAttendance: Record<
       string,
-      Record<string, { checkIn?: Attendance; checkOut?: Attendance }>
+      Record<string, Array<{ checkIn: Attendance; checkOut?: Attendance }>>
     > = {};
 
     // Initialize groupedAttendance for all userIds to ensure all team members are included
@@ -830,16 +820,12 @@ export class AttendanceService {
         const userGroup = groupedAttendance[userIdKey];
         if (!userGroup) continue;
         if (!userGroup[dateKey]) {
-          userGroup[dateKey] = {};
+          userGroup[dateKey] = [];
         }
-        if (
-          !userGroup[dateKey].checkIn ||
-          session.checkIn.timestamp >
-            (userGroup[dateKey].checkIn?.timestamp || new Date(0))
-        ) {
-          userGroup[dateKey].checkIn = session.checkIn;
-          userGroup[dateKey].checkOut = session.checkOut;
-        }
+        userGroup[dateKey].push({
+          checkIn: session.checkIn,
+          checkOut: session.checkOut,
+        });
       }
     }
 
@@ -849,39 +835,38 @@ export class AttendanceService {
       const userIdKey = String(member.user.id);
       const userAttendance = groupedAttendance[userIdKey] || {};
       const attendanceData = Object.entries(userAttendance).map(
-        ([date, { checkIn, checkOut }]) => {
-          let workedHours = 0;
-          if (
-            checkIn &&
-            checkOut &&
-            new Date(checkOut.timestamp) > new Date(checkIn.timestamp)
-          ) {
-            const diffMs =
-              new Date(checkOut.timestamp).getTime() -
-              new Date(checkIn.timestamp).getTime();
-            workedHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
-          }
+        ([date, daySessions]) => {
+          daySessions.sort(
+            (a, b) =>
+              new Date(a.checkIn.timestamp).getTime() -
+              new Date(b.checkIn.timestamp).getTime(),
+          );
+          const firstCheckIn = daySessions[0]?.checkIn;
+          const lastCheckOut = daySessions[daySessions.length - 1]?.checkOut;
+          const workedHours = this.sumSessionHours(daySessions);
           return {
             date,
-            checkIn: checkIn?.timestamp || null,
-            checkInId: checkIn?.id || null,
+            checkIn: firstCheckIn?.timestamp || null,
+            checkInId: firstCheckIn?.id || null,
             checkOut:
-              checkOut &&
-              checkIn &&
-              new Date(checkOut.timestamp) > new Date(checkIn.timestamp)
-                ? checkOut.timestamp
+              lastCheckOut &&
+              firstCheckIn &&
+              new Date(lastCheckOut.timestamp) >
+                new Date(firstCheckIn.timestamp)
+                ? lastCheckOut.timestamp
                 : null,
             checkOutId:
-              checkOut &&
-              checkIn &&
-              new Date(checkOut.timestamp) > new Date(checkIn.timestamp)
-                ? checkOut.id
+              lastCheckOut &&
+              firstCheckIn &&
+              new Date(lastCheckOut.timestamp) >
+                new Date(firstCheckIn.timestamp)
+                ? lastCheckOut.id
                 : null,
             workedHours,
-            approvalStatus: checkIn?.approval_status || null,
-            approvalRemarks: checkIn?.approval_remarks || null,
-            approvedBy: checkIn?.approved_by || null,
-            approvedAt: checkIn?.approved_at || null,
+            approvalStatus: firstCheckIn?.approval_status || null,
+            approvalRemarks: firstCheckIn?.approval_remarks || null,
+            approvedBy: firstCheckIn?.approved_by || null,
+            approvedAt: firstCheckIn?.approved_at || null,
           };
         },
       );
@@ -1000,7 +985,7 @@ export class AttendanceService {
         tenant_status: string;
         userAttendance: Record<
           string,
-          Record<string, { checkIn?: Attendance; checkOut?: Attendance }>
+          Record<string, Array<{ checkIn: Attendance; checkOut?: Attendance }>>
         >;
       }
     > = {};
@@ -1098,17 +1083,12 @@ export class AttendanceService {
           const dateKey = session.startDate;
           if (!dateKey) continue;
           if (!userAttendance[dateKey]) {
-            userAttendance[dateKey] = {};
+            userAttendance[dateKey] = [];
           }
-          // Keep the latest check-in and its matching check-out for each date
-          if (
-            !userAttendance[dateKey].checkIn ||
-            session.checkIn.timestamp >
-              (userAttendance[dateKey].checkIn?.timestamp || new Date(0))
-          ) {
-            userAttendance[dateKey].checkIn = session.checkIn;
-            userAttendance[dateKey].checkOut = session.checkOut;
-          }
+          userAttendance[dateKey].push({
+            checkIn: session.checkIn,
+            checkOut: session.checkOut,
+          });
         }
       }
     }
@@ -1178,26 +1158,24 @@ export class AttendanceService {
         if (!userDetails) continue;
 
         const attendanceData = Object.entries(dateAttendance).map(
-          ([date, { checkIn, checkOut }]) => {
-            let workedHours = 0;
-            if (
-              checkIn &&
-              checkOut &&
-              new Date(checkOut.timestamp) > new Date(checkIn.timestamp)
-            ) {
-              const diffMs =
-                new Date(checkOut.timestamp).getTime() -
-                new Date(checkIn.timestamp).getTime();
-              workedHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
-            }
+          ([date, daySessions]) => {
+            daySessions.sort(
+              (a, b) =>
+                new Date(a.checkIn.timestamp).getTime() -
+                new Date(b.checkIn.timestamp).getTime(),
+            );
+            const firstCheckIn = daySessions[0]?.checkIn;
+            const lastCheckOut = daySessions[daySessions.length - 1]?.checkOut;
+            const workedHours = this.sumSessionHours(daySessions);
             return {
               date,
-              checkIn: checkIn?.timestamp || null,
+              checkIn: firstCheckIn?.timestamp || null,
               checkOut:
-                checkOut &&
-                checkIn &&
-                new Date(checkOut.timestamp) > new Date(checkIn.timestamp)
-                  ? checkOut.timestamp
+                lastCheckOut &&
+                firstCheckIn &&
+                new Date(lastCheckOut.timestamp) >
+                  new Date(firstCheckIn.timestamp)
+                  ? lastCheckOut.timestamp
                   : null,
               workedHours,
             };
@@ -1706,6 +1684,24 @@ export class AttendanceService {
 
     return false;
   }
+  private sumSessionHours(
+    sessions: Array<{ checkIn: Attendance; checkOut?: Attendance }>,
+  ): number {
+    let total = 0;
+    for (const { checkIn, checkOut } of sessions) {
+      if (
+        checkOut &&
+        new Date(checkOut.timestamp) > new Date(checkIn.timestamp)
+      ) {
+        total +=
+          (new Date(checkOut.timestamp).getTime() -
+            new Date(checkIn.timestamp).getTime()) /
+          (1000 * 60 * 60);
+      }
+    }
+    return Math.round(total * 100) / 100;
+  }
+
   private calculateTotalWorkHours(items: AttendanceEvent[]): number {
     const sorted = items.sort(
       (a, b) =>
