@@ -64,7 +64,7 @@ export class AttendanceService {
   constructor(
     @InjectRepository(Attendance)
     private readonly attendanceRepo: Repository<Attendance>,
-@InjectRepository(User)
+    @InjectRepository(User)
     private readonly userRepo: Repository<User>,
     private readonly timesheetService: TimesheetService,
     private readonly teamService: TeamService,
