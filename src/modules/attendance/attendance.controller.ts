@@ -1,8 +1,29 @@
-import { Controller, Post, Get, Patch, Body, Query, UseGuards, Req, Res, Param } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiQuery, ApiParam } from '@nestjs/swagger';
+import {
+  Controller,
+  Post,
+  Get,
+  Patch,
+  Body,
+  Query,
+  UseGuards,
+  Req,
+  Res,
+  Param,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiQuery,
+  ApiParam,
+} from '@nestjs/swagger';
 import { AttendanceService } from './attendance.service';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
-import { ApproveCheckInDto, BulkApproveCheckInDto } from './dto/approve-checkin.dto';
+import {
+  ApproveCheckInDto,
+  BulkApproveCheckInDto,
+} from './dto/approve-checkin.dto';
 import { AuthenticatedRequest } from 'src/common/types/request.types';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
@@ -14,7 +35,6 @@ import { AttendanceType } from 'src/common/constants/enums';
 
 @ApiTags('Attendance')
 @ApiBearerAuth()
-
 @Controller('attendance')
 export class AttendanceController {
   constructor(private readonly attendanceService: AttendanceService) {}
@@ -23,7 +43,8 @@ export class AttendanceController {
   @ApiOperation({ summary: 'Create a check-in/check-out event' })
   @ApiResponse({
     status: 400,
-    description: 'Bad request - Location outside geofence or missing required fields',
+    description:
+      'Bad request - Location outside geofence or missing required fields',
   })
   @ApiResponse({
     status: 201,
@@ -38,9 +59,10 @@ export class AttendanceController {
     return this.attendanceService.create(userId, createAttendanceDto, tenantId);
   }
 
-
   @Get()
-  @ApiOperation({ summary: 'Get daily summaries (latest check-in/out) for a user' })
+  @ApiOperation({
+    summary: 'Get daily summaries (latest check-in/out) for a user',
+  })
   findAll(@Query('userId') userId?: string) {
     return this.attendanceService.findAll(userId);
   }
@@ -52,12 +74,12 @@ export class AttendanceController {
   async findAllForAdmin(
     @Req() req: any,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
   ) {
     return this.attendanceService.getAllAttendance(
       req.user.tenant_id,
       startDate,
-      endDate
+      endDate,
     );
   }
 
@@ -65,21 +87,24 @@ export class AttendanceController {
   @UseGuards(RolesGuard, PermissionsGuard)
   @Roles('system-admin')
   @Permissions('manage_attendance')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get all attendance grouped by tenant (System-Admin only)',
-    description: 'Returns attendance data grouped by tenant. Can filter by specific tenant, start date, and end date.'
+    description:
+      'Returns attendance data grouped by tenant. Can filter by specific tenant, start date, and end date.',
   })
   @ApiQuery({
     name: 'tenantId',
     required: false,
     type: String,
-    description: 'Optional tenant ID to filter attendance for a specific tenant',
+    description:
+      'Optional tenant ID to filter attendance for a specific tenant',
   })
   @ApiQuery({
     name: 'startDate',
     required: false,
     type: String,
-    description: 'Optional start date filter (ISO date string, e.g., 2024-01-01)',
+    description:
+      'Optional start date filter (ISO date string, e.g., 2024-01-01)',
   })
   @ApiQuery({
     name: 'endDate',
@@ -127,18 +152,30 @@ export class AttendanceController {
   async getAttendanceByTenant(
     @Query('tenantId') tenantId?: string,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
   ) {
-    return this.attendanceService.getAttendanceByTenant(tenantId, startDate, endDate);
+    return this.attendanceService.getAttendanceByTenant(
+      tenantId,
+      startDate,
+      endDate,
+    );
   }
   @Get('events')
   @UseGuards(RolesGuard)
-  @Roles('employee', 'manager', 'hr-admin', 'admin', 'system-admin', 'network-admin')
+  @Roles(
+    'employee',
+    'manager',
+    'hr-admin',
+    'admin',
+    'system-admin',
+    'network-admin',
+  )
   @ApiOperation({ summary: 'Get attendance events for a user' })
   @ApiQuery({
     name: 'userId',
     required: false,
-    description: 'User ID to filter events. If not provided, uses logged-in user ID. System-admin can provide any user ID.',
+    description:
+      'User ID to filter events. If not provided, uses logged-in user ID. System-admin can provide any user ID.',
   })
   @ApiQuery({
     name: 'startDate',
@@ -158,18 +195,24 @@ export class AttendanceController {
     @Req() req: AuthenticatedRequest,
     @Query('userId') userId?: string,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
   ) {
     // For system-admin, allow them to query any userId
     // For other roles, default to their own userId if not provided
     const userRole = req.user?.role;
-    const id = userId || (userRole === 'system-admin' ? undefined : req.user.id);
+    const id =
+      userId || (userRole === 'system-admin' ? undefined : req.user.id);
     return this.attendanceService.findEvents(id, startDate, endDate);
   }
 
   @Get('today')
-  @ApiOperation({ summary: 'Get today latest check-in and its matching check-out' })
-  async today(@Req() req: AuthenticatedRequest, @Query('userId') userId?: string) {
+  @ApiOperation({
+    summary: 'Get today latest check-in and its matching check-out',
+  })
+  async today(
+    @Req() req: AuthenticatedRequest,
+    @Query('userId') userId?: string,
+  ) {
     const id = userId || req.user.id;
     return this.attendanceService.getTodaySummary(id);
   }
@@ -218,22 +261,28 @@ export class AttendanceController {
   async getTeamAttendance(
     @Req() req: any,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
   ) {
-    return this.attendanceService.getTeamAttendance(req.user.id, req.user.tenant_id, startDate, endDate);
+    return this.attendanceService.getTeamAttendance(
+      req.user.id,
+      req.user.tenant_id,
+      startDate,
+      endDate,
+    );
   }
 
-  
   @Get('export/self')
   @ApiOperation({
     summary: 'Download your own attendance as CSV',
-    description: 'Exports only the logged-in user\'s attendance. For admin to export all employees\' attendance, use GET /attendance/export/all with date filters instead.',
+    description:
+      "Exports only the logged-in user's attendance. For admin to export all employees' attendance, use GET /attendance/export/all with date filters instead.",
   })
   @ApiQuery({
     name: 'startDate',
     required: false,
     type: String,
-    description: 'Optional start date filter (ISO date string, e.g., 2024-01-01)',
+    description:
+      'Optional start date filter (ISO date string, e.g., 2024-01-01)',
   })
   @ApiQuery({
     name: 'endDate',
@@ -245,20 +294,25 @@ export class AttendanceController {
     @Req() req: AuthenticatedRequest,
     @Res() res: Response,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
   ) {
     const userId = req.user.id;
-    let userName = `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim();
+    let userName =
+      `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim();
     if (!userName) {
       userName = await this.attendanceService.getUserDisplayName(userId);
     }
-    const { items } = await this.attendanceService.findEvents(userId, startDate, endDate);
-    
+    const { items } = await this.attendanceService.findEvents(
+      userId,
+      startDate,
+      endDate,
+    );
+
     // Group events by date and combine check-in/check-out
     const groupedByDate: Record<string, { checkIn?: any; checkOut?: any }> = {};
     const checkIns: any[] = [];
     const checkOuts: any[] = [];
-    
+
     for (const ev of items) {
       if (ev.type === AttendanceType.CHECK_IN) {
         checkIns.push(ev);
@@ -266,50 +320,75 @@ export class AttendanceController {
         checkOuts.push(ev);
       }
     }
-    
+
     // Match check-ins with check-outs
     for (const checkIn of checkIns) {
       const date = checkIn.timestamp.toISOString().split('T')[0];
       const matchingCheckOut = checkOuts.find(
-        checkout => checkout.timestamp > checkIn.timestamp
+        (checkout) => checkout.timestamp > checkIn.timestamp,
       );
-      
+
       if (!groupedByDate[date]) {
         groupedByDate[date] = {};
       }
-      
+
       // Keep the latest check-in and its matching check-out for each date
-      if (!groupedByDate[date].checkIn || 
-          checkIn.timestamp > (groupedByDate[date].checkIn?.timestamp || new Date(0))) {
+      if (
+        !groupedByDate[date].checkIn ||
+        checkIn.timestamp >
+          (groupedByDate[date].checkIn?.timestamp || new Date(0))
+      ) {
         groupedByDate[date].checkIn = checkIn;
         groupedByDate[date].checkOut = matchingCheckOut;
       }
     }
-    
+
     // Convert to CSV rows
     const rows: any[] = [];
     for (const [date, { checkIn, checkOut }] of Object.entries(groupedByDate)) {
       let workedHours = 0;
-      if (checkIn && checkOut && new Date(checkOut.timestamp) > new Date(checkIn.timestamp)) {
-        const diffMs = new Date(checkOut.timestamp).getTime() - new Date(checkIn.timestamp).getTime();
+      if (
+        checkIn &&
+        checkOut &&
+        new Date(checkOut.timestamp) > new Date(checkIn.timestamp)
+      ) {
+        const diffMs =
+          new Date(checkOut.timestamp).getTime() -
+          new Date(checkIn.timestamp).getTime();
         workedHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
       }
-      
+
       rows.push({
         date: date,
         user_name: userName,
         check_in: checkIn?.timestamp || '',
-        check_out: (checkOut && checkIn && new Date(checkOut.timestamp) > new Date(checkIn.timestamp))
-          ? checkOut.timestamp
-          : '',
+        check_out:
+          checkOut &&
+          checkIn &&
+          new Date(checkOut.timestamp) > new Date(checkIn.timestamp)
+            ? checkOut.timestamp
+            : '',
         worked_hours: workedHours,
       });
     }
-    
-    // Sort by date descending
-    rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    const csvRows = rows.length > 0 ? rows : [{ date: '', user_name: '', check_in: '', check_out: '', worked_hours: '' }];
+    // Sort by date descending
+    rows.sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+    );
+
+    const csvRows =
+      rows.length > 0
+        ? rows
+        : [
+            {
+              date: '',
+              user_name: '',
+              check_in: '',
+              check_out: '',
+              worked_hours: '',
+            },
+          ];
     return sendCsvResponse(res, 'attendance-self.csv', csvRows);
   }
 
@@ -322,7 +401,8 @@ export class AttendanceController {
     name: 'startDate',
     required: false,
     type: String,
-    description: 'Optional start date filter (ISO date string, e.g., 2024-01-01)',
+    description:
+      'Optional start date filter (ISO date string, e.g., 2024-01-01)',
   })
   @ApiQuery({
     name: 'endDate',
@@ -334,13 +414,19 @@ export class AttendanceController {
     @Req() req: any,
     @Res() res: Response,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
   ) {
-    const { items } = await this.attendanceService.getTeamAttendance(req.user.id, req.user.tenant_id, startDate, endDate);
+    const { items } = await this.attendanceService.getTeamAttendance(
+      req.user.id,
+      req.user.tenant_id,
+      startDate,
+      endDate,
+    );
     const rows = (items || []).flatMap((member: any) => {
       const attendance = member.attendance || [];
       return attendance.map((a: any) => ({
-        user_name: `${member.first_name || ''} ${member.last_name || ''}`.trim(),
+        user_name:
+          `${member.first_name || ''} ${member.last_name || ''}`.trim(),
         first_name: member.first_name,
         last_name: member.last_name,
         date: a.date,
@@ -358,41 +444,44 @@ export class AttendanceController {
   @Permissions('manage_attendance')
   @ApiOperation({
     summary: 'Download all attendance for tenant as CSV (Admin only)',
-    description: 'Use this API for admin/HR to export all employees\' attendance for the tenant. Date filters (startDate, endDate) apply. For own attendance only, use GET /attendance/export/self instead.',
+    description:
+      "Use this API for admin/HR to export all employees' attendance for the tenant. Date filters (startDate, endDate) apply. For own attendance only, use GET /attendance/export/self instead.",
   })
   @ApiQuery({
     name: 'startDate',
     required: false,
     type: String,
-    description: 'Start date filter (e.g. 2026-01-01). Applied as UTC start of day.',
+    description:
+      'Start date filter (e.g. 2026-01-01). Applied as UTC start of day.',
   })
   @ApiQuery({
     name: 'endDate',
     required: false,
     type: String,
-    description: 'End date filter (e.g. 2026-02-28). Applied as UTC end of day.',
+    description:
+      'End date filter (e.g. 2026-02-28). Applied as UTC end of day.',
   })
   async exportAll(
     @Req() req: any,
     @Res() res: Response,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
   ) {
     // Fetch all records in batches to ensure we get everything
     const allItems: any[] = [];
     const batchSize = 1000;
     let skip = 0;
     let hasMore = true;
-    
+
     while (hasMore) {
       const batch = await this.attendanceService.getAllAttendanceBatch(
         req.user.tenant_id,
         startDate,
         endDate,
         skip,
-        batchSize
+        batchSize,
       );
-      
+
       if (batch.length > 0) {
         allItems.push(...batch);
         skip += batchSize;
@@ -401,13 +490,15 @@ export class AttendanceController {
         hasMore = false;
       }
     }
-    
-    
-    const groupedByUserAndDate: Record<string, Record<string, { checkIn?: any; checkOut?: any }>> = {};
-    
+
+    const groupedByUserAndDate: Record<
+      string,
+      Record<string, { checkIn?: any; checkOut?: any }>
+    > = {};
+
     // Store user info for later use
     const userInfoMap: Record<string, any> = {};
-    
+
     const userGroups: Record<string, any[]> = {};
     for (const ev of allItems) {
       const userId = ev.user_id;
@@ -415,76 +506,104 @@ export class AttendanceController {
         userGroups[userId] = [];
       }
       userGroups[userId].push(ev);
-      
+
       // Store user info
       if (ev.user && !userInfoMap[userId]) {
         userInfoMap[userId] = ev.user;
       }
     }
-    
-  
+
     for (const [userId, userEvents] of Object.entries(userGroups)) {
-      const checkIns = userEvents.filter(e => e.type === AttendanceType.CHECK_IN);
-      const checkOuts = userEvents.filter(e => e.type === AttendanceType.CHECK_OUT);
-      
+      const checkIns = userEvents.filter(
+        (e) => e.type === AttendanceType.CHECK_IN,
+      );
+      const checkOuts = userEvents.filter(
+        (e) => e.type === AttendanceType.CHECK_OUT,
+      );
+
       if (!groupedByUserAndDate[userId]) {
         groupedByUserAndDate[userId] = {};
       }
-      
+
       for (const checkIn of checkIns) {
         const date = checkIn.timestamp.toISOString().split('T')[0];
         const matchingCheckOut = checkOuts.find(
-          checkout => checkout.timestamp > checkIn.timestamp
+          (checkout) => checkout.timestamp > checkIn.timestamp,
         );
-        
+
         if (!groupedByUserAndDate[userId][date]) {
           groupedByUserAndDate[userId][date] = {};
         }
-        
-      
-        if (!groupedByUserAndDate[userId][date].checkIn || 
-            checkIn.timestamp > (groupedByUserAndDate[userId][date].checkIn?.timestamp || new Date(0))) {
+
+        if (
+          !groupedByUserAndDate[userId][date].checkIn ||
+          checkIn.timestamp >
+            (groupedByUserAndDate[userId][date].checkIn?.timestamp ||
+              new Date(0))
+        ) {
           groupedByUserAndDate[userId][date].checkIn = checkIn;
           groupedByUserAndDate[userId][date].checkOut = matchingCheckOut;
         }
       }
     }
-    
-    
+
     const rows: any[] = [];
     for (const [userId, dateGroups] of Object.entries(groupedByUserAndDate)) {
       const user = userInfoMap[userId];
-      const userName = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : '';
-      
+      const userName = user
+        ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
+        : '';
+
       for (const [date, { checkIn, checkOut }] of Object.entries(dateGroups)) {
         let workedHours = 0;
-        if (checkIn && checkOut && new Date(checkOut.timestamp) > new Date(checkIn.timestamp)) {
-          const diffMs = new Date(checkOut.timestamp).getTime() - new Date(checkIn.timestamp).getTime();
+        if (
+          checkIn &&
+          checkOut &&
+          new Date(checkOut.timestamp) > new Date(checkIn.timestamp)
+        ) {
+          const diffMs =
+            new Date(checkOut.timestamp).getTime() -
+            new Date(checkIn.timestamp).getTime();
           workedHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
         }
-        
+
         rows.push({
           date: date,
           employee_name: userName,
           check_in: checkIn?.timestamp || '',
-          check_out: (checkOut && checkIn && new Date(checkOut.timestamp) > new Date(checkIn.timestamp))
-            ? checkOut.timestamp
-            : '',
+          check_out:
+            checkOut &&
+            checkIn &&
+            new Date(checkOut.timestamp) > new Date(checkIn.timestamp)
+              ? checkOut.timestamp
+              : '',
           worked_hours: workedHours,
           status: checkIn?.approval_status ?? '',
         });
       }
     }
-    
 
     rows.sort((a, b) => {
-      const dateCompare = new Date(b.date).getTime() - new Date(a.date).getTime();
+      const dateCompare =
+        new Date(b.date).getTime() - new Date(a.date).getTime();
       if (dateCompare !== 0) return dateCompare;
       return (a.employee_name || '').localeCompare(b.employee_name || '');
     });
 
     // Headers even when no data (e.g. no records in date range)
-    const csvRows = rows.length > 0 ? rows : [{ date: '', employee_name: '', check_in: '', check_out: '', worked_hours: '', status: '' }];
+    const csvRows =
+      rows.length > 0
+        ? rows
+        : [
+            {
+              date: '',
+              employee_name: '',
+              check_in: '',
+              check_out: '',
+              worked_hours: '',
+              status: '',
+            },
+          ];
     return sendCsvResponse(res, 'attendance-all.csv', csvRows);
   }
 
@@ -499,13 +618,15 @@ export class AttendanceController {
     name: 'tenantId',
     required: false,
     type: String,
-    description: 'Optional tenant ID to filter attendance for a specific tenant',
+    description:
+      'Optional tenant ID to filter attendance for a specific tenant',
   })
   @ApiQuery({
     name: 'startDate',
     required: false,
     type: String,
-    description: 'Optional start date filter (ISO date string, e.g., 2024-01-01)',
+    description:
+      'Optional start date filter (ISO date string, e.g., 2024-01-01)',
   })
   @ApiQuery({
     name: 'endDate',
@@ -517,14 +638,15 @@ export class AttendanceController {
     name: 'name',
     required: false,
     type: String,
-    description: 'Optional employee name filter (partial match on first/last name)',
+    description:
+      'Optional employee name filter (partial match on first/last name)',
   })
   async exportSystem(
     @Res() res: Response,
     @Query('tenantId') tenantId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('name') name?: string
+    @Query('name') name?: string,
   ) {
     const { tenants } = await this.attendanceService.getAttendanceByTenant(
       tenantId,
@@ -537,7 +659,8 @@ export class AttendanceController {
 
     for (const tenant of tenants || []) {
       for (const employee of tenant.employees || []) {
-        const userName = `${employee.first_name || ''} ${employee.last_name || ''}`.trim();
+        const userName =
+          `${employee.first_name || ''} ${employee.last_name || ''}`.trim();
         for (const record of employee.attendance || []) {
           rows.push({
             tenant_name: tenant.tenant_name,
@@ -558,14 +681,18 @@ export class AttendanceController {
     }
 
     rows.sort((a, b) => {
-      const tenantCompare = (a.tenant_name || '').localeCompare(b.tenant_name || '');
+      const tenantCompare = (a.tenant_name || '').localeCompare(
+        b.tenant_name || '',
+      );
       if (tenantCompare !== 0) return tenantCompare;
       const userCompare = (a.user_name || '').localeCompare(b.user_name || '');
       if (userCompare !== 0) return userCompare;
       return new Date(b.date).getTime() - new Date(a.date).getTime();
     });
 
-    const filename = tenantId ? `attendance-tenant-${tenantId}.csv` : 'attendance-all-tenants.csv';
+    const filename = tenantId
+      ? `attendance-tenant-${tenantId}.csv`
+      : 'attendance-all-tenants.csv';
     return sendCsvResponse(res, filename, rows);
   }
 
@@ -573,10 +700,12 @@ export class AttendanceController {
   @UseGuards(RolesGuard, PermissionsGuard)
   @Roles('manager')
   @Permissions('manage_attendance')
-  @ApiOperation({ summary: 'Get today\'s check-ins for team members (Manager only)' })
+  @ApiOperation({
+    summary: "Get today's check-ins for team members (Manager only)",
+  })
   @ApiResponse({
     status: 200,
-    description: 'Returns today\'s check-ins for team members',
+    description: "Returns today's check-ins for team members",
     schema: {
       example: {
         items: [
@@ -601,17 +730,24 @@ export class AttendanceController {
     },
   })
   async getTodayTeamCheckIns(@Req() req: any) {
-    return this.attendanceService.getTodayTeamCheckIns(req.user.id, req.user.tenant_id);
+    return this.attendanceService.getTodayTeamCheckIns(
+      req.user.id,
+      req.user.tenant_id,
+    );
   }
 
   @Get('team/today/attendance')
   @UseGuards(RolesGuard, PermissionsGuard)
   @Roles('manager')
   @Permissions('manage_attendance')
-  @ApiOperation({ summary: 'Get today\'s attendance (check-in/out) for team members who marked attendance today (Manager only)' })
+  @ApiOperation({
+    summary:
+      "Get today's attendance (check-in/out) for team members who marked attendance today (Manager only)",
+  })
   @ApiResponse({
     status: 200,
-    description: 'Returns today\'s attendance for team members who have marked attendance today',
+    description:
+      "Returns today's attendance for team members who have marked attendance today",
     schema: {
       example: {
         items: [
@@ -647,12 +783,15 @@ export class AttendanceController {
       today,
       today,
     );
-    
+
     // Filter to only include team members who have marked attendance today (at least check-in)
-    const filteredItems = result.items.filter(member => 
-      member.attendance && member.attendance.length > 0 && member.attendance.some(a => a.checkIn !== null)
+    const filteredItems = result.items.filter(
+      (member) =>
+        member.attendance &&
+        member.attendance.length > 0 &&
+        member.attendance.some((a) => a.checkIn !== null),
     );
-    
+
     return {
       items: filteredItems,
       total: filteredItems.length,
@@ -676,7 +815,8 @@ export class AttendanceController {
   })
   @ApiResponse({
     status: 403,
-    description: 'Forbidden - Only manager can approve their team members\' check-ins',
+    description:
+      "Forbidden - Only manager can approve their team members' check-ins",
   })
   @ApiResponse({
     status: 404,
@@ -685,13 +825,13 @@ export class AttendanceController {
   async approveCheckIn(
     @Param('id') id: string,
     @Body() dto: ApproveCheckInDto,
-    @Req() req: any
+    @Req() req: any,
   ) {
     return this.attendanceService.approveCheckIn(
       id,
       req.user.id,
       req.user.tenant_id,
-      dto.remarks
+      dto.remarks,
     );
   }
 
@@ -712,7 +852,8 @@ export class AttendanceController {
   })
   @ApiResponse({
     status: 403,
-    description: 'Forbidden - Only manager can disapprove their team members\' check-ins',
+    description:
+      "Forbidden - Only manager can disapprove their team members' check-ins",
   })
   @ApiResponse({
     status: 404,
@@ -721,13 +862,13 @@ export class AttendanceController {
   async disapproveCheckIn(
     @Param('id') id: string,
     @Body() dto: ApproveCheckInDto,
-    @Req() req: any
+    @Req() req: any,
   ) {
     return this.attendanceService.disapproveCheckIn(
       id,
       req.user.id,
       req.user.tenant_id,
-      dto.remarks
+      dto.remarks,
     );
   }
 
@@ -736,7 +877,10 @@ export class AttendanceController {
   @Roles('manager')
   @Permissions('manage_attendance')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Approve all today\'s check-ins for team members at once (Manager only)' })
+  @ApiOperation({
+    summary:
+      "Approve all today's check-ins for team members at once (Manager only)",
+  })
   @ApiResponse({
     status: 200,
     description: 'All check-ins approved successfully',
@@ -749,12 +893,12 @@ export class AttendanceController {
   })
   async approveAllCheckIns(
     @Body() dto: BulkApproveCheckInDto,
-    @Req() req: any
+    @Req() req: any,
   ) {
     return this.attendanceService.approveAllCheckIns(
       req.user.id,
       req.user.tenant_id,
-      dto.remarks
+      dto.remarks,
     );
   }
 
@@ -763,7 +907,10 @@ export class AttendanceController {
   @Roles('manager')
   @Permissions('manage_attendance')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Disapprove all today\'s check-ins for team members at once (Manager only)' })
+  @ApiOperation({
+    summary:
+      "Disapprove all today's check-ins for team members at once (Manager only)",
+  })
   @ApiResponse({
     status: 200,
     description: 'All check-ins disapproved successfully',
@@ -776,12 +923,12 @@ export class AttendanceController {
   })
   async disapproveAllCheckIns(
     @Body() dto: BulkApproveCheckInDto,
-    @Req() req: any
+    @Req() req: any,
   ) {
     return this.attendanceService.disapproveAllCheckIns(
       req.user.id,
       req.user.tenant_id,
-      dto.remarks
+      dto.remarks,
     );
   }
 }

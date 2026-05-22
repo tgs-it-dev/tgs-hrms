@@ -14,7 +14,6 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { LeaveReportsService } from './leave-reports.service';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -24,7 +23,6 @@ import { sendCsvResponse } from '../../common/utils/csv.util';
 
 @ApiTags('Leave Reports')
 @Controller('reports')
-@UseGuards(JwtAuthGuard)
 export class LeaveReportsController {
   constructor(private readonly leaveReportsService: LeaveReportsService) {}
 

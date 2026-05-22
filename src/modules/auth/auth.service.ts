@@ -25,7 +25,10 @@ import { GLOBAL_SYSTEM_TENANT_ID } from '../../common/constants/enums';
 import { isMobileRequest } from '../../common/utils/mobile-detection';
 import { Role } from '../../entities/role.entity';
 import { Tenant } from '../../entities/tenant.entity';
-import { TenantSettingsService, TenantSettingKey } from '../tenant-settings/tenant-settings.service';
+import {
+  TenantSettingsService,
+  TenantSettingKey,
+} from '../tenant-settings/tenant-settings.service';
 
 interface RefreshTokenPayload {
   sub: string;

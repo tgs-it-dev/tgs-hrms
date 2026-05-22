@@ -20,7 +20,7 @@ import { EmployeeModule } from './modules/employee/employee.module';
 import { TenantModule } from './modules/tenant/tenant.module';
 import { RoleModule } from './modules/role/role.module';
 import { PermissionModule } from './modules/permission/permission.module';
-import { AttendanceModule } from './modules/attendance/attendace.module';
+import { AttendanceModule } from './modules/attendance/attendance.module';
 import { TimesheetModule } from './modules/timesheet/timesheet.module';
 import { LeaveModule } from './modules/leave/leave.module';
 import { LeaveTypeModule } from './modules/leave-type/leave-type.module';
@@ -71,7 +71,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (config: ConfigService) => {
+      useFactory: (config: ConfigService) => {
         const secret = config.get<string>('JWT_SECRET');
         if (!secret) throw new Error('JWT_SECRET not found');
         return {
@@ -86,7 +86,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     MailerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (config: ConfigService) => {
+      useFactory: (config: ConfigService) => {
         const logger = new Logger('MailerModule');
         const sendgridApiKey = config.get<string>('SENDGRID_API_KEY');
         const sendgridFrom = config.get<string>('SENDGRID_FROM');

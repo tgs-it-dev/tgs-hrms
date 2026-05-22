@@ -1,6 +1,5 @@
 import { Controller, Get, UseGuards, Req, Body, Put } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { ProfileService } from '../services/profile.service';
 import { Request } from 'express';
 import { UpdateProfileDto } from '../dto/user.dto';
@@ -11,7 +10,6 @@ import {
 } from '@nestjs/common';
 @ApiTags('Profile')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
 @Controller('profile')
 export class ProfileController {
   constructor(
@@ -33,7 +31,6 @@ export class ProfileController {
 
   @ApiBearerAuth()
   @Get('profile')
-  @UseGuards(JwtAuthGuard)
   async getProfile(@Req() req: any) {
     try {
       const user = await this.authService.validateToken(req.user.id);

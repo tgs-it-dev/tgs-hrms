@@ -21,6 +21,7 @@ import { EmailModule } from 'src/common/utils/email/email.module';
 import { CompanyDetails } from 'src/entities/company-details.entity';
 import { SignupSession } from 'src/entities/signup-session.entity';
 import { SystemSettingsModule } from './system-settings/system-settings.module';
+import { TenantSettingsModule } from '../tenant-settings/tenant-settings.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { SystemSettingsModule } from './system-settings/system-settings.module';
     SharedJwtModule,
     EmailModule,
     SystemSettingsModule,
+    TenantSettingsModule,
   ],
   providers: [
     SystemService,

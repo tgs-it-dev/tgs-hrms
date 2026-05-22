@@ -175,6 +175,62 @@ export function validateImageFile(
 }
 
 /**
+ * Creates a Multer fileFilter that validates image MIME type and extension.
+ * Use this in FilesInterceptor / FileInterceptor options to avoid copy-pasting
+ * the same validation logic across controllers.
+ *
+ * @example
+ * FilesInterceptor('documents', 10, {
+ *   limits: { fileSize: 5 * 1024 * 1024 },
+ *   fileFilter: createImageFileFilter(),
+ * })
+ */
+export function createImageFileFilter(
+  allowedExtensions: string[] = ALLOWED_IMAGE_EXTENSIONS,
+): (
+  _req: Express.Request,
+  file: Express.Multer.File,
+  cb: (error: Error | null, acceptFile: boolean) => void,
+) => void {
+  return (_req, file, cb) => {
+    try {
+      if (!file.mimetype || !file.mimetype.startsWith('image/')) {
+        return cb(
+          new BadRequestException(
+            `Invalid file type: ${file.mimetype || 'unknown'}. Only image files are allowed (JPG, JPEG, PNG, GIF, WebP)`,
+          ),
+          false,
+        );
+      }
+
+      const fileExtension = file.originalname
+        .substring(file.originalname.lastIndexOf('.'))
+        .toLowerCase();
+
+      if (!allowedExtensions.includes(fileExtension)) {
+        return cb(
+          new BadRequestException(
+            `Invalid file extension: ${fileExtension}. Allowed extensions: ${allowedExtensions.join(', ')}`,
+          ),
+          false,
+        );
+      }
+
+      cb(null, true);
+    } catch (error) {
+      cb(
+        error instanceof BadRequestException
+          ? error
+          : new BadRequestException(
+              'File validation failed. Please upload a valid image file',
+            ),
+        false,
+      );
+    }
+  };
+}
+
+/**
  * Get file extension from filename
  */
 export function getFileExtension(filename: string): string {

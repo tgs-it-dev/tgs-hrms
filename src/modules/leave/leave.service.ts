@@ -1465,7 +1465,7 @@ export class LeaveService {
           });
           if (!leaveType) throw new NotFoundException('Leave type not found');
           leave.leaveTypeId = newLeaveTypeId;
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
           leave.leaveType = null as any;
         }
 

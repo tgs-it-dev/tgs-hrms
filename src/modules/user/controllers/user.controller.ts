@@ -20,7 +20,6 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../../../common/types/request.types';
 import { UserService } from '../services/user.service';
 import { CreateUserDto, UpdateUserDto } from '../dto/user.dto';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Public } from 'src/common/decorators/public.decorator';
@@ -71,7 +70,7 @@ export class UserController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @UseGuards(RolesGuard, PermissionsGuard)
   @Post()
   @Roles('system-admin', 'admin')
   @Permissions('manage_users')
@@ -90,7 +89,7 @@ export class UserController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @UseGuards(RolesGuard, PermissionsGuard)
   @Get()
   @Roles('system-admin', 'admin', 'manager')
   @Permissions('manage_users', 'view_team_reports')
@@ -124,7 +123,7 @@ export class UserController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @UseGuards(RolesGuard, PermissionsGuard)
   @Get(':id')
   @Roles('system-admin', 'admin', 'manager')
   @Permissions('manage_users', 'view_team_reports')
@@ -147,7 +146,7 @@ export class UserController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @UseGuards(RolesGuard, PermissionsGuard)
   @Patch(':id')
   @Roles('system-admin', 'admin')
   @Permissions('manage_users')
@@ -176,7 +175,7 @@ export class UserController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @UseGuards(RolesGuard, PermissionsGuard)
   @Delete(':id')
   @Roles('system-admin', 'admin')
   @Permissions('manage_users')
@@ -205,7 +204,7 @@ export class UserController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(RolesGuard)
   @Post(':id/profile-picture')
   @UseInterceptors(FileInterceptor('profile_pic'))
   @ApiOperation({ summary: 'Upload or update profile picture' })
@@ -278,7 +277,7 @@ export class UserController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(RolesGuard)
   @Put(':id/profile-picture')
   @UseInterceptors(FileInterceptor('profile_pic'))
   @ApiOperation({ summary: 'Update profile picture' })
@@ -351,7 +350,7 @@ export class UserController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(RolesGuard)
   @Delete(':id/profile-picture')
   async removeProfilePicture(
     @Param('id') id: string,

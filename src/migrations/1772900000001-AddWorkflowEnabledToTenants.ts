@@ -1,6 +1,8 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddWorkflowEnabledToTenants1772900000001 implements MigrationInterface {
+export class AddWorkflowEnabledToTenants1772900000001
+  implements MigrationInterface
+{
   name = 'AddWorkflowEnabledToTenants1772900000001';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

@@ -6,7 +6,6 @@ import {
   ApiResponse,
 } from '@nestjs/swagger';
 import { TimesheetService } from './timesheet.service';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { Request } from 'express';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
@@ -15,7 +14,6 @@ import { PermissionsGuard } from 'src/common/guards/permissions.guard';
 
 @ApiTags('Timesheet')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
 @Controller('timesheet')
 export class TimesheetController {
   constructor(private readonly timesheetService: TimesheetService) {}

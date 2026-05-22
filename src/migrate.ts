@@ -29,7 +29,10 @@ AppDataSource.initialize()
     if (migrations.length === 0) {
       console.log('No pending migrations.');
     } else {
-      console.log(`Applied ${migrations.length} migration(s):`, migrations.map((m) => m.name));
+      console.log(
+        `Applied ${migrations.length} migration(s):`,
+        migrations.map((m) => m.name),
+      );
     }
     await ds.destroy();
     process.exit(0);

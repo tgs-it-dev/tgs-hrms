@@ -19,7 +19,6 @@ import {
 import { LeaveTypeService } from './leave-type.service';
 import { CreateLeaveTypeDto } from './dto/create-leave-type.dto';
 import { UpdateLeaveTypeDto } from './dto/update-leave-type.dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -27,7 +26,7 @@ import { Permissions } from '../../common/decorators/permissions.decorator';
 
 @ApiTags('Leave Types')
 @Controller('leave-types')
-@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+@UseGuards(RolesGuard, PermissionsGuard)
 @Roles('hr-admin', 'system-admin')
 @Permissions('manage_leave_types')
 export class LeaveTypeController {
