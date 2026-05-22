@@ -1,7 +1,7 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class AddDomainToTenants1768000000001 implements MigrationInterface {
-  name = "AddDomainToTenants1768000000001";
+  name = 'AddDomainToTenants1768000000001';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`

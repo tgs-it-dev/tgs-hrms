@@ -1,7 +1,7 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class AddIsPaidToLeaveType1766000000003 implements MigrationInterface {
-  name = 'AddIsPaidToLeaveType1766000000003'
+  name = 'AddIsPaidToLeaveType1766000000003';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
@@ -18,5 +18,3 @@ export class AddIsPaidToLeaveType1766000000003 implements MigrationInterface {
     `);
   }
 }
-
-

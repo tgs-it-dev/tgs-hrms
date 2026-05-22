@@ -53,7 +53,9 @@ export class BillingService {
   }
 
   private getBillingRepo(em: any): Repository<BillingTransaction> {
-    return em ? em.getRepository(BillingTransaction) : this.billingTransactionRepo;
+    return em
+      ? em.getRepository(BillingTransaction)
+      : this.billingTransactionRepo;
   }
 
   // ---------------------------------------------------------------------------
@@ -119,7 +121,9 @@ export class BillingService {
                 name: `Employee Creation: ${employeeName}`,
                 description: `One-time payment for adding employee ${employeeName} (${employeeData.email})`,
               },
-              unit_amount: Math.round(this.EMPLOYEE_CREATION_CHARGE_AMOUNT * 100),
+              unit_amount: Math.round(
+                this.EMPLOYEE_CREATION_CHARGE_AMOUNT * 100,
+              ),
             },
             quantity: 1,
           },
@@ -190,7 +194,10 @@ export class BillingService {
         currency: 'USD',
         employee_id: employeeId,
         description: `Employee creation charge for ${employeeName} (${employeeEmail})`,
-        metadata: { employee_email: employeeEmail, employee_name: employeeName },
+        metadata: {
+          employee_email: employeeEmail,
+          employee_name: employeeName,
+        },
       });
 
       try {
@@ -349,7 +356,9 @@ export class BillingService {
 
     const metadata = checkoutSession.metadata;
     if (!metadata || !metadata.employee_email) {
-      throw new BadRequestException('Employee data not found in payment metadata');
+      throw new BadRequestException(
+        'Employee data not found in payment metadata',
+      );
     }
 
     if (metadata.tenant_id !== tenantId) {
@@ -369,13 +378,18 @@ export class BillingService {
       cnic_number: metadata.cnic_number || undefined,
     };
 
-    const saveTransaction = async (billingRepo: Repository<BillingTransaction>) => {
+    const saveTransaction = async (
+      billingRepo: Repository<BillingTransaction>,
+    ) => {
       const existingTransactions = await billingRepo.find({
-        where: { tenant_id: tenantId, type: BillingTransactionType.EMPLOYEE_CREATION },
+        where: {
+          tenant_id: tenantId,
+          type: BillingTransactionType.EMPLOYEE_CREATION,
+        },
         order: { created_at: 'DESC' },
       });
 
-      let existingTransaction = existingTransactions.find(
+      const existingTransaction = existingTransactions.find(
         (t) =>
           t.metadata &&
           typeof t.metadata === 'object' &&
@@ -424,8 +438,9 @@ export class BillingService {
 
     let transaction: BillingTransaction;
     if (isProvisioned) {
-      transaction = await this.tenantDbService.withTenantSchema(tenantId, (em) =>
-        saveTransaction(em.getRepository(BillingTransaction)),
+      transaction = await this.tenantDbService.withTenantSchema(
+        tenantId,
+        (em) => saveTransaction(em.getRepository(BillingTransaction)),
       );
     } else {
       transaction = await saveTransaction(this.billingTransactionRepo);
@@ -447,7 +462,9 @@ export class BillingService {
         if (isProvisioned) {
           await this.tenantDbService.withTenantSchema(tenantId, async (em) => {
             const billingRepo = em.getRepository(BillingTransaction);
-            await billingRepo.update(transaction.id, { employee_id: createdEmployee.id });
+            await billingRepo.update(transaction.id, {
+              employee_id: createdEmployee.id,
+            });
           });
         } else {
           await this.billingTransactionRepo.update(transaction.id, {
@@ -455,12 +472,15 @@ export class BillingService {
           });
         }
 
-        this.logger.log(`Employee created after payment: ${createdEmployee.id}`);
+        this.logger.log(
+          `Employee created after payment: ${createdEmployee.id}`,
+        );
 
         return {
           success: true,
           paymentConfirmed: true,
-          paymentStatus: checkoutSession.payment_status || checkoutSession.status,
+          paymentStatus:
+            checkoutSession.payment_status || checkoutSession.status,
           paymentIntentId:
             typeof checkoutSession.payment_intent === 'string'
               ? checkoutSession.payment_intent
@@ -518,7 +538,9 @@ export class BillingService {
     const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
 
     const doQuery = async (billingRepo: Repository<BillingTransaction>) =>
-      billingRepo.findOne({ where: { id: transactionId, tenant_id: tenantId } });
+      billingRepo.findOne({
+        where: { id: transactionId, tenant_id: tenantId },
+      });
 
     if (isProvisioned) {
       return this.tenantDbService.withTenantSchemaReadOnly(tenantId, (em) =>

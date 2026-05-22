@@ -19,10 +19,13 @@ export class InviteStatusCronService {
   async handleExpiredInvitesCheck(): Promise<void> {
     try {
       this.logger.log('Starting scheduled expired invites check...');
-      const expiredCount = await this.inviteStatusService.checkAndUpdateExpiredInvites();
-      
+      const expiredCount =
+        await this.inviteStatusService.checkAndUpdateExpiredInvites();
+
       if (expiredCount > 0) {
-        this.logger.log(`Updated ${expiredCount} expired invites to 'Invite Expired'`);
+        this.logger.log(
+          `Updated ${expiredCount} expired invites to 'Invite Expired'`,
+        );
       } else {
         this.logger.debug('No expired invites found');
       }

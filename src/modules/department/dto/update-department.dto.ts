@@ -1,6 +1,11 @@
-
 import { PartialType } from '@nestjs/swagger';
-import { IsOptional, IsString, MaxLength, MinLength, Matches } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+  Matches,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { CreateDepartmentDto } from './create-department.dto';
 
@@ -11,7 +16,8 @@ export class UpdateDepartmentDto extends PartialType(CreateDepartmentDto) {
   @MinLength(2)
   @MaxLength(100)
   @Matches(/^[a-zA-Z0-9 &'-]+$/, {
-    message: 'Name can only contain letters, numbers, spaces, and -& characters.',
+    message:
+      'Name can only contain letters, numbers, spaces, and -& characters.',
   })
   name?: string;
 

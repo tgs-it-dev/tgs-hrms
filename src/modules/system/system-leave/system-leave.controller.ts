@@ -1,52 +1,51 @@
-
-import { Controller, Get, Query, UseGuards } from "@nestjs/common";
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
   ApiQuery,
   ApiTags,
-} from "@nestjs/swagger";
-import { RolesGuard } from "src/common/guards/roles.guard";
-import { Roles } from "src/common/decorators/roles.decorator";
-import { SystemLeaveService } from "./system-leave.service";
-import { LeaveStatus } from "src/common/constants/enums";
+} from '@nestjs/swagger';
+import { RolesGuard } from 'src/common/guards/roles.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
+import { SystemLeaveService } from './system-leave.service';
+import { LeaveStatus } from 'src/common/constants/enums';
 
-@ApiTags("System (Leaves)")
-@Controller("system/leaves")
+@ApiTags('System (Leaves)')
+@Controller('system/leaves')
 @ApiBearerAuth()
 @UseGuards(RolesGuard)
-@Roles("system-admin")
+@Roles('system-admin')
 export class SystemLeaveController {
   constructor(private readonly systemLeaveService: SystemLeaveService) {}
 
   @Get()
   @ApiOperation({
     summary:
-      "Get paginated list of leave records across all tenants (System Admin)",
+      'Get paginated list of leave records across all tenants (System Admin)',
   })
-  @ApiQuery({ name: "tenantId", required: false })
-  @ApiQuery({ name: "status", required: false, enum: LeaveStatus })
+  @ApiQuery({ name: 'tenantId', required: false })
+  @ApiQuery({ name: 'status', required: false, enum: LeaveStatus })
   @ApiQuery({
-    name: "startDate",
+    name: 'startDate',
     required: false,
-    description: "format: yyyy-mm--dd",
-  })
-  @ApiQuery({
-    name: "endDate",
-    required: false,
-    description: "format: yyyy-mm--dd",
+    description: 'format: yyyy-mm--dd',
   })
   @ApiQuery({
-    name: "page",
+    name: 'endDate',
     required: false,
-    description: "Page number for pagination (default: 1)",
+    description: 'format: yyyy-mm--dd',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Page number for pagination (default: 1)',
   })
   async findAll(
-    @Query("page") page: string = "1",
-    @Query("tenantId") tenantId?: string,
-    @Query("status") status?: LeaveStatus,
-    @Query("startDate") startDate?: string,
-    @Query("endDate") endDate?: string,
+    @Query('page') page: string = '1',
+    @Query('tenantId') tenantId?: string,
+    @Query('status') status?: LeaveStatus,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
   ) {
     const data = await this.systemLeaveService.findAll({
       page: Number(page) || 1,
@@ -59,23 +58,23 @@ export class SystemLeaveController {
     return data;
   }
 
-  @Get("summary")
+  @Get('summary')
   @ApiOperation({
-    summary: "Get summary of leave statistics grouped by tenant (System Admin)",
+    summary: 'Get summary of leave statistics grouped by tenant (System Admin)',
   })
   @ApiQuery({
-    name: "startDate",
+    name: 'startDate',
     required: false,
-    description: "format: yyyy-mm--dd",
+    description: 'format: yyyy-mm--dd',
   })
   @ApiQuery({
-    name: "endDate",
+    name: 'endDate',
     required: false,
-    description: "format: yyyy-mm--dd",
+    description: 'format: yyyy-mm--dd',
   })
   async getSummary(
-    @Query("startDate") startDate?: string,
-    @Query("endDate") endDate?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
   ) {
     const data = await this.systemLeaveService.getSummary({
       startDate,
@@ -85,9 +84,3 @@ export class SystemLeaveController {
     return data;
   }
 }
-
-
-
-
-
-

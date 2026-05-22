@@ -25,6 +25,8 @@ export class AddUniquePhoneAndCnic1772100000000 implements MigrationInterface {
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`DROP INDEX IF EXISTS "IDX_users_phone_unique"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_employees_cnic_number_unique"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "IDX_employees_cnic_number_unique"`,
+    );
   }
 }

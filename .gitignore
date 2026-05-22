@@ -31,4 +31,14 @@ coverage/
 # Others
 tmp/
 temp/
+
+# Uploaded files — never commit user-generated content to git
 public/temp-employee-docs/
+public/leave-documents/
+public/cnic-pictures/
+public/cnic-back-pictures/
+public/profile-pictures/
+public/reimbursement-documents/
+public/company-logos/
+public/payslips/
+public/assets/

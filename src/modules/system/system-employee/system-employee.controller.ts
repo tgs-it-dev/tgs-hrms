@@ -1,39 +1,39 @@
-import { Controller, Get, Param, Query, UseGuards } from "@nestjs/common";
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
   ApiParam,
   ApiQuery,
   ApiTags,
-} from "@nestjs/swagger";
-import { RolesGuard } from "src/common/guards/roles.guard";
-import { Roles } from "src/common/decorators/roles.decorator";
-import { SystemEmployeeService } from "./system-employee.service";
+} from '@nestjs/swagger';
+import { RolesGuard } from 'src/common/guards/roles.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
+import { SystemEmployeeService } from './system-employee.service';
 
-@ApiTags("System (Employees)")
-@Controller("system/employees")
+@ApiTags('System (Employees)')
+@Controller('system/employees')
 @ApiBearerAuth()
 @UseGuards(RolesGuard)
-@Roles("system-admin")
+@Roles('system-admin')
 export class SystemEmployeeController {
   constructor(private readonly systemEmployeeService: SystemEmployeeService) {}
 
   @Get()
   @ApiOperation({
     summary:
-      "Get paginated list of employees across all tenants (System Admin)",
+      'Get paginated list of employees across all tenants (System Admin)',
   })
-  @ApiQuery({ name: "tenantId", required: false })
-  @ApiQuery({ name: "departmentId", required: false })
-  @ApiQuery({ name: "designationId", required: false })
-  @ApiQuery({ name: "status", required: false })
-  @ApiQuery({ name: "page", required: false, default: 1 })
+  @ApiQuery({ name: 'tenantId', required: false })
+  @ApiQuery({ name: 'departmentId', required: false })
+  @ApiQuery({ name: 'designationId', required: false })
+  @ApiQuery({ name: 'status', required: false })
+  @ApiQuery({ name: 'page', required: false, default: 1 })
   async findAll(
-    @Query("tenantId") tenantId?: string,
-    @Query("departmentId") departmentId?: string,
-    @Query("designationId") designationId?: string,
-    @Query("status") status?: string,
-    @Query("page") page: number = 1,
+    @Query('tenantId') tenantId?: string,
+    @Query('departmentId') departmentId?: string,
+    @Query('designationId') designationId?: string,
+    @Query('status') status?: string,
+    @Query('page') page: number = 1,
   ) {
     return this.systemEmployeeService.findAll(page, {
       tenantId,
@@ -43,61 +43,61 @@ export class SystemEmployeeController {
     });
   }
 
-  @Get("leaves")
+  @Get('leaves')
   @ApiOperation({
     summary:
-      "Get employee leave history (System Admin) - Both employeeId and userId are optional",
+      'Get employee leave history (System Admin) - Both employeeId and userId are optional',
   })
   @ApiQuery({
-    name: "employeeId",
+    name: 'employeeId',
     required: false,
-    description: "Employee ID (UUID) - Optional filter",
+    description: 'Employee ID (UUID) - Optional filter',
     type: String,
-    example: "123e4567-e89b-12d3-a456-426614174000",
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
   @ApiQuery({
-    name: "userId",
+    name: 'userId',
     required: false,
-    description: "User ID (UUID) - Optional filter",
+    description: 'User ID (UUID) - Optional filter',
     type: String,
-    example: "123e4567-e89b-12d3-a456-426614174000",
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
   async getLeaves(
-    @Query("employeeId") employeeId?: string,
-    @Query("userId") userId?: string,
+    @Query('employeeId') employeeId?: string,
+    @Query('userId') userId?: string,
   ) {
     return this.systemEmployeeService.getLeaves(employeeId, userId);
   }
 
-  @Get(":id")
+  @Get(':id')
   @ApiOperation({
-    summary: "Get full employee profile (System Admin)",
+    summary: 'Get full employee profile (System Admin)',
   })
-  async findProfile(@Param("id") id: string) {
+  async findProfile(@Param('id') id: string) {
     return this.systemEmployeeService.findProfile(id);
   }
 
-  @Get(":id/leaves")
+  @Get(':id/leaves')
   @ApiOperation({
     summary:
-      "Get employee leave history by employee ID (System Admin) - Legacy route",
+      'Get employee leave history by employee ID (System Admin) - Legacy route',
   })
   @ApiParam({
-    name: "id",
-    description: "Employee ID (UUID)",
+    name: 'id',
+    description: 'Employee ID (UUID)',
     type: String,
-    example: "123e4567-e89b-12d3-a456-426614174000",
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
   @ApiQuery({
-    name: "userId",
+    name: 'userId',
     required: false,
-    description: "User ID (UUID) - Optional filter",
+    description: 'User ID (UUID) - Optional filter',
     type: String,
-    example: "123e4567-e89b-12d3-a456-426614174000",
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
   async getLeavesByEmployeeId(
-    @Param("id") id: string,
-    @Query("userId") userId?: string,
+    @Param('id') id: string,
+    @Query('userId') userId?: string,
   ) {
     return this.systemEmployeeService.getLeaves(id, userId);
   }

@@ -4,5 +4,3 @@ describe('Assets e2e', () => {
     expect(true).toBe(true);
   });
 });
-
-

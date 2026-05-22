@@ -14,7 +14,14 @@ import {
   Logger,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiBody,
+} from '@nestjs/swagger';
 import { Response } from 'express';
 import { Res, Param } from '@nestjs/common';
 import { CompanyService } from './company.service';
@@ -45,8 +52,12 @@ export class CompanyController {
     type: CompanyResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Company details not found' })
-  async getCompanyDetails(@Request() req: AuthenticatedRequest): Promise<CompanyResponseDto> {
-    this.logger.log(`Getting company details for tenant: ${req.user.tenant_id}`);
+  async getCompanyDetails(
+    @Request() req: AuthenticatedRequest,
+  ): Promise<CompanyResponseDto> {
+    this.logger.log(
+      `Getting company details for tenant: ${req.user.tenant_id}`,
+    );
     const adminRoles: string[] = [UserRole.ADMIN, UserRole.SYSTEM_ADMIN];
     const clientIp = adminRoles.includes(req.user.role)
       ? (req.clientIp ?? req.ip ?? '0.0.0.0')
@@ -94,13 +105,18 @@ export class CompanyController {
     description: 'Company details updated successfully',
     type: CompanyResponseDto,
   })
-  @ApiResponse({ status: 403, description: 'Forbidden - Admin access required' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Admin access required',
+  })
   @ApiResponse({ status: 404, description: 'Company details not found' })
   async updateCompanyDetails(
     @Request() req: AuthenticatedRequest,
     @Body() updateDto: UpdateCompanyDto,
   ): Promise<CompanyResponseDto> {
-    this.logger.log(`Updating company details for tenant: ${req.user.tenant_id}, user: ${req.user.id}`);
+    this.logger.log(
+      `Updating company details for tenant: ${req.user.tenant_id}, user: ${req.user.id}`,
+    );
     const clientIp = req.clientIp ?? req.ip ?? '0.0.0.0'; // PUT is admin-only so IP is always present
     return this.companyService.updateCompanyDetails(
       req.user.tenant_id,
@@ -124,7 +140,8 @@ export class CompanyController {
         logo: {
           type: 'string',
           format: 'binary',
-          description: 'Logo file - only JPG, JPEG, PNG, GIF or WebP allowed (max 5MB). JFIF and other formats are not accepted.',
+          description:
+            'Logo file - only JPG, JPEG, PNG, GIF or WebP allowed (max 5MB). JFIF and other formats are not accepted.',
         },
       },
     },
@@ -134,7 +151,10 @@ export class CompanyController {
     description: 'Company logo updated successfully',
     type: CompanyResponseDto,
   })
-  @ApiResponse({ status: 403, description: 'Forbidden - Admin access required' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Admin access required',
+  })
   @ApiResponse({ status: 404, description: 'Company details not found' })
   @ApiResponse({ status: 400, description: 'Invalid file type or size' })
   async updateCompanyLogo(
@@ -152,7 +172,9 @@ export class CompanyController {
     file: Express.Multer.File,
   ): Promise<CompanyResponseDto> {
     validateImageFile(file);
-    this.logger.log(`Updating company logo for tenant: ${req.user.tenant_id}, user: ${req.user.id}`);
+    this.logger.log(
+      `Updating company logo for tenant: ${req.user.tenant_id}, user: ${req.user.id}`,
+    );
     const clientIp = req.clientIp ?? req.ip ?? '0.0.0.0'; // POST logo is admin-only so IP is always present
     return this.companyService.updateCompanyLogo(
       req.user.tenant_id,

@@ -72,7 +72,9 @@ describe('Employee Filtering (e2e)', () => {
       const designationId = '6b99992a-d8ef-4c0c-91dc-2a23e391ac9c';
 
       return request(app.getHttpServer())
-        .get(`/employees?department_id=${departmentId}&designation_id=${designationId}`)
+        .get(
+          `/employees?department_id=${departmentId}&designation_id=${designationId}`,
+        )
         .set('Authorization', adminToken)
         .expect(200)
         .expect((res) => {

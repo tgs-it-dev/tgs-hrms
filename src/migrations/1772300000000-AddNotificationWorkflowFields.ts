@@ -1,6 +1,8 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddNotificationWorkflowFields1772300000000 implements MigrationInterface {
+export class AddNotificationWorkflowFields1772300000000
+  implements MigrationInterface
+{
   name = 'AddNotificationWorkflowFields1772300000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -23,17 +25,25 @@ export class AddNotificationWorkflowFields1772300000000 implements MigrationInte
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS idx_notifications_tenant_user ON notifications(tenant_id, user_id);`,
     );
-    await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_notifications_action ON notifications(action);`);
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_notifications_action ON notifications(action);`,
+    );
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS idx_notifications_related_entity ON notifications(related_entity_type, related_entity_id);`,
     );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DROP INDEX IF EXISTS idx_notifications_related_entity;`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS idx_notifications_related_entity;`,
+    );
     await queryRunner.query(`DROP INDEX IF EXISTS idx_notifications_action;`);
-    await queryRunner.query(`DROP INDEX IF EXISTS idx_notifications_tenant_user;`);
-    await queryRunner.query(`ALTER TABLE notifications DROP CONSTRAINT IF EXISTS fk_notifications_sender_id;`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS idx_notifications_tenant_user;`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE notifications DROP CONSTRAINT IF EXISTS fk_notifications_sender_id;`,
+    );
     await queryRunner.query(`
       ALTER TABLE notifications
         DROP COLUMN IF EXISTS is_system,

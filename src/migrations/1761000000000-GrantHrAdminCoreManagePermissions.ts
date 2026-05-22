@@ -1,8 +1,10 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
-import { v4 as uuidv4 } from "uuid";
+import { MigrationInterface, QueryRunner } from 'typeorm';
+import { v4 as uuidv4 } from 'uuid';
 
-export class GrantHrAdminCoreManagePermissions1761000000000 implements MigrationInterface {
-  name = 'GrantHrAdminCoreManagePermissions1761000000000'
+export class GrantHrAdminCoreManagePermissions1761000000000
+  implements MigrationInterface
+{
+  name = 'GrantHrAdminCoreManagePermissions1761000000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Ensure the permissions exist (idempotent)
@@ -96,5 +98,3 @@ export class GrantHrAdminCoreManagePermissions1761000000000 implements Migration
     }
   }
 }
-
-

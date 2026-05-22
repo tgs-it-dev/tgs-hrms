@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -33,9 +42,7 @@ export class RoleController {
     schema: {
       example: [
         {
-          
           name: 'admin',
-         
         },
       ],
     },
@@ -54,7 +61,7 @@ export class RoleController {
 
   @Get(':id')
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin' ,'hr-admin')
+  @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('manage_roles')
   @ApiOperation({ summary: 'Get role by ID (Admin only)' })
   @ApiParam({

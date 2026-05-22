@@ -19,4 +19,3 @@ import { TenantModule } from '../tenant/tenant.module';
   exports: [GeofenceService],
 })
 export class GeofenceModule {}
-

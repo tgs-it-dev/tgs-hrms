@@ -1,8 +1,8 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { Cron } from "@nestjs/schedule";
-import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
-import { UserToken } from "../../entities/user-token.entity";
+import { Injectable, Logger } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { UserToken } from '../../entities/user-token.entity';
 
 /**
  * Nightly job that removes stale rows from user_tokens.
@@ -22,7 +22,7 @@ export class AuthTokenCleanupService {
   ) {}
 
   /** Runs at 03:00 every night. */
-  @Cron("0 3 * * *")
+  @Cron('0 3 * * *')
   async purgeStaleTokens(): Promise<void> {
     const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 days ago
 
@@ -31,7 +31,7 @@ export class AuthTokenCleanupService {
         .createQueryBuilder()
         .delete()
         .where(
-          "(is_revoked = true OR expires_at < :now) AND created_at < :cutoff",
+          '(is_revoked = true OR expires_at < :now) AND created_at < :cutoff',
           {
             now: new Date(),
             cutoff,
@@ -45,7 +45,7 @@ export class AuthTokenCleanupService {
           `Purged ${count} stale token row(s) older than 30 days`,
         );
       } else {
-        this.logger.debug("No stale token rows to purge");
+        this.logger.debug('No stale token rows to purge');
       }
     } catch (err) {
       this.logger.error(`Token cleanup failed: ${String(err)}`);

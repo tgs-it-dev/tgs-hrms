@@ -102,4 +102,3 @@ export class Geofence {
   @UpdateDateColumn({ type: 'timestamptz' })
   updated_at: Date;
 }
-

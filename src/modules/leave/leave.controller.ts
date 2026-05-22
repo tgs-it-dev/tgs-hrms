@@ -44,12 +44,14 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { Response } from 'express';
 import { sendCsvResponse } from '../../common/utils/csv.util';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { validateImageFile, createImageFileFilter } from '../../common/utils/file-validation.util';
+import {
+  validateImageFile,
+  createImageFileFilter,
+} from '../../common/utils/file-validation.util';
 import { AuthenticatedRequest } from '../../common/types/request.types';
 
 @ApiTags('Leaves')
 @Controller('leaves')
-
 export class LeaveController {
   constructor(private readonly leaveService: LeaveService) {}
 
@@ -359,7 +361,6 @@ export class LeaveController {
   }
 
   @Get()
-
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all leaves for logged-in employee' })
   @ApiResponse({ status: 200, description: 'Returns leave requests' })
@@ -656,7 +657,6 @@ export class LeaveController {
   }
 
   @Patch(':id/cancel')
-
   @ApiBearerAuth()
   @ApiOperation({
     summary:
@@ -853,7 +853,10 @@ export class LeaveController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Download your leave requests as CSV' })
   async exportSelf(@Request() req: AuthenticatedRequest, @Res() res: Response) {
-    const rows = await this.leaveService.getLeavesForExport(req.user.id, req.user.tenant_id);
+    const rows = await this.leaveService.getLeavesForExport(
+      req.user.id,
+      req.user.tenant_id,
+    );
     return sendCsvResponse(res, 'leaves-self.csv', rows);
   }
 
