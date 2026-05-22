@@ -1,11 +1,13 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Leave } from '../../entities/leave.entity';
-import { LeaveType } from '../../entities/leave-type.entity';
+import { Leave } from 'src/entities/leave.entity';
+import { LeaveBalance } from '../../entities/leave-balance.entity';
+import { LeaveType } from 'src/entities/leave-type.entity';
 import { User } from '../../entities/user.entity';
 import { LeaveService } from './leave.service';
 import { LeaveController } from './leave.controller';
-import { Employee } from '../../entities/employee.entity';
+import { LeaveBalancesController } from './leave-balances.controller';
+import { Employee } from 'src/entities/employee.entity';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
 import { LeaveFileUploadService } from './services/leave-file-upload.service';
 import { NotificationModule } from '../notification/notification.module';
@@ -17,7 +19,7 @@ import { TenantSettingsModule } from '../tenant-settings/tenant-settings.module'
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Leave, LeaveType, User, Employee, Team]),
+    TypeOrmModule.forFeature([Leave, LeaveBalance, LeaveType, User, Employee, Team]),
     SharedJwtModule,
     NotificationModule,
     TenantModule,
@@ -25,7 +27,7 @@ import { TenantSettingsModule } from '../tenant-settings/tenant-settings.module'
     TenantSettingsModule,
   ],
   providers: [LeaveService, LeaveFileUploadService, LeaveWorkflowListener],
-  controllers: [LeaveController],
+  controllers: [LeaveController, LeaveBalancesController],
   exports: [LeaveService],
 })
 export class LeaveModule {}

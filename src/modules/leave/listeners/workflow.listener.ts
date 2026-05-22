@@ -4,6 +4,8 @@ import { Repository, DataSource, EntityManager } from 'typeorm';
 import { OnEvent } from '@nestjs/event-emitter';
 
 import { Leave } from '../../../entities/leave.entity';
+import { LeaveBalance } from '../../../entities/leave-balance.entity';
+import { LeaveType } from '../../../entities/leave-type.entity';
 import { User } from '../../../entities/user.entity';
 import {
   LeaveStatus,
@@ -22,6 +24,10 @@ export class LeaveWorkflowListener {
   constructor(
     @InjectRepository(Leave)
     private readonly leaveRepo: Repository<Leave>,
+    @InjectRepository(LeaveBalance)
+    private readonly leaveBalanceRepo: Repository<LeaveBalance>,
+    @InjectRepository(LeaveType)
+    private readonly leaveTypeRepo: Repository<LeaveType>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
     private readonly notificationService: NotificationService,
@@ -46,16 +52,50 @@ export class LeaveWorkflowListener {
     tenantId: string,
     work: (
       leaveRepo: Repository<Leave>,
+      balanceRepo: Repository<LeaveBalance>,
+      leaveTypeRepo: Repository<LeaveType>,
       em: EntityManager | null,
     ) => Promise<T>,
   ): Promise<T> {
     const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
     if (isProvisioned) {
       return this.tenantDbService.withTenantSchema(tenantId, (em) =>
-        work(em.getRepository(Leave), em),
+        work(
+          em.getRepository(Leave),
+          em.getRepository(LeaveBalance),
+          em.getRepository(LeaveType),
+          em,
+        ),
       );
     }
-    return work(this.leaveRepo, null);
+    return work(this.leaveRepo, this.leaveBalanceRepo, this.leaveTypeRepo, null);
+  }
+
+  private async deductLeaveBalance(
+    balanceRepo: Repository<LeaveBalance>,
+    leaveTypeRepo: Repository<LeaveType>,
+    leave: Leave,
+    tenantId: string,
+  ): Promise<void> {
+    const year = new Date(leave.startDate).getFullYear();
+    let balance = await balanceRepo.findOne({
+      where: { employeeId: leave.employeeId, leaveTypeId: leave.leaveTypeId, year, tenantId },
+    });
+    if (!balance) {
+      const leaveType = await leaveTypeRepo.findOne({
+        where: { id: leave.leaveTypeId, tenantId },
+      });
+      balance = balanceRepo.create({
+        employeeId: leave.employeeId,
+        leaveTypeId: leave.leaveTypeId,
+        year,
+        allocated: leaveType?.maxDaysPerYear ?? 0,
+        used: 0,
+        tenantId,
+      });
+    }
+    balance.used += leave.totalDays;
+    await balanceRepo.save(balance);
   }
 
   private async getAdminUserIds(tenantId: string): Promise<string[]> {
@@ -80,7 +120,7 @@ export class LeaveWorkflowListener {
   async handleStepApproved(event: WorkflowCompletedEvent): Promise<void> {
     if (event.requestType !== (WorkflowRequestType.LEAVE as string)) return;
     try {
-      await this.runInTenantContext(event.tenantId, async (leaveRepo) => {
+      await this.runInTenantContext(event.tenantId, async (leaveRepo, _balanceRepo, _leaveTypeRepo) => {
         const leave = await leaveRepo.findOne({
           where: { id: event.relatedEntityId },
         });
@@ -135,7 +175,7 @@ export class LeaveWorkflowListener {
   async handleApproved(event: WorkflowCompletedEvent): Promise<void> {
     if (event.requestType !== (WorkflowRequestType.LEAVE as string)) return;
     try {
-      await this.runInTenantContext(event.tenantId, async (leaveRepo) => {
+      await this.runInTenantContext(event.tenantId, async (leaveRepo, balanceRepo, leaveTypeRepo) => {
         const leave = await leaveRepo.findOne({
           where: { id: event.relatedEntityId },
         });
@@ -146,6 +186,8 @@ export class LeaveWorkflowListener {
         leave.approvedAt = new Date();
         leave.remarks = event.finalRemarks ?? '';
         await leaveRepo.save(leave);
+
+        await this.deductLeaveBalance(balanceRepo, leaveTypeRepo, leave, event.tenantId);
       });
 
       const employee = await this.userRepo.findOne({
@@ -200,7 +242,7 @@ export class LeaveWorkflowListener {
   async handleRejected(event: WorkflowCompletedEvent): Promise<void> {
     if (event.requestType !== (WorkflowRequestType.LEAVE as string)) return;
     try {
-      await this.runInTenantContext(event.tenantId, async (leaveRepo) => {
+      await this.runInTenantContext(event.tenantId, async (leaveRepo, _balanceRepo, _leaveTypeRepo) => {
         const leave = await leaveRepo.findOne({
           where: { id: event.relatedEntityId },
         });

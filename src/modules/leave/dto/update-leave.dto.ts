@@ -41,12 +41,11 @@ export class ApproveLeaveDto {
 
 export class RejectLeaveDto {
   @ApiProperty({
-    description: 'Remarks for rejection',
+    description: 'Reason for rejection (required)',
     example: 'Insufficient coverage',
   })
   @IsString()
-  @IsOptional()
-  remarks?: string;
+  remarks: string;
 }
 
 export class ManagerRemarksDto {

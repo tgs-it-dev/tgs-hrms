@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  ConflictException,
   Logger,
 } from '@nestjs/common';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
@@ -13,8 +14,9 @@ import {
   WorkflowRequestType,
 } from '../../common/constants/enums';
 import { WorkflowService } from '../workflow/workflow.service';
-import { Leave } from '../../entities/leave.entity';
-import { LeaveType } from '../../entities/leave-type.entity';
+import { Leave } from 'src/entities/leave.entity';
+import { LeaveBalance } from 'src/entities/leave-balance.entity';
+import { LeaveType } from 'src/entities/leave-type.entity';
 import { CreateLeaveDto } from './dto/create-leave.dto';
 import { CreateLeaveForEmployeeDto } from './dto/create-leave-for-employee.dto';
 import { EditLeaveDto } from './dto/update-leave.dto';
@@ -36,6 +38,8 @@ export class LeaveService {
   constructor(
     @InjectRepository(Leave)
     private leaveRepo: Repository<Leave>,
+    @InjectRepository(LeaveBalance)
+    private readonly leaveBalanceRepo: Repository<LeaveBalance>,
     @InjectRepository(User)
     private userRepo: Repository<User>,
     @InjectRepository(Employee)
@@ -118,6 +122,7 @@ export class LeaveService {
       employeeRepo: Repository<Employee>,
       teamRepo: Repository<Team>,
       em: EntityManager | null,
+      balanceRepo: Repository<LeaveBalance>,
     ) => Promise<T>,
   ): Promise<T> {
     const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
@@ -129,6 +134,7 @@ export class LeaveService {
           em.getRepository(Employee),
           em.getRepository(Team),
           em,
+          em.getRepository(LeaveBalance),
         ),
       );
     }
@@ -138,7 +144,35 @@ export class LeaveService {
       this.employeeRepo,
       this.teamRepo,
       null,
+      this.leaveBalanceRepo,
     );
+  }
+
+  private async deductLeaveBalance(
+    balanceRepo: Repository<LeaveBalance>,
+    leaveTypeRepo: Repository<LeaveType>,
+    leave: Leave,
+    tenantId: string,
+  ): Promise<void> {
+    const year = new Date(leave.startDate).getFullYear();
+    let balance = await balanceRepo.findOne({
+      where: { employeeId: leave.employeeId, leaveTypeId: leave.leaveTypeId, year, tenantId },
+    });
+    if (!balance) {
+      const leaveType = await leaveTypeRepo.findOne({
+        where: { id: leave.leaveTypeId, tenantId },
+      });
+      balance = balanceRepo.create({
+        employeeId: leave.employeeId,
+        leaveTypeId: leave.leaveTypeId,
+        year,
+        allocated: leaveType?.maxDaysPerYear ?? 0,
+        used: 0,
+        tenantId,
+      });
+    }
+    balance.used += leave.totalDays;
+    await balanceRepo.save(balance);
   }
 
   async createLeave(
@@ -224,7 +258,7 @@ export class LeaveService {
       .getOne();
 
     if (overlappingLeave) {
-      throw new ForbiddenException(
+      throw new ConflictException(
         'You already have a leave request that overlaps with these dates',
       );
     }
@@ -538,7 +572,7 @@ export class LeaveService {
       .getOne();
 
     if (overlappingLeave) {
-      throw new ForbiddenException(
+      throw new ConflictException(
         'Employee already has a leave request that overlaps with these dates',
       );
     }
@@ -751,12 +785,15 @@ export class LeaveService {
   ): Promise<Leave> {
     return this.runInTenantContext(
       tenantId,
-      async (leaveRepo, _leaveTypeRepo, employeeRepo) => {
+      async (leaveRepo, leaveTypeRepo, employeeRepo, _teamRepo, _em, balanceRepo) => {
         const leave = await leaveRepo.findOne({
           where: { id, tenantId },
           relations: ['employee'],
         });
         if (!leave) throw new NotFoundException('Leave not found');
+
+        if (approverId === leave.employeeId)
+          throw new ForbiddenException('You cannot approve your own leave request');
 
         const isPending = leave.status === LeaveStatus.PENDING;
         const isProcessing = leave.status === LeaveStatus.PROCESSING;
@@ -819,6 +856,11 @@ export class LeaveService {
           leave.approvedAt = new Date();
           leave.remarks = remarks || '';
           const saved = await leaveRepo.save(leave);
+          try {
+            await this.deductLeaveBalance(balanceRepo, leaveTypeRepo, leave, tenantId);
+          } catch (e) {
+            this.logger.warn(`Failed to deduct leave balance for leave ${leave.id}`, e);
+          }
           try {
             const employeeUser = await this.userRepo.findOne({
               where: { id: leave.employeeId },
@@ -1925,5 +1967,41 @@ export class LeaveService {
       if (limit && items.length < limit) break;
     }
     return rows;
+  }
+
+  async getMyBalances(
+    employeeId: string,
+    tenantId: string,
+    year?: number,
+  ): Promise<LeaveBalance[]> {
+    const targetYear = year ?? new Date().getFullYear();
+    return this.runInTenantContext(tenantId, async (_lr, leaveTypeRepo, _er, _tr, _em, balanceRepo) => {
+      const balances = await balanceRepo.find({
+        where: { employeeId, tenantId, year: targetYear },
+        relations: ['leaveType'],
+      });
+
+      // For leave types that have no balance record yet, create virtual entries
+      const activeTypes = await leaveTypeRepo.find({
+        where: { tenantId, status: 'active' },
+      });
+      const existingTypeIds = new Set(balances.map((b) => b.leaveTypeId));
+      for (const lt of activeTypes) {
+        if (!existingTypeIds.has(lt.id)) {
+          const virtual = balanceRepo.create({
+            employeeId,
+            tenantId,
+            leaveTypeId: lt.id,
+            year: targetYear,
+            allocated: lt.maxDaysPerYear,
+            used: 0,
+          });
+          virtual.leaveType = lt;
+          balances.push(virtual);
+        }
+      }
+
+      return balances;
+    });
   }
 }
