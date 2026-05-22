@@ -14,12 +14,13 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { LogoutDto } from './dto/logout.dto';
 import { Throttle } from '@nestjs/throttler';
-import { RolesGuard } from 'src/common/guards/roles.guard';
-import { Roles } from 'src/common/decorators/roles.decorator';
-import { Permissions } from 'src/common/decorators/permissions.decorator';
-import { PermissionsGuard } from 'src/common/guards/permissions.guard';
-import { Public } from 'src/common/decorators/public.decorator';
-import { AuthenticatedRequest } from 'src/common/types/request.types';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { Permissions } from '../../common/decorators/permissions.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { Public } from '../../common/decorators/public.decorator';
+import { AuthenticatedRequest } from '../../common/types/request.types';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -293,7 +294,7 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Post('admin-data')
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles('admin', 'system-admin')
   @Permissions('manage_users')
   getAdminData() {
@@ -302,6 +303,7 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Get('test-permissions')
+  @UseGuards(JwtAuthGuard)
   testPermissions(@Req() req: AuthenticatedRequest) {
     return {
       message: 'Permissions test endpoint',
@@ -346,6 +348,7 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Get('validate-token')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({
     summary: 'Validate current token',
     description:
@@ -362,6 +365,7 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Post('logout-all')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({
     summary: 'Logout from all devices',
     description:
@@ -374,6 +378,7 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Get('sessions')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({
     summary: 'List active sessions',
     description:

@@ -13,13 +13,13 @@ import {
   WorkflowRequestType,
 } from '../../common/constants/enums';
 import { WorkflowService } from '../workflow/workflow.service';
-import { Leave } from 'src/entities/leave.entity';
-import { LeaveType } from 'src/entities/leave-type.entity';
+import { Leave } from '../../entities/leave.entity';
+import { LeaveType } from '../../entities/leave-type.entity';
 import { CreateLeaveDto } from './dto/create-leave.dto';
 import { CreateLeaveForEmployeeDto } from './dto/create-leave-for-employee.dto';
 import { EditLeaveDto } from './dto/update-leave.dto';
 import { User } from '../../entities/user.entity';
-import { Employee } from 'src/entities/employee.entity';
+import { Employee } from '../../entities/employee.entity';
 import { LeaveFileUploadService } from './services/leave-file-upload.service';
 import { S3StorageService } from '../storage/storage.service';
 import { NotificationService } from '../notification/notification.service';

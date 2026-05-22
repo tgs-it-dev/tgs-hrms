@@ -22,6 +22,7 @@ interface AccessTokenPayload {
   permissions: string[];
   first_name: string;
   last_name: string;
+  is_mobile?: boolean;
 }
 
 interface SessionRow {
@@ -105,6 +106,7 @@ export class JwtAuthGuard implements CanActivate {
       permissions: payload.permissions ?? [],
       first_name: payload.first_name,
       last_name: payload.last_name,
+      is_mobile: payload.is_mobile ?? false,
     };
 
     return true;

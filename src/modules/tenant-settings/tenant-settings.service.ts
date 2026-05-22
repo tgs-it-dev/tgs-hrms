@@ -8,6 +8,7 @@ export enum TenantSettingKey {
   LEAVE_WORKFLOW_ENABLED = 'leave_workflow_enabled',
   WFH_WORKFLOW_ENABLED = 'wfh_workflow_enabled',
   OVERTIME_WORKFLOW_ENABLED = 'overtime_workflow_enabled',
+  IP_RESTRICTION_ENABLED = 'ip_restriction_enabled',
 }
 
 @Injectable()
@@ -19,6 +20,7 @@ export class TenantSettingsService {
     [TenantSettingKey.LEAVE_WORKFLOW_ENABLED]: 'false',
     [TenantSettingKey.WFH_WORKFLOW_ENABLED]: 'false',
     [TenantSettingKey.OVERTIME_WORKFLOW_ENABLED]: 'false',
+    [TenantSettingKey.IP_RESTRICTION_ENABLED]: 'false',
   };
 
   // Two-level cache: tenantId → key → value.

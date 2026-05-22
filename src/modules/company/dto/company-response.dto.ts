@@ -56,4 +56,24 @@ export class CompanyResponseDto {
     example: '2024-01-01T00:00:00.000Z',
   })
   updated_at: Date;
+
+  @ApiProperty({
+    description: 'Mobile login enabled for tenant',
+    example: true,
+  })
+  mobile_login_enabled: boolean;
+
+  @ApiProperty({
+    description: 'IP restriction enabled for tenant',
+    example: false,
+  })
+  ip_restriction_enabled: boolean;
+
+  @ApiProperty({
+    description:
+      'Current client IP address — only returned for admin and system-admin roles',
+    example: '192.168.1.100',
+    nullable: true,
+  })
+  current_ip: string | null;
 }
