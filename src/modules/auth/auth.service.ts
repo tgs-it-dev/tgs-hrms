@@ -19,12 +19,13 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ConfigService } from '@nestjs/config';
 import { EmailService } from '../../common/utils/email';
 import { InviteStatusService } from '../invite-status/invite-status.service';
-import { Employee } from 'src/entities/employee.entity';
-import { SignupSession } from 'src/entities/signup-session.entity';
+import { Employee } from '../../entities/employee.entity';
+import { SignupSession } from '../../entities/signup-session.entity';
 import {
   GLOBAL_SYSTEM_TENANT_ID,
   UserRole,
 } from '../../common/constants/enums';
+import { SystemSettingsService } from '../system/system-settings/system-settings.service';
 import { isMobileRequest } from '../../common/utils/mobile-detection';
 import { Role } from '../../entities/role.entity';
 import { Tenant } from '../../entities/tenant.entity';
