@@ -925,7 +925,7 @@ export class LeaveController {
       }
     }
 
-        return this.leaveService.editLeave(
+    return this.leaveService.editLeave(
       id,
       req.user.id,
       req.user.tenant_id,
