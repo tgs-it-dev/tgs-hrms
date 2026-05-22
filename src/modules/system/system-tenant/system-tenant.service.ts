@@ -30,6 +30,10 @@ import { SignupSession } from 'src/entities/signup-session.entity';
 import { getPostgresErrorCode } from 'src/common/types/database.types';
 import { validateImageFile } from 'src/common/utils/file-validation.util';
 import { S3StorageService } from '../../storage';
+import {
+  TenantSettingsService,
+  TenantSettingKey,
+} from '../../tenant-settings/tenant-settings.service';
 
 const PREFIX_COMPANY_LOGOS = 'company-logos';
 
@@ -51,6 +55,7 @@ export class SystemTenantService {
     private readonly dataSource: DataSource,
     private readonly emailService: EmailService,
     private readonly s3: S3StorageService,
+    private readonly tenantSettings: TenantSettingsService,
   ) {}
 
   async create(dto: CreateTenantDto, file?: Express.Multer.File) {
@@ -285,7 +290,7 @@ export class SystemTenantService {
 
     if (!fallbackAdminRole) {
       throw new NotFoundException(
-        "Role 'tenant-admin' (or fallback 'admin') must exist before creating a tenant.",
+        `Role 'tenant-admin' (or fallback 'admin') must exist before creating a tenant.`,
       );
     }
 
@@ -506,6 +511,19 @@ export class SystemTenantService {
     };
   }
 
+  async setMobileLoginEnabled(
+    tenantId: string,
+    enabled: boolean,
+  ): Promise<{ tenantId: string; mobileLoginEnabled: boolean }> {
+    await this.findOne(tenantId);
+    await this.tenantSettings.set(
+      tenantId,
+      TenantSettingKey.MOBILE_LOGIN_ENABLED,
+      String(enabled),
+    );
+    return { tenantId, mobileLoginEnabled: enabled };
+  }
+
   async remove(id: string) {
     const tenant = await this.findOne(id);
 
@@ -702,6 +720,41 @@ export class SystemTenantService {
       }
       throw err;
     }
+
+    const settingWrites: Promise<void>[] = [];
+    if (dto.mobileLoginEnabled !== undefined)
+      settingWrites.push(
+        this.tenantSettings.set(
+          result.tenant.id,
+          TenantSettingKey.MOBILE_LOGIN_ENABLED,
+          String(dto.mobileLoginEnabled),
+        ),
+      );
+    if (dto.leaveWorkflowEnabled !== undefined)
+      settingWrites.push(
+        this.tenantSettings.set(
+          result.tenant.id,
+          TenantSettingKey.LEAVE_WORKFLOW_ENABLED,
+          String(dto.leaveWorkflowEnabled),
+        ),
+      );
+    if (dto.wfhWorkflowEnabled !== undefined)
+      settingWrites.push(
+        this.tenantSettings.set(
+          result.tenant.id,
+          TenantSettingKey.WFH_WORKFLOW_ENABLED,
+          String(dto.wfhWorkflowEnabled),
+        ),
+      );
+    if (dto.overtimeWorkflowEnabled !== undefined)
+      settingWrites.push(
+        this.tenantSettings.set(
+          result.tenant.id,
+          TenantSettingKey.OVERTIME_WORKFLOW_ENABLED,
+          String(dto.overtimeWorkflowEnabled),
+        ),
+      );
+    await Promise.all(settingWrites);
 
     return {
       id: result.tenant.id,

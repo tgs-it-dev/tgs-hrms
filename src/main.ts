@@ -6,18 +6,8 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { Request, Response, NextFunction } from 'express';
-
-// express-basic-auth is a CommonJS module (export =). Cast to its callable shape explicitly
-// so TypeScript 5.x does not fail on the merged function+namespace type resolution.
-type BasicAuthFn = (options: {
-  users?: Record<string, string>;
-  authorizer?: (u: string, p: string) => boolean;
-  authorizeAsync?: boolean;
-  challenge?: boolean;
-  realm?: string | ((req: unknown) => string);
-  unauthorizedResponse?: unknown;
-}) => import('express').RequestHandler;
-const basicAuth = require('express-basic-auth') as BasicAuthFn;
+// Use require() so production build works (express-basic-auth is CommonJS, no default export)
+const basicAuth = require('express-basic-auth');
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -25,14 +15,13 @@ async function bootstrap() {
   app.use((_req: Request, res: Response, next: NextFunction) => {
     const start = Date.now();
 
-    res.on('finish', () => {
-      const duration = Date.now() - start;
-      try {
-        res.setHeader('X-Response-Time', `${duration}ms`);
-      } catch {
-        /* intentionally empty */
+    const originalEnd = res.end.bind(res);
+    (res as any).end = (...args: any[]) => {
+      if (!res.headersSent) {
+        res.setHeader('X-Response-Time', `${Date.now() - start}ms`);
       }
-    });
+      return originalEnd(...args);
+    };
 
     next();
   });
@@ -75,7 +64,6 @@ async function bootstrap() {
         'http://localhost:5173',
         'http://localhost:3000',
         'http://localhost:3001',
-        'http://192.168.0.109:3001',
         'http://192.168.0.109:3001',
         'http://dev.workonnect.ai',
         'https://dev.workonnect.ai',
@@ -154,4 +142,4 @@ async function bootstrap() {
   const port = parseInt(process.env.PORT || '3001', 10);
   await app.listen(port, '0.0.0.0');
 }
-void bootstrap();
+bootstrap();

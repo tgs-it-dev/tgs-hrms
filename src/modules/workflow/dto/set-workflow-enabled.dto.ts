@@ -3,10 +3,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { WorkflowRequestType } from '../../../common/constants/enums';
 
 export class SetWorkflowEnabledDto {
-  @ApiProperty({
-    enum: WorkflowRequestType,
-    example: WorkflowRequestType.LEAVE,
-  })
+  @ApiProperty({ enum: WorkflowRequestType, example: WorkflowRequestType.LEAVE })
   @IsEnum(WorkflowRequestType)
   request_type: WorkflowRequestType;
 

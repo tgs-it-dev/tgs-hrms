@@ -3,11 +3,13 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Post,
   Put,
   Query,
+  Req,
   UseGuards,
   UseInterceptors,
   UploadedFile,
@@ -15,6 +17,7 @@ import {
   MaxFileSizeValidator,
   FileTypeValidator,
 } from '@nestjs/common';
+import { AuthenticatedRequest } from 'src/common/types/request.types';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -26,17 +29,17 @@ import {
 } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 // import { CreateTenantDto } from "../dto/system-tenant/create-tenant.dto";
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { SystemTenantService } from './system-tenant.service';
 import { CreateTenantDto } from '../dto/system-tenant/create-tenant.dto';
 import { UpdateTenantDto } from '../dto/system-tenant/update-tenant.dto';
+import { ToggleMobileLoginDto } from '../dto/system-tenant/toggle-mobile-login.dto';
 
 @ApiTags('System (Tenants)')
 @ApiBearerAuth()
 @Roles('system-admin')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(RolesGuard)
 @Controller('system/tenants')
 export class SystemTenantController {
   constructor(private readonly tenantService: SystemTenantService) {}
@@ -256,6 +259,29 @@ export class SystemTenantController {
     }
 
     return this.tenantService.updateStatus(id, status);
+  }
+
+  /**
+   * Toggle mobile login access for a tenant.
+   * System admin can update any tenant; tenant/admin can only update their own.
+   */
+  @Put(':id/mobile-login')
+  @Roles('system-admin', 'tenant-admin', 'admin')
+  @ApiOperation({
+    summary: 'Enable or disable mobile login for a tenant',
+  })
+  @ApiResponse({ status: 200, description: 'Mobile login setting updated.' })
+  @ApiResponse({ status: 403, description: 'Cannot modify another tenant.' })
+  @ApiResponse({ status: 404, description: 'Tenant not found.' })
+  async setMobileLogin(
+    @Param('id') id: string,
+    @Body() dto: ToggleMobileLoginDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (req.user.role !== 'system-admin' && req.user.tenant_id !== id) {
+      throw new ForbiddenException('You can only modify your own tenant.');
+    }
+    return this.tenantService.setMobileLoginEnabled(id, dto.enabled);
   }
 
   /**

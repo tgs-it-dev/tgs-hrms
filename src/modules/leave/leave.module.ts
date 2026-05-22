@@ -13,6 +13,7 @@ import { Team } from '../../entities/team.entity';
 import { TenantModule } from '../tenant/tenant.module';
 import { WorkflowModule } from '../workflow/workflow.module';
 import { LeaveWorkflowListener } from './listeners/workflow.listener';
+import { TenantSettingsModule } from '../tenant-settings/tenant-settings.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { LeaveWorkflowListener } from './listeners/workflow.listener';
     NotificationModule,
     TenantModule,
     WorkflowModule,
+    TenantSettingsModule,
   ],
   providers: [LeaveService, LeaveFileUploadService, LeaveWorkflowListener],
   controllers: [LeaveController],

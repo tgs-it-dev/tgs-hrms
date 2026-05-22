@@ -26,6 +26,10 @@ import { NotificationService } from '../notification/notification.service';
 import { NotificationGateway } from '../notification/notification.gateway';
 import { Team } from '../../entities/team.entity';
 import { TenantDatabaseService } from '../../common/services/tenant-database.service';
+import {
+  TenantSettingsService,
+  TenantSettingKey,
+} from '../tenant-settings/tenant-settings.service';
 
 @Injectable()
 export class LeaveService {
@@ -48,6 +52,7 @@ export class LeaveService {
     @InjectDataSource()
     private readonly dataSource: DataSource,
     private readonly workflowService: WorkflowService,
+    private readonly tenantSettings: TenantSettingsService,
   ) {}
 
   private readonly logger = new Logger(LeaveService.name);
@@ -64,13 +69,10 @@ export class LeaveService {
   }
 
   async isWorkflowEnabled(tenantId: string): Promise<boolean> {
-    const result = await this.dataSource.query<
-      { leave_workflow_enabled: boolean }[]
-    >(
-      `SELECT leave_workflow_enabled FROM public.tenants WHERE id = $1 LIMIT 1`,
-      [tenantId],
+    return this.tenantSettings.getBoolean(
+      tenantId,
+      TenantSettingKey.LEAVE_WORKFLOW_ENABLED,
     );
-    return result[0]?.leave_workflow_enabled ?? false;
   }
 
   private isDirectToAdminRole(roleName: string | null | undefined): boolean {
@@ -147,7 +149,7 @@ export class LeaveService {
   ): Promise<Leave> {
     return this.runInTenantContext(
       tenantId,
-      async (leaveRepo, leaveTypeRepo, employeeRepo) => {
+      async (leaveRepo, leaveTypeRepo, employeeRepo, _teamRepo, em) => {
         return this.doCreateLeave(
           employeeId,
           tenantId,
@@ -156,6 +158,7 @@ export class LeaveService {
           leaveRepo,
           leaveTypeRepo,
           employeeRepo,
+          em,
         );
       },
     );
@@ -169,6 +172,7 @@ export class LeaveService {
     leaveRepo: Repository<Leave>,
     leaveTypeRepo: Repository<LeaveType>,
     employeeRepo: Repository<Employee>,
+    em?: EntityManager | null,
   ): Promise<Leave> {
     const leaveType = await leaveTypeRepo.findOne({
       where: { id: dto.leaveTypeId, tenantId, status: 'active' },
@@ -224,6 +228,41 @@ export class LeaveService {
         'You already have a leave request that overlaps with these dates',
       );
     }
+
+    // Cross-type check: block if any WFH or Overtime request overlaps these dates
+    const runQuery = <T>(sql: string, params: unknown[]) =>
+      em ? em.query<T>(sql, params) : this.dataSource.query<T>(sql, params);
+
+    const startStr = startDate.toISOString().slice(0, 10);
+    const endStr = endDate.toISOString().slice(0, 10);
+
+    const [wfhRows, overtimeRows] = await Promise.all([
+      runQuery<{ id: string }[]>(
+        `SELECT id FROM wfh_requests
+         WHERE employee_id = $1 AND tenant_id = $2
+           AND status IN ('pending','approved')
+           AND start_date <= $3 AND end_date >= $4
+         LIMIT 1`,
+        [employeeId, tenantId, endStr, startStr],
+      ),
+      runQuery<{ id: string }[]>(
+        `SELECT id FROM overtime_requests
+         WHERE employee_id = $1 AND tenant_id = $2
+           AND status IN ('pending','approved')
+           AND start_date <= $3 AND end_date >= $4
+         LIMIT 1`,
+        [employeeId, tenantId, endStr, startStr],
+      ),
+    ]);
+
+    if (wfhRows.length > 0)
+      throw new ForbiddenException(
+        'You already have a WFH request on these dates',
+      );
+    if (overtimeRows.length > 0)
+      throw new ForbiddenException(
+        'You already have an overtime request on these dates',
+      );
 
     // Calculate working days only (exclude weekends)
     const totalDays = this.calculateWorkingDays(startDate, endDate);
@@ -425,7 +464,7 @@ export class LeaveService {
 
     return this.runInTenantContext(
       tenantId,
-      async (leaveRepo, leaveTypeRepo, employeeRepo) => {
+      async (leaveRepo, leaveTypeRepo, employeeRepo, _teamRepo, em) => {
         return this.doCreateLeaveForEmployee(
           tenantId,
           dto,
@@ -433,6 +472,7 @@ export class LeaveService {
           leaveRepo,
           leaveTypeRepo,
           employeeRepo,
+          em,
         );
       },
     );
@@ -445,6 +485,7 @@ export class LeaveService {
     leaveRepo: Repository<Leave>,
     leaveTypeRepo: Repository<LeaveType>,
     employeeRepo: Repository<Employee>,
+    em?: EntityManager | null,
   ): Promise<Leave> {
     // Use the existing createLeave logic but with the specified employeeId
     // We'll reuse the validation and creation logic
@@ -501,6 +542,41 @@ export class LeaveService {
         'Employee already has a leave request that overlaps with these dates',
       );
     }
+
+    // Cross-type check: block if employee has any WFH or Overtime request on these dates
+    const runQuery = <T>(sql: string, params: unknown[]) =>
+      em ? em.query<T>(sql, params) : this.dataSource.query<T>(sql, params);
+
+    const startStr = startDate.toISOString().slice(0, 10);
+    const endStr = endDate.toISOString().slice(0, 10);
+
+    const [wfhRows, overtimeRows] = await Promise.all([
+      runQuery<{ id: string }[]>(
+        `SELECT id FROM wfh_requests
+         WHERE employee_id = $1 AND tenant_id = $2
+           AND status IN ('pending','approved')
+           AND start_date <= $3 AND end_date >= $4
+         LIMIT 1`,
+        [dto.employeeId, tenantId, endStr, startStr],
+      ),
+      runQuery<{ id: string }[]>(
+        `SELECT id FROM overtime_requests
+         WHERE employee_id = $1 AND tenant_id = $2
+           AND status IN ('pending','approved')
+           AND start_date <= $3 AND end_date >= $4
+         LIMIT 1`,
+        [dto.employeeId, tenantId, endStr, startStr],
+      ),
+    ]);
+
+    if (wfhRows.length > 0)
+      throw new ForbiddenException(
+        'Employee already has a WFH request on these dates',
+      );
+    if (overtimeRows.length > 0)
+      throw new ForbiddenException(
+        'Employee already has an overtime request on these dates',
+      );
 
     // Calculate working days only (exclude weekends)
     const totalDays = this.calculateWorkingDays(startDate, endDate);
@@ -1073,7 +1149,7 @@ export class LeaveService {
       if (name && name.trim()) {
         const namePattern = `%${name.trim()}%`;
         queryBuilder.andWhere(
-          "(LOWER(employee.first_name) LIKE LOWER(:namePattern) OR LOWER(employee.last_name) LIKE LOWER(:namePattern) OR LOWER(CONCAT(COALESCE(employee.first_name, ''), ' ', COALESCE(employee.last_name, ''))) LIKE LOWER(:namePattern))",
+          `(LOWER(employee.first_name) LIKE LOWER(:namePattern) OR LOWER(employee.last_name) LIKE LOWER(:namePattern) OR LOWER(CONCAT(COALESCE(employee.first_name, ''), ' ', COALESCE(employee.last_name, ''))) LIKE LOWER(:namePattern))`,
           { namePattern },
         );
       }
@@ -1178,7 +1254,7 @@ export class LeaveService {
 
         if (!teamMember) {
           throw new ForbiddenException(
-            "You can only add remarks for your own team members' leaves",
+            `You can only add remarks for your own team members' leaves`,
           );
         }
 
@@ -1389,6 +1465,7 @@ export class LeaveService {
           });
           if (!leaveType) throw new NotFoundException('Leave type not found');
           leave.leaveTypeId = newLeaveTypeId;
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           leave.leaveType = null as any;
         }
 
@@ -1583,7 +1660,7 @@ export class LeaveService {
         if (options?.name?.trim()) {
           const namePattern = `%${options.name.trim()}%`;
           teamMembersQb.andWhere(
-            "(user.first_name ILIKE :namePattern OR user.last_name ILIKE :namePattern OR CONCAT(COALESCE(user.first_name, ''), ' ', COALESCE(user.last_name, '')) ILIKE :namePattern)",
+            `(user.first_name ILIKE :namePattern OR user.last_name ILIKE :namePattern OR CONCAT(COALESCE(user.first_name, ''), ' ', COALESCE(user.last_name, '')) ILIKE :namePattern)`,
             { namePattern },
           );
         }
@@ -1680,7 +1757,10 @@ export class LeaveService {
           })
           .select(['leave.employeeId', 'COUNT(leave.id) as totalApplications'])
           .groupBy('leave.employeeId')
-          .getRawMany();
+          .getRawMany<{
+            leave_employeeId: string;
+            totalapplications: string;
+          }>();
 
         const leaveCountMap = new Map<string, number>();
         leaveApplications.forEach((item) => {
@@ -1716,5 +1796,134 @@ export class LeaveService {
         };
       },
     );
+  }
+
+  async getLeavesForExport(
+    userId: string,
+    tenantId: string,
+  ): Promise<Record<string, unknown>[]> {
+    const rows: Record<string, unknown>[] = [];
+    let page = 1;
+    while (true) {
+      const { items, total, limit } = await this.getLeaves(
+        userId,
+        page,
+        tenantId,
+      );
+      for (const l of items) {
+        const empFirstName = l.employee?.first_name || '';
+        const empLastName = l.employee?.last_name || '';
+        rows.push({
+          first_name: empFirstName,
+          last_name: empLastName,
+          user_name: `${empFirstName} ${empLastName}`.trim(),
+          leave_type: l.leaveType?.name || 'N/A',
+          start_date: l.startDate,
+          end_date: l.endDate,
+          total_days: l.totalDays,
+          status: l.status,
+          reason: l.reason,
+          applied_date: l.createdAt,
+          approved_by: l.approver?.first_name
+            ? `${l.approver.first_name} ${l.approver.last_name}`.trim()
+            : 'N/A',
+          approved_at: l.approvedAt || 'N/A',
+          remarks: l.remarks || 'N/A',
+        });
+      }
+      if (!items.length || rows.length >= total) break;
+      page += 1;
+      if (limit && items.length < limit) break;
+    }
+    return rows;
+  }
+
+  async getTeamLeavesForExport(
+    managerId: string,
+    tenantId: string,
+    name?: string,
+  ): Promise<Record<string, unknown>[]> {
+    const rows: Record<string, unknown>[] = [];
+    let currentPage = 1;
+    const options = { name: name?.trim() || undefined, limit: 25 };
+    while (true) {
+      const { items, total, limit } = await this.getTeamLeaves(
+        managerId,
+        tenantId,
+        currentPage,
+        options,
+      );
+      for (const l of items || []) {
+        rows.push({
+          id: l.id,
+          user_id: l.employeeId,
+          first_name: l.employee?.first_name || '',
+          last_name: l.employee?.last_name || '',
+          user_name:
+            `${l.employee?.first_name || ''} ${l.employee?.last_name || ''}`.trim(),
+          leave_type: l.leaveType?.name || 'N/A',
+          start_date: l.startDate,
+          end_date: l.endDate,
+          total_days: l.totalDays,
+          status: l.status,
+          reason: l.reason,
+          applied_date: l.createdAt,
+          approved_by: l.approver?.first_name
+            ? `${l.approver.first_name} ${l.approver.last_name}`.trim()
+            : 'N/A',
+          approved_at: l.approvedAt || 'N/A',
+          remarks: l.remarks || 'N/A',
+        });
+      }
+      if (!items.length || rows.length >= total) break;
+      currentPage += 1;
+      if (limit && items.length < limit) break;
+    }
+    return rows;
+  }
+
+  async getAllLeavesForExport(
+    tenantId: string,
+    status?: string,
+    month?: number,
+    year?: number,
+    name?: string,
+  ): Promise<Record<string, unknown>[]> {
+    const rows: Record<string, unknown>[] = [];
+    let page = 1;
+    while (true) {
+      const { items, total, limit } = await this.getAllLeaves(
+        tenantId,
+        page,
+        status,
+        month,
+        year,
+        name,
+      );
+      for (const l of items) {
+        rows.push({
+          first_name: l.employee?.first_name || '',
+          last_name: l.employee?.last_name || '',
+          user_name:
+            `${l.employee?.first_name || ''} ${l.employee?.last_name || ''}`.trim(),
+          leave_type: l.leaveType?.name || 'N/A',
+          start_date: l.startDate,
+          end_date: l.endDate,
+          total_days: l.totalDays,
+          status: l.status,
+          reason: l.reason,
+          applied_date: l.createdAt,
+          approved_by: l.approver?.first_name
+            ? `${l.approver.first_name} ${l.approver.last_name}`.trim()
+            : 'N/A',
+          approved_at: l.approvedAt || 'N/A',
+          remarks: l.remarks || 'N/A',
+        });
+      }
+      if (!items.length || rows.length >= total) break;
+      page += 1;
+      if (limit && items.length < limit) break;
+    }
+    return rows;
   }
 }

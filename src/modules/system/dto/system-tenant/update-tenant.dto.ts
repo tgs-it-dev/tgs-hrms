@@ -5,6 +5,7 @@ import {
   MaxLength,
   IsOptional,
   IsUUID,
+  IsBoolean,
 } from 'class-validator';
 
 export class UpdateTenantDto {
@@ -42,4 +43,36 @@ export class UpdateTenantDto {
   @IsString({ message: 'Logo must be a string URL' })
   @MaxLength(500, { message: 'Logo URL cannot exceed 500 characters' })
   logo?: string;
+
+  @ApiPropertyOptional({
+    example: true,
+    description: 'Allow users of this tenant to log in from the mobile app',
+  })
+  @IsOptional()
+  @IsBoolean()
+  mobileLoginEnabled?: boolean;
+
+  @ApiPropertyOptional({
+    example: false,
+    description: 'Enable leave approval workflow for this tenant',
+  })
+  @IsOptional()
+  @IsBoolean()
+  leaveWorkflowEnabled?: boolean;
+
+  @ApiPropertyOptional({
+    example: false,
+    description: 'Enable WFH approval workflow for this tenant',
+  })
+  @IsOptional()
+  @IsBoolean()
+  wfhWorkflowEnabled?: boolean;
+
+  @ApiPropertyOptional({
+    example: false,
+    description: 'Enable overtime approval workflow for this tenant',
+  })
+  @IsOptional()
+  @IsBoolean()
+  overtimeWorkflowEnabled?: boolean;
 }

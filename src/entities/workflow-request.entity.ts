@@ -1,10 +1,7 @@
 import { Entity, Column, Index, OneToMany } from 'typeorm';
 import { TenantBaseEntity } from './tenant-base.entity';
 import { WorkflowStep } from './workflow-step.entity';
-import {
-  WorkflowRequestType,
-  WorkflowRequestStatus,
-} from '../common/constants/enums';
+import { WorkflowRequestType, WorkflowRequestStatus } from '../common/constants/enums';
 
 @Entity('workflow_requests')
 @Index(['tenant_id', 'request_type'])
@@ -22,11 +19,7 @@ export class WorkflowRequest extends TenantBaseEntity {
   @Column({ type: 'uuid' })
   requestor_id: string;
 
-  @Column({
-    type: 'varchar',
-    length: 32,
-    default: WorkflowRequestStatus.PENDING,
-  })
+  @Column({ type: 'varchar', length: 32, default: WorkflowRequestStatus.PENDING })
   status: WorkflowRequestStatus;
 
   @Column({ type: 'smallint', default: 1 })
@@ -35,8 +28,6 @@ export class WorkflowRequest extends TenantBaseEntity {
   @Column({ type: 'smallint' })
   total_steps: number;
 
-  @OneToMany(() => WorkflowStep, (step) => step.workflow_request, {
-    cascade: true,
-  })
+  @OneToMany(() => WorkflowStep, (step) => step.workflow_request, { cascade: true })
   steps: WorkflowStep[];
 }

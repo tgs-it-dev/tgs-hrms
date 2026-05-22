@@ -10,13 +10,7 @@ import {
   DefaultValuePipe,
   BadRequestException,
 } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiBearerAuth,
-  ApiOperation,
-  ApiResponse,
-} from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { TenantGuard } from '../../../common/guards/tenant.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { PermissionsGuard } from '../../../common/guards/permissions.guard';
@@ -25,7 +19,7 @@ import { BillingService } from '../services/billing.service';
 
 @ApiTags('Billing')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, TenantGuard, RolesGuard, PermissionsGuard)
+@UseGuards(TenantGuard, RolesGuard, PermissionsGuard)
 @Controller('billing')
 export class BillingController {
   constructor(private readonly billingService: BillingService) {}
@@ -81,9 +75,7 @@ export class BillingController {
     @Query('checkoutSessionId') checkoutSessionId: string,
   ) {
     if (!checkoutSessionId) {
-      throw new BadRequestException(
-        'checkoutSessionId is required as query parameter',
-      );
+      throw new BadRequestException('checkoutSessionId is required as query parameter');
     }
 
     return this.billingService.confirmEmployeePayment(
@@ -92,3 +84,4 @@ export class BillingController {
     );
   }
 }
+

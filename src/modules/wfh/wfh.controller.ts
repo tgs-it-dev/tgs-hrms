@@ -38,6 +38,7 @@ import { WfhStatus } from '../../common/constants/enums';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthenticatedRequest } from 'src/common/types/request.types';
+import { createImageFileFilter } from '../../common/utils/file-validation.util';
 
 const WFH_EXAMPLE = {
   id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
@@ -115,17 +116,7 @@ export class WfhController {
   @UseInterceptors(
     FilesInterceptor('attachments', 10, {
       limits: { fileSize: 5 * 1024 * 1024 },
-      fileFilter: (_req, file, cb) => {
-        if (!file.mimetype?.startsWith('image/')) {
-          return cb(
-            new BadRequestException(
-              `Invalid file type: ${file.mimetype ?? 'unknown'}. Only images are allowed.`,
-            ),
-            false,
-          );
-        }
-        cb(null, true);
-      },
+      fileFilter: createImageFileFilter(),
     }),
   )
   async create(
@@ -276,17 +267,7 @@ export class WfhController {
   @UseInterceptors(
     FilesInterceptor('attachments', 10, {
       limits: { fileSize: 5 * 1024 * 1024 },
-      fileFilter: (_req, file, cb) => {
-        if (!file.mimetype?.startsWith('image/')) {
-          return cb(
-            new BadRequestException(
-              `Invalid file type: ${file.mimetype ?? 'unknown'}. Only images are allowed.`,
-            ),
-            false,
-          );
-        }
-        cb(null, true);
-      },
+      fileFilter: createImageFileFilter(),
     }),
   )
   async edit(

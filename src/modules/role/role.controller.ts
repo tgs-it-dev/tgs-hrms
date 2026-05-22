@@ -1,13 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Delete,
-  Body,
-  Param,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -18,7 +9,6 @@ import {
 } from '@nestjs/swagger';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { Permissions } from 'src/common/decorators/permissions.decorator';
 import { PermissionsGuard } from 'src/common/guards/permissions.guard';
 import { CreateRoleDto } from './dto/create-role.dto';
@@ -32,7 +22,7 @@ export class RoleController {
   constructor(private readonly roleService: RoleService) {}
 
   @Get()
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @UseGuards(RolesGuard, PermissionsGuard)
   @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('manage_roles')
   @ApiOperation({ summary: 'Get all roles (Admin only)' })
@@ -42,7 +32,9 @@ export class RoleController {
     schema: {
       example: [
         {
+          
           name: 'admin',
+         
         },
       ],
     },
@@ -60,8 +52,8 @@ export class RoleController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin', 'hr-admin')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('admin', 'system-admin' ,'hr-admin')
   @Permissions('manage_roles')
   @ApiOperation({ summary: 'Get role by ID (Admin only)' })
   @ApiParam({
@@ -87,7 +79,7 @@ export class RoleController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @UseGuards(RolesGuard, PermissionsGuard)
   @Roles('admin', 'system-admin')
   @Permissions('manage_roles')
   @ApiOperation({ summary: 'Create a new role (Admin only)' })
@@ -112,7 +104,7 @@ export class RoleController {
   }
 
   @Put(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @UseGuards(RolesGuard, PermissionsGuard)
   @Roles('admin', 'system-admin')
   @Permissions('manage_roles')
   @ApiOperation({ summary: 'Update role by ID (Admin only)' })
@@ -135,7 +127,7 @@ export class RoleController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @UseGuards(RolesGuard, PermissionsGuard)
   @Roles('admin', 'system-admin')
   @Permissions('manage_roles')
   @ApiOperation({ summary: 'Delete role by ID (Admin only)' })
