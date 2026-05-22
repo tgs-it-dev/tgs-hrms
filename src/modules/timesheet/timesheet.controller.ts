@@ -1,16 +1,15 @@
 import { Controller, Post, Get, UseGuards, Req, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { TimesheetService } from './timesheet.service';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { Request } from 'express';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
-import { Permissions } from '../../common/decorators/permissions.decorator';
-import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { RolesGuard } from 'src/common/guards/roles.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
+import { Permissions } from 'src/common/decorators/permissions.decorator';
+import { PermissionsGuard } from 'src/common/guards/permissions.guard';
 
 @ApiTags('Timesheet')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+
 @Controller('timesheet')
 export class TimesheetController {
   constructor(private readonly timesheetService: TimesheetService) {}

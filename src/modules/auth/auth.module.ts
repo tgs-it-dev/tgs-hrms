@@ -11,8 +11,8 @@ import { UserToken } from '../../entities/user-token.entity';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EmailModule } from '../../common/utils/email';
-import { SystemSettingsModule } from '../system/system-settings/system-settings.module';
 import { InviteStatusModule } from '../invite-status/invite-status.module';
+import { TenantSettingsModule } from '../tenant-settings/tenant-settings.module';
 import { Employee } from '../../entities/employee.entity';
 import { SignupSession } from '../../entities/signup-session.entity';
 
@@ -39,7 +39,7 @@ import { SignupSession } from '../../entities/signup-session.entity';
     }),
     InviteStatusModule,
     EmailModule,
-    SystemSettingsModule,
+    TenantSettingsModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, AuthTokenCleanupService],

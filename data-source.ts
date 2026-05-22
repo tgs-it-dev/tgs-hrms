@@ -3,6 +3,8 @@ import { DataSource } from 'typeorm';
 import * as dotenv from 'dotenv';
 // Load environment variables
 dotenv.config();
+const isProduction = process.env.NODE_ENV === 'production';
+
 export const AppDataSource = new DataSource({
   type: "postgres",
   host: process.env.DB_HOST,
@@ -10,8 +12,11 @@ export const AppDataSource = new DataSource({
   username: process.env.DB_USER,
   password: process.env.DB_PASS,
   database: process.env.DB_NAME,
-  entities: [__dirname + '/src/entities/*.entity{.ts,.js}'], // :white_check_mark: safer for both dev & prod
+  entities: [__dirname + '/src/entities/*.entity{.ts,.js}'],
   migrations: [__dirname + '/src/migrations/*{.ts,.js}'],
-  synchronize: false, // :white_check_mark: never true in prod
-  logging: process.env.NODE_ENV !== 'production',
+  synchronize: false,
+  logging: !isProduction,
+  ...(isProduction && {
+    ssl: { rejectUnauthorized: false },
+  }),
 });

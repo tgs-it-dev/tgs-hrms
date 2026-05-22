@@ -11,7 +11,7 @@ import { EmployeeProfileController } from './controllers/employee-profile.contro
 import { EmployeeProfileService } from './services/employee-profile.service';
 import { Attendance } from '../../entities/attendance.entity';
 import { Leave } from '../../entities/leave.entity';
-import { AttendanceModule } from '../attendance/attendace.module';
+import { AttendanceModule } from '../attendance/attendance.module';
 import { LeaveModule } from '../leave/leave.module';
 import { SendGridService } from '../../common/utils/email';
 import { InviteStatusModule } from '../invite-status/invite-status.module';

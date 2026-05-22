@@ -28,7 +28,6 @@ import { EmployeeService } from '../services/employee.service';
 import { CreateEmployeeDto, UpdateEmployeeDto, EmployeeQueryDto } from '../dto/employee.dto';
 import { RemoveEmployeeDocumentDto } from '../dto/update-employee.dto';
 
-import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { TenantGuard } from '../../../common/guards/tenant.guard';
@@ -40,11 +39,11 @@ import { PermissionsGuard } from '../../../common/guards/permissions.guard';
 import { Response } from 'express';
 import { sendCsvResponse } from '../../../common/utils/csv.util';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
-import { validateImageFile } from '../../../common/utils/file-validation.util';
+import { validateImageFile, createImageFileFilter } from '../../../common/utils/file-validation.util';
 
 @ApiTags('Employees')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, TenantGuard, RolesGuard, PermissionsGuard)
+@UseGuards(TenantGuard, RolesGuard, PermissionsGuard)
 @Controller('employees')
 export class EmployeeController {
   constructor(
@@ -63,19 +62,7 @@ export class EmployeeController {
         { name: 'cnic_back_picture', maxCount: 1 },
       ],
       {
-        fileFilter: (_req, file, cb) => {
-          try {
-            // Even if buffer is not available yet, we MUST validate metadata (extension, mimetype)
-            // This prevents invalid files from passing through to the service layer
-            validateImageFile(file);
-            cb(null, true);
-          } catch (error) {
-            cb(
-              error instanceof Error ? error : new Error("File validation failed"),
-              false,
-            );
-          }
-        },
+        fileFilter: createImageFileFilter(),
         limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
       },
     ),
@@ -156,18 +143,7 @@ export class EmployeeController {
         { name: 'cnic_back_picture', maxCount: 1 },
       ],
       {
-        fileFilter: (_req, file, cb) => {
-          try {
-            // Even if buffer is not available yet, we MUST validate metadata (extension, mimetype)
-            validateImageFile(file);
-            cb(null, true);
-          } catch (error) {
-            cb(
-              error instanceof Error ? error : new Error("File validation failed"),
-              false,
-            );
-          }
-        },
+        fileFilter: createImageFileFilter(),
         limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
       },
     ),
@@ -244,18 +220,7 @@ export class EmployeeController {
         { name: 'cnic_back_picture', maxCount: 1 },
       ],
       {
-        fileFilter: (_req, file, cb) => {
-          try {
-            // Even if buffer is not available yet, we MUST validate metadata (extension, mimetype)
-            validateImageFile(file);
-            cb(null, true);
-          } catch (error) {
-            cb(
-              error instanceof Error ? error : new Error("File validation failed"),
-              false,
-            );
-          }
-        },
+        fileFilter: createImageFileFilter(),
         limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
       },
     ),

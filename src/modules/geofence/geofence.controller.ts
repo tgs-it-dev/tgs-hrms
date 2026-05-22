@@ -11,7 +11,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -24,7 +23,7 @@ import { UpdateGeofenceDto } from './dto/update-geofence.dto';
 
 @ApiTags('Geofences')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, TenantGuard, RolesGuard, PermissionsGuard)
+@UseGuards(TenantGuard, RolesGuard, PermissionsGuard)
 @Controller('geofences')
 export class GeofenceController {
   constructor(private readonly service: GeofenceService) {}
@@ -45,7 +44,7 @@ export class GeofenceController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard, TenantGuard)
+  @UseGuards(TenantGuard)
   @ApiOperation({ summary: 'List geofences (optionally filtered by team)' })
   @ApiQuery({ name: 'team_id', required: false, description: 'Filter by team ID' })
   @ApiResponse({ status: 200, description: 'List of geofences returned.' })

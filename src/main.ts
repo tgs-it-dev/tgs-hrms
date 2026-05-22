@@ -15,12 +15,13 @@ async function bootstrap() {
   app.use((_req: Request, res: Response, next: NextFunction) => {
     const start = Date.now();
 
-    res.on('finish', () => {
-      const duration = Date.now() - start;
-      try {
-        res.setHeader('X-Response-Time', `${duration}ms`);
-      } catch {}
-    });
+    const originalEnd = res.end.bind(res);
+    (res as any).end = (...args: any[]) => {
+      if (!res.headersSent) {
+        res.setHeader('X-Response-Time', `${Date.now() - start}ms`);
+      }
+      return originalEnd(...args);
+    };
 
     next();
   });
@@ -63,7 +64,6 @@ async function bootstrap() {
         'http://localhost:5173',
         'http://localhost:3000',
         'http://localhost:3001',
-        'http://192.168.0.109:3001',
         'http://192.168.0.109:3001',
         'http://dev.workonnect.ai',
         'https://dev.workonnect.ai',

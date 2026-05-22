@@ -25,7 +25,7 @@ import {
   ApiConsumes,
   ApiBody,
 } from '@nestjs/swagger';
-import { ForbiddenException, ValidationPipe } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
 import { LeaveService } from './leave.service';
 import { CreateLeaveDto } from './dto/create-leave.dto';
 import { CreateLeaveForEmployeeDto } from './dto/create-leave-for-employee.dto';
@@ -44,12 +44,12 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { Response } from 'express';
 import { sendCsvResponse } from '../../common/utils/csv.util';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { validateImageFile } from '../../common/utils/file-validation.util';
+import { validateImageFile, createImageFileFilter } from '../../common/utils/file-validation.util';
 import { AuthenticatedRequest } from '../../common/types/request.types';
 
 @ApiTags('Leaves')
 @Controller('leaves')
-@UseGuards(JwtAuthGuard)
+
 export class LeaveController {
   constructor(private readonly leaveService: LeaveService) {}
 
@@ -99,45 +99,7 @@ export class LeaveController {
   @UseInterceptors(
     FilesInterceptor('documents', 10, {
       limits: { fileSize: 5 * 1024 * 1024 }, // 5MB per file
-      fileFilter: (_req, file, cb) => {
-        try {
-          // Check MIME type first
-          if (!file.mimetype || !file.mimetype.startsWith('image/')) {
-            return cb(
-              new BadRequestException(
-                `Invalid file type: ${file.mimetype || 'unknown'}. Only image files are allowed (JPG, JPEG, PNG, GIF, WebP)`,
-              ),
-              false,
-            );
-          }
-
-          // Check file extension
-          const fileExtension = file.originalname
-            .substring(file.originalname.lastIndexOf('.'))
-            .toLowerCase();
-          const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-
-          if (!allowedExtensions.includes(fileExtension)) {
-            return cb(
-              new BadRequestException(
-                `Invalid file extension: ${fileExtension}. Allowed extensions: ${allowedExtensions.join(', ')}`,
-              ),
-              false,
-            );
-          }
-
-          cb(null, true);
-        } catch (error) {
-          cb(
-            error instanceof BadRequestException
-              ? error
-              : new BadRequestException(
-                  'File validation failed. Please upload a valid image file',
-                ),
-            false,
-          );
-        }
-      },
+      fileFilter: createImageFileFilter(),
     }),
   )
   async create(
@@ -232,45 +194,7 @@ export class LeaveController {
   @UseInterceptors(
     FilesInterceptor('documents', 10, {
       limits: { fileSize: 5 * 1024 * 1024 }, // 5MB per file
-      fileFilter: (_req, file, cb) => {
-        try {
-          // Check MIME type first
-          if (!file.mimetype || !file.mimetype.startsWith('image/')) {
-            return cb(
-              new BadRequestException(
-                `Invalid file type: ${file.mimetype || 'unknown'}. Only image files are allowed (JPG, JPEG, PNG, GIF, WebP)`,
-              ),
-              false,
-            );
-          }
-
-          // Check file extension
-          const fileExtension = file.originalname
-            .substring(file.originalname.lastIndexOf('.'))
-            .toLowerCase();
-          const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-
-          if (!allowedExtensions.includes(fileExtension)) {
-            return cb(
-              new BadRequestException(
-                `Invalid file extension: ${fileExtension}. Allowed extensions: ${allowedExtensions.join(', ')}`,
-              ),
-              false,
-            );
-          }
-
-          cb(null, true);
-        } catch (error) {
-          cb(
-            error instanceof BadRequestException
-              ? error
-              : new BadRequestException(
-                  'File validation failed. Please upload a valid image file',
-                ),
-            false,
-          );
-        }
-      },
+      fileFilter: createImageFileFilter(),
     }),
   )
   async createLeaveForEmployee(
@@ -371,10 +295,6 @@ export class LeaveController {
       ? Math.min(100, Math.max(1, parseInt(limit, 10) || 25))
       : undefined;
 
-    if (req.user.role !== 'manager') {
-      throw new ForbiddenException('Access denied. Manager role required.');
-    }
-
     return this.leaveService.getTeamLeaves(
       req.user.id,
       req.user.tenant_id,
@@ -432,10 +352,6 @@ export class LeaveController {
   async getTeamMembersWithLeaveApplications(
     @Request() req: AuthenticatedRequest,
   ) {
-    if (req.user.role !== 'manager') {
-      throw new ForbiddenException('Access denied. Manager role required.');
-    }
-
     return this.leaveService.getTeamMembersWithLeaveApplications(
       req.user.id,
       req.user.tenant_id,
@@ -443,7 +359,7 @@ export class LeaveController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all leaves for logged-in employee' })
   @ApiResponse({ status: 200, description: 'Returns leave requests' })
@@ -740,7 +656,7 @@ export class LeaveController {
   }
 
   @Patch(':id/cancel')
-  @UseGuards(JwtAuthGuard)
+
   @ApiBearerAuth()
   @ApiOperation({
     summary:
@@ -862,45 +778,7 @@ export class LeaveController {
   @UseInterceptors(
     FilesInterceptor('documents', 10, {
       limits: { fileSize: 5 * 1024 * 1024 }, // 5MB per file
-      fileFilter: (_req, file, cb) => {
-        try {
-          // Check MIME type first
-          if (!file.mimetype || !file.mimetype.startsWith('image/')) {
-            return cb(
-              new BadRequestException(
-                `Invalid file type: ${file.mimetype || 'unknown'}. Only image files are allowed (JPG, JPEG, PNG, GIF, WebP)`,
-              ),
-              false,
-            );
-          }
-
-          // Check file extension
-          const fileExtension = file.originalname
-            .substring(file.originalname.lastIndexOf('.'))
-            .toLowerCase();
-          const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-
-          if (!allowedExtensions.includes(fileExtension)) {
-            return cb(
-              new BadRequestException(
-                `Invalid file extension: ${fileExtension}. Allowed extensions: ${allowedExtensions.join(', ')}`,
-              ),
-              false,
-            );
-          }
-
-          cb(null, true);
-        } catch (error) {
-          cb(
-            error instanceof BadRequestException
-              ? error
-              : new BadRequestException(
-                  'File validation failed. Please upload a valid image file',
-                ),
-            false,
-          );
-        }
-      },
+      fileFilter: createImageFileFilter(),
     }),
   )
   async editLeave(
@@ -978,39 +856,7 @@ export class LeaveController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Download your leave requests as CSV' })
   async exportSelf(@Request() req: AuthenticatedRequest, @Res() res: Response) {
-    let page = 1;
-    const rows: any[] = [];
-    while (true) {
-      const { items, total, limit } = await this.leaveService.getLeaves(
-        req.user.id,
-        page,
-      );
-      for (const l of items) {
-        const empFirstName =
-          l.employee?.first_name || req.user.first_name || '';
-        const empLastName = l.employee?.last_name || req.user.last_name || '';
-        rows.push({
-          first_name: empFirstName,
-          last_name: empLastName,
-          user_name: `${empFirstName} ${empLastName}`.trim(),
-          leave_type: l.leaveType?.name || 'N/A',
-          start_date: l.startDate,
-          end_date: l.endDate,
-          total_days: l.totalDays,
-          status: l.status,
-          reason: l.reason,
-          applied_date: l.createdAt,
-          approved_by: l.approver?.first_name
-            ? `${l.approver.first_name} ${l.approver.last_name}`.trim()
-            : 'N/A',
-          approved_at: l.approvedAt || 'N/A',
-          remarks: l.remarks || 'N/A',
-        });
-      }
-      if (!items.length || rows.length >= total) break;
-      page += 1;
-      if (limit && items.length < limit) break;
-    }
+    const rows = await this.leaveService.getLeavesForExport(req.user.id, req.user.tenant_id);
     return sendCsvResponse(res, 'leaves-self.csv', rows);
   }
 
@@ -1034,54 +880,11 @@ export class LeaveController {
     @Query('page') _page?: string,
     @Query('name') name?: string,
   ) {
-    // Fetch all pages of team leaves so CSV includes complete dataset (no pagination)
-    let currentPage = 1;
-    const rows: any[] = [];
-    const options = { name: name?.trim() || undefined, limit: 25 };
-
-    while (true) {
-      const { items, total, limit } = await this.leaveService.getTeamLeaves(
-        req.user.id,
-        req.user.tenant_id,
-        currentPage,
-        options,
-      );
-
-      for (const l of items || []) {
-        rows.push({
-          id: l.id,
-          user_id: l.employeeId,
-          first_name: l.employee?.first_name || '',
-          last_name: l.employee?.last_name || '',
-          user_name:
-            `${l.employee?.first_name || ''} ${l.employee?.last_name || ''}`.trim(),
-          leave_type: l.leaveType?.name || 'N/A',
-          start_date: l.startDate,
-          end_date: l.endDate,
-          total_days: l.totalDays,
-          status: l.status,
-          reason: l.reason,
-          applied_date: l.createdAt,
-          approved_by: l.approver?.first_name
-            ? `${l.approver.first_name} ${l.approver.last_name}`.trim()
-            : 'N/A',
-          approved_at: l.approvedAt || 'N/A',
-          remarks: l.remarks || 'N/A',
-        });
-      }
-
-      if (!items.length || rows.length >= total) {
-        break;
-      }
-
-      currentPage += 1;
-
-      // Safety: if last page returned fewer than limit, we are done
-      if (limit && items.length < limit) {
-        break;
-      }
-    }
-
+    const rows = await this.leaveService.getTeamLeavesForExport(
+      req.user.id,
+      req.user.tenant_id,
+      name,
+    );
     return sendCsvResponse(res, 'leaves-team.csv', rows);
   }
 
@@ -1126,43 +929,13 @@ export class LeaveController {
     @Query('status') status?: string,
     @Query('name') name?: string,
   ) {
-    let page = 1;
-    const rows: any[] = [];
-    const monthNumber = month ? parseInt(month, 10) : undefined;
-    const yearNumber = year ? parseInt(year, 10) : undefined;
-    while (true) {
-      const { items, total, limit } = await this.leaveService.getAllLeaves(
-        req.user.tenant_id,
-        page,
-        status,
-        monthNumber,
-        yearNumber,
-        name,
-      );
-      for (const l of items) {
-        rows.push({
-          first_name: l.employee?.first_name || '',
-          last_name: l.employee?.last_name || '',
-          user_name:
-            `${l.employee?.first_name || ''} ${l.employee?.last_name || ''}`.trim(),
-          leave_type: l.leaveType?.name || 'N/A',
-          start_date: l.startDate,
-          end_date: l.endDate,
-          total_days: l.totalDays,
-          status: l.status,
-          reason: l.reason,
-          applied_date: l.createdAt,
-          approved_by: l.approver?.first_name
-            ? `${l.approver.first_name} ${l.approver.last_name}`.trim()
-            : 'N/A',
-          approved_at: l.approvedAt || 'N/A',
-          remarks: l.remarks || 'N/A',
-        });
-      }
-      if (!items.length || rows.length >= total) break;
-      page += 1;
-      if (limit && items.length < limit) break;
-    }
+    const rows = await this.leaveService.getAllLeavesForExport(
+      req.user.tenant_id,
+      status,
+      month ? parseInt(month, 10) : undefined,
+      year ? parseInt(year, 10) : undefined,
+      name,
+    );
     return sendCsvResponse(res, 'leaves-all.csv', rows);
   }
 }

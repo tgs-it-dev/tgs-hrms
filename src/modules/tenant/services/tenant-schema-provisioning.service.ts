@@ -130,6 +130,8 @@ export class TenantSchemaProvisioningService {
       // immediately create designations under them and see them in findAll.
       await this.migrateGlobalDataToTenantSchema(queryRunner, schemaName);
 
+      await this.seedDefaultTenantSettings(queryRunner, tenantId);
+
       await queryRunner.commitTransaction();
       this.logger.log(`Schema provisioning complete for tenant ${tenantId}`);
     } catch (error) {
@@ -205,6 +207,8 @@ export class TenantSchemaProvisioningService {
         schemaName,
         tenantId,
       );
+
+      await this.seedDefaultTenantSettings(queryRunner, tenantId);
 
       await queryRunner.commitTransaction();
       this.logger.log(`Schema upgrade complete for tenant ${tenantId}`);
@@ -1598,5 +1602,27 @@ export class TenantSchemaProvisioningService {
     this.logger.debug(
       `Default workflow configs seeded in schema "${schemaName}"`,
     );
+  }
+
+  /**
+   * Seeds default rows into public.tenant_settings for a tenant.
+   * Uses ON CONFLICT DO NOTHING so existing values set via the API are never overwritten.
+   * Values must match TenantSettingsService.DEFAULTS.
+   */
+  private async seedDefaultTenantSettings(
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
+    tenantId: string,
+  ): Promise<void> {
+    await queryRunner.query(
+      `INSERT INTO public.tenant_settings (id, tenant_id, key, value, created_at, updated_at)
+       VALUES
+         (gen_random_uuid(), $1, 'mobile_login_enabled',    'true',  now(), now()),
+         (gen_random_uuid(), $1, 'leave_workflow_enabled',  'false', now(), now()),
+         (gen_random_uuid(), $1, 'wfh_workflow_enabled',    'false', now(), now()),
+         (gen_random_uuid(), $1, 'overtime_workflow_enabled','false', now(), now())
+       ON CONFLICT (tenant_id, key) DO NOTHING`,
+      [tenantId],
+    );
+    this.logger.debug(`Default tenant settings seeded for tenant ${tenantId}`);
   }
 }
