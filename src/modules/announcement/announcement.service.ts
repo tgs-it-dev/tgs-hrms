@@ -3,22 +3,22 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-} from "@nestjs/common";
-import { InjectDataSource, InjectRepository } from "@nestjs/typeorm";
-import { DataSource, In, LessThanOrEqual, Repository } from "typeorm";
-import { Cron, CronExpression } from "@nestjs/schedule";
-import { Announcement } from "../../entities/announcement.entity";
-import { User } from "../../entities/user.entity";
-import { SendGridService } from "../../common/utils/email";
-import { CreateAnnouncementDto } from "./dto/create-announcement.dto";
-import { UpdateAnnouncementDto } from "./dto/update-announcement.dto";
+} from '@nestjs/common';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, In, LessThanOrEqual, Repository } from 'typeorm';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { Announcement } from '../../entities/announcement.entity';
+import { User } from '../../entities/user.entity';
+import { SendGridService } from '../../common/utils/email';
+import { CreateAnnouncementDto } from './dto/create-announcement.dto';
+import { UpdateAnnouncementDto } from './dto/update-announcement.dto';
 import {
   AnnouncementStatus,
   AnnouncementCategory,
   AnnouncementPriority,
   GLOBAL_SYSTEM_TENANT_ID,
-} from "../../common/constants/enums";
-import { TenantDatabaseService } from "../../common/services/tenant-database.service";
+} from '../../common/constants/enums';
+import { TenantDatabaseService } from '../../common/services/tenant-database.service';
 
 @Injectable()
 export class AnnouncementService {
@@ -106,10 +106,10 @@ export class AnnouncementService {
 
       const full = await repo.findOne({
         where: { id: saved.id, tenant_id },
-        relations: ["creator"],
+        relations: ['creator'],
       });
       if (!full) {
-        throw new NotFoundException("Announcement not found.");
+        throw new NotFoundException('Announcement not found.');
       }
       return full;
     });
@@ -132,8 +132,8 @@ export class AnnouncementService {
     const fetch = (repo: Repository<Announcement>) =>
       repo.findAndCount({
         where: { tenant_id },
-        relations: ["creator"],
-        order: { created_at: "DESC" },
+        relations: ['creator'],
+        order: { created_at: 'DESC' },
         skip,
         take: limit,
       });
@@ -163,8 +163,8 @@ export class AnnouncementService {
     if (legacyTenantIds.length > 0) {
       legacyItems = await this.announcementRepo.find({
         where: { tenant_id: In(legacyTenantIds) },
-        relations: ["creator"],
-        order: { created_at: "DESC" },
+        relations: ['creator'],
+        order: { created_at: 'DESC' },
       });
     }
 
@@ -176,8 +176,8 @@ export class AnnouncementService {
       provRows.map(({ id }) =>
         this.tenantDbService.withTenantSchemaReadOnly(id, (em) =>
           em.getRepository(Announcement).find({
-            relations: ["creator"],
-            order: { created_at: "DESC" },
+            relations: ['creator'],
+            order: { created_at: 'DESC' },
           }),
         ),
       ),
@@ -209,7 +209,7 @@ export class AnnouncementService {
     const fetch = (repo: Repository<Announcement>) =>
       repo.findOne({
         where: { id, tenant_id },
-        relations: ["creator"],
+        relations: ['creator'],
       });
 
     const announcement = isProvisioned
@@ -219,7 +219,7 @@ export class AnnouncementService {
       : await fetch(this.announcementRepo);
 
     if (!announcement) {
-      throw new NotFoundException("Announcement not found.");
+      throw new NotFoundException('Announcement not found.');
     }
 
     return announcement;
@@ -236,16 +236,16 @@ export class AnnouncementService {
     return this.runInTenantContext(tenant_id, async (repo) => {
       const announcement = await repo.findOne({
         where: { id, tenant_id },
-        relations: ["creator"],
+        relations: ['creator'],
       });
 
       if (!announcement) {
-        throw new NotFoundException("Announcement not found.");
+        throw new NotFoundException('Announcement not found.');
       }
 
       if (announcement.status === AnnouncementStatus.SENT) {
         throw new BadRequestException(
-          "Cannot update an announcement that has already been sent.",
+          'Cannot update an announcement that has already been sent.',
         );
       }
 
@@ -266,10 +266,10 @@ export class AnnouncementService {
       await repo.save(announcement);
       const full = await repo.findOne({
         where: { id, tenant_id },
-        relations: ["creator"],
+        relations: ['creator'],
       });
       if (!full) {
-        throw new NotFoundException("Announcement not found.");
+        throw new NotFoundException('Announcement not found.');
       }
       return full;
     });
@@ -287,7 +287,7 @@ export class AnnouncementService {
         where: { id, tenant_id },
       });
       if (!announcement) {
-        throw new NotFoundException("Announcement not found.");
+        throw new NotFoundException('Announcement not found.');
       }
       await repo.softDelete({ id: announcement.id, tenant_id });
       return { deleted: true, id };
@@ -301,29 +301,29 @@ export class AnnouncementService {
     return this.runInTenantContext(tenant_id, async (repo) => {
       const announcement = await repo.findOne({
         where: { id, tenant_id },
-        relations: ["creator"],
+        relations: ['creator'],
       });
 
       if (!announcement) {
-        throw new NotFoundException("Announcement not found.");
+        throw new NotFoundException('Announcement not found.');
       }
 
       if (announcement.status === AnnouncementStatus.SENT) {
-        throw new BadRequestException("Announcement has already been sent.");
+        throw new BadRequestException('Announcement has already been sent.');
       }
 
       if (announcement.status === AnnouncementStatus.CANCELLED) {
-        throw new BadRequestException("Cannot send a cancelled announcement.");
+        throw new BadRequestException('Cannot send a cancelled announcement.');
       }
 
       await this.sendAnnouncementToTenant(tenant_id, announcement, repo);
 
       const full = await repo.findOne({
         where: { id, tenant_id },
-        relations: ["creator"],
+        relations: ['creator'],
       });
       if (!full) {
-        throw new NotFoundException("Announcement not found.");
+        throw new NotFoundException('Announcement not found.');
       }
       return full;
     });
@@ -336,16 +336,16 @@ export class AnnouncementService {
     return this.runInTenantContext(tenant_id, async (repo) => {
       const announcement = await repo.findOne({
         where: { id, tenant_id },
-        relations: ["creator"],
+        relations: ['creator'],
       });
 
       if (!announcement) {
-        throw new NotFoundException("Announcement not found.");
+        throw new NotFoundException('Announcement not found.');
       }
 
       if (announcement.status === AnnouncementStatus.SENT) {
         throw new BadRequestException(
-          "Cannot cancel an announcement that has already been sent.",
+          'Cannot cancel an announcement that has already been sent.',
         );
       }
 
@@ -355,10 +355,10 @@ export class AnnouncementService {
 
       const full = await repo.findOne({
         where: { id, tenant_id },
-        relations: ["creator"],
+        relations: ['creator'],
       });
       if (!full) {
-        throw new NotFoundException("Announcement not found.");
+        throw new NotFoundException('Announcement not found.');
       }
       return full;
     });
@@ -383,8 +383,8 @@ export class AnnouncementService {
     try {
       const tenantUsers = await this.userRepo.find({
         where: { tenant_id },
-        select: ["id", "email", "first_name", "last_name"],
-        relations: ["tenant"],
+        select: ['id', 'email', 'first_name', 'last_name'],
+        relations: ['tenant'],
       });
 
       if (tenantUsers.length === 0) {
@@ -400,13 +400,13 @@ export class AnnouncementService {
         try {
           await this.sendGridService.sendAnnouncementEmail(
             user.email,
-            `${user.first_name || ""} ${user.last_name || ""}`.trim() ||
-              "Team Member",
+            `${user.first_name || ''} ${user.last_name || ''}`.trim() ||
+              'Team Member',
             announcement.title,
             announcement.content,
             announcement.category,
             announcement.priority,
-            user.tenant?.name || "Your Company",
+            user.tenant?.name || 'Your Company',
           );
           sentCount++;
         } catch (emailError) {
@@ -434,7 +434,7 @@ export class AnnouncementService {
           error instanceof Error ? error.message : String(error)
         }`,
       );
-      throw new BadRequestException("Failed to send announcement emails.");
+      throw new BadRequestException('Failed to send announcement emails.');
     }
   }
 
@@ -532,27 +532,27 @@ export class AnnouncementService {
 
     const runStats = (repo: Repository<Announcement>) => {
       const qb = repo
-        .createQueryBuilder("a")
-        .where("a.tenant_id = :tenant_id", { tenant_id })
-        .andWhere("a.deleted_at IS NULL");
+        .createQueryBuilder('a')
+        .where('a.tenant_id = :tenant_id', { tenant_id })
+        .andWhere('a.deleted_at IS NULL');
 
       return Promise.all([
         qb.clone().getCount(),
         qb
           .clone()
-          .andWhere("a.status = :status", {
+          .andWhere('a.status = :status', {
             status: AnnouncementStatus.DRAFT,
           })
           .getCount(),
         qb
           .clone()
-          .andWhere("a.status = :status", {
+          .andWhere('a.status = :status', {
             status: AnnouncementStatus.SCHEDULED,
           })
           .getCount(),
         qb
           .clone()
-          .andWhere("a.status = :status", { status: AnnouncementStatus.SENT })
+          .andWhere('a.status = :status', { status: AnnouncementStatus.SENT })
           .getCount(),
       ]);
     };

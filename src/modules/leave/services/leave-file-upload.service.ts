@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import { validateImageFile } from '../../../common/utils/file-validation.util';
-import { S3StorageService } from "../../storage/storage.service";
+import { S3StorageService } from '../../storage/storage.service';
 
 const PREFIX_LEAVE = 'leave-documents';
 
@@ -28,7 +28,7 @@ export class LeaveFileUploadService {
 
     const uploadDir = path.join(
       process.cwd(),
-      "public",
+      'public',
       PREFIX_LEAVE,
       employeeId,
     );
@@ -49,10 +49,10 @@ export class LeaveFileUploadService {
   }
 
   private localPathFromStoredUrl(prefix: string, storedUrl: string): string {
-    const relative = storedUrl.replace(/^\/+/, "").split("?")[0];
-    if (!relative || !relative.startsWith(prefix + "/"))
-      return path.join(process.cwd(), "public", prefix, relative || "");
-    return path.join(process.cwd(), "public", relative);
+    const relative = storedUrl.replace(/^\/+/, '').split('?')[0];
+    if (!relative || !relative.startsWith(prefix + '/'))
+      return path.join(process.cwd(), 'public', prefix, relative || '');
+    return path.join(process.cwd(), 'public', relative);
   }
 
   async deleteLeaveDocument(documentUrl: string): Promise<void> {

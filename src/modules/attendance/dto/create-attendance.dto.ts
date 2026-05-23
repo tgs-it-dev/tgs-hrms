@@ -8,23 +8,33 @@ export class CreateAttendanceDto {
   @IsEnum(AttendanceType)
   type: AttendanceType;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     example: 24.860734,
-    description: 'Latitude for check-in/check-out location (required for CHECK_IN and CHECK_OUT)'
+    description:
+      'Latitude for check-in/check-out location (required for CHECK_IN and CHECK_OUT)',
   })
   @IsOptional()
-  @Transform(({ value }) => (value === '' || value === null || value === undefined ? value : Number(value)))
+  @Transform(({ value }) =>
+    value === '' || value === null || value === undefined
+      ? value
+      : Number(value),
+  )
   @IsNumber()
   @Min(-90)
   @Max(90)
   latitude?: number;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     example: 67.001136,
-    description: 'Longitude for check-in/check-out location (required for CHECK_IN and CHECK_OUT)'
+    description:
+      'Longitude for check-in/check-out location (required for CHECK_IN and CHECK_OUT)',
   })
   @IsOptional()
-  @Transform(({ value }) => (value === '' || value === null || value === undefined ? value : Number(value)))
+  @Transform(({ value }) =>
+    value === '' || value === null || value === undefined
+      ? value
+      : Number(value),
+  )
   @IsNumber()
   @Min(-180)
   @Max(180)

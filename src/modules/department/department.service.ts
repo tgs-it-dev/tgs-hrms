@@ -41,7 +41,10 @@ export class DepartmentService {
   private async run<T>(
     tenantId: string,
     isProvisioned: boolean,
-    work: (repo: Repository<Department>, em: EntityManager | null) => Promise<T>,
+    work: (
+      repo: Repository<Department>,
+      em: EntityManager | null,
+    ) => Promise<T>,
   ): Promise<T> {
     if (isProvisioned) {
       return this.tenantDbService.withTenantSchema(tenantId, (em) =>
@@ -55,7 +58,10 @@ export class DepartmentService {
   // CRUD
   // ---------------------------------------------------------------------------
 
-  async create(tenant_id: string, dto: CreateDepartmentDto): Promise<Department> {
+  async create(
+    tenant_id: string,
+    dto: CreateDepartmentDto,
+  ): Promise<Department> {
     const isProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
 
     return this.run(tenant_id, isProvisioned, async (repo) => {
@@ -64,7 +70,9 @@ export class DepartmentService {
       });
 
       if (existing) {
-        throw new ConflictException(`Department '${dto.name}' already exists in your company.`);
+        throw new ConflictException(
+          `Department '${dto.name}' already exists in your company.`,
+        );
       }
 
       try {
@@ -77,7 +85,9 @@ export class DepartmentService {
       } catch (err) {
         const errorCode = getPostgresErrorCode(err);
         if (errorCode === '23505') {
-          throw new ConflictException('Department name must be unique within your company');
+          throw new ConflictException(
+            'Department name must be unique within your company',
+          );
         }
         if (errorCode === '23502') {
           throw new BadRequestException('Department name is required.');
@@ -87,7 +97,11 @@ export class DepartmentService {
     });
   }
 
-  async update(tenant_id: string, id: string, dto: UpdateDepartmentDto): Promise<Department> {
+  async update(
+    tenant_id: string,
+    id: string,
+    dto: UpdateDepartmentDto,
+  ): Promise<Department> {
     const isProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
 
     return this.run(tenant_id, isProvisioned, async (repo) => {
@@ -104,7 +118,9 @@ export class DepartmentService {
       }
 
       if (department.tenant_id !== tenant_id) {
-        throw new BadRequestException('Department does not belong to your organization');
+        throw new BadRequestException(
+          'Department does not belong to your organization',
+        );
       }
 
       if (dto.name && dto.name !== department.name) {
@@ -121,7 +137,9 @@ export class DepartmentService {
 
       if (dto.description !== undefined) {
         department.description =
-          dto.description === '' || dto.description === null ? null : dto.description;
+          dto.description === '' || dto.description === null
+            ? null
+            : dto.description;
       }
 
       if (dto.name !== undefined) {
@@ -133,7 +151,9 @@ export class DepartmentService {
       } catch (err) {
         const errorCode = getPostgresErrorCode(err);
         if (errorCode === '23505') {
-          throw new ConflictException('Department name must be unique within your company');
+          throw new ConflictException(
+            'Department name must be unique within your company',
+          );
         }
         throw err;
       }
@@ -176,7 +196,9 @@ export class DepartmentService {
 
     return this.repo
       .createQueryBuilder('dept')
-      .where('dept.tenant_id IN (:...tenants)', { tenants: [GLOBAL, tenant_id] })
+      .where('dept.tenant_id IN (:...tenants)', {
+        tenants: [GLOBAL, tenant_id],
+      })
       .orderBy('dept.name', 'ASC')
       .getMany();
   }
@@ -198,7 +220,9 @@ export class DepartmentService {
           );
         }
         if (dept.tenant_id !== GLOBAL && dept.tenant_id !== tenant_id) {
-          throw new BadRequestException('Department does not belong to your organization');
+          throw new BadRequestException(
+            'Department does not belong to your organization',
+          );
         }
       }
 
@@ -206,7 +230,10 @@ export class DepartmentService {
     });
   }
 
-  async remove(tenant_id: string, id: string): Promise<{ deleted: true; id: string }> {
+  async remove(
+    tenant_id: string,
+    id: string,
+  ): Promise<{ deleted: true; id: string }> {
     const isProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
 
     return this.run(tenant_id, isProvisioned, async (repo) => {
@@ -226,7 +253,9 @@ export class DepartmentService {
       }
 
       if (dept.tenant_id !== tenant_id) {
-        throw new BadRequestException('Department does not belong to your organization');
+        throw new BadRequestException(
+          'Department does not belong to your organization',
+        );
       }
 
       if (dept.designations && dept.designations.length > 0) {

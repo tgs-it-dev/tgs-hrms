@@ -1,16 +1,16 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class AllowMultiTenantEmail1772000000000 implements MigrationInterface {
-    name = "AllowMultiTenantEmail1772000000000";
+  name = 'AllowMultiTenantEmail1772000000000';
 
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        // Drop existing trigger
-        await queryRunner.query(`
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    // Drop existing trigger
+    await queryRunner.query(`
       DROP TRIGGER IF EXISTS trg_prevent_duplicate_user_email ON users;
     `);
 
-        // Update the function to check for (email, tenant_id) uniqueness
-        await queryRunner.query(`
+    // Update the function to check for (email, tenant_id) uniqueness
+    await queryRunner.query(`
       CREATE OR REPLACE FUNCTION prevent_duplicate_user_email()
       RETURNS trigger AS $$
       BEGIN
@@ -30,23 +30,23 @@ export class AllowMultiTenantEmail1772000000000 implements MigrationInterface {
       $$ LANGUAGE plpgsql;
     `);
 
-        // Re-attach the trigger
-        await queryRunner.query(`
+    // Re-attach the trigger
+    await queryRunner.query(`
       CREATE TRIGGER trg_prevent_duplicate_user_email
       BEFORE INSERT OR UPDATE ON users
       FOR EACH ROW
       EXECUTE FUNCTION prevent_duplicate_user_email();
     `);
 
-        // Add composite index for performance and extra safety
-        await queryRunner.query(`
+    // Add composite index for performance and extra safety
+    await queryRunner.query(`
       CREATE INDEX IF NOT EXISTS idx_users_email_tenant ON users (email, tenant_id);
     `);
-    }
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        // Revert to global email uniqueness
-        await queryRunner.query(`
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    // Revert to global email uniqueness
+    await queryRunner.query(`
       CREATE OR REPLACE FUNCTION prevent_duplicate_user_email()
       RETURNS trigger AS $$
       BEGIN
@@ -64,8 +64,8 @@ export class AllowMultiTenantEmail1772000000000 implements MigrationInterface {
       $$ LANGUAGE plpgsql;
     `);
 
-        await queryRunner.query(`
+    await queryRunner.query(`
       DROP INDEX IF EXISTS idx_users_email_tenant;
     `);
-    }
+  }
 }

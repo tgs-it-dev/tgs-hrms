@@ -1,11 +1,16 @@
-import { Injectable, NotFoundException, Logger, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  Logger,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import * as fs from 'fs';
 import * as path from 'path';
-import { User } from 'src/entities/user.entity';
-import { Role } from 'src/entities/role.entity';
+import { User } from '../../../entities/user.entity';
+import { Role } from '../../../entities/role.entity';
 import { CreateUserDto, UpdateUserDto } from '../dto/user.dto';
 import { GLOBAL_SYSTEM_TENANT_ID } from '../../../common/constants/enums';
 import { PaginationResponse } from '../../../common/interfaces/pagination.interface';
@@ -18,8 +23,8 @@ export class UserService {
     private readonly userRepo: Repository<User>,
     @InjectRepository(Role)
     private readonly roleRepo: Repository<Role>,
-    private readonly fileUploadService: FileUploadService
-  ) { }
+    private readonly fileUploadService: FileUploadService,
+  ) {}
   private async isSystemAdmin(userId: string): Promise<boolean> {
     const user = await this.userRepo.findOne({
       where: { id: userId },
@@ -35,7 +40,8 @@ export class UserService {
     if (!role) throw new NotFoundException('Role not found');
 
     // System-admin users always get the global system tenant ID
-    const finalTenantId = role.name === 'system-admin' ? GLOBAL_SYSTEM_TENANT_ID : tenantId;
+    const finalTenantId =
+      role.name === 'system-admin' ? GLOBAL_SYSTEM_TENANT_ID : tenantId;
 
     // Validation: Only one system admin is allowed in the entire HRMS
     if (role.name === 'system-admin') {
@@ -48,7 +54,7 @@ export class UserService {
 
       if (existingSystemAdmin) {
         throw new BadRequestException(
-          'Only one system admin is allowed in the entire HRMS. A system admin already exists.'
+          'Only one system admin is allowed in the entire HRMS. A system admin already exists.',
         );
       }
     } else {
@@ -56,11 +62,13 @@ export class UserService {
       const existingUser = await this.userRepo.findOne({
         where: {
           email: createUserDto.email.toLowerCase(),
-          tenant_id: finalTenantId
-        }
+          tenant_id: finalTenantId,
+        },
       });
       if (existingUser) {
-        throw new BadRequestException('User with this email already exists in this organization');
+        throw new BadRequestException(
+          'User with this email already exists in this organization',
+        );
       }
     }
 
@@ -80,7 +88,7 @@ export class UserService {
   async findAll(
     requestedTenantId: string,
     currentUserId: string,
-    page: number = 1
+    page: number = 1,
   ): Promise<PaginationResponse<User>> {
     const isAdmin = !(await this.isSystemAdmin(currentUserId));
     const limit = 25;
@@ -101,7 +109,11 @@ export class UserService {
       totalPages: Math.ceil(total / limit),
     };
   }
-  async findOne(userId: string, requestedTenantId: string, currentUserId: string) {
+  async findOne(
+    userId: string,
+    requestedTenantId: string,
+    currentUserId: string,
+  ) {
     const isAdmin = !(await this.isSystemAdmin(currentUserId));
     const user = await this.userRepo.findOne({
       where: {
@@ -113,7 +125,12 @@ export class UserService {
     if (!user) throw new NotFoundException('User not found');
     return user;
   }
-  async update(userId: string, dto: UpdateUserDto, tenantId: string, currentUserId: string) {
+  async update(
+    userId: string,
+    dto: UpdateUserDto,
+    tenantId: string,
+    currentUserId: string,
+  ) {
     const user = await this.findOne(userId, tenantId, currentUserId);
     Object.assign(user, dto);
     return this.userRepo.save(user);
@@ -122,19 +139,31 @@ export class UserService {
     const user = await this.findOne(userId, tenantId, currentUserId);
     return this.userRepo.remove(user);
   }
-  async updateProfilePicture(userId: string, file: Express.Multer.File, tenantId: string, currentUserId: string) {
+  async updateProfilePicture(
+    userId: string,
+    file: Express.Multer.File,
+    tenantId: string,
+    currentUserId: string,
+  ) {
     const user = await this.findOne(userId, tenantId, currentUserId);
 
     if (user.profile_pic) {
       await this.fileUploadService.deleteProfilePicture(user.profile_pic);
     }
 
-    const profilePicUrl = await this.fileUploadService.uploadProfilePicture(file, userId);
+    const profilePicUrl = await this.fileUploadService.uploadProfilePicture(
+      file,
+      userId,
+    );
 
     user.profile_pic = profilePicUrl;
     return this.userRepo.save(user);
   }
-  async removeProfilePicture(userId: string, tenantId: string, currentUserId: string) {
+  async removeProfilePicture(
+    userId: string,
+    tenantId: string,
+    currentUserId: string,
+  ) {
     const user = await this.findOne(userId, tenantId, currentUserId);
     if (user.profile_pic) {
       await this.fileUploadService.deleteProfilePicture(user.profile_pic);
@@ -178,7 +207,9 @@ export class UserService {
 
       const stats = fs.statSync(filePath);
       const fileExtension = path.extname(filePath).toLowerCase();
-      this.logger.debug(`Profile picture stats: size=${stats.size}, ext=${fileExtension}`);
+      this.logger.debug(
+        `Profile picture stats: size=${stats.size}, ext=${fileExtension}`,
+      );
 
       let contentType = 'image/jpeg';
       switch (fileExtension) {
@@ -209,7 +240,9 @@ export class UserService {
         fileName,
       };
     } catch (error) {
-      this.logger.error(`Error getting profile picture: ${String((error as any)?.message || error)}`);
+      this.logger.error(
+        `Error getting profile picture: ${String(error?.message || error)}`,
+      );
       return null;
     }
   }

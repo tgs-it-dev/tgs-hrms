@@ -1,8 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-return */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-redundant-type-constituents */
 import {
   BadRequestException,
@@ -10,34 +5,34 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-} from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
-import { SignupSession } from "../../entities/signup-session.entity";
-import { CompanyDetails } from "../../entities/company-details.entity";
-import { PersonalDetailsDto } from "./dto/personal-details.dto";
-import { CompanyDetailsDto } from "./dto/company-details.dto";
-import { PaymentDto } from "./dto/payment.dto";
-import { CompleteSignupDto } from "./dto/complete-signup.dto";
-import * as bcrypt from "bcrypt";
-import Stripe from "stripe";
-import { ConfigService } from "@nestjs/config";
-import { Tenant } from "../../entities/tenant.entity";
-import { User } from "../../entities/user.entity";
-import { Role } from "../../entities/role.entity";
-import { SubscriptionPlan } from "../../entities/subscription-plan.entity";
-import axios from "axios";
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { SignupSession } from '../../entities/signup-session.entity';
+import { CompanyDetails } from '../../entities/company-details.entity';
+import { PersonalDetailsDto } from './dto/personal-details.dto';
+import { CompanyDetailsDto } from './dto/company-details.dto';
+import { PaymentDto } from './dto/payment.dto';
+import { CompleteSignupDto } from './dto/complete-signup.dto';
+import * as bcrypt from 'bcrypt';
+import Stripe from 'stripe';
+import { ConfigService } from '@nestjs/config';
+import { Tenant } from '../../entities/tenant.entity';
+import { User } from '../../entities/user.entity';
+import { Role } from '../../entities/role.entity';
+import { SubscriptionPlan } from '../../entities/subscription-plan.entity';
+import axios from 'axios';
 import {
   GoogleSignupInitDto,
   GoogleSignupInitResponse,
-} from "./dto/google-signup-init.dto";
-import { JwtService } from "@nestjs/jwt";
-import { S3StorageService } from "../storage";
-import * as fs from "fs";
-import * as path from "path";
-import { TenantSchemaProvisioningService } from "../tenant/services/tenant-schema-provisioning.service";
+} from './dto/google-signup-init.dto';
+import { JwtService } from '@nestjs/jwt';
+import { S3StorageService } from '../storage';
+import * as fs from 'fs';
+import * as path from 'path';
+import { TenantSchemaProvisioningService } from '../tenant/services/tenant-schema-provisioning.service';
 
-const PREFIX_COMPANY_LOGOS = "company-logos";
+const PREFIX_COMPANY_LOGOS = 'company-logos';
 
 @Injectable()
 export class SignupService {
@@ -62,12 +57,12 @@ export class SignupService {
     private readonly s3: S3StorageService,
     private readonly tenantSchemaProvisioning: TenantSchemaProvisioningService,
   ) {
-    const stripeKey = this.configService.get<string>("STRIPE_SECRET_KEY");
+    const stripeKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (stripeKey) {
       this.stripe = new Stripe(stripeKey);
     } else {
       this.logger.warn(
-        "STRIPE_SECRET_KEY not configured. Payment flows will run in fallback mode.",
+        'STRIPE_SECRET_KEY not configured. Payment flows will run in fallback mode.',
       );
     }
   }
@@ -79,29 +74,39 @@ export class SignupService {
     });
     if (existingUser) {
       throw new BadRequestException({
-        field: "email",
-        message: "User with this email already exists",
+        field: 'email',
+        message: 'User with this email already exists',
+      });
+    }
+
+    const existingPhone = await this.userRepo.findOne({
+      where: { phone: dto.phone },
+    });
+    if (existingPhone) {
+      throw new BadRequestException({
+        field: 'phone',
+        message: 'An account with this phone number already exists',
       });
     }
 
     const existingSession = await this.signupSessionRepo.findOne({
       where: { email: normalizedEmail },
-      order: { created_at: "DESC" as any },
+      order: { created_at: 'DESC' as any },
     } as any);
 
-    if (existingSession && existingSession.status !== "completed") {
+    if (existingSession && existingSession.status !== 'completed') {
       const { nextStep, companyDetailsCompleted, paymentCompleted } =
         await this.computeNextStep(existingSession.id);
       const message =
-        nextStep === "company-details"
-          ? "Signup already completed. Please re-login"
-          : nextStep === "payment"
-            ? "Personal and company details already completed. Continue with payment."
-            : nextStep === "complete"
-              ? "Payment completed. Finalize your signup."
-              : "Signup already completed.";
+        nextStep === 'company-details'
+          ? 'Signup already completed. Please re-login'
+          : nextStep === 'payment'
+            ? 'Personal and company details already completed. Continue with payment.'
+            : nextStep === 'complete'
+              ? 'Payment completed. Finalize your signup.'
+              : 'Signup already completed.';
       throw new BadRequestException({
-        code: "SIGNUP_ALREADY_STARTED",
+        code: 'SIGNUP_ALREADY_STARTED',
         message,
         status: existingSession.status,
         nextStep,
@@ -117,18 +122,18 @@ export class SignupService {
       first_name: dto.first_name,
       last_name: dto.last_name,
       phone: dto.phone,
-      status: "personal_completed",
+      status: 'personal_completed',
     });
     const saved = await this.signupSessionRepo.save(session);
     return {
       signupSessionId: saved.id,
       resumed: false,
-      status: "personal_completed",
-      nextStep: "company-details",
+      status: 'personal_completed',
+      nextStep: 'company-details',
       companyDetailsCompleted: false,
       paymentCompleted: false,
       message:
-        "Personal details saved successfully. Continue with company details.",
+        'Personal details saved successfully. Continue with company details.',
     };
   }
 
@@ -137,30 +142,30 @@ export class SignupService {
   ): Promise<GoogleSignupInitResponse | any> {
     let payload: any;
     try {
-      const resp = await axios.get("https://oauth2.googleapis.com/tokeninfo", {
+      const resp = await axios.get('https://oauth2.googleapis.com/tokeninfo', {
         params: { id_token: dto.idToken },
       });
       payload = resp.data;
     } catch {
-      throw new BadRequestException("Invalid Google ID token");
+      throw new BadRequestException('Invalid Google ID token');
     }
 
-    const email: string = String(payload.email || "").toLowerCase();
-    const givenName: string = String(payload.given_name || "").trim();
-    const familyName: string = String(payload.family_name || "").trim();
-    const name: string = String(payload.name || "").trim();
+    const email: string = String(payload.email || '').toLowerCase();
+    const givenName: string = String(payload.given_name || '').trim();
+    const familyName: string = String(payload.family_name || '').trim();
+    const name: string = String(payload.name || '').trim();
 
-    const firstName = givenName || (name ? name.split(" ")[0] : "");
+    const firstName = givenName || (name ? name.split(' ')[0] : '');
     const lastName =
-      familyName || (name ? name.split(" ").slice(1).join(" ") : "");
+      familyName || (name ? name.split(' ').slice(1).join(' ') : '');
 
     const existingUser = await this.userRepo.findOne({
       where: { email },
-      relations: ["role"],
+      relations: ['role'],
     });
     if (existingUser) {
       if (!existingUser.role?.name) {
-        throw new BadRequestException("User role not found for existing user");
+        throw new BadRequestException('User role not found for existing user');
       }
 
       const permissions = await this.userRepo.query(
@@ -183,12 +188,12 @@ export class SignupService {
       };
 
       const accessToken = this.jwtService.sign(payload, {
-        secret: this.configService.get<string>("JWT_SECRET"),
-        expiresIn: this.configService.get<string>("JWT_EXPIRES_IN") || "24h",
+        secret: this.configService.get<string>('JWT_SECRET'),
+        expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '24h',
       });
       const refreshToken = this.jwtService.sign(payload, {
-        secret: this.configService.get<string>("JWT_SECRET"),
-        expiresIn: "7d",
+        secret: this.configService.get<string>('JWT_SECRET'),
+        expiresIn: '7d',
       });
 
       return {
@@ -202,21 +207,21 @@ export class SignupService {
 
     const session = this.signupSessionRepo.create({
       email,
-      password_hash: "",
+      password_hash: '',
       first_name: firstName,
       last_name: lastName,
-      phone: "",
-      status: "personal_completed",
+      phone: '',
+      status: 'personal_completed',
     });
 
     const saved = await this.signupSessionRepo.save(session);
 
-    const domain = email.includes("@") ? email.split("@")[1] : "";
+    const domain = email.includes('@') ? email.split('@')[1] : '';
     const companyName = (() => {
-      if (!domain) return "";
-      const parts = domain.split(".");
+      if (!domain) return '';
+      const parts = domain.split('.');
       const base = parts.length >= 2 ? parts[parts.length - 2] : parts[0];
-      if (!base) return "";
+      if (!base) return '';
       return base.charAt(0).toUpperCase() + base.slice(1);
     })();
 
@@ -225,13 +230,13 @@ export class SignupService {
       email,
       first_name: firstName,
       last_name: lastName,
-      flow: "signup",
-      stage: "personal_completed",
+      flow: 'signup',
+      stage: 'personal_completed',
     } as const;
 
     const signupToken = this.jwtService.sign(signupPayload, {
-      secret: this.configService.get<string>("JWT_SECRET"),
-      expiresIn: "30m",
+      secret: this.configService.get<string>('JWT_SECRET'),
+      expiresIn: '30m',
     });
 
     return {
@@ -252,26 +257,26 @@ export class SignupService {
     const session = await this.signupSessionRepo.findOne({
       where: { id: dto.signupSessionId },
     });
-    if (!session) throw new NotFoundException("Signup session not found");
+    if (!session) throw new NotFoundException('Signup session not found');
 
-    const domainNormalized = (dto.domain || "").trim().toLowerCase();
+    const domainNormalized = (dto.domain || '').trim().toLowerCase();
     if (!domainNormalized) {
-      throw new BadRequestException("Domain cannot be empty");
+      throw new BadRequestException('Domain cannot be empty');
     }
 
     let details = await this.companyDetailsRepo.findOne({
       where: { signup_session_id: session.id },
     });
     const existingByDomain = await this.companyDetailsRepo
-      .createQueryBuilder("cd")
-      .where("LOWER(cd.domain) = :domain", { domain: domainNormalized })
+      .createQueryBuilder('cd')
+      .where('LOWER(cd.domain) = :domain', { domain: domainNormalized })
       .andWhere(
-        "(cd.signup_session_id IS NULL OR cd.signup_session_id != :sessionId)",
+        '(cd.signup_session_id IS NULL OR cd.signup_session_id != :sessionId)',
         { sessionId: session.id },
       )
       .getOne();
     if (existingByDomain) {
-      throw new ConflictException("Domain already exists.");
+      throw new ConflictException('Domain already exists.');
     }
 
     if (details) {
@@ -288,15 +293,15 @@ export class SignupService {
       });
     }
     await this.companyDetailsRepo.save(details);
-    session.status = "company_completed";
+    session.status = 'company_completed';
     await this.signupSessionRepo.save(session);
     const message = details.is_paid
-      ? "Company details saved. Payment already completed. Proceed to finalize signup."
-      : "Company details saved successfully. Continue with payment.";
+      ? 'Company details saved. Payment already completed. Proceed to finalize signup.'
+      : 'Company details saved successfully. Continue with payment.';
     return {
       signupSessionId: session.id,
-      status: "company_completed",
-      nextStep: details.is_paid ? "complete" : "payment",
+      status: 'company_completed',
+      nextStep: details.is_paid ? 'complete' : 'payment',
       companyDetailsCompleted: true,
       paymentCompleted: !!details.is_paid,
       message,
@@ -305,18 +310,18 @@ export class SignupService {
 
   async saveCompanyLogo(signupSessionId: string, file: Express.Multer.File) {
     if (!file || !file.buffer) {
-      throw new BadRequestException("No file uploaded");
+      throw new BadRequestException('No file uploaded');
     }
     const session = await this.signupSessionRepo.findOne({
       where: { id: signupSessionId },
     });
-    if (!session) throw new NotFoundException("Signup session not found");
+    if (!session) throw new NotFoundException('Signup session not found');
     const details = await this.companyDetailsRepo.findOne({
       where: { signup_session_id: session.id },
     });
-    if (!details) throw new NotFoundException("Company details not found");
+    if (!details) throw new NotFoundException('Company details not found');
 
-    const ext = path.extname(file.originalname || "") || ".png";
+    const ext = path.extname(file.originalname || '') || '.png';
     const fileName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
     const key = `${PREFIX_COMPANY_LOGOS}/signup/${signupSessionId}/${fileName}`;
 
@@ -327,9 +332,9 @@ export class SignupService {
     } else {
       const uploadDir = path.join(
         process.cwd(),
-        "public",
+        'public',
         PREFIX_COMPANY_LOGOS,
-        "signup",
+        'signup',
         signupSessionId,
       );
       if (!fs.existsSync(uploadDir))
@@ -346,49 +351,49 @@ export class SignupService {
   async startPayment(dto: PaymentDto) {
     const session = await this.signupSessionRepo.findOne({
       where: { id: dto.signupSessionId },
-      relations: ["companyDetails"],
+      relations: ['companyDetails'],
     });
-    if (!session) throw new NotFoundException("Signup session not found");
+    if (!session) throw new NotFoundException('Signup session not found');
     const company = await this.companyDetailsRepo.findOne({
       where: { signup_session_id: session.id },
     });
-    if (!company) throw new BadRequestException("Company details not found");
+    if (!company) throw new BadRequestException('Company details not found');
 
     const plan = await this.planRepo.findOne({
       where: { id: company.plan_id },
     });
-    if (!plan) throw new BadRequestException("Invalid planId");
-    const priceId = (plan.stripePriceId || "").trim();
-    if (!priceId || !priceId.startsWith("price_")) {
+    if (!plan) throw new BadRequestException('Invalid planId');
+    const priceId = (plan.stripePriceId || '').trim();
+    if (!priceId || !priceId.startsWith('price_')) {
       throw new BadRequestException(
         'Invalid stripePriceId configured for plan. Expected a Stripe Price ID starting with "price_". Update the plan to use a valid recurring Price from your Stripe Dashboard.',
       );
     }
 
     if (!this.stripe) {
-      this.logger.warn("Stripe not configured. Returning mocked checkout URL.");
+      this.logger.warn('Stripe not configured. Returning mocked checkout URL.');
       return {
-        checkoutSessionId: "mock_session",
-        url: "https://example.com/mock-checkout",
+        checkoutSessionId: 'mock_session',
+        url: 'https://example.com/mock-checkout',
       };
     }
 
-    if (dto.mode === "checkout") {
+    if (dto.mode === 'checkout') {
       let successUrl =
-        this.configService.get<string>("STRIPE_SUCCESS_URL") ||
-        "http://192.168.0.141:5173/signup/confirm-payment";
+        this.configService.get<string>('STRIPE_SUCCESS_URL') ||
+        'http://192.168.0.141:5173/signup/confirm-payment';
 
-      const hasQuery = successUrl.includes("?");
-      const joiner = hasQuery ? "&" : "?";
-      if (!successUrl.includes("session_id=")) {
+      const hasQuery = successUrl.includes('?');
+      const joiner = hasQuery ? '&' : '?';
+      if (!successUrl.includes('session_id=')) {
         successUrl = `${successUrl}${joiner}session_id={CHECKOUT_SESSION_ID}`;
       }
 
-      if (!successUrl.includes("signupSessionId=")) {
+      if (!successUrl.includes('signupSessionId=')) {
         successUrl = `${successUrl}&signupSessionId=${session.id}`;
       }
       this.logger.debug(
-        `Stripe success URL base: ${this.configService.get<string>("STRIPE_SUCCESS_URL") || "unset"}`,
+        `Stripe success URL base: ${this.configService.get<string>('STRIPE_SUCCESS_URL') || 'unset'}`,
       );
       this.logger.debug(`Stripe final success URL: ${successUrl}`);
       this.logger.debug(
@@ -396,11 +401,11 @@ export class SignupService {
       );
 
       const checkout = await this.stripe.checkout.sessions.create({
-        mode: "subscription",
+        mode: 'subscription',
         success_url: successUrl,
         cancel_url:
-          this.configService.get<string>("STRIPE_CANCEL_URL") ||
-          "http://192.168.0.161:5173/signup/select-plan",
+          this.configService.get<string>('STRIPE_CANCEL_URL') ||
+          'http://192.168.0.161:5173/signup/select-plan',
         allow_promotion_codes: true,
         line_items: [{ price: priceId, quantity: 1 }],
         metadata: { signupSessionId: session.id, planId: plan.id },
@@ -419,8 +424,8 @@ export class SignupService {
       const sub = await this.stripe.subscriptions.create({
         customer: customer.id,
         items: [{ price: priceId, quantity: 1 }],
-        payment_behavior: "default_incomplete",
-        expand: ["latest_invoice.payment_intent"],
+        payment_behavior: 'default_incomplete',
+        expand: ['latest_invoice.payment_intent'],
         metadata: { signupSessionId: session.id, planId: plan.id },
       });
       company.stripe_customer_id = customer.id;
@@ -434,7 +439,7 @@ export class SignupService {
       return { subscriptionId: sub.id, status: sub.status };
     }
 
-    return { subscriptionId: "mock_subscription", status: "incomplete" };
+    return { subscriptionId: 'mock_subscription', status: 'incomplete' };
   }
 
   async markPaymentSuccess(
@@ -444,7 +449,7 @@ export class SignupService {
     const session = await this.signupSessionRepo.findOne({
       where: { id: signupSessionId },
     });
-    if (!session) throw new NotFoundException("Signup session not found");
+    if (!session) throw new NotFoundException('Signup session not found');
     let company = await this.companyDetailsRepo.findOne({
       where: { signup_session_id: session.id },
     });
@@ -453,7 +458,7 @@ export class SignupService {
         where: { stripe_session_id: checkoutSessionId },
       });
     }
-    if (!company) throw new BadRequestException("Company details not found");
+    if (!company) throw new BadRequestException('Company details not found');
 
     const sessionIdToFetch =
       checkoutSessionId || company.stripe_session_id || null;
@@ -463,10 +468,10 @@ export class SignupService {
           sessionIdToFetch,
           {
             expand: [
-              "payment_intent",
-              "subscription",
-              "subscription.latest_invoice.payment_intent",
-              "invoice.payment_intent",
+              'payment_intent',
+              'subscription',
+              'subscription.latest_invoice.payment_intent',
+              'invoice.payment_intent',
             ] as any,
           } as any,
         );
@@ -476,7 +481,7 @@ export class SignupService {
         if (
           !paymentIntent &&
           subscription &&
-          typeof subscription === "object"
+          typeof subscription === 'object'
         ) {
           const fromExpanded = subscription?.latest_invoice?.payment_intent;
           if (fromExpanded) {
@@ -491,9 +496,9 @@ export class SignupService {
         }
 
         const paymentComplete =
-          stripeSession.payment_status === "paid" ||
-          stripeSession.status === "complete" ||
-          (paymentIntent && paymentIntent.status === "succeeded");
+          stripeSession.payment_status === 'paid' ||
+          stripeSession.status === 'complete' ||
+          (paymentIntent && paymentIntent.status === 'succeeded');
         if (paymentComplete) {
           company.is_paid = true;
         }
@@ -501,21 +506,21 @@ export class SignupService {
         let customerId: string | null = null;
         if (
           stripeSession.customer &&
-          typeof stripeSession.customer === "string"
+          typeof stripeSession.customer === 'string'
         ) {
           customerId = stripeSession.customer;
         }
         if (
           !customerId &&
           subscription &&
-          typeof subscription.customer === "string"
+          typeof subscription.customer === 'string'
         ) {
           customerId = subscription.customer as string;
         }
         if (
           !customerId &&
           paymentIntent &&
-          typeof paymentIntent.customer === "string"
+          typeof paymentIntent.customer === 'string'
         ) {
           customerId = paymentIntent.customer as string;
         }
@@ -523,20 +528,20 @@ export class SignupService {
           company.stripe_customer_id = customerId;
         }
 
-        if (paymentIntent && typeof paymentIntent.id === "string") {
+        if (paymentIntent && typeof paymentIntent.id === 'string') {
           company.stripe_payment_intent_id = paymentIntent.id;
-        } else if (subscription && typeof subscription === "string") {
+        } else if (subscription && typeof subscription === 'string') {
           const sub = await this.stripe.subscriptions.retrieve(subscription, {
-            expand: ["latest_invoice.payment_intent"],
+            expand: ['latest_invoice.payment_intent'],
           } as any);
           const piId = (sub as any)?.latest_invoice?.payment_intent?.id;
           if (piId) {
             company.stripe_payment_intent_id = piId;
           }
         }
-      } catch (e) {
+      } catch (e: unknown) {
         this.logger.warn(
-          `Stripe session retrieve failed: ${String(e?.message || e)}`,
+          `Stripe session retrieve failed: ${e instanceof Error ? e.message : String(e)}`,
         );
 
         company.is_paid = true;
@@ -546,20 +551,20 @@ export class SignupService {
     }
 
     await this.companyDetailsRepo.save(company);
-    session.status = "payment_completed";
+    session.status = 'payment_completed';
     await this.signupSessionRepo.save(session);
     return {
       ok: true,
       isPaid: company.is_paid,
       stripeCustomerId: company.stripe_customer_id,
       stripePaymentIntentId: company.stripe_payment_intent_id,
-      status: company.is_paid ? "succeeded" : "failed",
+      status: company.is_paid ? 'succeeded' : 'failed',
       transactionId:
         company.stripe_payment_intent_id || company.stripe_session_id,
-      nextStep: company.is_paid ? "complete" : "payment",
+      nextStep: company.is_paid ? 'complete' : 'payment',
       message: company.is_paid
-        ? "Payment verified successfully. Proceed to finalize your signup."
-        : "Payment not verified. Please try again.",
+        ? 'Payment verified successfully. Proceed to finalize your signup.'
+        : 'Payment not verified. Please try again.',
     };
   }
 
@@ -567,28 +572,28 @@ export class SignupService {
     const session = await this.signupSessionRepo.findOne({
       where: { id: dto.signupSessionId },
     });
-    if (!session) throw new NotFoundException("Signup session not found");
+    if (!session) throw new NotFoundException('Signup session not found');
 
     // If signup is already completed (e.g., system-admin created tenant), return existing data
-    if (session.status === "completed") {
+    if (session.status === 'completed') {
       const company = await this.companyDetailsRepo.findOne({
         where: { signup_session_id: session.id },
       });
       if (!company || !company.tenant_id) {
-        throw new BadRequestException("Signup completed but tenant not found");
+        throw new BadRequestException('Signup completed but tenant not found');
       }
 
       const user = await this.userRepo.findOne({
         where: { email: session.email.toLowerCase() },
-        relations: ["role"],
+        relations: ['role'],
       });
       if (!user) {
-        throw new BadRequestException("Signup completed but user not found");
+        throw new BadRequestException('Signup completed but user not found');
       }
 
       const adminRole = user.role;
       if (!adminRole) {
-        throw new Error("User role not found.");
+        throw new Error('User role not found.');
       }
 
       const permissionsRows = await this.userRepo.query(
@@ -615,12 +620,12 @@ export class SignupService {
       } as const;
 
       const accessToken = this.jwtService.sign(tokenPayload, {
-        secret: this.configService.get<string>("JWT_SECRET"),
-        expiresIn: this.configService.get<string>("JWT_EXPIRES_IN") || "24h",
+        secret: this.configService.get<string>('JWT_SECRET'),
+        expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '24h',
       });
       const refreshToken = this.jwtService.sign(tokenPayload, {
-        secret: this.configService.get<string>("JWT_SECRET"),
-        expiresIn: "7d",
+        secret: this.configService.get<string>('JWT_SECRET'),
+        expiresIn: '7d',
       });
 
       return {
@@ -630,16 +635,16 @@ export class SignupService {
         refreshToken,
         user,
         permissions,
-        message: "Signup already completed.",
+        message: 'Signup already completed.',
       };
     }
 
     const company = await this.companyDetailsRepo.findOne({
       where: { signup_session_id: session.id },
     });
-    if (!company) throw new BadRequestException("Company details not found");
+    if (!company) throw new BadRequestException('Company details not found');
     if (!company.is_paid)
-      throw new BadRequestException("Payment not completed");
+      throw new BadRequestException('Payment not completed');
 
     // Check if tenant already exists (system-admin created tenant)
     let tenant = company.tenant_id
@@ -675,10 +680,10 @@ export class SignupService {
 
     const roles = await this.ensureDefaultRoles();
 
-    const adminRole = roles.find((r) => r.name === "Admin");
+    const adminRole = roles.find((r) => r.name === 'Admin');
     if (!adminRole) {
       throw new Error(
-        "'Admin' role not found in roles table. Please seed the roles table with the required roles.",
+        'Admin role not found in roles table. Please seed the roles table with the required roles.',
       );
     }
 
@@ -689,6 +694,15 @@ export class SignupService {
 
     // Only create user if it doesn't exist (normal signup flow)
     if (!user) {
+      const phoneConflict = await this.userRepo.findOne({
+        where: { phone: session.phone },
+      });
+      if (phoneConflict) {
+        throw new ConflictException(
+          'An account with this phone number already exists. Please contact support.',
+        );
+      }
+
       user = this.userRepo.create({
         email: session.email,
         password: session.password_hash,
@@ -701,7 +715,7 @@ export class SignupService {
       await this.userRepo.save(user);
     }
 
-    session.status = "completed";
+    session.status = 'completed';
     await this.signupSessionRepo.save(session);
 
     const permissionsRows = await this.userRepo.query(
@@ -728,12 +742,12 @@ export class SignupService {
     } as const;
 
     const accessToken = this.jwtService.sign(tokenPayload, {
-      secret: this.configService.get<string>("JWT_SECRET"),
-      expiresIn: this.configService.get<string>("JWT_EXPIRES_IN") || "24h",
+      secret: this.configService.get<string>('JWT_SECRET'),
+      expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '24h',
     });
     const refreshToken = this.jwtService.sign(tokenPayload, {
-      secret: this.configService.get<string>("JWT_SECRET"),
-      expiresIn: "7d",
+      secret: this.configService.get<string>('JWT_SECRET'),
+      expiresIn: '7d',
     });
 
     return {
@@ -743,12 +757,12 @@ export class SignupService {
       refreshToken,
       user,
       permissions,
-      message: "Signup completed successfully.",
+      message: 'Signup completed successfully.',
     };
   }
 
   private async ensureDefaultRoles(): Promise<Role[]> {
-    const roleNames = ["Admin", "Employee", "Manager", "User", "System-Admin"];
+    const roleNames = ['Admin', 'Employee', 'Manager', 'User', 'System-Admin'];
     const roles: Role[] = [];
     for (const name of roleNames) {
       const role = await this.roleRepo.findOne({ where: { name } });
@@ -760,17 +774,17 @@ export class SignupService {
   }
 
   private async computeNextStep(signupSessionId: string): Promise<{
-    nextStep: "company-details" | "payment" | "complete" | "done";
+    nextStep: 'company-details' | 'payment' | 'complete' | 'done';
     companyDetailsCompleted: boolean;
     paymentCompleted: boolean;
   }> {
     const session = await this.signupSessionRepo.findOne({
       where: { id: signupSessionId },
     });
-    if (!session) throw new NotFoundException("Signup session not found");
-    if (session.status === "completed") {
+    if (!session) throw new NotFoundException('Signup session not found');
+    if (session.status === 'completed') {
       return {
-        nextStep: "done",
+        nextStep: 'done',
         companyDetailsCompleted: true,
         paymentCompleted: true,
       };
@@ -782,12 +796,12 @@ export class SignupService {
     const paymentCompleted = !!company?.is_paid;
     if (!companyDetailsCompleted)
       return {
-        nextStep: "company-details",
+        nextStep: 'company-details',
         companyDetailsCompleted,
         paymentCompleted,
       };
     if (!paymentCompleted)
-      return { nextStep: "payment", companyDetailsCompleted, paymentCompleted };
-    return { nextStep: "complete", companyDetailsCompleted, paymentCompleted };
+      return { nextStep: 'payment', companyDetailsCompleted, paymentCompleted };
+    return { nextStep: 'complete', companyDetailsCompleted, paymentCompleted };
   }
 }

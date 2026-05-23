@@ -25,7 +25,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigModule } from '@nestjs/config';
 import { HttpException } from '@nestjs/common';
 import { getQueueToken } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
+import { Queue, Job } from 'bullmq';
 import Redis from 'ioredis';
 import { EmailModule } from './email.module';
 import { EmailService } from './email.service';
@@ -120,7 +120,7 @@ describe('Email Integration Tests', () => {
     );
     if (!redisReady) {
       console.warn(
-        `\n⚠️  Redis not reachable at ${redisHost}:${redisPort}.\n` +
+        `\n⚠️  Redis not reachable at ${redisURL}.\n` +
           '   Start Redis (e.g. docker run -d -p 6379:6379 redis:alpine)\n' +
           '   and re-run the tests. Skipping all email integration tests.\n',
       );
@@ -648,7 +648,7 @@ describe('Email Integration Tests', () => {
           'prioritized',
         ]);
         const notifJob = jobs.find(
-          (j) => j.name === (EmailJobType.NOTIFICATION as string),
+          (j: Job) => j.name === (EmailJobType.NOTIFICATION as string),
         );
 
         expect(notifJob).toBeDefined();
@@ -689,10 +689,10 @@ describe('Email Integration Tests', () => {
           'prioritized',
         ]);
         const resetJob = jobs.find(
-          (j) => j.name === (EmailJobType.PASSWORD_RESET as string),
+          (j: Job) => j.name === (EmailJobType.PASSWORD_RESET as string),
         );
         const notifJob = jobs.find(
-          (j) => j.name === (EmailJobType.NOTIFICATION as string),
+          (j: Job) => j.name === (EmailJobType.NOTIFICATION as string),
         );
 
         expect(resetJob).toBeDefined();
@@ -725,10 +725,10 @@ describe('Email Integration Tests', () => {
         const bulkJobs = await bulkQueue.getJobs(['waiting', 'prioritized']);
 
         const inTrans = transJobs.some(
-          (j) => j.name === (EmailJobType.BULK as string),
+          (j: Job) => j.name === (EmailJobType.BULK as string),
         );
         const inBulk = bulkJobs.some(
-          (j) => j.name === (EmailJobType.BULK as string),
+          (j: Job) => j.name === (EmailJobType.BULK as string),
         );
 
         expect(inTrans).toBe(false);

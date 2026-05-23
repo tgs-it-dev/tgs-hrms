@@ -3,15 +3,15 @@ import {
   ExecutionContext,
   Injectable,
   UnauthorizedException,
-} from "@nestjs/common";
-import { Reflector } from "@nestjs/core";
-import { JwtService } from "@nestjs/jwt";
-import { ConfigService } from "@nestjs/config";
-import { InjectDataSource } from "@nestjs/typeorm";
-import { DataSource } from "typeorm";
-import type { Request } from "express";
-import { IS_PUBLIC_KEY } from "../decorators/public.decorator";
-import { GLOBAL_SYSTEM_TENANT_ID } from "../constants/enums";
+} from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import type { Request } from 'express';
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { GLOBAL_SYSTEM_TENANT_ID } from '../constants/enums';
 
 interface AccessTokenPayload {
   sub: string;
@@ -22,6 +22,7 @@ interface AccessTokenPayload {
   permissions: string[];
   first_name: string;
   last_name: string;
+  is_mobile?: boolean;
 }
 
 interface SessionRow {
@@ -71,8 +72,8 @@ export class JwtAuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request>();
 
     const authHeader = request.headers.authorization;
-    if (!authHeader?.startsWith("Bearer ")) {
-      throw new UnauthorizedException("No token provided");
+    if (!authHeader?.startsWith('Bearer ')) {
+      throw new UnauthorizedException('No token provided');
     }
 
     const token = authHeader.substring(7);
@@ -81,10 +82,10 @@ export class JwtAuthGuard implements CanActivate {
     let payload: AccessTokenPayload;
     try {
       payload = this.jwtService.verify<AccessTokenPayload>(token, {
-        secret: this.configService.get<string>("JWT_SECRET"),
+        secret: this.configService.get<string>('JWT_SECRET'),
       });
     } catch {
-      throw new UnauthorizedException("Invalid or expired token");
+      throw new UnauthorizedException('Invalid or expired token');
     }
 
     const isSystemAdmin = payload.tenant_id === GLOBAL_SYSTEM_TENANT_ID;
@@ -97,7 +98,7 @@ export class JwtAuthGuard implements CanActivate {
       isSystemAdmin,
     );
 
-    request["user"] = {
+    request['user'] = {
       id: payload.sub,
       email: payload.email,
       role: payload.role,
@@ -105,6 +106,7 @@ export class JwtAuthGuard implements CanActivate {
       permissions: payload.permissions ?? [],
       first_name: payload.first_name,
       last_name: payload.last_name,
+      is_mobile: payload.is_mobile ?? false,
     };
 
     return true;
@@ -134,7 +136,7 @@ export class JwtAuthGuard implements CanActivate {
 
       if (!rows.length) {
         throw new UnauthorizedException(
-          "Session not found. Please log in again.",
+          'Session not found. Please log in again.',
         );
       }
 
@@ -142,12 +144,12 @@ export class JwtAuthGuard implements CanActivate {
 
       if (row.session_revoked) {
         throw new UnauthorizedException(
-          "Session has been revoked. Please log in again.",
+          'Session has been revoked. Please log in again.',
         );
       }
 
       if (!row.user_exists) {
-        throw new UnauthorizedException("User account no longer exists.");
+        throw new UnauthorizedException('User account no longer exists.');
       }
 
       if (!isSystemAdmin) {
@@ -170,7 +172,7 @@ export class JwtAuthGuard implements CanActivate {
     );
 
     if (!rows.length || !rows[0].user_exists) {
-      throw new UnauthorizedException("User account no longer exists.");
+      throw new UnauthorizedException('User account no longer exists.');
     }
 
     if (!isSystemAdmin && tenantId) {
@@ -184,12 +186,12 @@ export class JwtAuthGuard implements CanActivate {
   ): void {
     if (deletedAt) {
       throw new UnauthorizedException(
-        "Your organization account has been deleted. Please contact support.",
+        'Your organization account has been deleted. Please contact support.',
       );
     }
-    if (status === "suspended") {
+    if (status === 'suspended') {
       throw new UnauthorizedException(
-        "Your organization account has been suspended. Please contact support.",
+        'Your organization account has been suspended. Please contact support.',
       );
     }
   }

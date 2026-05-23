@@ -2,7 +2,10 @@ import { IsString, IsDateString, IsNotEmpty, IsUUID } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateLeaveForEmployeeDto {
-  @ApiProperty({ description: 'Employee ID (User ID) for whom leave is being applied', example: 'user-uuid-123' })
+  @ApiProperty({
+    description: 'Employee ID (User ID) for whom leave is being applied',
+    example: 'user-uuid-123',
+  })
   @IsUUID()
   @IsNotEmpty()
   employeeId: string;
@@ -27,4 +30,3 @@ export class CreateLeaveForEmployeeDto {
   @IsNotEmpty()
   reason: string;
 }
-

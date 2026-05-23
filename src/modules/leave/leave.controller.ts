@@ -16,27 +16,44 @@ import {
   BadRequestException,
   UsePipes,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags, ApiConsumes, ApiBody } from '@nestjs/swagger';
-import { ForbiddenException, ValidationPipe } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+  ApiConsumes,
+  ApiBody,
+} from '@nestjs/swagger';
+import { ValidationPipe } from '@nestjs/common';
 import { LeaveService } from './leave.service';
 import { CreateLeaveDto } from './dto/create-leave.dto';
 import { CreateLeaveForEmployeeDto } from './dto/create-leave-for-employee.dto';
-import { ApproveLeaveDto, RejectLeaveDto, ManagerRemarksDto, EditLeaveDto, RemoveLeaveDocumentDto } from './dto/update-leave.dto';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
-import { RolesGuard } from 'src/common/guards/roles.guard';
-import { Roles } from 'src/common/decorators/roles.decorator';
-import { Permissions } from 'src/common/decorators/permissions.decorator';
-import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+import {
+  ApproveLeaveDto,
+  RejectLeaveDto,
+  ManagerRemarksDto,
+  EditLeaveDto,
+  RemoveLeaveDocumentDto,
+} from './dto/update-leave.dto';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { Permissions } from '../../common/decorators/permissions.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { Response } from 'express';
-import { sendCsvResponse } from 'src/common/utils/csv.util';
+import { sendCsvResponse } from '../../common/utils/csv.util';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { validateImageFile } from 'src/common/utils/file-validation.util';
+import {
+  validateImageFile,
+  createImageFileFilter,
+} from '../../common/utils/file-validation.util';
+import { AuthenticatedRequest } from '../../common/types/request.types';
 
 @ApiTags('Leaves')
 @Controller('leaves')
-@UseGuards(JwtAuthGuard)
 export class LeaveController {
-  constructor(private readonly leaveService: LeaveService) { }
+  constructor(private readonly leaveService: LeaveService) {}
 
   @Post()
   @ApiBearerAuth()
@@ -84,48 +101,12 @@ export class LeaveController {
   @UseInterceptors(
     FilesInterceptor('documents', 10, {
       limits: { fileSize: 5 * 1024 * 1024 }, // 5MB per file
-      fileFilter: (_req, file, cb) => {
-        try {
-          // Check MIME type first
-          if (!file.mimetype || !file.mimetype.startsWith('image/')) {
-            return cb(
-              new BadRequestException(
-                `Invalid file type: ${file.mimetype || 'unknown'}. Only image files are allowed (JPG, JPEG, PNG, GIF, WebP)`,
-              ),
-              false,
-            );
-          }
-
-          // Check file extension
-          const fileExtension = file.originalname
-            .substring(file.originalname.lastIndexOf('.'))
-            .toLowerCase();
-          const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-
-          if (!allowedExtensions.includes(fileExtension)) {
-            return cb(
-              new BadRequestException(
-                `Invalid file extension: ${fileExtension}. Allowed extensions: ${allowedExtensions.join(', ')}`,
-              ),
-              false,
-            );
-          }
-
-          cb(null, true);
-        } catch (error) {
-          cb(
-            error instanceof BadRequestException
-              ? error
-              : new BadRequestException('File validation failed. Please upload a valid image file'),
-            false,
-          );
-        }
-      },
+      fileFilter: createImageFileFilter(),
     }),
   )
   async create(
     @Body() dto: CreateLeaveDto,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @UploadedFiles() files?: Express.Multer.File[],
   ) {
     // Validate files if provided
@@ -143,7 +124,12 @@ export class LeaveController {
         );
       }
     }
-    return this.leaveService.createLeave(req.user.id, req.user.tenant_id, dto, files);
+    return this.leaveService.createLeave(
+      req.user.id,
+      req.user.tenant_id,
+      dto,
+      files,
+    );
   }
 
   @Post('for-employee')
@@ -152,7 +138,9 @@ export class LeaveController {
   @Permissions('manage_leaves')
   @ApiBearerAuth()
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Apply for leave on behalf of an employee (Admin/HR Admin only)' })
+  @ApiOperation({
+    summary: 'Apply for leave on behalf of an employee (Admin/HR Admin only)',
+  })
   @ApiBody({
     schema: {
       type: 'object',
@@ -208,48 +196,12 @@ export class LeaveController {
   @UseInterceptors(
     FilesInterceptor('documents', 10, {
       limits: { fileSize: 5 * 1024 * 1024 }, // 5MB per file
-      fileFilter: (_req, file, cb) => {
-        try {
-          // Check MIME type first
-          if (!file.mimetype || !file.mimetype.startsWith('image/')) {
-            return cb(
-              new BadRequestException(
-                `Invalid file type: ${file.mimetype || 'unknown'}. Only image files are allowed (JPG, JPEG, PNG, GIF, WebP)`,
-              ),
-              false,
-            );
-          }
-
-          // Check file extension
-          const fileExtension = file.originalname
-            .substring(file.originalname.lastIndexOf('.'))
-            .toLowerCase();
-          const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-
-          if (!allowedExtensions.includes(fileExtension)) {
-            return cb(
-              new BadRequestException(
-                `Invalid file extension: ${fileExtension}. Allowed extensions: ${allowedExtensions.join(', ')}`,
-              ),
-              false,
-            );
-          }
-
-          cb(null, true);
-        } catch (error) {
-          cb(
-            error instanceof BadRequestException
-              ? error
-              : new BadRequestException('File validation failed. Please upload a valid image file'),
-            false,
-          );
-        }
-      },
+      fileFilter: createImageFileFilter(),
     }),
   )
   async createLeaveForEmployee(
     @Body() dto: CreateLeaveForEmployeeDto,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @UploadedFiles() files?: Express.Multer.File[],
   ) {
     // Validate files if provided
@@ -315,26 +267,45 @@ export class LeaveController {
       },
     },
   })
-  @ApiQuery({ name: 'page', required: false, description: 'Page number (default: 1)', type: Number })
-  @ApiQuery({ name: 'limit', required: false, description: 'Items per page (default: 25, max: 100)', type: Number })
-  @ApiQuery({ name: 'name', required: false, description: 'Filter by team member name (partial match on first/last name)', type: String })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Page number (default: 1)',
+    type: Number,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Items per page (default: 25, max: 100)',
+    type: Number,
+  })
+  @ApiQuery({
+    name: 'name',
+    required: false,
+    description:
+      'Filter by team member name (partial match on first/last name)',
+    type: String,
+  })
   async getTeamLeaves(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('name') name?: string,
   ) {
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-    const limitNumber = limit ? Math.min(100, Math.max(1, parseInt(limit, 10) || 25)) : undefined;
+    const limitNumber = limit
+      ? Math.min(100, Math.max(1, parseInt(limit, 10) || 25))
+      : undefined;
 
-    if (req.user.role !== 'manager') {
-      throw new ForbiddenException('Access denied. Manager role required.');
-    }
-
-    return this.leaveService.getTeamLeaves(req.user.id, req.user.tenant_id, pageNumber, {
-      name: name?.trim() || undefined,
-      limit: limitNumber,
-    });
+    return this.leaveService.getTeamLeaves(
+      req.user.id,
+      req.user.tenant_id,
+      pageNumber,
+      {
+        name: name?.trim() || undefined,
+        limit: limitNumber,
+      },
+    );
   }
 
   @Get('team/members')
@@ -342,10 +313,13 @@ export class LeaveController {
   @Roles('manager')
   @Permissions('manage_team_leaves', 'view_team_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get team members who have applied for leave (Manager only)' })
+  @ApiOperation({
+    summary: 'Get team members who have applied for leave (Manager only)',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Returns simple list of team members with leave application status',
+    description:
+      'Returns simple list of team members with leave application status',
     schema: {
       example: {
         teamMembers: [
@@ -377,23 +351,29 @@ export class LeaveController {
       },
     },
   })
-  async getTeamMembersWithLeaveApplications(@Request() req: any) {
-
-    if (req.user.role !== 'manager') {
-      throw new ForbiddenException('Access denied. Manager role required.');
-    }
-
-    return this.leaveService.getTeamMembersWithLeaveApplications(req.user.id, req.user.tenant_id);
+  async getTeamMembersWithLeaveApplications(
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.leaveService.getTeamMembersWithLeaveApplications(
+      req.user.id,
+      req.user.tenant_id,
+    );
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all leaves for logged-in employee' })
   @ApiResponse({ status: 200, description: 'Returns leave requests' })
-  async find(@Request() req: any, @Query('page') page?: string) {
+  async find(
+    @Request() req: AuthenticatedRequest,
+    @Query('page') page?: string,
+  ) {
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-    return this.leaveService.getLeaves(req.user.id, pageNumber, req.user.tenant_id);
+    return this.leaveService.getLeaves(
+      req.user.id,
+      pageNumber,
+      req.user.tenant_id,
+    );
   }
 
   @Get('all')
@@ -401,15 +381,43 @@ export class LeaveController {
   @Roles('admin', 'system-admin', 'hr-admin', 'network-admin')
   @Permissions('manage_leaves', 'view_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get all leave requests (Admin/HR Admin/Network Admin only)' })
-  @ApiQuery({ name: 'page', required: false, description: 'Page number for pagination (default: 1)', type: String })
-  @ApiQuery({ name: 'status', required: false, description: 'Filter by leave status', type: String })
-  @ApiQuery({ name: 'month', required: false, description: 'Filter by month (1-12)', type: Number })
-  @ApiQuery({ name: 'year', required: false, description: 'Filter by year (defaults to current year if month is provided)', type: Number })
-  @ApiQuery({ name: 'name', required: false, description: 'Filter by employee name (partial match on first/last name)', type: String })
+  @ApiOperation({
+    summary: 'Get all leave requests (Admin/HR Admin/Network Admin only)',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Page number for pagination (default: 1)',
+    type: String,
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    description: 'Filter by leave status',
+    type: String,
+  })
+  @ApiQuery({
+    name: 'month',
+    required: false,
+    description: 'Filter by month (1-12)',
+    type: Number,
+  })
+  @ApiQuery({
+    name: 'year',
+    required: false,
+    description:
+      'Filter by year (defaults to current year if month is provided)',
+    type: Number,
+  })
+  @ApiQuery({
+    name: 'name',
+    required: false,
+    description: 'Filter by employee name (partial match on first/last name)',
+    type: String,
+  })
   @ApiResponse({ status: 200, description: 'Returns all leave requests' })
   async findAllForAdmin(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Query('page') page?: string,
     @Query('status') status?: string,
     @Query('month') month?: string,
@@ -419,66 +427,160 @@ export class LeaveController {
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
     const monthNumber = month ? parseInt(month, 10) : undefined;
     const yearNumber = year ? parseInt(year, 10) : undefined;
-    return this.leaveService.getAllLeaves(req.user.tenant_id, pageNumber, status, monthNumber, yearNumber, name);
+    return this.leaveService.getAllLeaves(
+      req.user.tenant_id,
+      pageNumber,
+      status,
+      monthNumber,
+      yearNumber,
+      name,
+    );
   }
 
   @Get(':id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get specific leave details' })
-  @ApiResponse({ status: 200, description: 'Returns leave details' })
-  async findOne(@Param('id') id: string, @Request() req: any) {
+  @ApiResponse({
+    status: 200,
+    description:
+      'Returns leave details with workflow status and approver names when workflow_request_id is set',
+    schema: {
+      example: {
+        id: 'e5f6a7b8-c9d0-1234-efab-345678901234',
+        status: 'approved',
+        start_date: '2026-05-15',
+        end_date: '2026-05-17',
+        total_days: 3,
+        reason: 'Family function',
+        attachments: [],
+        workflow_request_id: 'd4e5f6a7-b8c9-0123-defa-234567890123',
+        workflow: {
+          id: 'd4e5f6a7-b8c9-0123-defa-234567890123',
+          status: 'approved',
+          request_type: 'leave',
+          current_step_order: 1,
+          total_steps: 1,
+          requestor: {
+            id: 'b2c3d4e5-f6a7-8901-bcde-f12345678901',
+            first_name: 'Ali',
+            last_name: 'Hassan',
+          },
+          steps: [
+            {
+              id: 'step-uuid-1',
+              step_order: 1,
+              step_label: 'HR Approval',
+              approver_role: 'hr-admin',
+              status: 'approved',
+              approver_id: 'hr-uuid',
+              approver: {
+                id: 'hr-uuid',
+                first_name: 'Nadia',
+                last_name: 'Malik',
+              },
+              remarks: null,
+              acted_at: '2026-05-03T12:00:00.000Z',
+            },
+          ],
+        },
+      },
+    },
+  })
+  async findOne(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
     return this.leaveService.getLeaveById(id, req.user.id, req.user.tenant_id);
   }
 
+  // ── Approve / Reject (legacy path — active when workflow_enabled = false) ──
+
   @Patch(':id/approve')
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin', 'manager')
   @Permissions('approve_leaves', 'manage_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Approve a leave request (Admin or System Admin only)' })
-  @ApiResponse({
-    status: 200,
-    description: 'Leave request approved successfully',
+  @ApiOperation({
+    summary: 'Approve a leave request (legacy path)',
+    description:
+      'Used when the workflow engine is **disabled** for the tenant. ' +
+      'Manager approval moves leave to PROCESSING; admin/system-admin approval moves it to APPROVED.',
   })
-  async approveLeave(@Param('id') id: string, @Body() dto: ApproveLeaveDto, @Request() req: any) {
-    return this.leaveService.approveLeave(id, req.user.id, req.user.tenant_id, dto.remarks);
+  @ApiResponse({ status: 200, description: 'Leave approved successfully' })
+  async approveLeave(
+    @Param('id') id: string,
+    @Body() dto: ApproveLeaveDto,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.leaveService.approveLeave(
+      id,
+      req.user.id,
+      req.user.tenant_id,
+      dto.remarks,
+    );
   }
 
   @Patch(':id/reject')
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin', 'manager')
   @Permissions('approve_leaves', 'manage_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Reject a leave request (Admin or System Admin only)' })
-  @ApiResponse({
-    status: 200,
-    description: 'Leave request rejected successfully',
+  @ApiOperation({
+    summary: 'Reject a leave request (legacy path)',
+    description:
+      'Used when the workflow engine is **disabled** for the tenant.',
   })
-  async rejectLeave(@Param('id') id: string, @Body() dto: RejectLeaveDto, @Request() req: any) {
-    return this.leaveService.rejectLeave(id, req.user.id, req.user.tenant_id, dto.remarks);
+  @ApiResponse({ status: 200, description: 'Leave rejected successfully' })
+  async rejectLeave(
+    @Param('id') id: string,
+    @Body() dto: RejectLeaveDto,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.leaveService.rejectLeave(
+      id,
+      req.user.id,
+      req.user.tenant_id,
+      dto.remarks,
+    );
   }
 
-  // PUT aliases for approve/reject to match external API spec
   @Put(':id/approve')
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin', 'manager')
   @Permissions('approve_leaves', 'manage_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Approve a leave request (Admin or System Admin only) [PUT alias]' })
-  @ApiResponse({ status: 200, description: 'Leave request approved successfully' })
-  async approveLeavePut(@Param('id') id: string, @Body() dto: ApproveLeaveDto, @Request() req: any) {
-    return this.leaveService.approveLeave(id, req.user.id, req.user.tenant_id, dto.remarks);
+  @ApiOperation({
+    summary: 'Approve a leave request — PUT alias (legacy path)',
+  })
+  @ApiResponse({ status: 200, description: 'Leave approved successfully' })
+  async approveLeavePut(
+    @Param('id') id: string,
+    @Body() dto: ApproveLeaveDto,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.leaveService.approveLeave(
+      id,
+      req.user.id,
+      req.user.tenant_id,
+      dto.remarks,
+    );
   }
 
   @Put(':id/reject')
   @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin')
+  @Roles('admin', 'system-admin', 'manager')
   @Permissions('approve_leaves', 'manage_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Reject a leave request (Admin or System Admin only) [PUT alias]' })
-  @ApiResponse({ status: 200, description: 'Leave request rejected successfully' })
-  async rejectLeavePut(@Param('id') id: string, @Request() req: any) {
-    return this.leaveService.rejectLeave(id, req.user.id, req.user.tenant_id);
+  @ApiOperation({ summary: 'Reject a leave request — PUT alias (legacy path)' })
+  @ApiResponse({ status: 200, description: 'Leave rejected successfully' })
+  async rejectLeavePut(
+    @Param('id') id: string,
+    @Body() dto: RejectLeaveDto,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.leaveService.rejectLeave(
+      id,
+      req.user.id,
+      req.user.tenant_id,
+      dto.remarks,
+    );
   }
 
   @Patch(':id/manager-remarks')
@@ -486,7 +588,9 @@ export class LeaveController {
   @Roles('manager')
   @Permissions('manage_team_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Add or update manager remarks on a team member\'s leave (Manager only)' })
+  @ApiOperation({
+    summary: `Add or update manager remarks on a team member's leave (Manager only)`,
+  })
   @ApiResponse({
     status: 200,
     description: 'Manager remarks updated successfully',
@@ -494,9 +598,14 @@ export class LeaveController {
   async addManagerRemarks(
     @Param('id') id: string,
     @Body() dto: ManagerRemarksDto,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
   ) {
-    return this.leaveService.addManagerRemarks(id, req.user.id, req.user.tenant_id, dto.remarks);
+    return this.leaveService.addManagerRemarks(
+      id,
+      req.user.id,
+      req.user.tenant_id,
+      dto.remarks,
+    );
   }
 
   @Patch(':id/approve-manager')
@@ -509,8 +618,17 @@ export class LeaveController {
     status: 200,
     description: 'Leave request approved successfully by manager',
   })
-  async approveLeaveByManager(@Param('id') id: string, @Body() dto: ApproveLeaveDto, @Request() req: any) {
-    return this.leaveService.approveLeave(id, req.user.id, req.user.tenant_id, dto.remarks);
+  async approveLeaveByManager(
+    @Param('id') id: string,
+    @Body() dto: ApproveLeaveDto,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.leaveService.approveLeave(
+      id,
+      req.user.id,
+      req.user.tenant_id,
+      dto.remarks,
+    );
   }
 
   @Patch(':id/reject-manager')
@@ -518,20 +636,31 @@ export class LeaveController {
   @Roles('manager')
   @Permissions('approve_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Reject a leave request with remarks (Manager - Optional)' })
+  @ApiOperation({
+    summary: 'Reject a leave request with remarks (Manager - Optional)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Leave request rejected successfully by manager',
   })
-  async rejectLeaveByManager(@Param('id') id: string, @Body() dto: RejectLeaveDto, @Request() req: any) {
-    return this.leaveService.rejectLeave(id, req.user.id, req.user.tenant_id, dto.remarks);
+  async rejectLeaveByManager(
+    @Param('id') id: string,
+    @Body() dto: RejectLeaveDto,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.leaveService.rejectLeave(
+      id,
+      req.user.id,
+      req.user.tenant_id,
+      dto.remarks,
+    );
   }
 
   @Patch(':id/cancel')
-  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Cancel a pending leave request (Employee can cancel own, Admin/HR Admin can cancel any)',
+    summary:
+      'Cancel a pending leave request (Employee can cancel own, Admin/HR Admin can cancel any)',
   })
   @ApiResponse({
     status: 200,
@@ -539,14 +668,23 @@ export class LeaveController {
   })
   @ApiResponse({
     status: 403,
-    description: 'Forbidden - Can only cancel own pending leave requests (or Admin/HR Admin can cancel any)',
+    description:
+      'Forbidden - Can only cancel own pending leave requests (or Admin/HR Admin can cancel any)',
   })
   @ApiResponse({
     status: 404,
     description: 'Leave request not found',
   })
-  async cancelLeave(@Param('id') id: string, @Request() req: any) {
-    return this.leaveService.cancelLeave(id, req.user.id, req.user.tenant_id, req.user.role);
+  async cancelLeave(
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.leaveService.cancelLeave(
+      id,
+      req.user.id,
+      req.user.tenant_id,
+      req.user.role,
+    );
   }
 
   @Patch(':id')
@@ -584,7 +722,10 @@ export class LeaveController {
       },
     }),
   )
-  @ApiOperation({ summary: 'Edit a leave request (Employee can edit own, Admin/HR Admin can edit any)' })
+  @ApiOperation({
+    summary:
+      'Edit a leave request (Employee can edit own, Admin/HR Admin can edit any)',
+  })
   @ApiBody({
     schema: {
       type: 'object',
@@ -614,7 +755,8 @@ export class LeaveController {
             type: 'string',
             format: 'binary',
           },
-          description: 'Optional image documents (max 5MB each). If leave is approved, only documents can be updated.',
+          description:
+            'Optional image documents (max 5MB each). If leave is approved, only documents can be updated.',
         },
       },
       // All fields are optional - no required fields
@@ -626,7 +768,8 @@ export class LeaveController {
   })
   @ApiResponse({
     status: 403,
-    description: 'Forbidden - Cannot edit approved leave fields (only documents allowed) OR not authorized to edit this leave',
+    description:
+      'Forbidden - Cannot edit approved leave fields (only documents allowed) OR not authorized to edit this leave',
   })
   @ApiResponse({
     status: 404,
@@ -635,49 +778,13 @@ export class LeaveController {
   @UseInterceptors(
     FilesInterceptor('documents', 10, {
       limits: { fileSize: 5 * 1024 * 1024 }, // 5MB per file
-      fileFilter: (_req, file, cb) => {
-        try {
-          // Check MIME type first
-          if (!file.mimetype || !file.mimetype.startsWith('image/')) {
-            return cb(
-              new BadRequestException(
-                `Invalid file type: ${file.mimetype || 'unknown'}. Only image files are allowed (JPG, JPEG, PNG, GIF, WebP)`,
-              ),
-              false,
-            );
-          }
-
-          // Check file extension
-          const fileExtension = file.originalname
-            .substring(file.originalname.lastIndexOf('.'))
-            .toLowerCase();
-          const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-
-          if (!allowedExtensions.includes(fileExtension)) {
-            return cb(
-              new BadRequestException(
-                `Invalid file extension: ${fileExtension}. Allowed extensions: ${allowedExtensions.join(', ')}`,
-              ),
-              false,
-            );
-          }
-
-          cb(null, true);
-        } catch (error) {
-          cb(
-            error instanceof BadRequestException
-              ? error
-              : new BadRequestException('File validation failed. Please upload a valid image file'),
-            false,
-          );
-        }
-      },
+      fileFilter: createImageFileFilter(),
     }),
   )
   async editLeave(
     @Param('id') id: string,
     @Body() dto: EditLeaveDto,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @UploadedFiles() files?: Express.Multer.File[],
   ) {
     // Validate files if provided
@@ -696,15 +803,21 @@ export class LeaveController {
       }
     }
 
-    // Debug: Log the DTO to verify values are being received
-    // console.log('EditLeave DTO received:', JSON.stringify(dto, null, 2));
-
-    return this.leaveService.editLeave(id, req.user.id, req.user.tenant_id, dto, files, req.user.role);
+    return this.leaveService.editLeave(
+      id,
+      req.user.id,
+      req.user.tenant_id,
+      dto,
+      files,
+      req.user.role,
+    );
   }
 
   @Delete(':id/documents')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Remove one document from leave (e.g. click on image to delete)' })
+  @ApiOperation({
+    summary: 'Remove one document from leave (e.g. click on image to delete)',
+  })
   @ApiBody({
     schema: {
       type: 'object',
@@ -712,7 +825,8 @@ export class LeaveController {
       properties: {
         documentUrl: {
           type: 'string',
-          example: '/leave-documents/8afaf744-278d-4905-aecd-79bff53941f0-1769611361810.png',
+          example:
+            '/leave-documents/8afaf744-278d-4905-aecd-79bff53941f0-1769611361810.png',
           description: 'URL of the document to remove',
         },
       },
@@ -724,7 +838,7 @@ export class LeaveController {
   async removeLeaveDocument(
     @Param('id') id: string,
     @Body() dto: RemoveLeaveDocumentDto,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
   ) {
     return this.leaveService.removeLeaveDocument(
       id,
@@ -735,38 +849,14 @@ export class LeaveController {
     );
   }
 
-
   @Get('export/self')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Download your leave requests as CSV' })
-  async exportSelf(@Request() req: any, @Res() res: Response) {
-    let page = 1;
-    const rows: any[] = [];
-    while (true) {
-      const { items, total, limit } = await this.leaveService.getLeaves(req.user.id, page);
-      for (const l of items) {
-        const empFirstName = l.employee?.first_name || req.user.first_name || '';
-        const empLastName = l.employee?.last_name || req.user.last_name || '';
-        rows.push({
-          first_name: empFirstName,
-          last_name: empLastName,
-          user_name: `${empFirstName} ${empLastName}`.trim(),
-          leave_type: l.leaveType?.name || 'N/A',
-          start_date: l.startDate,
-          end_date: l.endDate,
-          total_days: l.totalDays,
-          status: l.status,
-          reason: l.reason,
-          applied_date: l.createdAt,
-          approved_by: l.approver?.first_name ? `${l.approver.first_name} ${l.approver.last_name}`.trim() : 'N/A',
-          approved_at: l.approvedAt || 'N/A',
-          remarks: l.remarks || 'N/A',
-        });
-      }
-      if (!items.length || rows.length >= total) break;
-      page += 1;
-      if (limit && items.length < limit) break;
-    }
+  async exportSelf(@Request() req: AuthenticatedRequest, @Res() res: Response) {
+    const rows = await this.leaveService.getLeavesForExport(
+      req.user.id,
+      req.user.tenant_id,
+    );
     return sendCsvResponse(res, 'leaves-self.csv', rows);
   }
 
@@ -775,61 +865,26 @@ export class LeaveController {
   @Roles('manager')
   @Permissions('manage_team_leaves')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Download team leave requests as CSV (Manager only)' })
-  @ApiQuery({ name: 'name', required: false, description: 'Filter by team member name (partial match)', type: String })
+  @ApiOperation({
+    summary: 'Download team leave requests as CSV (Manager only)',
+  })
+  @ApiQuery({
+    name: 'name',
+    required: false,
+    description: 'Filter by team member name (partial match)',
+    type: String,
+  })
   async exportTeam(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Res() res: Response,
     @Query('page') _page?: string,
     @Query('name') name?: string,
   ) {
-    // Fetch all pages of team leaves so CSV includes complete dataset (no pagination)
-    let currentPage = 1;
-    const rows: any[] = [];
-    const options = { name: name?.trim() || undefined, limit: 25 };
-
-    while (true) {
-      const { items, total, limit } = await this.leaveService.getTeamLeaves(
-        req.user.id,
-        req.user.tenant_id,
-        currentPage,
-        options,
-      );
-
-      for (const l of items || []) {
-        rows.push({
-          id: l.id,
-          user_id: l.employeeId,
-          first_name: l.employee?.first_name || '',
-          last_name: l.employee?.last_name || '',
-          user_name: `${l.employee?.first_name || ''} ${l.employee?.last_name || ''}`.trim(),
-          leave_type: l.leaveType?.name || 'N/A',
-          start_date: l.startDate,
-          end_date: l.endDate,
-          total_days: l.totalDays,
-          status: l.status,
-          reason: l.reason,
-          applied_date: l.createdAt,
-          approved_by: l.approver?.first_name
-            ? `${l.approver.first_name} ${l.approver.last_name}`.trim()
-            : 'N/A',
-          approved_at: l.approvedAt || 'N/A',
-          remarks: l.remarks || 'N/A',
-        });
-      }
-
-      if (!items.length || rows.length >= total) {
-        break;
-      }
-
-      currentPage += 1;
-
-      // Safety: if last page returned fewer than limit, we are done
-      if (limit && items.length < limit) {
-        break;
-      }
-    }
-
+    const rows = await this.leaveService.getTeamLeavesForExport(
+      req.user.id,
+      req.user.tenant_id,
+      name,
+    );
     return sendCsvResponse(res, 'leaves-team.csv', rows);
   }
 
@@ -837,53 +892,50 @@ export class LeaveController {
   @UseGuards(RolesGuard)
   @Roles('admin', 'system-admin', 'hr-admin', 'network-admin')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Download all leave requests for tenant as CSV (Admin/HR Admin/Network Admin only)' })
-  @ApiQuery({ name: 'month', required: false, description: 'Filter by month (1-12)', type: Number })
-  @ApiQuery({ name: 'year', required: false, description: 'Filter by year (defaults to current year if month is provided)', type: Number })
-  @ApiQuery({ name: 'status', required: false, description: 'Filter by leave status', type: String })
-  @ApiQuery({ name: 'name', required: false, description: 'Filter by employee name (partial match)', type: String })
+  @ApiOperation({
+    summary:
+      'Download all leave requests for tenant as CSV (Admin/HR Admin/Network Admin only)',
+  })
+  @ApiQuery({
+    name: 'month',
+    required: false,
+    description: 'Filter by month (1-12)',
+    type: Number,
+  })
+  @ApiQuery({
+    name: 'year',
+    required: false,
+    description:
+      'Filter by year (defaults to current year if month is provided)',
+    type: Number,
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    description: 'Filter by leave status',
+    type: String,
+  })
+  @ApiQuery({
+    name: 'name',
+    required: false,
+    description: 'Filter by employee name (partial match)',
+    type: String,
+  })
   async exportAll(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Res() res: Response,
     @Query('month') month?: string,
     @Query('year') year?: string,
     @Query('status') status?: string,
     @Query('name') name?: string,
   ) {
-    let page = 1;
-    const rows: any[] = [];
-    const monthNumber = month ? parseInt(month, 10) : undefined;
-    const yearNumber = year ? parseInt(year, 10) : undefined;
-    while (true) {
-      const { items, total, limit } = await this.leaveService.getAllLeaves(
-        req.user.tenant_id,
-        page,
-        status,
-        monthNumber,
-        yearNumber,
-        name,
-      );
-      for (const l of items) {
-        rows.push({
-          first_name: l.employee?.first_name || '',
-          last_name: l.employee?.last_name || '',
-          user_name: `${l.employee?.first_name || ''} ${l.employee?.last_name || ''}`.trim(),
-          leave_type: l.leaveType?.name || 'N/A',
-          start_date: l.startDate,
-          end_date: l.endDate,
-          total_days: l.totalDays,
-          status: l.status,
-          reason: l.reason,
-          applied_date: l.createdAt,
-          approved_by: l.approver?.first_name ? `${l.approver.first_name} ${l.approver.last_name}`.trim() : 'N/A',
-          approved_at: l.approvedAt || 'N/A',
-          remarks: l.remarks || 'N/A',
-        });
-      }
-      if (!items.length || rows.length >= total) break;
-      page += 1;
-      if (limit && items.length < limit) break;
-    }
+    const rows = await this.leaveService.getAllLeavesForExport(
+      req.user.tenant_id,
+      status,
+      month ? parseInt(month, 10) : undefined,
+      year ? parseInt(year, 10) : undefined,
+      name,
+    );
     return sendCsvResponse(res, 'leaves-all.csv', rows);
   }
 }

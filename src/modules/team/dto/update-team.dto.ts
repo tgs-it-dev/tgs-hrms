@@ -1,4 +1,3 @@
-
 import { IsString, IsUUID, IsOptional } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -22,7 +21,8 @@ export class UpdateTeamDto {
   @IsOptional()
   @IsUUID()
   @ApiPropertyOptional({
-    description: 'Updated manager user ID (must be an employee with manager role)',
+    description:
+      'Updated manager user ID (must be an employee with manager role)',
     example: '123e4567-e89b-12d3-a456-426614174000',
   })
   manager_id?: string;

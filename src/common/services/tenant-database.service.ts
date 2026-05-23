@@ -1,6 +1,6 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { InjectDataSource } from "@nestjs/typeorm";
-import { DataSource, EntityManager } from "typeorm";
+import { Injectable, Logger } from '@nestjs/common';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 
 /**
  * Provides a safe, connection-pool-friendly way to execute queries against
@@ -43,7 +43,7 @@ export class TenantDatabaseService {
    * Matches the convention used by TenantSchemaProvisioningService.
    */
   getSchemaName(tenantId: string): string {
-    return `tenant_${tenantId.replace(/-/g, "")}`;
+    return `tenant_${tenantId.replace(/-/g, '')}`;
   }
 
   /**

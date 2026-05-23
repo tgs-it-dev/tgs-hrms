@@ -8,7 +8,7 @@ import { UpdateProfileDto } from '../dto/user.dto';
 export class ProfileService {
   constructor(
     @InjectRepository(User)
-    private userRepository: Repository<User>
+    private userRepository: Repository<User>,
   ) {}
 
   async getUserProfile(userId: string) {
@@ -17,7 +17,7 @@ export class ProfileService {
       relations: ['role', 'tenant'],
     });
     if (!user) throw new NotFoundException('User not found');
-  
+
     return {
       id: user.id,
       first_name: user.first_name,
@@ -35,7 +35,7 @@ export class ProfileService {
   async updateUserProfile(userId: string, dto: UpdateProfileDto) {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
-    
+
     if (dto.first_name !== undefined) user.first_name = dto.first_name;
     if (dto.last_name !== undefined) user.last_name = dto.last_name;
     if (dto.profile_pic !== undefined) user.profile_pic = dto.profile_pic;

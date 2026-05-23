@@ -4,7 +4,7 @@ import { Attendance } from '../../entities/attendance.entity';
 import { AttendanceService } from './attendance.service';
 import { AttendanceController } from './attendance.controller';
 import { TimesheetModule } from '../timesheet/timesheet.module';
-import { Employee } from 'src/entities/employee.entity';
+import { Employee } from '../../entities/employee.entity';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
 import { TeamModule } from '../team/team.module';
 import { Geofence } from '../../entities/geofence.entity';

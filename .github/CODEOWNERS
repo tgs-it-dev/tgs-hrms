@@ -1,0 +1,30 @@
+# CODEOWNERS — automatic review assignments
+# Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Format: <pattern>  <@github-username> [<@github-username> ...]
+# Last matching rule wins.
+
+# Default: all changes require saadtgs or adeelasgher847 review
+*                                       @saadtgs @adeelasgher847
+
+# Auth & JWT — always needs saadtgs
+src/modules/auth/                       @saadtgs
+src/common/guards/                      @saadtgs
+src/common/decorators/                  @saadtgs
+
+# Workflow engine
+src/modules/workflow/                   @saadtgs
+
+# Database — migrations and entities are high risk
+src/migrations/                         @saadtgs @adeelasgher847
+src/entities/                           @saadtgs
+src/database/                           @saadtgs
+data-source.ts                          @saadtgs @adeelasgher847
+
+# CI / deployment config
+.github/                                @adeelasgher847
+tsconfig.json                           @saadtgs
+package.json                            @adeelasgher847
+
+# Environment and secrets
+.env*                                   @adeelasgher847
