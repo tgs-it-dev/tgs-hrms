@@ -1,10 +1,9 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { BadRequestException } from '@nestjs/common';
-import { Query } from '@nestjs/common';
 import { SubscriptionService } from './subscription.service';
 import { SubscriptionPlan } from '../../entities/subscription-plan.entity';
 import { Public } from '../../common/decorators/public.decorator';
+import { StripePricesQueryDto } from './dto/stripe-prices-query.dto';
 
 @ApiTags('Subscription Plans')
 @Controller('subscription-plans')
@@ -13,18 +12,14 @@ export class SubscriptionController {
   constructor(private readonly subscriptionService: SubscriptionService) {}
 
   @Get('prices')
-  async getStripePrices(@Query('ids') ids: string) {
-    if (!ids) {
-      throw new BadRequestException('ids parameter is required');
-    }
-
-    const priceIds = ids
+  @ApiOperation({ summary: 'Get Stripe prices by price IDs (comma-separated)' })
+  @ApiResponse({ status: 200, description: 'List of Stripe price details' })
+  @ApiResponse({ status: 400, description: 'Missing or invalid ids parameter' })
+  async getStripePrices(@Query() query: StripePricesQueryDto) {
+    const priceIds = query.ids
       .split(',')
       .map((id) => id.trim())
       .filter(Boolean);
-    if (priceIds.length === 0) {
-      throw new BadRequestException('No valid price IDs provided');
-    }
 
     return this.subscriptionService.getStripePricesByPriceIds(priceIds);
   }
