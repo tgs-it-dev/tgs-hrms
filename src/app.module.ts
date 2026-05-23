@@ -38,6 +38,7 @@ import { IpWhitelistModule } from './modules/ip-whitelist/ip-whitelist.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { GeofenceModule } from './modules/geofence/geofence.module';
+import { InviteStatusModule } from './modules/invite-status/invite-status.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { AnnouncementModule } from './modules/announcement/announcement.module';
 import { WorkflowModule } from './modules/workflow/workflow.module';
@@ -166,6 +167,7 @@ import { IpWhitelistGuard } from './common/guards/ip-whitelist.guard';
     BillingModule,
     DashboardModule,
     GeofenceModule,
+    InviteStatusModule,
     NotificationModule,
     AnnouncementModule,
     WorkflowModule,

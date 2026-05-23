@@ -12,7 +12,9 @@ const basicAuth = require('express-basic-auth');
 const logger = new Logger('Bootstrap');
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    rawBody: true, // Required for Stripe webhook signature verification
+  });
 
   app.use((_req: Request, res: Response, next: NextFunction) => {
     const start = Date.now();

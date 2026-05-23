@@ -355,6 +355,7 @@ export class BillingService {
     }
 
     const metadata = checkoutSession.metadata;
+
     if (!metadata || !metadata.employee_email) {
       throw new BadRequestException(
         'Employee data not found in payment metadata',
@@ -404,6 +405,7 @@ export class BillingService {
         transaction.status = BillingTransactionStatus.SUCCESS;
         transaction.stripe_customer_id = checkoutSession.customer as string;
         transaction.stripe_charge_id = checkoutSession.payment_intent as string;
+
         transaction.description = `Employee creation charge for ${metadata.employee_name} (${metadata.employee_email})`;
         transaction.error_message = null;
         transaction.metadata = {
@@ -411,6 +413,7 @@ export class BillingService {
             ? transaction.metadata
             : {}),
           checkout_session_id: checkoutSessionId,
+
           employee_email: metadata.employee_email,
           employee_name: metadata.employee_name,
         };
@@ -423,9 +426,11 @@ export class BillingService {
           currency: 'USD',
           stripe_customer_id: checkoutSession.customer as string,
           stripe_charge_id: checkoutSession.payment_intent as string,
+
           description: `Employee creation charge for ${metadata.employee_name} (${metadata.employee_email})`,
           metadata: {
             checkout_session_id: checkoutSessionId,
+
             employee_email: metadata.employee_email,
             employee_name: metadata.employee_name,
           },
@@ -548,5 +553,166 @@ export class BillingService {
       );
     }
     return doQuery(this.billingTransactionRepo);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Stripe Webhook
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Verifies the Stripe webhook signature and returns the parsed event.
+   * Throws BadRequestException if the signature is invalid.
+   */
+  constructWebhookEvent(payload: Buffer, signature: string): Stripe.Event {
+    if (!this.stripe) {
+      throw new Error('Stripe is not configured');
+    }
+    const webhookSecret = this.configService.get<string>(
+      'STRIPE_WEBHOOK_SECRET',
+    );
+    if (!webhookSecret) {
+      throw new Error('STRIPE_WEBHOOK_SECRET is not configured');
+    }
+    try {
+      return this.stripe.webhooks.constructEvent(
+        payload,
+        signature,
+        webhookSecret,
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new BadRequestException(
+        `Webhook signature verification failed: ${msg}`,
+      );
+    }
+  }
+
+  /**
+   * Handles an incoming verified Stripe webhook event.
+   * Currently handles: payment_intent.payment_failed, charge.refunded,
+   * checkout.session.completed (idempotent retry-safe confirmation).
+   */
+  async handleWebhookEvent(
+    event: Stripe.Event,
+  ): Promise<{ received: boolean }> {
+    this.logger.log(
+      `Processing Stripe webhook event: ${event.type} (id: ${event.id})`,
+    );
+
+    switch (event.type) {
+      case 'payment_intent.payment_failed': {
+        const paymentIntent = event.data.object;
+        await this.handlePaymentFailed(paymentIntent);
+        break;
+      }
+
+      case 'charge.refunded': {
+        const charge = event.data.object;
+        await this.handleChargeRefunded(charge);
+        break;
+      }
+
+      case 'checkout.session.completed': {
+        const session = event.data.object;
+        if (
+          session.metadata?.type === BillingTransactionType.EMPLOYEE_CREATION &&
+          session.metadata?.tenant_id
+        ) {
+          // Idempotent: confirmEmployeePayment is safe to call multiple times
+          try {
+            await this.confirmEmployeePayment(
+              session.id,
+              session.metadata.tenant_id,
+            );
+            this.logger.log(
+              `Webhook: confirmed employee payment for session ${session.id}`,
+            );
+          } catch (err) {
+            // If already processed, log and continue
+            this.logger.warn(
+              `Webhook: session ${session.id} already processed or failed: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          }
+        }
+        break;
+      }
+
+      default:
+        this.logger.debug(`Unhandled Stripe webhook event type: ${event.type}`);
+    }
+
+    return { received: true };
+  }
+
+  private async handlePaymentFailed(
+    paymentIntent: Stripe.PaymentIntent,
+  ): Promise<void> {
+    const tenantId = paymentIntent.metadata?.tenant_id;
+    if (!tenantId) {
+      this.logger.warn(
+        `payment_intent.payment_failed: no tenant_id in metadata (id: ${paymentIntent.id})`,
+      );
+      return;
+    }
+
+    const updateStatus = async (repo: Repository<BillingTransaction>) => {
+      const transaction = await repo.findOne({
+        where: { stripe_charge_id: paymentIntent.id, tenant_id: tenantId },
+      });
+      if (transaction) {
+        transaction.status = BillingTransactionStatus.FAILED;
+        transaction.error_message =
+          paymentIntent.last_payment_error?.message ?? 'Payment failed';
+        await repo.save(transaction);
+        this.logger.warn(
+          `Payment failed for transaction ${transaction.id} (tenant: ${tenantId}): ${transaction.error_message}`,
+        );
+      }
+    };
+
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
+    if (isProvisioned) {
+      await this.tenantDbService.withTenantSchema(tenantId, (em) =>
+        updateStatus(em.getRepository(BillingTransaction)),
+      );
+    } else {
+      await updateStatus(this.billingTransactionRepo);
+    }
+  }
+
+  private async handleChargeRefunded(charge: Stripe.Charge): Promise<void> {
+    const tenantId = charge.metadata?.tenant_id;
+    if (!tenantId) {
+      this.logger.warn(
+        `charge.refunded: no tenant_id in metadata (charge: ${charge.id})`,
+      );
+      return;
+    }
+
+    const updateStatus = async (repo: Repository<BillingTransaction>) => {
+      const transaction = await repo.findOne({
+        where: {
+          stripe_charge_id: charge.payment_intent as string,
+          tenant_id: tenantId,
+        },
+      });
+      if (transaction) {
+        transaction.status = BillingTransactionStatus.FAILED;
+        transaction.error_message = `Refunded on ${new Date().toISOString()}`;
+        await repo.save(transaction);
+        this.logger.log(
+          `Charge refunded for transaction ${transaction.id} (tenant: ${tenantId})`,
+        );
+      }
+    };
+
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
+    if (isProvisioned) {
+      await this.tenantDbService.withTenantSchema(tenantId, (em) =>
+        updateStatus(em.getRepository(BillingTransaction)),
+      );
+    } else {
+      await updateStatus(this.billingTransactionRepo);
+    }
   }
 }
