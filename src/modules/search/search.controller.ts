@@ -13,7 +13,6 @@ import {
   ApiBearerAuth,
   ApiQuery,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { TenantId } from '../../common/decorators/company.deorator';
@@ -30,7 +29,7 @@ import { Team } from '../../entities/team.entity';
 
 @ApiTags('Global Search')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+@UseGuards(RolesGuard, PermissionsGuard)
 @Controller('search')
 export class SearchController {
   constructor(
@@ -52,15 +51,15 @@ export class SearchController {
   @ApiQuery({
     name: 'query',
     required: false,
-    description:
-      'Search query (optional). If provided, minimum 2 characters.',
+    description: 'Search query (optional). If provided, minimum 2 characters.',
     example: 'John Doe',
   })
   @ApiQuery({
     name: 'module',
     required: false,
     enum: SearchModule,
-    description: 'Limit search to a specific module. Default: all allowed modules',
+    description:
+      'Limit search to a specific module. Default: all allowed modules',
     example: SearchModule.ALL,
   })
   @ApiQuery({
@@ -80,7 +79,8 @@ export class SearchController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Search results grouped by module (only modules user can access)',
+    description:
+      'Search results grouped by module (only modules user can access)',
     type: GlobalSearchResponseDto,
     schema: {
       example: {
@@ -91,7 +91,8 @@ export class SearchController {
             {
               id: 'uuid-123',
               title: 'John Doe',
-              description: 'john.doe@example.com | Software Engineer | Development Team',
+              description:
+                'john.doe@example.com | Software Engineer | Development Team',
               module: 'employees',
               metadata: {},
             },
@@ -102,7 +103,10 @@ export class SearchController {
       },
     },
   })
-  @ApiResponse({ status: 400, description: 'Invalid query or tenantId (e.g. non-admin passing tenantId)' })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid query or tenantId (e.g. non-admin passing tenantId)',
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
   async globalSearch(
@@ -118,7 +122,9 @@ export class SearchController {
     const module = dto.module ?? SearchModule.ALL;
 
     if (dto.query != null && dto.query.length > 0 && dto.query.length < 2) {
-      throw new BadRequestException('Search query must be at least 2 characters long');
+      throw new BadRequestException(
+        'Search query must be at least 2 characters long',
+      );
     }
 
     if (!canOverrideTenant && dto.tenantId) {

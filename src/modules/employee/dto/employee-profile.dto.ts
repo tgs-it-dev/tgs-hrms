@@ -24,6 +24,7 @@ export class EmployeeProfileDto {
   @ApiProperty({ nullable: true }) designation: string | null;
   @ApiProperty({ nullable: true }) department: string | null;
   @ApiProperty() joinedAt: Date;
-  @ApiProperty({ type: [AttendanceSummaryDto] }) attendanceSummary: AttendanceSummaryDto[];
+  @ApiProperty({ type: [AttendanceSummaryDto] })
+  attendanceSummary: AttendanceSummaryDto[];
   @ApiProperty({ type: [LeaveHistoryDto] }) leaveHistory: LeaveHistoryDto[];
 }

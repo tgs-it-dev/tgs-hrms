@@ -81,7 +81,10 @@ export class RoleController {
   @ApiOperation({ summary: 'Delete role by ID (Admin only)' })
   @ApiParam({ name: 'id', description: 'Role UUID' })
   @ApiResponse({ status: 200, description: 'Role deleted' })
-  @ApiResponse({ status: 400, description: 'Cannot delete system role or role with permissions assigned' })
+  @ApiResponse({
+    status: 400,
+    description: 'Cannot delete system role or role with permissions assigned',
+  })
   @ApiResponse({ status: 404, description: 'Role not found' })
   deleteRole(@Param('id') id: string) {
     return this.roleService.remove(id);

@@ -20,11 +20,11 @@ import {
 } from '@nestjs/swagger';
 import { CreatePermissionDto } from './dto/create-permission.dto';
 import { UpdatePermissionDto } from './dto/update-permission.dto';
-import { Roles } from 'src/common/decorators/roles.decorator';
-import { RolesGuard } from 'src/common/guards/roles.guard';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
-import { Permissions } from 'src/common/decorators/permissions.decorator';
-import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Permissions } from '../../common/decorators/permissions.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { PermissionService } from './permission.service';
 
 @ApiTags('Permissions')
@@ -83,7 +83,10 @@ export class PermissionController {
   @ApiOperation({ summary: 'Delete permission by ID (Admin only)' })
   @ApiParam({ name: 'id', description: 'Permission UUID' })
   @ApiResponse({ status: 200, description: 'Permission deleted' })
-  @ApiResponse({ status: 400, description: 'Permission still assigned to roles' })
+  @ApiResponse({
+    status: 400,
+    description: 'Permission still assigned to roles',
+  })
   @ApiResponse({ status: 404, description: 'Permission not found' })
   deletePermission(@Param('id') id: string) {
     return this.permissionService.remove(id);

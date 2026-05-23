@@ -4,6 +4,7 @@
 
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsEmail, IsOptional, IsEnum, IsUUID } from 'class-validator';
+import { IsValidPhone } from '../../../common/decorators/is-valid-phone.decorator';
 import { EmployeeStatus, UserGender } from '../../../common/constants/enums';
 import { BaseQueryDto } from '../../../common/dto/common.dto';
 
@@ -11,29 +12,42 @@ import { BaseQueryDto } from '../../../common/dto/common.dto';
 export class CreateEmployeeDto {
   @ApiProperty({ description: 'Employee first name', example: 'John' })
   @IsString()
-  first_name: string;
+  first_name!: string;
 
   @ApiProperty({ description: 'Employee last name', example: 'Doe' })
   @IsString()
-  last_name: string;
+  last_name!: string;
 
-  @ApiProperty({ description: 'Employee email address', example: 'john.doe@company.com' })
+  @ApiProperty({
+    description: 'Employee email address',
+    example: 'john.doe@company.com',
+  })
   @IsEmail()
-  email: string;
+  email!: string;
 
   @ApiProperty({ description: 'Employee phone number', example: '+1234567890' })
   @IsString()
-  phone: string;
+  @IsValidPhone()
+  phone!: string;
 
-  @ApiProperty({ description: 'Employee designation ID', example: 'uuid-string' })
+  @ApiProperty({
+    description: 'Employee designation ID',
+    example: 'uuid-string',
+  })
   @IsUUID()
-  designation_id: string;
+  designation_id!: string;
 
-  @ApiPropertyOptional({ description: 'Employee team ID', example: 'uuid-string' })
+  @ApiPropertyOptional({
+    description: 'Employee team ID',
+    example: 'uuid-string',
+  })
   @IsOptional()
   team_id?: string | null;
 
-  @ApiPropertyOptional({ description: 'Employee role ID', example: 'uuid-string' })
+  @ApiPropertyOptional({
+    description: 'Employee role ID',
+    example: 'uuid-string',
+  })
   @IsOptional()
   role_id?: string | null;
 
@@ -42,19 +56,25 @@ export class CreateEmployeeDto {
   @IsEnum(UserGender)
   gender?: UserGender;
 
-  @ApiPropertyOptional({ description: 'Employee password', example: 'SecurePassword123!' })
+  @ApiPropertyOptional({
+    description: 'Employee password',
+    example: 'SecurePassword123!',
+  })
   @IsOptional()
   @IsString()
   password?: string;
 
-  @ApiPropertyOptional({ description: 'Employee role name', example: 'employee' })
+  @ApiPropertyOptional({
+    description: 'Employee role name',
+    example: 'employee',
+  })
   @IsOptional()
   @IsString()
   role_name?: string;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'CNIC number in format: XXXXX-XXXXXXX-X',
-    example: '12345-1234567-1'
+    example: '12345-1234567-1',
   })
   @IsOptional()
   @IsString()
@@ -73,26 +93,42 @@ export class UpdateEmployeeDto {
   @IsString()
   last_name?: string;
 
-  @ApiPropertyOptional({ description: 'Employee email address', example: 'john.doe@company.com' })
+  @ApiPropertyOptional({
+    description: 'Employee email address',
+    example: 'john.doe@company.com',
+  })
   @IsOptional()
   @IsEmail()
   email?: string;
 
-  @ApiPropertyOptional({ description: 'Employee phone number', example: '+1234567890' })
+  @ApiPropertyOptional({
+    description: 'Employee phone number',
+    example: '+1234567890',
+  })
   @IsOptional()
   @IsString()
+  @IsValidPhone()
   phone?: string;
 
-  @ApiPropertyOptional({ description: 'Employee designation ID', example: 'uuid-string' })
+  @ApiPropertyOptional({
+    description: 'Employee designation ID',
+    example: 'uuid-string',
+  })
   @IsOptional()
   @IsUUID()
   designation_id?: string;
 
-  @ApiPropertyOptional({ description: 'Employee team ID', example: 'uuid-string' })
+  @ApiPropertyOptional({
+    description: 'Employee team ID',
+    example: 'uuid-string',
+  })
   @IsOptional()
   team_id?: string | null;
 
-  @ApiPropertyOptional({ description: 'Employee role ID', example: 'uuid-string' })
+  @ApiPropertyOptional({
+    description: 'Employee role ID',
+    example: 'uuid-string',
+  })
   @IsOptional()
   role_id?: string | null;
 
@@ -101,19 +137,25 @@ export class UpdateEmployeeDto {
   @IsEnum(UserGender)
   gender?: UserGender;
 
-  @ApiPropertyOptional({ description: 'Employee password', example: 'SecurePassword123!' })
+  @ApiPropertyOptional({
+    description: 'Employee password',
+    example: 'SecurePassword123!',
+  })
   @IsOptional()
   @IsString()
   password?: string;
 
-  @ApiPropertyOptional({ description: 'Employee role name', example: 'employee' })
+  @ApiPropertyOptional({
+    description: 'Employee role name',
+    example: 'employee',
+  })
   @IsOptional()
   @IsString()
   role_name?: string;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'CNIC number in format: XXXXX-XXXXXXX-X',
-    example: '12345-1234567-1'
+    example: '12345-1234567-1',
   })
   @IsOptional()
   @IsString()
@@ -122,22 +164,34 @@ export class UpdateEmployeeDto {
 
 // Employee Query DTO
 export class EmployeeQueryDto extends BaseQueryDto {
-  @ApiPropertyOptional({ description: 'Filter by status', enum: EmployeeStatus })
+  @ApiPropertyOptional({
+    description: 'Filter by status',
+    enum: EmployeeStatus,
+  })
   @IsOptional()
   @IsEnum(EmployeeStatus)
   status?: EmployeeStatus;
 
-  @ApiPropertyOptional({ description: 'Filter by designation ID', example: 'uuid-string' })
+  @ApiPropertyOptional({
+    description: 'Filter by designation ID',
+    example: 'uuid-string',
+  })
   @IsOptional()
   @IsUUID()
   designation_id?: string;
 
-  @ApiPropertyOptional({ description: 'Filter by team ID', example: 'uuid-string' })
+  @ApiPropertyOptional({
+    description: 'Filter by team ID',
+    example: 'uuid-string',
+  })
   @IsOptional()
   @IsUUID()
   team_id?: string;
 
-  @ApiPropertyOptional({ description: 'Filter by department ID', example: 'uuid-string' })
+  @ApiPropertyOptional({
+    description: 'Filter by department ID',
+    example: 'uuid-string',
+  })
   @IsOptional()
   @IsUUID()
   department_id?: string;
@@ -146,26 +200,29 @@ export class EmployeeQueryDto extends BaseQueryDto {
 // Employee Profile DTO
 export class EmployeeProfileDto {
   @ApiProperty({ description: 'Employee ID', example: 'uuid-string' })
-  id: string;
+  id!: string;
 
   @ApiProperty({ description: 'Employee first name', example: 'John' })
-  first_name: string;
+  first_name!: string;
 
   @ApiProperty({ description: 'Employee last name', example: 'Doe' })
-  last_name: string;
+  last_name!: string;
 
-  @ApiProperty({ description: 'Employee email', example: 'john.doe@company.com' })
-  email: string;
+  @ApiProperty({
+    description: 'Employee email',
+    example: 'john.doe@company.com',
+  })
+  email!: string;
 
   @ApiProperty({ description: 'Employee phone', example: '+1234567890' })
-  phone: string;
+  phone!: string;
 
   @ApiPropertyOptional({ description: 'Employee gender', enum: UserGender })
   gender?: UserGender;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'CNIC number in format: XXXXX-XXXXXXX-X',
-    example: '12345-1234567-1'
+    example: '12345-1234567-1',
   })
   cnic_number?: string;
 
@@ -198,38 +255,44 @@ export class EmployeeProfileDto {
   };
 
   @ApiProperty({ description: 'Creation date' })
-  created_at: Date;
+  created_at!: Date;
 
   @ApiProperty({ description: 'Last update date' })
-  updated_at: Date;
+  updated_at!: Date;
 }
 
 // Employee Response DTO
 export class EmployeeResponseDto {
   @ApiProperty({ description: 'Employee ID', example: 'uuid-string' })
-  id: string;
+  id!: string;
 
   @ApiProperty({ description: 'Employee full name', example: 'John Doe' })
-  full_name: string;
+  full_name!: string;
 
-  @ApiProperty({ description: 'Employee email', example: 'john.doe@company.com' })
-  email: string;
+  @ApiProperty({
+    description: 'Employee email',
+    example: 'john.doe@company.com',
+  })
+  email!: string;
 
   @ApiProperty({ description: 'Employee phone', example: '+1234567890' })
-  phone: string;
+  phone!: string;
 
   @ApiProperty({ description: 'Employee status', enum: EmployeeStatus })
-  status: EmployeeStatus;
+  status!: EmployeeStatus;
 
-  @ApiProperty({ description: 'Designation name', example: 'Software Engineer' })
-  designation: string;
+  @ApiProperty({
+    description: 'Designation name',
+    example: 'Software Engineer',
+  })
+  designation!: string;
 
   @ApiProperty({ description: 'Team name', example: 'Development Team' })
-  team: string;
+  team!: string;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'CNIC number in format: XXXXX-XXXXXXX-X',
-    example: '12345-1234567-1'
+    example: '12345-1234567-1',
   })
   cnic_number?: string;
 
@@ -243,44 +306,47 @@ export class EmployeeResponseDto {
   cnic_back_picture?: string;
 
   @ApiProperty({ description: 'Creation date' })
-  created_at: Date;
+  created_at!: Date;
 }
 
 // Employee List Response DTO
 export class EmployeeListResponseDto {
-  @ApiProperty({ description: 'List of employees', type: [EmployeeResponseDto] })
-  employees: EmployeeResponseDto[];
+  @ApiProperty({
+    description: 'List of employees',
+    type: [EmployeeResponseDto],
+  })
+  employees!: EmployeeResponseDto[];
 
   @ApiProperty({ description: 'Total count of employees' })
-  total: number;
+  total!: number;
 
   @ApiProperty({ description: 'Current page number' })
-  page: number;
+  page!: number;
 
   @ApiProperty({ description: 'Items per page' })
-  limit: number;
+  limit!: number;
 
   @ApiProperty({ description: 'Total pages' })
-  total_pages: number;
+  total_pages!: number;
 }
 
 // Employee Stats DTO
 export class EmployeeStatsDto {
   @ApiProperty({ description: 'Total employees' })
-  total_employees: number;
+  total_employees!: number;
 
   @ApiProperty({ description: 'Active employees' })
-  active_employees: number;
+  active_employees!: number;
 
   @ApiProperty({ description: 'Inactive employees' })
-  inactive_employees: number;
+  inactive_employees!: number;
 
   @ApiProperty({ description: 'Employees by designation' })
-  by_designation: Record<string, number>;
+  by_designation!: Record<string, number>;
 
   @ApiProperty({ description: 'Employees by team' })
-  by_team: Record<string, number>;
+  by_team!: Record<string, number>;
 
   @ApiProperty({ description: 'Recent hires (last 30 days)' })
-  recent_hires: number;
+  recent_hires!: number;
 }

@@ -37,9 +37,7 @@ export class PermissionService {
       where: { name: dto.name },
     });
     if (existing) {
-      throw new ConflictException(
-        `Permission '${dto.name}' already exists`,
-      );
+      throw new ConflictException(`Permission '${dto.name}' already exists`);
     }
     const permission = this.permissionRepo.create(dto);
     return this.permissionRepo.save(permission);
@@ -53,9 +51,7 @@ export class PermissionService {
         where: { name: dto.name },
       });
       if (nameConflict) {
-        throw new ConflictException(
-          `Permission '${dto.name}' already exists`,
-        );
+        throw new ConflictException(`Permission '${dto.name}' already exists`);
       }
     }
 

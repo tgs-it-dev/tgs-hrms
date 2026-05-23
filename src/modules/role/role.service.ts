@@ -12,7 +12,13 @@ import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 
 // System roles that must not be deleted or renamed
-const PROTECTED_ROLES = ['admin', 'system-admin', 'hr-admin', 'employee', 'manager'];
+const PROTECTED_ROLES = [
+  'admin',
+  'system-admin',
+  'hr-admin',
+  'employee',
+  'manager',
+];
 
 @Injectable()
 export class RoleService {
@@ -53,7 +59,9 @@ export class RoleService {
           `System role '${role.name}' cannot be renamed`,
         );
       }
-      const nameConflict = await this.roleRepo.findOne({ where: { name: dto.name } });
+      const nameConflict = await this.roleRepo.findOne({
+        where: { name: dto.name },
+      });
       if (nameConflict) {
         throw new ConflictException(`Role '${dto.name}' already exists`);
       }

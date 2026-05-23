@@ -10,7 +10,11 @@ import { SharedJwtModule } from '../../common/modules/jwt.module';
 import { TenantModule } from '../tenant/tenant.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Leave, LeaveType, User, Employee]), SharedJwtModule, TenantModule],
+  imports: [
+    TypeOrmModule.forFeature([Leave, LeaveType, User, Employee]),
+    SharedJwtModule,
+    TenantModule,
+  ],
   providers: [LeaveReportsService],
   controllers: [LeaveReportsController],
   exports: [LeaveReportsService],

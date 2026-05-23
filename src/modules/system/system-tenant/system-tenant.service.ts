@@ -4,9 +4,9 @@ import {
   Injectable,
   NotFoundException,
   Logger,
-} from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
-import { Tenant } from "src/entities/tenant.entity";
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Tenant } from 'src/entities/tenant.entity';
 import {
   Repository,
   QueryFailedError,
@@ -14,30 +14,34 @@ import {
   ILike,
   DataSource,
   IsNull,
-} from "typeorm";
-import { CreateTenantDto } from "../dto/system-tenant/create-tenant.dto";
-import { UpdateTenantDto } from "../dto/system-tenant/update-tenant.dto";
-import { User } from "src/entities/user.entity";
-import { Role } from "src/entities/role.entity";
-import { Department } from "src/entities/department.entity";
-import { PaginationResponse } from "src/common/interfaces/pagination.interface";
-import * as bcrypt from "bcrypt";
-import * as fs from "fs";
-import * as path from "path";
-import { EmailService } from "src/common/utils/email/email.service";
-import { CompanyDetails } from "src/entities/company-details.entity";
-import { SignupSession } from "src/entities/signup-session.entity";
-import { getPostgresErrorCode } from "src/common/types/database.types";
-import { validateImageFile } from "src/common/utils/file-validation.util";
-import { S3StorageService } from "../../storage";
+} from 'typeorm';
+import { CreateTenantDto } from '../dto/system-tenant/create-tenant.dto';
+import { UpdateTenantDto } from '../dto/system-tenant/update-tenant.dto';
+import { User } from 'src/entities/user.entity';
+import { Role } from 'src/entities/role.entity';
+import { Department } from 'src/entities/department.entity';
+import { PaginationResponse } from 'src/common/interfaces/pagination.interface';
+import * as bcrypt from 'bcrypt';
+import * as fs from 'fs';
+import * as path from 'path';
+import { EmailService } from 'src/common/utils/email/email.service';
+import { CompanyDetails } from 'src/entities/company-details.entity';
+import { SignupSession } from 'src/entities/signup-session.entity';
+import { getPostgresErrorCode } from 'src/common/types/database.types';
+import { validateImageFile } from 'src/common/utils/file-validation.util';
+import { S3StorageService } from '../../storage';
+import {
+  TenantSettingsService,
+  TenantSettingKey,
+} from '../../tenant-settings/tenant-settings.service';
 
-const PREFIX_COMPANY_LOGOS = "company-logos";
+const PREFIX_COMPANY_LOGOS = 'company-logos';
 
 @Injectable()
 export class SystemTenantService {
   private readonly logger = new Logger(SystemTenantService.name);
-  private readonly defaultPlanId = "system-manual";
-  private readonly GLOBAL_TENANT_ID = "00000000-0000-0000-0000-000000000000";
+  private readonly defaultPlanId = 'system-manual';
+  private readonly GLOBAL_TENANT_ID = '00000000-0000-0000-0000-000000000000';
 
   constructor(
     @InjectRepository(Tenant)
@@ -51,6 +55,7 @@ export class SystemTenantService {
     private readonly dataSource: DataSource,
     private readonly emailService: EmailService,
     private readonly s3: S3StorageService,
+    private readonly tenantSettings: TenantSettingsService,
   ) {}
 
   async create(dto: CreateTenantDto, file?: Express.Multer.File) {
@@ -60,22 +65,22 @@ export class SystemTenantService {
     const normalizedAdminEmail = dto.adminEmail.trim().toLowerCase();
 
     if (!tenantName) {
-      throw new BadRequestException("Tenant name cannot be empty");
+      throw new BadRequestException('Tenant name cannot be empty');
     }
 
     if (!domain) {
-      throw new BadRequestException("Domain cannot be empty");
+      throw new BadRequestException('Domain cannot be empty');
     }
 
     if (!adminName) {
-      throw new BadRequestException("Admin name cannot be empty");
+      throw new BadRequestException('Admin name cannot be empty');
     }
 
     // Handle file upload if provided (no tenant yet → system-tenant folder)
     let logoUrl: string | null = null;
     if (file) {
       validateImageFile(file);
-      const ext = (path.extname(file.originalname || "") || "").toLowerCase();
+      const ext = (path.extname(file.originalname || '') || '').toLowerCase();
       const timestamp = Date.now();
       const randomNum = Math.floor(Math.random() * 1000000000);
       const fileExtension = ext || path.extname(file.originalname);
@@ -89,9 +94,9 @@ export class SystemTenantService {
       } else {
         const uploadsDir = path.join(
           process.cwd(),
-          "public",
+          'public',
           PREFIX_COMPANY_LOGOS,
-          "system-tenant",
+          'system-tenant',
         );
         if (!fs.existsSync(uploadsDir)) {
           await fs.promises.mkdir(uploadsDir, { recursive: true });
@@ -141,84 +146,80 @@ export class SystemTenantService {
     }
 
     try {
-      const {
-        tenant,
-        admin,
-        temporaryPassword,
-        company,
-        signupSession,
-      } = await this.dataSource.transaction(async (manager) => {
-        const tenantRepository = manager.getRepository(Tenant);
-        const userRepository = manager.getRepository(User);
-        const roleRepository = manager.getRepository(Role);
-        const companyRepository = manager.getRepository(CompanyDetails);
-        const signupSessionRepository = manager.getRepository(SignupSession);
+      const { tenant, admin, temporaryPassword, company, signupSession } =
+        await this.dataSource.transaction(async (manager) => {
+          const tenantRepository = manager.getRepository(Tenant);
+          const userRepository = manager.getRepository(User);
+          const roleRepository = manager.getRepository(Role);
+          const companyRepository = manager.getRepository(CompanyDetails);
+          const signupSessionRepository = manager.getRepository(SignupSession);
 
-        const tenantToCreate = tenantRepository.create({
-          name: tenantName,
-        });
-        const savedTenant = await tenantRepository.save(tenantToCreate);
-
-        const role = await this.resolveTenantAdminRole(roleRepository);
-
-        const { firstName, lastName } = this.splitName(adminName);
-        const password = this.generateTemporaryPassword();
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        // Create SignupSession for system tenant (similar to manual signup flow)
-        const sessionToCreate = signupSessionRepository.create({
-          email: normalizedAdminEmail,
-          password_hash: hashedPassword,
-          first_name: firstName,
-          last_name: lastName,
-          phone: "",
-          status: "completed", // System tenants are already completed
-        });
-        const savedSession = await signupSessionRepository.save(sessionToCreate);
-
-        const adminToCreate = userRepository.create({
-          email: normalizedAdminEmail,
-          phone: "",
-          password: hashedPassword,
-          first_name: firstName,
-          last_name: lastName,
-          role_id: role.id,
-          tenant_id: savedTenant.id,
-        });
-
-        const savedAdmin = await userRepository.save(adminToCreate);
-
-        let companyDetails = await companyRepository.findOne({
-          where: { tenant_id: savedTenant.id },
-        });
-
-        if (!companyDetails) {
-          companyDetails = companyRepository.create({
-            company_name: tenantName,
-            domain,
-            plan_id: this.defaultPlanId,
-            is_paid: false,
-            tenant_id: savedTenant.id,
-            logo_url: logoUrl,
-            signup_session_id: savedSession.id, // Link to the signup session
+          const tenantToCreate = tenantRepository.create({
+            name: tenantName,
           });
-        } else {
-          companyDetails.company_name = tenantName;
-          companyDetails.domain = domain;
-          companyDetails.logo_url = logoUrl;
-          companyDetails.signup_session_id = savedSession.id; // Link to the signup session
-        }
+          const savedTenant = await tenantRepository.save(tenantToCreate);
 
-        const savedCompany = await companyRepository.save(companyDetails);
+          const role = await this.resolveTenantAdminRole(roleRepository);
 
-        return {
-          tenant: savedTenant,
-          admin: savedAdmin,
-          temporaryPassword: password,
-          company: savedCompany,
-          signupSession: savedSession,
-        };
-      });
+          const { firstName, lastName } = this.splitName(adminName);
+          const password = this.generateTemporaryPassword();
+          const hashedPassword = await bcrypt.hash(password, 10);
+
+          // Create SignupSession for system tenant (similar to manual signup flow)
+          const sessionToCreate = signupSessionRepository.create({
+            email: normalizedAdminEmail,
+            password_hash: hashedPassword,
+            first_name: firstName,
+            last_name: lastName,
+            phone: '',
+            status: 'completed', // System tenants are already completed
+          });
+          const savedSession =
+            await signupSessionRepository.save(sessionToCreate);
+
+          const adminToCreate = userRepository.create({
+            email: normalizedAdminEmail,
+            phone: '',
+            password: hashedPassword,
+            first_name: firstName,
+            last_name: lastName,
+            role_id: role.id,
+            tenant_id: savedTenant.id,
+          });
+
+          const savedAdmin = await userRepository.save(adminToCreate);
+
+          let companyDetails = await companyRepository.findOne({
+            where: { tenant_id: savedTenant.id },
+          });
+
+          if (!companyDetails) {
+            companyDetails = companyRepository.create({
+              company_name: tenantName,
+              domain,
+              plan_id: this.defaultPlanId,
+              is_paid: false,
+              tenant_id: savedTenant.id,
+              logo_url: logoUrl,
+              signup_session_id: savedSession.id, // Link to the signup session
+            });
+          } else {
+            companyDetails.company_name = tenantName;
+            companyDetails.domain = domain;
+            companyDetails.logo_url = logoUrl;
+            companyDetails.signup_session_id = savedSession.id; // Link to the signup session
+          }
+
+          const savedCompany = await companyRepository.save(companyDetails);
+
+          return {
+            tenant: savedTenant,
+            admin: savedAdmin,
+            temporaryPassword: password,
+            company: savedCompany,
+            signupSession: savedSession,
+          };
+        });
 
       await this.dispatchAdminCredentialsEmail(
         admin.email,
@@ -263,11 +264,11 @@ export class SystemTenantService {
       if (err instanceof QueryFailedError) {
         const code: unknown = (err as QueryFailedError & { code?: string })
           .code;
-        if (code === "23505") {
-          throw new ConflictException("Tenant name must be unique.");
+        if (code === '23505') {
+          throw new ConflictException('Tenant name must be unique.');
         }
-        if (code === "23502") {
-          throw new BadRequestException("Missing required fields.");
+        if (code === '23502') {
+          throw new BadRequestException('Missing required fields.');
         }
       }
       throw err;
@@ -276,7 +277,7 @@ export class SystemTenantService {
 
   private async resolveTenantAdminRole(roleRepository: Repository<Role>) {
     const tenantAdminRole = await roleRepository.findOne({
-      where: { name: ILike("tenant-admin") },
+      where: { name: ILike('tenant-admin') },
     });
 
     if (tenantAdminRole) {
@@ -284,12 +285,12 @@ export class SystemTenantService {
     }
 
     const fallbackAdminRole = await roleRepository.findOne({
-      where: { name: ILike("admin") },
+      where: { name: ILike('admin') },
     });
 
     if (!fallbackAdminRole) {
       throw new NotFoundException(
-        "Role 'tenant-admin' (or fallback 'admin') must exist before creating a tenant.",
+        `Role 'tenant-admin' (or fallback 'admin') must exist before creating a tenant.`,
       );
     }
 
@@ -297,23 +298,23 @@ export class SystemTenantService {
   }
 
   private splitName(fullName: string): { firstName: string; lastName: string } {
-    const normalized = fullName?.trim() || "";
+    const normalized = fullName?.trim() || '';
     if (!normalized) {
-      return { firstName: "Tenant", lastName: "Admin" };
+      return { firstName: 'Tenant', lastName: 'Admin' };
     }
 
     const parts = normalized.split(/\s+/);
-    const firstName = parts.shift() ?? "Tenant";
-    const lastName = parts.length > 0 ? parts.join(" ") : "Admin";
+    const firstName = parts.shift() ?? 'Tenant';
+    const lastName = parts.length > 0 ? parts.join(' ') : 'Admin';
     return { firstName, lastName };
   }
 
   private generateTemporaryPassword(): string {
     const chars =
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
     return Array.from({ length: 12 }, () =>
       chars.charAt(Math.floor(Math.random() * chars.length)),
-    ).join("");
+    ).join('');
   }
 
   private async dispatchAdminCredentialsEmail(
@@ -327,7 +328,7 @@ export class SystemTenantService {
       const html = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2>Welcome to ${tenantName}</h2>
-          <p>Hello ${adminName || "there"},</p>
+          <p>Hello ${adminName || 'there'},</p>
           <p>Your administrator account has been created. Use the credentials below to sign in:</p>
           <ul>
             <li><strong>Email:</strong> ${email}</li>
@@ -347,7 +348,7 @@ export class SystemTenantService {
     }
   }
 
-  async updateStatus(id: string, status: "active" | "suspended") {
+  async updateStatus(id: string, status: 'active' | 'suspended') {
     const tenant = await this.findOne(id);
 
     tenant.status = status;
@@ -372,7 +373,7 @@ export class SystemTenantService {
     if (!page || !limit) {
       const [items, total] = await this.tenantRepo.findAndCount({
         where,
-        order: { created_at: "DESC" },
+        order: { created_at: 'DESC' },
         // When includeDeleted is true, also include soft-deleted tenants
         withDeleted: includeDeleted,
       });
@@ -395,7 +396,7 @@ export class SystemTenantService {
 
     const [items, total] = await this.tenantRepo.findAndCount({
       where,
-      order: { created_at: "DESC" },
+      order: { created_at: 'DESC' },
       skip,
       take: limit,
       // When includeDeleted is true, also include soft-deleted tenants
@@ -428,7 +429,7 @@ export class SystemTenantService {
     });
 
     if (!tenant) {
-      throw new NotFoundException("Tenant not found.");
+      throw new NotFoundException('Tenant not found.');
     }
 
     return tenant;
@@ -442,12 +443,12 @@ export class SystemTenantService {
     // system admins can view details of deleted tenants in the UI
     const tenant = await this.tenantRepo.findOne({
       where: { id },
-      relations: ["departments", "users"],
+      relations: ['departments', 'users'],
       withDeleted: true,
     });
 
     if (!tenant) {
-      throw new NotFoundException("Tenant not found.");
+      throw new NotFoundException('Tenant not found.');
     }
 
     const company = await this.companyDetailsRepo.findOne({
@@ -456,19 +457,23 @@ export class SystemTenantService {
 
     // Get tenant's own departments
     const tenantDepartments = tenant.departments || [];
-    
+
     // Get global default departments
     const globalDepartments = await this.departmentRepo.find({
       where: { tenant_id: this.GLOBAL_TENANT_ID },
-      order: { name: "ASC" },
+      order: { name: 'ASC' },
     });
 
     // Combine tenant departments and global departments
     // If a department with same name exists in both, prioritize tenant's department
-    const tenantDeptNames = new Set(tenantDepartments.map(d => d.name.toLowerCase()));
+    const tenantDeptNames = new Set(
+      tenantDepartments.map((d) => d.name.toLowerCase()),
+    );
     const allDepartments = [
       ...tenantDepartments,
-      ...globalDepartments.filter(gd => !tenantDeptNames.has(gd.name.toLowerCase()))
+      ...globalDepartments.filter(
+        (gd) => !tenantDeptNames.has(gd.name.toLowerCase()),
+      ),
     ];
 
     // Sort all departments by name
@@ -506,12 +511,25 @@ export class SystemTenantService {
     };
   }
 
+  async setMobileLoginEnabled(
+    tenantId: string,
+    enabled: boolean,
+  ): Promise<{ tenantId: string; mobileLoginEnabled: boolean }> {
+    await this.findOne(tenantId);
+    await this.tenantSettings.set(
+      tenantId,
+      TenantSettingKey.MOBILE_LOGIN_ENABLED,
+      String(enabled),
+    );
+    return { tenantId, mobileLoginEnabled: enabled };
+  }
+
   async remove(id: string) {
     const tenant = await this.findOne(id);
 
     // Soft delete: mark as deleted and suspend the tenant
     tenant.deleted_at = new Date();
-    tenant.status = "suspended";
+    tenant.status = 'suspended';
     await this.tenantRepo.save(tenant);
 
     return { deleted: true, id };
@@ -522,18 +540,18 @@ export class SystemTenantService {
       where: { id },
       withDeleted: true,
     });
-    
+
     if (!tenant || !tenant.deleted_at) {
-      throw new NotFoundException("Tenant not found or not deleted.");
+      throw new NotFoundException('Tenant not found or not deleted.');
     }
 
     if (!tenant) {
-      throw new NotFoundException("Tenant not found or not deleted.");
+      throw new NotFoundException('Tenant not found or not deleted.');
     }
 
     // Restore: clear deleted_at and reactivate tenant
     tenant.deleted_at = null;
-    tenant.status = "active";
+    tenant.status = 'active';
 
     await this.tenantRepo.save(tenant);
 
@@ -547,7 +565,7 @@ export class SystemTenantService {
     const tenant = await this.findOne(dto.tenantId);
 
     if (!tenant) {
-      throw new NotFoundException("Tenant not found.");
+      throw new NotFoundException('Tenant not found.');
     }
 
     // Get or create company details
@@ -560,7 +578,7 @@ export class SystemTenantService {
     let logoUrl: string | null = null;
     if (file) {
       validateImageFile(file);
-      const ext = (path.extname(file.originalname || "") || "").toLowerCase();
+      const ext = (path.extname(file.originalname || '') || '').toLowerCase();
       const timestamp = Date.now();
       const randomNum = Math.floor(Math.random() * 1000000000);
       const fileExtension = ext || path.extname(file.originalname);
@@ -570,20 +588,22 @@ export class SystemTenantService {
       if (companyDetails?.logo_url) {
         if (this.s3.isEnabled() && this.s3.isS3Url(companyDetails.logo_url)) {
           await this.s3.deleteByUrl(companyDetails.logo_url);
-          this.logger.log("Deleted old logo from S3");
+          this.logger.log('Deleted old logo from S3');
         } else {
           const relative = (
-            companyDetails.logo_url.split("?")[0] || ""
-          ).replace(/^\/+/, "");
-          if (relative.startsWith(PREFIX_COMPANY_LOGOS + "/")) {
-            const oldFilePath = path.join(process.cwd(), "public", relative);
+            companyDetails.logo_url.split('?')[0] || ''
+          ).replace(/^\/+/, '');
+          if (relative.startsWith(PREFIX_COMPANY_LOGOS + '/')) {
+            const oldFilePath = path.join(process.cwd(), 'public', relative);
             try {
               if (fs.existsSync(oldFilePath)) {
                 await fs.promises.unlink(oldFilePath);
                 this.logger.log(`Deleted old logo: ${relative}`);
               }
             } catch (err) {
-              this.logger.error(`Failed to delete old logo: ${String((err as Error)?.message || err)}`);
+              this.logger.error(
+                `Failed to delete old logo: ${String((err as Error)?.message || err)}`,
+              );
             }
           }
         }
@@ -596,7 +616,7 @@ export class SystemTenantService {
       } else {
         const uploadsDir = path.join(
           process.cwd(),
-          "public",
+          'public',
           PREFIX_COMPANY_LOGOS,
           tenantId,
         );
@@ -620,7 +640,7 @@ export class SystemTenantService {
     if (dto.companyName) {
       const trimmedName = dto.companyName.trim();
       if (!trimmedName) {
-        throw new BadRequestException("Company name cannot be empty");
+        throw new BadRequestException('Company name cannot be empty');
       }
 
       // Check for duplicate name (case-insensitive, excluding current tenant)
@@ -645,7 +665,7 @@ export class SystemTenantService {
       companyDetails = this.companyDetailsRepo.create({
         tenant_id: tenant.id,
         company_name: dto.companyName || tenant.name,
-        domain: dto.domain?.trim().toLowerCase() || "",
+        domain: dto.domain?.trim().toLowerCase() || '',
         plan_id: this.defaultPlanId,
         is_paid: false,
         logo_url: logoUrl,
@@ -657,7 +677,7 @@ export class SystemTenantService {
       if (dto.domain) {
         const trimmedDomain = dto.domain.trim().toLowerCase();
         if (!trimmedDomain) {
-          throw new BadRequestException("Domain cannot be empty");
+          throw new BadRequestException('Domain cannot be empty');
         }
 
         // Check for duplicate domain (excluding current company record)
@@ -700,6 +720,41 @@ export class SystemTenantService {
       }
       throw err;
     }
+
+    const settingWrites: Promise<void>[] = [];
+    if (dto.mobileLoginEnabled !== undefined)
+      settingWrites.push(
+        this.tenantSettings.set(
+          result.tenant.id,
+          TenantSettingKey.MOBILE_LOGIN_ENABLED,
+          String(dto.mobileLoginEnabled),
+        ),
+      );
+    if (dto.leaveWorkflowEnabled !== undefined)
+      settingWrites.push(
+        this.tenantSettings.set(
+          result.tenant.id,
+          TenantSettingKey.LEAVE_WORKFLOW_ENABLED,
+          String(dto.leaveWorkflowEnabled),
+        ),
+      );
+    if (dto.wfhWorkflowEnabled !== undefined)
+      settingWrites.push(
+        this.tenantSettings.set(
+          result.tenant.id,
+          TenantSettingKey.WFH_WORKFLOW_ENABLED,
+          String(dto.wfhWorkflowEnabled),
+        ),
+      );
+    if (dto.overtimeWorkflowEnabled !== undefined)
+      settingWrites.push(
+        this.tenantSettings.set(
+          result.tenant.id,
+          TenantSettingKey.OVERTIME_WORKFLOW_ENABLED,
+          String(dto.overtimeWorkflowEnabled),
+        ),
+      );
+    await Promise.all(settingWrites);
 
     return {
       id: result.tenant.id,
