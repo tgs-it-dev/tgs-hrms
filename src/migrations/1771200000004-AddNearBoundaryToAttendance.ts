@@ -1,6 +1,8 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddNearBoundaryToAttendance1771200000004 implements MigrationInterface {
+export class AddNearBoundaryToAttendance1771200000004
+  implements MigrationInterface
+{
   name = 'AddNearBoundaryToAttendance1771200000004';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

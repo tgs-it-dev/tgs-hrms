@@ -6,10 +6,7 @@ import { RoleService } from './role.service';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Role]),
-    SharedJwtModule,
-  ],
+  imports: [TypeOrmModule.forFeature([Role]), SharedJwtModule],
   providers: [RoleService],
   controllers: [RoleController],
 })

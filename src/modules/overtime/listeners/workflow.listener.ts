@@ -11,6 +11,24 @@ export class OvertimeWorkflowListener {
 
   constructor(private readonly overtimeService: OvertimeService) {}
 
+  @OnEvent(WORKFLOW_EVENTS.STEP_APPROVED, { async: true })
+  async handleStepApproved(event: WorkflowCompletedEvent): Promise<void> {
+    if (event.requestType !== (WorkflowRequestType.OVERTIME as string)) return;
+    try {
+      await this.overtimeService.markStepApproved(
+        event.relatedEntityId,
+        event.tenantId,
+        event.requestorId,
+        event.finalApproverId,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to handle step approved for overtime ${event.relatedEntityId}`,
+        error,
+      );
+    }
+  }
+
   @OnEvent(WORKFLOW_EVENTS.REQUEST_APPROVED, { async: true })
   async handleApproved(event: WorkflowCompletedEvent): Promise<void> {
     if (event.requestType !== (WorkflowRequestType.OVERTIME as string)) return;

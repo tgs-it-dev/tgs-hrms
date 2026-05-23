@@ -1,5 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsEnum, IsArray, IsUUID, IsOptional } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsEnum,
+  IsArray,
+  IsUUID,
+  IsOptional,
+} from 'class-validator';
 import { NotificationType } from '../../../common/constants/enums';
 
 export class SendNotificationDto {
@@ -31,7 +38,8 @@ export class SendNotificationDto {
   type: NotificationType;
 
   @ApiProperty({
-    description: 'Related entity type for click redirect (e.g. leave, attendance)',
+    description:
+      'Related entity type for click redirect (e.g. leave, attendance)',
     example: 'leave',
     required: false,
   })

@@ -11,7 +11,7 @@ import { EmployeeProfileController } from './controllers/employee-profile.contro
 import { EmployeeProfileService } from './services/employee-profile.service';
 import { Attendance } from 'src/entities/attendance.entity';
 import { Leave } from 'src/entities/leave.entity';
-import { AttendanceModule } from '../attendance/attendace.module';
+import { AttendanceModule } from '../attendance/attendance.module';
 import { LeaveModule } from '../leave/leave.module';
 import { SendGridService } from '../../common/utils/email';
 import { InviteStatusModule } from '../invite-status/invite-status.module';
@@ -41,7 +41,12 @@ import { TenantModule } from '../tenant/tenant.module';
     TenantModule,
   ],
   controllers: [EmployeeController, EmployeeProfileController],
-  providers: [EmployeeService, EmployeeProfileService, SendGridService, EmployeeFileUploadService],
+  providers: [
+    EmployeeService,
+    EmployeeProfileService,
+    SendGridService,
+    EmployeeFileUploadService,
+  ],
   exports: [EmployeeService],
 })
 export class EmployeeModule {}

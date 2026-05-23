@@ -4,46 +4,46 @@ import {
   Injectable,
   NotFoundException,
   OnModuleInit,
-} from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, IsNull, EntityManager } from "typeorm";
-import { TenantDatabaseService } from "../../../common/services/tenant-database.service";
-import { EventEmitter2 } from "@nestjs/event-emitter";
-import { Employee } from "../../../entities/employee.entity";
-import { User } from "../../../entities/user.entity";
-import { Designation } from "../../../entities/designation.entity";
-import { Role } from "../../../entities/role.entity";
-import { Team } from "../../../entities/team.entity";
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, IsNull, EntityManager } from 'typeorm';
+import { TenantDatabaseService } from '../../../common/services/tenant-database.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Employee } from '../../../entities/employee.entity';
+import { User } from '../../../entities/user.entity';
+import { Designation } from '../../../entities/designation.entity';
+import { Role } from '../../../entities/role.entity';
+import { Team } from '../../../entities/team.entity';
 import {
   CreateEmployeeDto,
   UpdateEmployeeDto,
   EmployeeQueryDto,
-} from "../dto/employee.dto";
-import { RemoveEmployeeDocumentDto } from "../dto/update-employee.dto";
-import { SendGridService } from "../../../common/utils/email/sendgrid.service";
-import { InviteStatusService } from "../../invite-status/invite-status.service";
-import { EmployeeFileUploadService } from "./employee-file-upload.service";
-import { S3StorageService } from "../../storage/storage.service";
-import { EmployeeCreatedEvent } from "../../billing/events/employee-created.event";
-import { BillingService } from "../../billing/services/billing.service";
-import * as crypto from "crypto";
-import * as bcrypt from "bcrypt";
+} from '../dto/employee.dto';
+import { RemoveEmployeeDocumentDto } from '../dto/update-employee.dto';
+import { SendGridService } from '../../../common/utils/email/sendgrid.service';
+import { InviteStatusService } from '../../invite-status/invite-status.service';
+import { EmployeeFileUploadService } from './employee-file-upload.service';
+import { S3StorageService } from '../../storage/storage.service';
+import { EmployeeCreatedEvent } from '../../billing/events/employee-created.event';
+import { BillingService } from '../../billing/services/billing.service';
+import * as crypto from 'crypto';
+import * as bcrypt from 'bcrypt';
 
-const GLOBAL = "00000000-0000-0000-0000-000000000000";
-import { Logger } from "@nestjs/common";
+const GLOBAL = '00000000-0000-0000-0000-000000000000';
+import { Logger } from '@nestjs/common';
 import {
   InviteStatus,
   UserGender,
   EmployeeStatus,
-} from "../../../common/constants/enums";
-import { Response } from "express";
-import * as fs from "fs";
-import * as path from "path";
+} from '../../../common/constants/enums';
+import { Response } from 'express';
+import * as fs from 'fs';
+import * as path from 'path';
 import {
   getPostgresErrorCode,
   getPostgresErrorConstraint,
-} from "../../../common/types/database.types";
-import { Tenant } from "src/entities/tenant.entity";
+} from '../../../common/types/database.types';
+import { Tenant } from 'src/entities/tenant.entity';
 
 @Injectable()
 export class EmployeeService implements OnModuleInit {
@@ -80,7 +80,7 @@ export class EmployeeService implements OnModuleInit {
   private async isTenantSchemaProvisioned(tenantId: string): Promise<boolean> {
     const tenant = await this.tenantRepo.findOne({
       where: { id: tenantId },
-      select: ["id", "schema_provisioned"],
+      select: ['id', 'schema_provisioned'],
     });
     return tenant?.schema_provisioned ?? false;
   }
@@ -132,7 +132,7 @@ export class EmployeeService implements OnModuleInit {
         (em) =>
           em.getRepository(Designation).findOne({
             where: { id: designation_id },
-            relations: ["department"],
+            relations: ['department'],
           }),
       );
     }
@@ -141,12 +141,12 @@ export class EmployeeService implements OnModuleInit {
     if (!designation) {
       designation = await this.designationRepo.findOne({
         where: { id: designation_id },
-        relations: ["department"],
+        relations: ['department'],
       });
     }
 
     if (!designation) {
-      throw new BadRequestException("Invalid designation ID");
+      throw new BadRequestException('Invalid designation ID');
     }
 
     if (
@@ -156,7 +156,7 @@ export class EmployeeService implements OnModuleInit {
       designation.department.tenant_id !== GLOBAL
     ) {
       throw new BadRequestException(
-        "Designation does not belong to your organization",
+        'Designation does not belong to your organization',
       );
     }
 
@@ -185,7 +185,7 @@ export class EmployeeService implements OnModuleInit {
         (em) =>
           em.getRepository(Team).findOne({
             where: { id: team_id },
-            relations: ["manager"],
+            relations: ['manager'],
           }),
       );
     }
@@ -194,16 +194,16 @@ export class EmployeeService implements OnModuleInit {
     if (!team) {
       team = await this.teamRepo.findOne({
         where: { id: team_id },
-        relations: ["manager"],
+        relations: ['manager'],
       });
     }
 
     if (!team) {
-      throw new BadRequestException("Invalid team ID");
+      throw new BadRequestException('Invalid team ID');
     }
 
     if (team.manager.tenant_id !== tenant_id) {
-      throw new BadRequestException("Team does not belong to this tenant");
+      throw new BadRequestException('Team does not belong to this tenant');
     }
 
     return team;
@@ -217,11 +217,11 @@ export class EmployeeService implements OnModuleInit {
     const constraint = getPostgresErrorConstraint(err);
     if (constraint) {
       const c = constraint.toLowerCase();
-      if (c.includes("phone")) return "Phone number already exists.";
-      if (c.includes("cnic")) return "CNIC already exists.";
-      if (c.includes("email")) return "Email already exists for this tenant.";
+      if (c.includes('phone')) return 'Phone number already exists.';
+      if (c.includes('cnic')) return 'CNIC already exists.';
+      if (c.includes('email')) return 'Email already exists for this tenant.';
     }
-    return "Employee already exists.";
+    return 'Employee already exists.';
   }
 
   /**
@@ -236,26 +236,26 @@ export class EmployeeService implements OnModuleInit {
   ): Promise<void> {
     if (phone) {
       const qb = this.userRepo
-        .createQueryBuilder("u")
-        .where("u.phone = :phone", { phone });
+        .createQueryBuilder('u')
+        .where('u.phone = :phone', { phone });
       if (excludeUserId)
-        qb.andWhere("u.id != :excludeUserId", { excludeUserId });
+        qb.andWhere('u.id != :excludeUserId', { excludeUserId });
       const existingPhone = await qb.getOne();
       if (existingPhone) {
-        throw new ConflictException("Phone number already exists.");
+        throw new ConflictException('Phone number already exists.');
       }
     }
     const cnic =
-      typeof cnicNumber === "string" ? cnicNumber.trim() || null : null;
+      typeof cnicNumber === 'string' ? cnicNumber.trim() || null : null;
     if (cnic) {
       const qb = this.employeeRepo
-        .createQueryBuilder("e")
-        .where("e.cnic_number = :cnic", { cnic });
+        .createQueryBuilder('e')
+        .where('e.cnic_number = :cnic', { cnic });
       if (excludeEmployeeId)
-        qb.andWhere("e.id != :excludeEmployeeId", { excludeEmployeeId });
+        qb.andWhere('e.id != :excludeEmployeeId', { excludeEmployeeId });
       const existingCnic = await qb.getOne();
       if (existingCnic) {
-        throw new ConflictException("CNIC already exists.");
+        throw new ConflictException('CNIC already exists.');
       }
     }
   }
@@ -263,11 +263,11 @@ export class EmployeeService implements OnModuleInit {
   async promoteToManager(tenant_id: string, id: string) {
     const employee = await this.findOne(tenant_id, id);
     const managerRole = await this.roleRepo.findOne({
-      where: { name: "manager" },
+      where: { name: 'manager' },
     });
     if (!managerRole)
       throw new NotFoundException(
-        "Manager role not found. Please create a manager role first.",
+        'Manager role not found. Please create a manager role first.',
       );
 
     const user = employee.user;
@@ -277,19 +277,19 @@ export class EmployeeService implements OnModuleInit {
       await this.userRepo.save(user);
       return await this.employeeRepo.findOne({
         where: { id },
-        relations: ["user", "designation", "designation.department", "team"],
+        relations: ['user', 'designation', 'designation.department', 'team'],
       });
     } catch (err) {
-      throw new BadRequestException("Failed to promote employee to manager");
+      throw new BadRequestException('Failed to promote employee to manager');
     }
   }
 
   async demoteToEmployee(tenant_id: string, id: string) {
     const employee = await this.findOne(tenant_id, id);
     const employeeRole = await this.roleRepo.findOne({
-      where: { name: "Employee" },
+      where: { name: 'Employee' },
     });
-    if (!employeeRole) throw new NotFoundException("Employee role not found.");
+    if (!employeeRole) throw new NotFoundException('Employee role not found.');
 
     const user = employee.user;
     user.role_id = employeeRole.id;
@@ -298,10 +298,10 @@ export class EmployeeService implements OnModuleInit {
       await this.userRepo.save(user);
       return await this.employeeRepo.findOne({
         where: { id },
-        relations: ["user", "designation", "designation.department", "team"],
+        relations: ['user', 'designation', 'designation.department', 'team'],
       });
     } catch (err) {
-      throw new BadRequestException("Failed to demote manager to employee");
+      throw new BadRequestException('Failed to demote manager to employee');
     }
   }
 
@@ -323,12 +323,12 @@ export class EmployeeService implements OnModuleInit {
     );
 
     if (dto.team_id && dto.team_id !== null) {
-      this.validateUUID(dto.team_id, "team_id");
+      this.validateUUID(dto.team_id, 'team_id');
       await this.validateTeam(dto.team_id, tenant_id, isSchemaProvisioned);
     }
 
     if (dto.role_id && dto.role_id !== null) {
-      this.validateUUID(dto.role_id, "role_id");
+      this.validateUUID(dto.role_id, 'role_id');
     }
 
     const existingUser = await this.userRepo.findOne({
@@ -336,7 +336,7 @@ export class EmployeeService implements OnModuleInit {
     });
     if (existingUser)
       throw new ConflictException(
-        "User with this email already exists in the tenant.",
+        'User with this email already exists in the tenant.',
       );
 
     await this.validateUniquePhoneAndCnic(dto.phone, dto.cnic_number);
@@ -345,19 +345,19 @@ export class EmployeeService implements OnModuleInit {
     if (dto.role_id) {
       managerRole = await this.roleRepo.findOne({ where: { id: dto.role_id } });
       if (!managerRole)
-        throw new NotFoundException("Specified role not found.");
+        throw new NotFoundException('Specified role not found.');
     } else {
-      managerRole = await this.roleRepo.findOne({ where: { name: "Manager" } });
+      managerRole = await this.roleRepo.findOne({ where: { name: 'Manager' } });
       if (!managerRole)
         throw new NotFoundException(
-          "Manager role not found. Please create a manager role first.",
+          'Manager role not found. Please create a manager role first.',
         );
     }
 
     const password = dto.password || this.generateTemporaryPassword();
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const resetToken = crypto.randomBytes(32).toString("hex");
+    const resetToken = crypto.randomBytes(32).toString('hex');
     // Hash the token before storing (similar to passwords)
     const hashedResetToken = await bcrypt.hash(resetToken, 10);
     const resetTokenExpiry = new Date();
@@ -420,7 +420,7 @@ export class EmployeeService implements OnModuleInit {
           }
 
           const employeePictureUpdate: Partial<
-            Pick<Employee, "cnic_picture" | "cnic_back_picture">
+            Pick<Employee, 'cnic_picture' | 'cnic_back_picture'>
           > = {};
           const cnicFile = files.cnic_picture?.[0];
           if (cnicFile) {
@@ -474,17 +474,17 @@ export class EmployeeService implements OnModuleInit {
           em.getRepository(Employee).findOne({
             where: { id: result.id },
             relations: [
-              "user",
-              "designation",
-              "designation.department",
-              "team",
+              'user',
+              'designation',
+              'designation.department',
+              'team',
             ],
           }),
       );
       return created ?? result;
     } catch (err) {
       const errorCode = getPostgresErrorCode(err);
-      if (errorCode === "23505") {
+      if (errorCode === '23505') {
         throw new ConflictException(this.getDuplicateConflictMessage(err));
       }
       throw err;
@@ -509,12 +509,12 @@ export class EmployeeService implements OnModuleInit {
     );
 
     if (dto.team_id && dto.team_id !== null) {
-      this.validateUUID(dto.team_id, "team_id");
+      this.validateUUID(dto.team_id, 'team_id');
       await this.validateTeam(dto.team_id, tenant_id, isSchemaProvisioned);
     }
 
     if (dto.role_id && dto.role_id !== null) {
-      this.validateUUID(dto.role_id, "role_id");
+      this.validateUUID(dto.role_id, 'role_id');
     }
 
     const existingUser = await this.userRepo.findOne({
@@ -522,7 +522,7 @@ export class EmployeeService implements OnModuleInit {
     });
     if (existingUser)
       throw new ConflictException(
-        "User with this email already exists in the tenant.",
+        'User with this email already exists in the tenant.',
       );
 
     await this.validateUniquePhoneAndCnic(dto.phone, dto.cnic_number);
@@ -541,19 +541,19 @@ export class EmployeeService implements OnModuleInit {
         where: { id: dto.role_id },
       });
       if (!employeeRole)
-        throw new NotFoundException("Specified role not found.");
+        throw new NotFoundException('Specified role not found.');
     } else {
       employeeRole = await this.roleRepo.findOne({
-        where: { name: "Employee" },
+        where: { name: 'Employee' },
       });
       if (!employeeRole)
-        throw new NotFoundException("Employee role not found.");
+        throw new NotFoundException('Employee role not found.');
     }
 
     const password = dto.password || this.generateTemporaryPassword();
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const resetToken = crypto.randomBytes(32).toString("hex");
+    const resetToken = crypto.randomBytes(32).toString('hex');
     // Hash the token before storing (similar to passwords)
     const hashedResetToken = await bcrypt.hash(resetToken, 10);
     const resetTokenExpiry = new Date();
@@ -603,7 +603,7 @@ export class EmployeeService implements OnModuleInit {
         where: { id: result.user_id },
       });
       if (!user) {
-        throw new NotFoundException("User not found after employee creation");
+        throw new NotFoundException('User not found after employee creation');
       }
 
       // 2. Upload files IMMEDIATELY (while Multer buffers are valid, before any long-running payment)
@@ -627,7 +627,7 @@ export class EmployeeService implements OnModuleInit {
           }
 
           const employeePictureUpdate: Partial<
-            Pick<Employee, "cnic_picture" | "cnic_back_picture">
+            Pick<Employee, 'cnic_picture' | 'cnic_back_picture'>
           > = {};
           if (files.cnic_picture?.[0]) {
             uploadedCnicPic =
@@ -694,7 +694,7 @@ export class EmployeeService implements OnModuleInit {
             );
           } catch (e) {
             this.logger.warn(
-              "Failed to delete profile picture on payment rollback",
+              'Failed to delete profile picture on payment rollback',
               e,
             );
           }
@@ -706,7 +706,7 @@ export class EmployeeService implements OnModuleInit {
             );
           } catch (e) {
             this.logger.warn(
-              "Failed to delete CNIC picture on payment rollback",
+              'Failed to delete CNIC picture on payment rollback',
               e,
             );
           }
@@ -718,16 +718,16 @@ export class EmployeeService implements OnModuleInit {
             );
           } catch (e) {
             this.logger.warn(
-              "Failed to delete CNIC back picture on payment rollback",
+              'Failed to delete CNIC back picture on payment rollback',
               e,
             );
           }
         }
 
         if (
-          errorMessage.includes("PAYMENT_METHOD_REQUIRED") ||
-          errorMessage.includes("Payment method") ||
-          errorMessage.includes("payment_intent_authentication_required")
+          errorMessage.includes('PAYMENT_METHOD_REQUIRED') ||
+          errorMessage.includes('Payment method') ||
+          errorMessage.includes('payment_intent_authentication_required')
         ) {
           try {
             const checkout =
@@ -767,7 +767,7 @@ export class EmployeeService implements OnModuleInit {
 
             throw new BadRequestException({
               message:
-                "Payment method required. Please complete payment to create employee.",
+                'Payment method required. Please complete payment to create employee.',
               checkoutUrl: checkout.checkoutUrl,
               checkoutSessionId: checkout.checkoutSessionId,
               requiresPayment: true,
@@ -775,7 +775,7 @@ export class EmployeeService implements OnModuleInit {
           } catch (checkoutError) {
             if (checkoutError instanceof BadRequestException) {
               this.logger.log(
-                `Redirecting to Stripe checkout: ${(checkoutError.getResponse() as any)?.checkoutUrl ? "URL provided" : "no URL"}`,
+                `Redirecting to Stripe checkout: ${(checkoutError.getResponse() as any)?.checkoutUrl ? 'URL provided' : 'no URL'}`,
               );
               throw checkoutError;
             }
@@ -817,14 +817,12 @@ export class EmployeeService implements OnModuleInit {
         resetToken,
         employeeName,
         (await this.tenantRepo.findOne({ where: { id: tenant_id } }))?.name ||
-          "your organization",
+          'your organization',
       );
-
-
 
       // Emit event for audit/logging purposes (payment already processed above)
       try {
-        this.eventEmitter.emit("employee.created", event);
+        this.eventEmitter.emit('employee.created', event);
         this.logger.log(
           `Emitted employee.created event for employee: ${result.id} (tenant: ${tenant_id})`,
         );
@@ -843,17 +841,17 @@ export class EmployeeService implements OnModuleInit {
           em.getRepository(Employee).findOne({
             where: { id: result.id },
             relations: [
-              "user",
-              "designation",
-              "designation.department",
-              "team",
+              'user',
+              'designation',
+              'designation.department',
+              'team',
             ],
           }),
       );
       return created ?? result;
     } catch (err) {
       const errorCode = getPostgresErrorCode(err);
-      if (errorCode === "23505") {
+      if (errorCode === '23505') {
         throw new ConflictException(this.getDuplicateConflictMessage(err));
       }
       throw err;
@@ -905,12 +903,12 @@ export class EmployeeService implements OnModuleInit {
     );
 
     if (dto.team_id && dto.team_id !== null) {
-      this.validateUUID(dto.team_id, "team_id");
+      this.validateUUID(dto.team_id, 'team_id');
       await this.validateTeam(dto.team_id, tenant_id, isSchemaProvisioned);
     }
 
     if (dto.role_id && dto.role_id !== null) {
-      this.validateUUID(dto.role_id, "role_id");
+      this.validateUUID(dto.role_id, 'role_id');
     }
 
     const existingUser = await this.userRepo.findOne({
@@ -918,7 +916,7 @@ export class EmployeeService implements OnModuleInit {
     });
     if (existingUser)
       throw new ConflictException(
-        "User with this email already exists in the tenant.",
+        'User with this email already exists in the tenant.',
       );
 
     await this.validateUniquePhoneAndCnic(dto.phone, dto.cnic_number);
@@ -937,19 +935,19 @@ export class EmployeeService implements OnModuleInit {
         where: { id: dto.role_id },
       });
       if (!employeeRole)
-        throw new NotFoundException("Specified role not found.");
+        throw new NotFoundException('Specified role not found.');
     } else {
       employeeRole = await this.roleRepo.findOne({
-        where: { name: "Employee" },
+        where: { name: 'Employee' },
       });
       if (!employeeRole)
-        throw new NotFoundException("Employee role not found.");
+        throw new NotFoundException('Employee role not found.');
     }
 
     const password = dto.password || this.generateTemporaryPassword();
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const resetToken = crypto.randomBytes(32).toString("hex");
+    const resetToken = crypto.randomBytes(32).toString('hex');
     const hashedResetToken = await bcrypt.hash(resetToken, 10);
     const resetTokenExpiry = new Date();
     resetTokenExpiry.setHours(resetTokenExpiry.getHours() + 24);
@@ -1005,7 +1003,7 @@ export class EmployeeService implements OnModuleInit {
             });
           }
           const picUpdate: Partial<
-            Pick<Employee, "cnic_picture" | "cnic_back_picture">
+            Pick<Employee, 'cnic_picture' | 'cnic_back_picture'>
           > = {};
           if (docUrls.cnicPic) picUpdate.cnic_picture = docUrls.cnicPic;
           if (docUrls.cnicBackPic)
@@ -1030,10 +1028,8 @@ export class EmployeeService implements OnModuleInit {
         resetToken,
         `${dto.first_name} ${dto.last_name}`.trim() || dto.email,
         (await this.tenantRepo.findOne({ where: { id: tenant_id } }))?.name ||
-          "your organization",
+          'your organization',
       );
-
-
 
       // Note: Event is NOT emitted here because payment was already processed in confirmEmployeePayment
       // This prevents duplicate billing transaction creation
@@ -1045,7 +1041,7 @@ export class EmployeeService implements OnModuleInit {
       return result;
     } catch (err) {
       const errorCode = getPostgresErrorCode(err);
-      if (errorCode === "23505") {
+      if (errorCode === '23505') {
         throw new ConflictException(this.getDuplicateConflictMessage(err));
       }
       throw err;
@@ -1061,22 +1057,22 @@ export class EmployeeService implements OnModuleInit {
       const repo = em ? em.getRepository(Employee) : this.employeeRepo;
 
       const qb = repo
-        .createQueryBuilder("employee")
-        .leftJoinAndSelect("employee.user", "user")
-        .leftJoinAndSelect("user.role", "role")
-        .leftJoinAndSelect("employee.designation", "designation")
-        .leftJoinAndSelect("designation.department", "department")
-        .leftJoinAndSelect("employee.team", "team")
-        .where("user.tenant_id = :tenant_id", { tenant_id })
-        .andWhere("employee.deleted_at IS NULL");
+        .createQueryBuilder('employee')
+        .leftJoinAndSelect('employee.user', 'user')
+        .leftJoinAndSelect('user.role', 'role')
+        .leftJoinAndSelect('employee.designation', 'designation')
+        .leftJoinAndSelect('designation.department', 'department')
+        .leftJoinAndSelect('employee.team', 'team')
+        .where('user.tenant_id = :tenant_id', { tenant_id })
+        .andWhere('employee.deleted_at IS NULL');
 
       if (query.department_id) {
-        qb.andWhere("designation.department_id = :department_id", {
+        qb.andWhere('designation.department_id = :department_id', {
           department_id: query.department_id,
         });
       }
       if (query.designation_id) {
-        qb.andWhere("employee.designation_id = :designation_id", {
+        qb.andWhere('employee.designation_id = :designation_id', {
           designation_id: query.designation_id,
         });
       }
@@ -1100,7 +1096,7 @@ export class EmployeeService implements OnModuleInit {
       }
 
       const [items, total] = await qb
-        .orderBy("employee.created_at", "DESC")
+        .orderBy('employee.created_at', 'DESC')
         .skip(skip)
         .take(limit)
         .getManyAndCount();
@@ -1117,7 +1113,9 @@ export class EmployeeService implements OnModuleInit {
             await repo.update(item.id, {
               invite_status: InviteStatus.INVITE_EXPIRED,
             });
-          } catch {}
+          } catch {
+            // ignore update errors — stale status is non-critical
+          }
         }
       }
 
@@ -1153,17 +1151,17 @@ export class EmployeeService implements OnModuleInit {
         em.getRepository(Employee).findOne({
           where: { id, deleted_at: IsNull() },
           relations: [
-            "user",
-            "user.role",
-            "designation",
-            "designation.department",
-            "team",
+            'user',
+            'user.role',
+            'designation',
+            'designation.department',
+            'team',
           ],
         }),
     );
 
     if (!employee || employee.user.tenant_id !== tenant_id) {
-      throw new NotFoundException("Employee not found");
+      throw new NotFoundException('Employee not found');
     }
 
     const currentStatus = await this.inviteStatusService.getInviteStatus(
@@ -1199,14 +1197,14 @@ export class EmployeeService implements OnModuleInit {
       (em) =>
         em.getRepository(Employee).findOne({
           where: { id },
-          relations: ["user", "designation", "designation.department"],
+          relations: ['user', 'designation', 'designation.department'],
         }),
     );
-    if (!employee) throw new NotFoundException("Employee not found");
+    if (!employee) throw new NotFoundException('Employee not found');
 
     const user = employee.user;
     if (!user || user.tenant_id !== tenant_id) {
-      throw new NotFoundException("Employee not found");
+      throw new NotFoundException('Employee not found');
     }
 
     if (dto.designation_id) {
@@ -1221,7 +1219,7 @@ export class EmployeeService implements OnModuleInit {
 
     if (dto.team_id !== undefined) {
       if (dto.team_id && dto.team_id !== null) {
-        this.validateUUID(dto.team_id, "team_id");
+        this.validateUUID(dto.team_id, 'team_id');
         await this.validateTeam(dto.team_id, tenant_id, isSchemaProvisioned);
         employee.team_id = dto.team_id;
       } else {
@@ -1235,7 +1233,7 @@ export class EmployeeService implements OnModuleInit {
       });
       if (existing && existing.id !== user.id) {
         throw new ConflictException(
-          "User with this email already exists in the tenant.",
+          'User with this email already exists in the tenant.',
         );
       }
     }
@@ -1253,11 +1251,11 @@ export class EmployeeService implements OnModuleInit {
       shouldSaveUser = true;
     } else if (dto.role_id !== undefined) {
       if (dto.role_id && dto.role_id !== null) {
-        this.validateUUID(dto.role_id, "role_id");
+        this.validateUUID(dto.role_id, 'role_id');
         const newRole = await this.roleRepo.findOne({
           where: { id: dto.role_id },
         });
-        if (!newRole) throw new NotFoundException("Specified role not found.");
+        if (!newRole) throw new NotFoundException('Specified role not found.');
         user.role_id = dto.role_id;
         shouldSaveUser = true;
       }
@@ -1300,19 +1298,19 @@ export class EmployeeService implements OnModuleInit {
       if (files.profile_picture?.[0]) {
         if (user.profile_pic) {
           try {
-            this.logger.log("Deleting old profile picture:", user.profile_pic);
+            this.logger.log('Deleting old profile picture:', user.profile_pic);
             await this.employeeFileUploadService.deleteProfilePicture(
               user.profile_pic,
             );
-            this.logger.log("Old profile picture deleted successfully");
+            this.logger.log('Old profile picture deleted successfully');
           } catch (error) {
-            this.logger.warn("Failed to delete old profile picture:", error);
+            this.logger.warn('Failed to delete old profile picture:', error);
           }
         }
 
         try {
           this.logger.log(
-            "Uploading new profile picture for employee:",
+            'Uploading new profile picture for employee:',
             employee.id,
           );
           const profilePictureUrl =
@@ -1322,15 +1320,15 @@ export class EmployeeService implements OnModuleInit {
               user.id,
             );
           this.logger.log(
-            "Profile picture uploaded successfully:",
+            'Profile picture uploaded successfully:',
             profilePictureUrl,
           );
           user.profile_pic = profilePictureUrl;
           // employee.profile_picture = profilePictureUrl; // Removed
           shouldSaveUser = true;
         } catch (error) {
-          this.logger.error("Failed to upload profile picture:", error);
-          throw new BadRequestException("Failed to upload profile picture");
+          this.logger.error('Failed to upload profile picture:', error);
+          throw new BadRequestException('Failed to upload profile picture');
         }
       }
 
@@ -1338,21 +1336,21 @@ export class EmployeeService implements OnModuleInit {
         if (employee.cnic_picture) {
           try {
             this.logger.log(
-              "Deleting old CNIC picture:",
+              'Deleting old CNIC picture:',
               employee.cnic_picture,
             );
             await this.employeeFileUploadService.deleteCnicPicture(
               employee.cnic_picture,
             );
-            this.logger.log("Old CNIC picture deleted successfully");
+            this.logger.log('Old CNIC picture deleted successfully');
           } catch (error) {
-            this.logger.warn("Failed to delete old CNIC picture:", error);
+            this.logger.warn('Failed to delete old CNIC picture:', error);
           }
         }
 
         try {
           this.logger.log(
-            "Uploading new CNIC picture for employee:",
+            'Uploading new CNIC picture for employee:',
             employee.id,
           );
           const cnicPictureUrl =
@@ -1362,13 +1360,13 @@ export class EmployeeService implements OnModuleInit {
               user.id,
             );
           this.logger.log(
-            "CNIC picture uploaded successfully:",
+            'CNIC picture uploaded successfully:',
             cnicPictureUrl,
           );
           employee.cnic_picture = cnicPictureUrl;
         } catch (error) {
-          this.logger.error("Failed to upload CNIC picture:", error);
-          throw new BadRequestException("Failed to upload CNIC picture");
+          this.logger.error('Failed to upload CNIC picture:', error);
+          throw new BadRequestException('Failed to upload CNIC picture');
         }
       }
 
@@ -1376,21 +1374,21 @@ export class EmployeeService implements OnModuleInit {
         if (employee.cnic_back_picture) {
           try {
             this.logger.log(
-              "Deleting old CNIC back picture:",
+              'Deleting old CNIC back picture:',
               employee.cnic_back_picture,
             );
             await this.employeeFileUploadService.deleteCnicBackPicture(
               employee.cnic_back_picture,
             );
-            this.logger.log("Old CNIC back picture deleted successfully");
+            this.logger.log('Old CNIC back picture deleted successfully');
           } catch (error) {
-            this.logger.warn("Failed to delete old CNIC back picture:", error);
+            this.logger.warn('Failed to delete old CNIC back picture:', error);
           }
         }
 
         try {
           this.logger.log(
-            "Uploading new CNIC back picture for employee:",
+            'Uploading new CNIC back picture for employee:',
             employee.id,
           );
           const cnicBackPictureUrl =
@@ -1400,13 +1398,13 @@ export class EmployeeService implements OnModuleInit {
               user.id,
             );
           this.logger.log(
-            "CNIC back picture uploaded successfully:",
+            'CNIC back picture uploaded successfully:',
             cnicBackPictureUrl,
           );
           employee.cnic_back_picture = cnicBackPictureUrl;
         } catch (error) {
-          this.logger.error("Failed to upload CNIC back picture:", error);
-          throw new BadRequestException("Failed to upload CNIC back picture");
+          this.logger.error('Failed to upload CNIC back picture:', error);
+          throw new BadRequestException('Failed to upload CNIC back picture');
         }
       }
     }
@@ -1419,12 +1417,12 @@ export class EmployeeService implements OnModuleInit {
       return this.runInTenantSchema(tenant_id, isSchemaProvisioned, (em) =>
         em.getRepository(Employee).findOne({
           where: { id },
-          relations: ["user", "designation", "designation.department", "team"],
+          relations: ['user', 'designation', 'designation.department', 'team'],
         }),
       );
     } catch (err) {
       const errorCode = getPostgresErrorCode(err);
-      if (errorCode === "23505") {
+      if (errorCode === '23505') {
         throw new ConflictException(this.getDuplicateConflictMessage(err));
       }
       throw err;
@@ -1443,12 +1441,12 @@ export class EmployeeService implements OnModuleInit {
       (em) =>
         em.getRepository(Employee).findOne({
           where: { id, deleted_at: IsNull() },
-          relations: ["user"],
+          relations: ['user'],
         }),
     );
 
     if (!employee || employee.user.tenant_id !== tenant_id) {
-      throw new NotFoundException("Employee not found");
+      throw new NotFoundException('Employee not found');
     }
 
     await this.runInTenantSchema(tenant_id, isSchemaProvisioned, (em) =>
@@ -1473,12 +1471,12 @@ export class EmployeeService implements OnModuleInit {
       (em) =>
         em.getRepository(Employee).findOne({
           where: { id, deleted_at: IsNull(), user: { tenant_id } },
-          relations: ["user"],
+          relations: ['user'],
         }),
     );
 
     if (!employee) {
-      throw new NotFoundException("Employee not found");
+      throw new NotFoundException('Employee not found');
     }
 
     const { documentUrl } = dto;
@@ -1497,18 +1495,18 @@ export class EmployeeService implements OnModuleInit {
       employee.cnic_picture &&
       this.storage.sameObject(employee.cnic_picture, documentUrl)
     ) {
-      fieldToUpdate = "cnic_picture";
+      fieldToUpdate = 'cnic_picture';
       await this.employeeFileUploadService.deleteCnicPicture(documentUrl);
     } else if (
       employee.cnic_back_picture &&
       this.storage.sameObject(employee.cnic_back_picture, documentUrl)
     ) {
-      fieldToUpdate = "cnic_back_picture";
+      fieldToUpdate = 'cnic_back_picture';
       await this.employeeFileUploadService.deleteCnicBackPicture(documentUrl);
     }
 
     if (!fieldToUpdate && !isUserProfilePic) {
-      throw new NotFoundException("Document not found for this employee");
+      throw new NotFoundException('Document not found for this employee');
     }
 
     if (fieldToUpdate) {
@@ -1523,12 +1521,12 @@ export class EmployeeService implements OnModuleInit {
       (em) =>
         em.getRepository(Employee).findOne({
           where: { id },
-          relations: ["user", "designation", "team"],
+          relations: ['user', 'designation', 'team'],
         }),
     );
 
     if (!updatedEmployee) {
-      throw new NotFoundException("Employee not found after update");
+      throw new NotFoundException('Employee not found after update');
     }
 
     return updatedEmployee;
@@ -1536,10 +1534,10 @@ export class EmployeeService implements OnModuleInit {
 
   private generateTemporaryPassword(): string {
     const chars =
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
     return Array.from({ length: 12 }, () =>
       chars.charAt(Math.floor(Math.random() * chars.length)),
-    ).join("");
+    ).join('');
   }
 
   private async sendPasswordWelcomeEmail(
@@ -1561,7 +1559,7 @@ export class EmployeeService implements OnModuleInit {
       );
 
       this.logger.warn(
-        "Email sending failed, but continuing with employee creation",
+        'Email sending failed, but continuing with employee creation',
       );
     }
   }
@@ -1581,43 +1579,43 @@ export class EmployeeService implements OnModuleInit {
         await Promise.allSettled([
           this.tenantRepo.findOne({
             where: { id: tenant_id },
-            select: ["name"],
+            select: ['name'],
           }),
           this.userRepo.find({
             where: { tenant_id },
-            select: ["id", "email", "first_name", "last_name"],
+            select: ['id', 'email', 'first_name', 'last_name'],
           }),
           this.employeeRepo
-            .createQueryBuilder("employee")
-            .leftJoinAndSelect("employee.user", "user")
-            .leftJoinAndSelect("employee.designation", "designation")
-            .leftJoinAndSelect("designation.department", "department")
-            .where("employee.user_id = :excludeUserId", { excludeUserId })
+            .createQueryBuilder('employee')
+            .leftJoinAndSelect('employee.user', 'user')
+            .leftJoinAndSelect('employee.designation', 'designation')
+            .leftJoinAndSelect('designation.department', 'department')
+            .where('employee.user_id = :excludeUserId', { excludeUserId })
             .getOne(),
         ]);
 
-      if (tenantResult.status === "rejected") {
+      if (tenantResult.status === 'rejected') {
         this.logger.warn(
           `Tenant fetch failed for announcement (tenant: ${tenant_id}): ${String(tenantResult.reason)}`,
         );
       }
-      if (tenantUsersResult.status === "rejected") {
+      if (tenantUsersResult.status === 'rejected') {
         this.logger.warn(
           `Tenant users fetch failed for announcement (tenant: ${tenant_id}): ${String(tenantUsersResult.reason)}`,
         );
       }
-      if (newEmployeeResult.status === "rejected") {
+      if (newEmployeeResult.status === 'rejected') {
         this.logger.warn(
           `New employee fetch failed for announcement (tenant: ${tenant_id}): ${String(newEmployeeResult.reason)}`,
         );
       }
 
       const tenant =
-        tenantResult.status === "fulfilled" ? tenantResult.value : null;
+        tenantResult.status === 'fulfilled' ? tenantResult.value : null;
       const tenantUsers =
-        tenantUsersResult.status === "fulfilled" ? tenantUsersResult.value : [];
+        tenantUsersResult.status === 'fulfilled' ? tenantUsersResult.value : [];
       const newEmployee =
-        newEmployeeResult.status === "fulfilled"
+        newEmployeeResult.status === 'fulfilled'
           ? newEmployeeResult.value
           : null;
 
@@ -1641,7 +1639,7 @@ export class EmployeeService implements OnModuleInit {
       const recipientDisplayName = (
         first: string | null | undefined,
         last: string | null | undefined,
-      ) => `${first ?? ""} ${last ?? ""}`.trim() || "there";
+      ) => `${first ?? ''} ${last ?? ''}`.trim() || 'there';
 
       for (const recipient of recipients) {
         try {
@@ -1654,14 +1652,14 @@ export class EmployeeService implements OnModuleInit {
             newMember: {
               name: newEmployeeName,
               email: newEmployeeEmail,
-              department: newEmployee?.designation?.department?.name ?? "-",
-              jobTitle: newEmployee?.designation?.title ?? "-",
+              department: newEmployee?.designation?.department?.name ?? '-',
+              jobTitle: newEmployee?.designation?.title ?? '-',
               joinedDate:
-                newEmployee?.created_at?.toLocaleDateString("en-US", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                }) ?? "-",
+                newEmployee?.created_at?.toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                }) ?? '-',
             },
             companyName: tenant.name,
           });
@@ -1691,46 +1689,46 @@ export class EmployeeService implements OnModuleInit {
     inactiveEmployees: number;
   }> {
     const totalEmployees = await this.employeeRepo
-      .createQueryBuilder("employee")
-      .leftJoin("employee.user", "user")
-      .where("user.tenant_id = :tenant_id", { tenant_id })
-      .andWhere("employee.deleted_at IS NULL")
+      .createQueryBuilder('employee')
+      .leftJoin('employee.user', 'user')
+      .where('user.tenant_id = :tenant_id', { tenant_id })
+      .andWhere('employee.deleted_at IS NULL')
       .getCount();
 
     const activeEmployees = await this.employeeRepo
-      .createQueryBuilder("employee")
-      .leftJoin("employee.user", "user")
-      .where("user.tenant_id = :tenant_id", { tenant_id })
-      .andWhere("employee.deleted_at IS NULL")
-      .andWhere("employee.status = :status", { status: EmployeeStatus.ACTIVE })
+      .createQueryBuilder('employee')
+      .leftJoin('employee.user', 'user')
+      .where('user.tenant_id = :tenant_id', { tenant_id })
+      .andWhere('employee.deleted_at IS NULL')
+      .andWhere('employee.status = :status', { status: EmployeeStatus.ACTIVE })
       .getCount();
 
     const inactiveEmployees = await this.employeeRepo
-      .createQueryBuilder("employee")
-      .leftJoin("employee.user", "user")
-      .where("user.tenant_id = :tenant_id", { tenant_id })
-      .andWhere("employee.deleted_at IS NULL")
-      .andWhere("employee.status = :status", {
+      .createQueryBuilder('employee')
+      .leftJoin('employee.user', 'user')
+      .where('user.tenant_id = :tenant_id', { tenant_id })
+      .andWhere('employee.deleted_at IS NULL')
+      .andWhere('employee.status = :status', {
         status: EmployeeStatus.INACTIVE,
       })
       .getCount();
 
     const male = await this.employeeRepo
-      .createQueryBuilder("employee")
-      .leftJoin("employee.user", "user")
-      .where("user.tenant_id = :tenant_id", { tenant_id })
-      .andWhere("employee.deleted_at IS NULL")
-      .andWhere("user.gender = :gender", { gender: UserGender.MALE })
-      .andWhere("employee.status = :status", { status: EmployeeStatus.ACTIVE })
+      .createQueryBuilder('employee')
+      .leftJoin('employee.user', 'user')
+      .where('user.tenant_id = :tenant_id', { tenant_id })
+      .andWhere('employee.deleted_at IS NULL')
+      .andWhere('user.gender = :gender', { gender: UserGender.MALE })
+      .andWhere('employee.status = :status', { status: EmployeeStatus.ACTIVE })
       .getCount();
 
     const female = await this.employeeRepo
-      .createQueryBuilder("employee")
-      .leftJoin("employee.user", "user")
-      .where("user.tenant_id = :tenant_id", { tenant_id })
-      .andWhere("employee.deleted_at IS NULL")
-      .andWhere("user.gender = :gender", { gender: UserGender.FEMALE })
-      .andWhere("employee.status = :status", { status: EmployeeStatus.ACTIVE })
+      .createQueryBuilder('employee')
+      .leftJoin('employee.user', 'user')
+      .where('user.tenant_id = :tenant_id', { tenant_id })
+      .andWhere('employee.deleted_at IS NULL')
+      .andWhere('user.gender = :gender', { gender: UserGender.FEMALE })
+      .andWhere('employee.status = :status', { status: EmployeeStatus.ACTIVE })
       .getCount();
 
     return {
@@ -1744,17 +1742,17 @@ export class EmployeeService implements OnModuleInit {
 
   async getEmployeeJoiningReport(tenant_id: string): Promise<any[]> {
     const results = await this.employeeRepo
-      .createQueryBuilder("employee")
-      .leftJoin("employee.user", "user")
-      .select("EXTRACT(MONTH FROM employee.created_at) AS month")
-      .addSelect("EXTRACT(YEAR FROM employee.created_at) AS year")
-      .addSelect("COUNT(employee.id) AS total")
-      .where("user.tenant_id = :tenant_id", { tenant_id })
-      .andWhere("employee.deleted_at IS NULL")
-      .groupBy("EXTRACT(MONTH FROM employee.created_at)")
-      .addGroupBy("EXTRACT(YEAR FROM employee.created_at)")
-      .orderBy("year", "ASC")
-      .addOrderBy("month", "ASC")
+      .createQueryBuilder('employee')
+      .leftJoin('employee.user', 'user')
+      .select('EXTRACT(MONTH FROM employee.created_at) AS month')
+      .addSelect('EXTRACT(YEAR FROM employee.created_at) AS year')
+      .addSelect('COUNT(employee.id) AS total')
+      .where('user.tenant_id = :tenant_id', { tenant_id })
+      .andWhere('employee.deleted_at IS NULL')
+      .groupBy('EXTRACT(MONTH FROM employee.created_at)')
+      .addGroupBy('EXTRACT(YEAR FROM employee.created_at)')
+      .orderBy('year', 'ASC')
+      .addOrderBy('month', 'ASC')
       .getRawMany();
 
     if (!results || results.length === 0) {
@@ -1777,19 +1775,19 @@ export class EmployeeService implements OnModuleInit {
       (em) =>
         em.getRepository(Employee).findOne({
           where: { id: employee_id, deleted_at: IsNull() },
-          relations: ["user", "user.tenant"],
+          relations: ['user', 'user.tenant'],
         }),
     );
     if (!employee || employee.user.tenant_id !== tenant_id) {
-      throw new NotFoundException("Employee not found for this tenant");
+      throw new NotFoundException('Employee not found for this tenant');
     }
     if (employee.invite_status !== InviteStatus.INVITE_EXPIRED) {
       throw new BadRequestException(
-        "Invite can only be resent if status is Invite Expired",
+        'Invite can only be resent if status is Invite Expired',
       );
     }
 
-    const resetToken = crypto.randomBytes(32).toString("hex");
+    const resetToken = crypto.randomBytes(32).toString('hex');
     // Hash the token before storing (similar to passwords)
     const hashedResetToken = await bcrypt.hash(resetToken, 10);
     const resetTokenExpiry = new Date();
@@ -1809,7 +1807,7 @@ export class EmployeeService implements OnModuleInit {
         employee.user.email,
       employee.user.tenant.name,
     );
-    return { message: "Invite resent successfully" };
+    return { message: 'Invite resent successfully' };
   }
 
   async getProfilePictureFile(
@@ -1824,12 +1822,12 @@ export class EmployeeService implements OnModuleInit {
       (em) =>
         em.getRepository(Employee).findOne({
           where: { id: employee_id, deleted_at: IsNull() },
-          relations: ["user"],
+          relations: ['user'],
         }),
     );
 
     if (!employee || employee.user.tenant_id !== tenant_id) {
-      throw new NotFoundException("Employee not found");
+      throw new NotFoundException('Employee not found');
     }
 
     let imagePath: string | null = null;
@@ -1839,31 +1837,31 @@ export class EmployeeService implements OnModuleInit {
     }
 
     if (!imagePath) {
-      throw new NotFoundException("No profile picture available");
+      throw new NotFoundException('No profile picture available');
     }
 
-    if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
       res.redirect(302, imagePath);
       return;
     }
 
-    const relative = (imagePath.split("?")[0] || "").replace(/^\/+/, "");
-    if (!relative || !relative.startsWith("profile-pictures/")) {
-      throw new NotFoundException("Invalid image path");
+    const relative = (imagePath.split('?')[0] || '').replace(/^\/+/, '');
+    if (!relative || !relative.startsWith('profile-pictures/')) {
+      throw new NotFoundException('Invalid image path');
     }
-    const filePath = path.join(process.cwd(), "public", relative);
+    const filePath = path.join(process.cwd(), 'public', relative);
 
     if (!fs.existsSync(filePath)) {
-      throw new NotFoundException("Profile picture file not found");
+      throw new NotFoundException('Profile picture file not found');
     }
 
     const fileName = path.basename(relative);
     const ext = path.extname(fileName).toLowerCase();
     const contentType = this.getContentType(ext);
 
-    res.setHeader("Content-Type", contentType);
-    res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
-    res.setHeader("Cache-Control", "public, max-age=31536000"); // Cache for 1 year
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+    res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
 
     const fileStream = fs.createReadStream(filePath);
     fileStream.pipe(res);
@@ -1881,41 +1879,41 @@ export class EmployeeService implements OnModuleInit {
       (em) =>
         em.getRepository(Employee).findOne({
           where: { id: employee_id, deleted_at: IsNull() },
-          relations: ["user"],
+          relations: ['user'],
         }),
     );
 
     if (!employee || employee.user.tenant_id !== tenant_id) {
-      throw new NotFoundException("Employee not found");
+      throw new NotFoundException('Employee not found');
     }
 
     if (!employee.cnic_picture) {
-      throw new NotFoundException("No CNIC picture available");
+      throw new NotFoundException('No CNIC picture available');
     }
 
     const cnicPath = employee.cnic_picture;
-    if (cnicPath.startsWith("http://") || cnicPath.startsWith("https://")) {
+    if (cnicPath.startsWith('http://') || cnicPath.startsWith('https://')) {
       res.redirect(302, cnicPath);
       return;
     }
 
-    const relative = (cnicPath.split("?")[0] || "").replace(/^\/+/, "");
-    if (!relative || !relative.startsWith("cnic-pictures/")) {
-      throw new NotFoundException("Invalid CNIC image path");
+    const relative = (cnicPath.split('?')[0] || '').replace(/^\/+/, '');
+    if (!relative || !relative.startsWith('cnic-pictures/')) {
+      throw new NotFoundException('Invalid CNIC image path');
     }
-    const filePath = path.join(process.cwd(), "public", relative);
+    const filePath = path.join(process.cwd(), 'public', relative);
 
     if (!fs.existsSync(filePath)) {
-      throw new NotFoundException("CNIC picture file not found");
+      throw new NotFoundException('CNIC picture file not found');
     }
 
     const fileName = path.basename(relative);
     const ext = path.extname(fileName).toLowerCase();
     const contentType = this.getContentType(ext);
 
-    res.setHeader("Content-Type", contentType);
-    res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
-    res.setHeader("Cache-Control", "public, max-age=31536000"); // Cache for 1 year
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+    res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
 
     const fileStream = fs.createReadStream(filePath);
     fileStream.pipe(res);
@@ -1933,44 +1931,44 @@ export class EmployeeService implements OnModuleInit {
       (em) =>
         em.getRepository(Employee).findOne({
           where: { id: employee_id, deleted_at: IsNull() },
-          relations: ["user"],
+          relations: ['user'],
         }),
     );
 
     if (!employee || employee.user.tenant_id !== tenant_id) {
-      throw new NotFoundException("Employee not found");
+      throw new NotFoundException('Employee not found');
     }
 
     if (!employee.cnic_back_picture) {
-      throw new NotFoundException("No CNIC back picture available");
+      throw new NotFoundException('No CNIC back picture available');
     }
 
     const cnicBackPath = employee.cnic_back_picture;
     if (
-      cnicBackPath.startsWith("http://") ||
-      cnicBackPath.startsWith("https://")
+      cnicBackPath.startsWith('http://') ||
+      cnicBackPath.startsWith('https://')
     ) {
       res.redirect(302, cnicBackPath);
       return;
     }
 
-    const relative = (cnicBackPath.split("?")[0] || "").replace(/^\/+/, "");
-    if (!relative || !relative.startsWith("cnic-back-pictures/")) {
-      throw new NotFoundException("Invalid CNIC back image path");
+    const relative = (cnicBackPath.split('?')[0] || '').replace(/^\/+/, '');
+    if (!relative || !relative.startsWith('cnic-back-pictures/')) {
+      throw new NotFoundException('Invalid CNIC back image path');
     }
-    const filePath = path.join(process.cwd(), "public", relative);
+    const filePath = path.join(process.cwd(), 'public', relative);
 
     if (!fs.existsSync(filePath)) {
-      throw new NotFoundException("CNIC back picture file not found");
+      throw new NotFoundException('CNIC back picture file not found');
     }
 
     const fileName = path.basename(relative);
     const ext = path.extname(fileName).toLowerCase();
     const contentType = this.getContentType(ext);
 
-    res.setHeader("Content-Type", contentType);
-    res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
-    res.setHeader("Cache-Control", "public, max-age=31536000"); // Cache for 1 year
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+    res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
 
     const fileStream = fs.createReadStream(filePath);
     fileStream.pipe(res);
@@ -1978,16 +1976,16 @@ export class EmployeeService implements OnModuleInit {
 
   private getContentType(ext: string): string {
     const contentTypes: { [key: string]: string } = {
-      ".jpg": "image/jpeg",
-      ".jpeg": "image/jpeg",
-      ".png": "image/png",
-      ".gif": "image/gif",
-      ".webp": "image/webp",
-      ".bmp": "image/bmp",
-      ".svg": "image/svg+xml",
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
+      '.bmp': 'image/bmp',
+      '.svg': 'image/svg+xml',
     };
 
-    return contentTypes[ext] || "application/octet-stream";
+    return contentTypes[ext] || 'application/octet-stream';
   }
 
   async getAllEmployeesForSystemAdmin(filters?: {
@@ -1996,32 +1994,32 @@ export class EmployeeService implements OnModuleInit {
     designationId?: string;
   }) {
     const qb = this.employeeRepo
-      .createQueryBuilder("employee")
-      .leftJoinAndSelect("employee.user", "user")
-      .leftJoinAndSelect("user.tenant", "tenant")
-      .leftJoinAndSelect("employee.designation", "designation")
-      .leftJoinAndSelect("designation.department", "department")
-      .leftJoinAndSelect("employee.team", "team")
-      .andWhere("employee.deleted_at IS NULL");
+      .createQueryBuilder('employee')
+      .leftJoinAndSelect('employee.user', 'user')
+      .leftJoinAndSelect('user.tenant', 'tenant')
+      .leftJoinAndSelect('employee.designation', 'designation')
+      .leftJoinAndSelect('designation.department', 'department')
+      .leftJoinAndSelect('employee.team', 'team')
+      .andWhere('employee.deleted_at IS NULL');
 
     if (filters?.tenantId) {
-      qb.andWhere("user.tenant_id = :tenantId", { tenantId: filters.tenantId });
+      qb.andWhere('user.tenant_id = :tenantId', { tenantId: filters.tenantId });
     }
     if (filters?.departmentId) {
-      qb.andWhere("department.id = :departmentId", {
+      qb.andWhere('department.id = :departmentId', {
         departmentId: filters.departmentId,
       });
     }
     if (filters?.designationId) {
-      qb.andWhere("designation.id = :designationId", {
+      qb.andWhere('designation.id = :designationId', {
         designationId: filters.designationId,
       });
     }
 
     const items = await qb
-      .orderBy("tenant.name", "ASC")
-      .addOrderBy("user.first_name", "ASC")
-      .addOrderBy("user.last_name", "ASC")
+      .orderBy('tenant.name', 'ASC')
+      .addOrderBy('user.first_name', 'ASC')
+      .addOrderBy('user.last_name', 'ASC')
       .getMany();
 
     return items;

@@ -14,11 +14,11 @@ export class ResetPasswordDto {
   @ApiProperty({
     example: 'StrongPass123!',
     description: 'The new password to set',
-    minLength: 6,
+    minLength: 8,
   })
   @IsString({ message: 'Password must be a string' })
   @IsNotEmpty({ message: 'Password is required' })
-  @MinLength(6, { message: 'Password must be at least 6 characters long' })
+  @MinLength(8, { message: 'Password must be at least 8 characters long' })
   password: string;
 
   @ApiProperty({

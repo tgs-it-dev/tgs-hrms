@@ -12,4 +12,3 @@ export class AddDocumentsToLeaves1769000000005 implements MigrationInterface {
     await queryRunner.dropColumn('leaves', 'documents');
   }
 }
-

@@ -12,7 +12,6 @@ import { Public } from '../../common/decorators/public.decorator';
 export class SubscriptionController {
   constructor(private readonly subscriptionService: SubscriptionService) {}
 
-  
   @Get('prices')
   async getStripePrices(@Query('ids') ids: string) {
     if (!ids) {

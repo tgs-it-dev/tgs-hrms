@@ -1,7 +1,7 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class AddAdditionalIndexes1769000000004 implements MigrationInterface {
-  name = "AddAdditionalIndexes1769000000004";
+  name = 'AddAdditionalIndexes1769000000004';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Designation indexes
@@ -46,19 +46,27 @@ export class AddAdditionalIndexes1769000000004 implements MigrationInterface {
   public async down(queryRunner: QueryRunner): Promise<void> {
     // Drop indexes in reverse order
     await queryRunner.query(`DROP INDEX IF EXISTS "IDX_teams_manager_id"`);
-    
+
     await queryRunner.query(`DROP INDEX IF EXISTS "IDX_attendance_type"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_attendance_user_timestamp"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "IDX_attendance_user_timestamp"`,
+    );
     await queryRunner.query(`DROP INDEX IF EXISTS "IDX_attendance_timestamp"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "IDX_attendance_user_id"`);
-    
-    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_departments_tenant_name"`);
+
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "IDX_departments_tenant_name"`,
+    );
     await queryRunner.query(`DROP INDEX IF EXISTS "IDX_departments_name"`);
-    
-    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_designations_tenant_department"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_designations_department_id"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_designations_tenant_id"`);
+
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "IDX_designations_tenant_department"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "IDX_designations_department_id"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "IDX_designations_tenant_id"`,
+    );
   }
 }
-
-

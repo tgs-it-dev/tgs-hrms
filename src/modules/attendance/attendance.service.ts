@@ -4,29 +4,29 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
-} from "@nestjs/common";
+} from '@nestjs/common';
 import {
   AttendanceType,
   CheckInApprovalStatus,
   UserRole,
-} from "../../common/constants/enums";
-import { InjectRepository } from "@nestjs/typeorm";
-import { EntityManager, Repository, In } from "typeorm";
-import { Attendance } from "../../entities/attendance.entity";
-import { Employee } from "../../entities/employee.entity";
-import { User } from "../../entities/user.entity";
-import { CreateAttendanceDto } from "./dto/create-attendance.dto";
-import { UpdateAttendanceDto } from "./dto/update-attendance.dto";
-import { TimesheetService } from "../timesheet/timesheet.service";
-import { TeamService } from "../team/team.service";
-import { NotificationGateway } from "../notification/notification.gateway";
-import { NotificationService } from "../notification/notification.service";
-import { NotificationType } from "../../common/constants/enums";
-import { TenantDatabaseService } from "../../common/services/tenant-database.service";
-import { InjectDataSource } from "@nestjs/typeorm";
-import { DataSource } from "typeorm";
-import { Geofence, GeofenceStatus } from "../../entities/geofence.entity";
-import { checkPointWithinGeofence } from "../../common/utils/geofence.util";
+} from '../../common/constants/enums';
+import { InjectRepository } from '@nestjs/typeorm';
+import { EntityManager, Repository, In } from 'typeorm';
+import { Attendance } from '../../entities/attendance.entity';
+import { Employee } from '../../entities/employee.entity';
+import { User } from '../../entities/user.entity';
+import { CreateAttendanceDto } from './dto/create-attendance.dto';
+import { UpdateAttendanceDto } from './dto/update-attendance.dto';
+import { TimesheetService } from '../timesheet/timesheet.service';
+import { TeamService } from '../team/team.service';
+import { NotificationGateway } from '../notification/notification.gateway';
+import { NotificationService } from '../notification/notification.service';
+import { NotificationType } from '../../common/constants/enums';
+import { TenantDatabaseService } from '../../common/services/tenant-database.service';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import { Geofence, GeofenceStatus } from '../../entities/geofence.entity';
+import { checkPointWithinGeofence } from '../../common/utils/geofence.util';
 
 interface TeamMemberItem {
   user: {
@@ -57,11 +57,15 @@ interface AttendanceEvent {
 export class AttendanceService {
   private readonly logger = new Logger(AttendanceService.name);
 
+  // A session older than this is treated as abandoned. Prevents a forgotten
+  // check-in from blocking the next day's clock-in. Set to 20h to cover any
+  // realistic extended shift (standard 9h + overtime buffer); sessions longer
+  // than this cannot be checked out and will appear in admin reports as stale.
+  private static readonly MAX_SESSION_HOURS = 20;
+
   constructor(
     @InjectRepository(Attendance)
     private readonly attendanceRepo: Repository<Attendance>,
-    @InjectRepository(Employee)
-    private readonly employeeRepo: Repository<Employee>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
     private readonly timesheetService: TimesheetService,
@@ -100,14 +104,14 @@ export class AttendanceService {
     endDate?: string,
   ): { start?: Date; end?: Date } {
     const parseStart = (date: string): Date => {
-      if (date.includes("T")) return new Date(date);
-      const [y, m, d] = date.split("-").map(Number);
+      if (date.includes('T')) return new Date(date);
+      const [y, m, d] = date.split('-').map(Number);
       return new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
     };
 
     const parseEnd = (date: string): Date => {
-      if (date.includes("T")) return new Date(date);
-      const [y, m, d] = date.split("-").map(Number);
+      if (date.includes('T')) return new Date(date);
+      const [y, m, d] = date.split('-').map(Number);
       return new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
     };
 
@@ -144,191 +148,207 @@ export class AttendanceService {
     tenantId: string | undefined,
     em: EntityManager | null,
   ) {
-    const attendanceRepo = em
-      ? em.getRepository(Attendance)
-      : this.attendanceRepo;
-    const employeeRepo = em ? em.getRepository(Employee) : this.employeeRepo;
+    // pg_advisory_xact_lock serialises concurrent check-in/out requests for
+    // the same user so the session-existence check and the INSERT are atomic.
+    // The lock is transaction-scoped and releases automatically on commit/rollback.
+    const execute = async (txEm: EntityManager): Promise<Attendance> => {
+      await txEm.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [userId]);
 
-    const now = new Date();
+      const attendanceRepo = txEm.getRepository(Attendance);
+      const employeeRepo = txEm.getRepository(Employee);
 
-    // ── Geofence validation ──────────────────────────────────────────────────
-    // Only validate on CHECK_IN when the employee belongs to a team that has
-    // an active geofence configured.  If lat/lng are omitted and no geofence
-    // is enforced the check is skipped; if a geofence exists lat/lng become
-    // mandatory.
-    let nearBoundary = false;
+      const now = new Date();
 
-    if (dto.type === AttendanceType.CHECK_IN) {
-      const employee = await (
-        em ? em.getRepository(Employee) : this.employeeRepo
-      ).findOne({
-        where: { user_id: userId },
-        select: ["team_id"],
-      });
+      // ── Geofence validation ──────────────────────────────────────────────────
+      // Only validate on CHECK_IN when the employee belongs to a team that has
+      // an active geofence configured. If lat/lng are omitted and no geofence
+      // is enforced the check is skipped; if a geofence exists lat/lng become mandatory.
+      let nearBoundary = false;
 
-      if (employee?.team_id) {
-        const geofenceRepo = em
-          ? em.getRepository(Geofence)
-          : this.geofenceRepo;
-        const activeGeofence = await geofenceRepo.findOne({
-          where: { team_id: employee.team_id, status: GeofenceStatus.ACTIVE },
+      if (dto.type === AttendanceType.CHECK_IN) {
+        const geofenceEmployee = await employeeRepo.findOne({
+          where: { user_id: userId },
+          select: ['team_id'],
         });
 
-        if (activeGeofence) {
-          if (dto.latitude == null || dto.longitude == null) {
-            throw new BadRequestException(
-              "Location is required for check-in. Your team has a geofence configured.",
+        if (geofenceEmployee?.team_id) {
+          const geofenceRepo = txEm.getRepository(Geofence);
+          const activeGeofence = await geofenceRepo.findOne({
+            where: {
+              team_id: geofenceEmployee.team_id,
+              status: GeofenceStatus.ACTIVE,
+            },
+          });
+
+          if (activeGeofence) {
+            if (dto.latitude == null || dto.longitude == null) {
+              throw new BadRequestException(
+                'Location is required for check-in. Your team has a geofence configured.',
+              );
+            }
+
+            const result = checkPointWithinGeofence(
+              dto.latitude,
+              dto.longitude,
+              activeGeofence,
             );
+
+            if (!result.isWithin) {
+              throw new BadRequestException(
+                'You are outside the allowed check-in area. Please check in from within the designated geofence zone.',
+              );
+            }
+
+            nearBoundary = result.isNearBoundary;
           }
-
-          const result = checkPointWithinGeofence(
-            dto.latitude,
-            dto.longitude,
-            activeGeofence,
-          );
-
-          if (!result.isWithin) {
-            throw new BadRequestException(
-              "You are outside the allowed check-in area. Please check in from within the designated geofence zone.",
-            );
-          }
-
-          nearBoundary = result.isNearBoundary;
         }
       }
-    }
 
-    if (dto.type === AttendanceType.CHECK_IN) {
-      const activeSession = await this.getActiveSession(userId, attendanceRepo);
-      if (activeSession) {
-        throw new BadRequestException(
-          "You already have an active session. Please check out first.",
+      if (dto.type === AttendanceType.CHECK_IN) {
+        const activeSession = await this.getActiveSession(
+          userId,
+          attendanceRepo,
         );
-      }
-    } else if (dto.type === AttendanceType.CHECK_OUT) {
-      const activeSession = await this.getActiveSession(userId, attendanceRepo);
-      if (!activeSession) {
-        throw new BadRequestException(
-          "No active session found. Please check in first.",
+        if (activeSession) {
+          throw new BadRequestException(
+            'You already have an active session. Please check out first.',
+          );
+        }
+      } else if (dto.type === AttendanceType.CHECK_OUT) {
+        const activeSession = await this.getActiveSession(
+          userId,
+          attendanceRepo,
         );
+        if (!activeSession) {
+          throw new BadRequestException(
+            'No active session found. Please check in first.',
+          );
+        }
       }
-    }
 
-    // Get employee info for manager notification
-    const employee = await employeeRepo.findOne({
-      where: { user_id: userId },
-      relations: ["user", "team"],
-    });
+      // Get employee info for manager notification
+      const employee = await employeeRepo.findOne({
+        where: { user_id: userId },
+        relations: ['user', 'team'],
+      });
 
-    // Managers and network-admins: auto-approve their own check-in. Team members: PENDING (need manager approval).
-    let approvalStatus: CheckInApprovalStatus | null = null;
-    let approvedBy: string | null = null;
-    let approvedAt: Date | null = null;
-    if (dto.type === AttendanceType.CHECK_IN) {
-      const [managerResult, userResult] = await Promise.allSettled([
-        tenantId
-          ? this.teamService.getManagerTeams(userId, tenantId)
-          : Promise.resolve([]),
-        this.userRepo.findOne({
-          where: { id: userId },
-          relations: ["role"],
-        }),
-      ]);
-      const isManager =
-        tenantId &&
-        managerResult.status === "fulfilled" &&
-        (managerResult.value?.length ?? 0) > 0;
-      const isNetworkAdmin =
-        userResult.status === "fulfilled" &&
-        userResult.value?.role?.name?.toLowerCase() ===
-          UserRole.NETWORK_ADMIN.toLowerCase();
-      if (isManager || isNetworkAdmin) {
-        approvalStatus = CheckInApprovalStatus.APPROVED;
-        approvedBy = userId;
-        approvedAt = now;
-      } else {
-        approvalStatus = CheckInApprovalStatus.PENDING;
+      // Managers and network-admins: auto-approve their own check-in. Team members: PENDING (need manager approval).
+      let approvalStatus: CheckInApprovalStatus | null = null;
+      let approvedBy: string | null = null;
+      let approvedAt: Date | null = null;
+      if (dto.type === AttendanceType.CHECK_IN) {
+        const [managerResult, userResult] = await Promise.allSettled([
+          tenantId
+            ? this.teamService.getManagerTeams(userId, tenantId)
+            : Promise.resolve([]),
+          this.userRepo.findOne({
+            where: { id: userId },
+            relations: ['role'],
+          }),
+        ]);
+        const isManager =
+          tenantId &&
+          managerResult.status === 'fulfilled' &&
+          (managerResult.value?.length ?? 0) > 0;
+        const isNetworkAdmin =
+          userResult.status === 'fulfilled' &&
+          userResult.value?.role?.name?.toLowerCase() ===
+            UserRole.NETWORK_ADMIN.toLowerCase();
+        if (isManager || isNetworkAdmin) {
+          approvalStatus = CheckInApprovalStatus.APPROVED;
+          approvedBy = userId;
+          approvedAt = now;
+        } else {
+          approvalStatus = CheckInApprovalStatus.PENDING;
+        }
       }
-    }
 
-    const attendance = attendanceRepo.create({
-      type: dto.type,
-      user_id: userId,
-      timestamp: now,
-      approval_status: approvalStatus,
-      approved_by: approvedBy,
-      approved_at: approvedAt,
-      near_boundary: nearBoundary,
-    });
-    const saved = await attendanceRepo.save(attendance);
+      const attendance = attendanceRepo.create({
+        type: dto.type,
+        user_id: userId,
+        timestamp: now,
+        approval_status: approvalStatus,
+        approved_by: approvedBy,
+        approved_at: approvedAt,
+        near_boundary: nearBoundary,
+      });
+      const saved = await attendanceRepo.save(attendance);
 
-    // Notify manager: save in DB (record) + real-time WebSocket. Skip when manager is notifying themselves (own attendance).
-    const managerId = employee?.team?.manager_id;
-    if (employee && managerId && tenantId && managerId !== userId) {
-      const employeeName =
-        `${employee.user.first_name} ${employee.user.last_name}`.trim();
-      const actionType =
-        dto.type === AttendanceType.CHECK_IN ? "checked in" : "checked out";
-      const nearBoundaryText = saved.near_boundary ? " (Near Boundary)" : "";
-      const message = `${employeeName} ${actionType}${nearBoundaryText}`;
+      // Notify manager: save in DB (record) + real-time WebSocket. Skip when manager is notifying themselves (own attendance).
+      const managerId = employee?.team?.manager_id;
+      if (employee && managerId && tenantId && managerId !== userId) {
+        const employeeName =
+          `${employee.user.first_name} ${employee.user.last_name}`.trim();
+        const actionType =
+          dto.type === AttendanceType.CHECK_IN ? 'checked in' : 'checked out';
+        const nearBoundaryText = saved.near_boundary ? ' (Near Boundary)' : '';
+        const message = `${employeeName} ${actionType}${nearBoundaryText}`;
 
-      try {
-        const notification = await this.notificationService.create(
-          managerId,
-          tenantId,
-          message,
-          NotificationType.ATTENDANCE,
-          { relatedEntityType: "attendance", relatedEntityId: saved.id },
-        );
-        this.notificationGateway.sendToUser(managerId, "new_notification", {
-          id: notification.id,
-          message: notification.message,
-          type: notification.type,
-          related_entity_type: "attendance",
-          related_entity_id: saved.id,
-          created_at: notification.created_at,
-        });
-        this.notificationGateway.sendToUser(managerId, "attendance_event", {
-          type: dto.type,
-          employee_id: userId,
-          employee_name: employeeName,
-          timestamp: saved.timestamp,
-          message,
-          near_boundary: saved.near_boundary,
-          notification_id: notification.id,
-          related_entity_type: "attendance",
-          related_entity_id: saved.id,
-        });
-      } catch (error) {
-        // eslint-disable-next-line no-console
-        console.error("Failed to create attendance notification:", error);
+        try {
+          const notification = await this.notificationService.create(
+            managerId,
+            tenantId,
+            message,
+            NotificationType.ATTENDANCE,
+            { relatedEntityType: 'attendance', relatedEntityId: saved.id },
+          );
+          this.notificationGateway.sendToUser(managerId, 'new_notification', {
+            id: notification.id,
+            message: notification.message,
+            type: notification.type,
+            related_entity_type: 'attendance',
+            related_entity_id: saved.id,
+            created_at: notification.created_at,
+          });
+          this.notificationGateway.sendToUser(managerId, 'attendance_event', {
+            type: dto.type,
+            employee_id: userId,
+            employee_name: employeeName,
+            timestamp: saved.timestamp,
+            message,
+            near_boundary: saved.near_boundary,
+            notification_id: notification.id,
+            related_entity_type: 'attendance',
+            related_entity_id: saved.id,
+          });
+        } catch (error) {
+          console.error('Failed to create attendance notification:', error);
+        }
       }
-    }
 
-    if (dto.type === AttendanceType.CHECK_OUT) {
-      await this.timesheetService.autoEndIfActive(userId);
-    }
+      if (dto.type === AttendanceType.CHECK_OUT) {
+        await this.timesheetService.autoEndIfActive(userId);
+      }
 
-    return saved;
+      return saved;
+    };
+
+    // Tenant-provisioned path already runs inside withTenantSchema's connection;
+    // pass the provided EntityManager so the advisory lock shares that transaction.
+    // For the non-tenant path, open a new transaction explicitly.
+    if (em) {
+      return execute(em);
+    }
+    return this.dataSource.transaction(execute);
   }
 
   private async getActiveSession(
     userId: string,
     attendanceRepo: Repository<Attendance> = this.attendanceRepo,
   ): Promise<Attendance | null> {
-    // Only consider check-ins from today onwards — a stale migrated check-in
-    // from a previous day should never block a new clock-in.
-    const now = new Date();
-    const startOfToday = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+    // Use a MAX_SESSION_HOURS rolling window so shifts that span UTC midnight
+    // are found. Records older than MAX_SESSION_HOURS are considered abandoned
+    // and will not block a new check-in.
+    const lookback = new Date(
+      Date.now() - AttendanceService.MAX_SESSION_HOURS * 60 * 60 * 1000,
     );
 
     const latestCheckIn = await attendanceRepo
-      .createQueryBuilder("a")
-      .where("a.user_id = :userId", { userId })
-      .andWhere("a.type = :type", { type: AttendanceType.CHECK_IN })
-      .andWhere("a.timestamp >= :startOfToday", { startOfToday })
-      .orderBy("a.timestamp", "DESC")
+      .createQueryBuilder('a')
+      .where('a.user_id = :userId', { userId })
+      .andWhere('a.type = :type', { type: AttendanceType.CHECK_IN })
+      .andWhere('a.timestamp >= :lookback', { lookback })
+      .orderBy('a.timestamp', 'DESC')
       .getOne();
 
     if (!latestCheckIn) {
@@ -336,11 +356,11 @@ export class AttendanceService {
     }
 
     const matchingCheckOut = await attendanceRepo
-      .createQueryBuilder("a")
-      .where("a.user_id = :userId", { userId })
-      .andWhere("a.type = :type", { type: AttendanceType.CHECK_OUT })
-      .andWhere("a.timestamp > :after", { after: latestCheckIn.timestamp })
-      .orderBy("a.timestamp", "ASC")
+      .createQueryBuilder('a')
+      .where('a.user_id = :userId', { userId })
+      .andWhere('a.type = :type', { type: AttendanceType.CHECK_OUT })
+      .andWhere('a.timestamp > :after', { after: latestCheckIn.timestamp })
+      .orderBy('a.timestamp', 'ASC')
       .getOne();
 
     return matchingCheckOut ? null : latestCheckIn;
@@ -362,15 +382,15 @@ export class AttendanceService {
         (em) => {
           const q = em
             .getRepository(Attendance)
-            .createQueryBuilder("attendance");
-          if (userId) q.where("attendance.user_id = :userId", { userId });
-          return q.orderBy("attendance.timestamp", "ASC").getMany();
+            .createQueryBuilder('attendance');
+          if (userId) q.where('attendance.user_id = :userId', { userId });
+          return q.orderBy('attendance.timestamp', 'ASC').getMany();
         },
       );
     } else {
-      const q = this.attendanceRepo.createQueryBuilder("attendance");
-      if (userId) q.where("attendance.user_id = :userId", { userId });
-      records = await q.orderBy("attendance.timestamp", "ASC").getMany();
+      const q = this.attendanceRepo.createQueryBuilder('attendance');
+      if (userId) q.where('attendance.user_id = :userId', { userId });
+      records = await q.orderBy('attendance.timestamp', 'ASC').getMany();
     }
 
     // Maintain the summarizing and grouping logic
@@ -389,9 +409,15 @@ export class AttendanceService {
       }
     }
     for (const checkIn of checkIns) {
-      const startDate = checkIn.timestamp.toISOString().split("T")[0] || "";
+      const startDate = checkIn.timestamp.toISOString().split('T')[0] || '';
+      const sessionDeadline = new Date(
+        new Date(checkIn.timestamp).getTime() +
+          AttendanceService.MAX_SESSION_HOURS * 60 * 60 * 1000,
+      );
       const matchingCheckOut = checkOuts.find(
-        (checkout) => checkout.timestamp > checkIn.timestamp,
+        (checkout) =>
+          checkout.timestamp > checkIn.timestamp &&
+          checkout.timestamp <= sessionDeadline,
       );
       sessions.push({
         checkIn,
@@ -405,50 +431,83 @@ export class AttendanceService {
     }
     const groupedByDate: Record<
       string,
-      { checkIn?: Attendance; checkOut?: Attendance }
+      Array<{ checkIn: Attendance; checkOut?: Attendance }>
     > = {};
     for (const session of sessions) {
       const dateKey = session.startDate;
       if (!dateKey) continue;
       if (!groupedByDate[dateKey]) {
-        groupedByDate[dateKey] = {};
+        groupedByDate[dateKey] = [];
       }
-      if (
-        !groupedByDate[dateKey].checkIn ||
-        session.checkIn.timestamp >
-          (groupedByDate[dateKey].checkIn?.timestamp || new Date(0))
-      ) {
-        groupedByDate[dateKey].checkIn = session.checkIn;
-        groupedByDate[dateKey].checkOut = session.checkOut;
-      }
+      groupedByDate[dateKey].push({
+        checkIn: session.checkIn,
+        checkOut: session.checkOut,
+      });
     }
-    const items = Object.entries(groupedByDate).map(
-      ([date, { checkIn, checkOut }]) => {
-        let workedHours = 0;
-        if (
-          checkIn &&
-          checkOut &&
-          new Date(checkOut.timestamp) > new Date(checkIn.timestamp)
-        ) {
-          const diffMs =
-            new Date(checkOut.timestamp).getTime() -
-            new Date(checkIn.timestamp).getTime();
-          workedHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
-        }
+    const dates = Object.keys(groupedByDate);
+    const baseItems = Object.entries(groupedByDate).map(
+      ([date, daySessions]) => {
+        daySessions.sort(
+          (a, b) =>
+            new Date(a.checkIn.timestamp).getTime() -
+            new Date(b.checkIn.timestamp).getTime(),
+        );
+        const firstCheckIn = daySessions[0]?.checkIn;
+        const lastCheckOut = daySessions[daySessions.length - 1]?.checkOut;
+        const workedHours = this.sumSessionHours(daySessions);
         return {
           date,
-          checkIn: checkIn?.timestamp || null,
+          checkIn: firstCheckIn?.timestamp || null,
           checkOut:
-            checkOut &&
-            checkIn &&
-            new Date(checkOut.timestamp) > new Date(checkIn.timestamp)
-              ? checkOut.timestamp
+            lastCheckOut &&
+            firstCheckIn &&
+            new Date(lastCheckOut.timestamp) > new Date(firstCheckIn.timestamp)
+              ? lastCheckOut.timestamp
               : null,
           workedHours,
+          tags: [] as string[],
         };
       },
     );
-    return { items, total: items.length };
+
+    if (userId && tenantId && dates.length > 0) {
+      const minDate = dates.reduce((a, b) => (a < b ? a : b));
+      const maxDate = dates.reduce((a, b) => (a > b ? a : b));
+
+      const runQuery = <T>(sql: string, params: unknown[]) =>
+        isProvisioned && tenantId
+          ? this.tenantDbService.withTenantSchemaReadOnly(tenantId, (em) =>
+              em.query<T>(sql, params),
+            )
+          : this.dataSource.query<T>(sql, params);
+
+      const [wfhRows, overtimeRows] = await Promise.all([
+        runQuery<{ start_date: string; end_date: string }[]>(
+          `SELECT start_date::text, end_date::text FROM wfh_requests
+           WHERE employee_id = $1 AND tenant_id = $2
+             AND status IN ('pending','approved')
+             AND start_date <= $3 AND end_date >= $4`,
+          [userId, tenantId, maxDate, minDate],
+        ),
+        runQuery<{ start_date: string; end_date: string }[]>(
+          `SELECT start_date::text, end_date::text FROM overtime_requests
+           WHERE employee_id = $1 AND tenant_id = $2
+             AND status IN ('pending','approved')
+             AND start_date <= $3 AND end_date >= $4`,
+          [userId, tenantId, maxDate, minDate],
+        ),
+      ]);
+
+      for (const item of baseItems) {
+        const d = item.date;
+        if (wfhRows.some((r) => r.start_date <= d && r.end_date >= d))
+          item.tags.push('wfh');
+        if (overtimeRows.some((r) => r.start_date <= d && r.end_date >= d))
+          item.tags.push('overtime');
+      }
+    }
+
+    return { items: baseItems, total: baseItems.length };
   }
 
   async getTodaySummary(userId: string) {
@@ -457,41 +516,66 @@ export class AttendanceService {
       ? await this.isTenantSchemaProvisioned(tenantId)
       : false;
 
-    const now = new Date();
-    const startOfDay = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
-    );
-    const startOfNextDay = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1),
+    // Use a 24-hour rolling window so a check-in from before UTC midnight is
+    // still surfaced when the shift spans into the next UTC day.
+    const lookback = new Date(
+      Date.now() - AttendanceService.MAX_SESSION_HOURS * 60 * 60 * 1000,
     );
 
     const run = async (repo: Repository<Attendance>) => {
-      const todayCheckIn = await repo
-        .createQueryBuilder("a")
-        .where("a.user_id = :userId", { userId })
-        .andWhere("a.type = :type", { type: AttendanceType.CHECK_IN })
-        .andWhere(
-          "a.timestamp >= :startOfDay AND a.timestamp < :startOfNextDay",
-          { startOfDay, startOfNextDay },
-        )
-        .orderBy("a.timestamp", "DESC")
-        .getOne();
+      const records = await repo
+        .createQueryBuilder('a')
+        .where('a.user_id = :userId', { userId })
+        .andWhere('a.timestamp >= :lookback', { lookback })
+        .orderBy('a.timestamp', 'ASC')
+        .getMany();
 
-      if (!todayCheckIn) {
-        return { checkIn: null, checkOut: null };
+      if (records.length === 0) {
+        return { checkIn: null, checkOut: null, totalWorkedHours: 0 };
       }
 
-      const matchingCheckOut = await repo
-        .createQueryBuilder("a")
-        .where("a.user_id = :userId", { userId })
-        .andWhere("a.type = :type", { type: AttendanceType.CHECK_OUT })
-        .andWhere("a.timestamp > :after", { after: todayCheckIn.timestamp })
-        .orderBy("a.timestamp", "ASC")
-        .getOne();
+      const checkIns = records.filter(
+        (r) => r.type === AttendanceType.CHECK_IN,
+      );
+      const checkOuts = records.filter(
+        (r) => r.type === AttendanceType.CHECK_OUT,
+      );
+
+      // Pair each check-in with the next checkout within MAX_SESSION_HOURS.
+      const sessions: Array<{ checkIn: Date; checkOut: Date | null }> = [];
+      const remainingCheckOuts = [...checkOuts];
+      for (const ci of checkIns) {
+        const deadline = new Date(
+          new Date(ci.timestamp).getTime() +
+            AttendanceService.MAX_SESSION_HOURS * 60 * 60 * 1000,
+        );
+        const coIdx = remainingCheckOuts.findIndex(
+          (co) => co.timestamp > ci.timestamp && co.timestamp <= deadline,
+        );
+        const co = coIdx !== -1 ? remainingCheckOuts.splice(coIdx, 1)[0] : null;
+        sessions.push({
+          checkIn: ci.timestamp,
+          checkOut: co?.timestamp ?? null,
+        });
+      }
+
+      const firstCheckIn = sessions[0]?.checkIn ?? null;
+      const lastSession = sessions[sessions.length - 1];
+      const lastCheckOut = lastSession?.checkOut ?? null;
+
+      let totalWorkedHours = 0;
+      for (const s of sessions) {
+        if (s.checkOut) {
+          totalWorkedHours +=
+            (new Date(s.checkOut).getTime() - new Date(s.checkIn).getTime()) /
+            (1000 * 60 * 60);
+        }
+      }
 
       return {
-        checkIn: todayCheckIn.timestamp,
-        checkOut: matchingCheckOut?.timestamp || null,
+        checkIn: firstCheckIn,
+        checkOut: lastCheckOut,
+        totalWorkedHours: Math.round(totalWorkedHours * 100) / 100,
       };
     };
 
@@ -505,14 +589,14 @@ export class AttendanceService {
 
   async update(id: string, dto: UpdateAttendanceDto) {
     const attendance = await this.attendanceRepo.findOne({ where: { id } });
-    if (!attendance) throw new NotFoundException("Attendance not found");
+    if (!attendance) throw new NotFoundException('Attendance not found');
     Object.assign(attendance, dto);
     return this.attendanceRepo.save(attendance);
   }
 
   async remove(id: string) {
     const attendance = await this.attendanceRepo.findOne({ where: { id } });
-    if (!attendance) throw new NotFoundException("Attendance not found");
+    if (!attendance) throw new NotFoundException('Attendance not found');
     return this.attendanceRepo.remove(attendance);
   }
 
@@ -534,41 +618,41 @@ export class AttendanceService {
         (em) =>
           em
             .getRepository(Attendance)
-            .createQueryBuilder("attendance")
-            .leftJoin("attendance.user", "user")
-            .where("user.tenant_id = :tenantId", { tenantId })
+            .createQueryBuilder('attendance')
+            .leftJoin('attendance.user', 'user')
+            .where('user.tenant_id = :tenantId', { tenantId })
             .andWhere(
-              "attendance.timestamp >= :startOfMonth AND attendance.timestamp <= :endOfMonth",
+              'attendance.timestamp >= :startOfMonth AND attendance.timestamp <= :endOfMonth',
               { startOfMonth, endOfMonth },
             )
             .select([
-              "attendance.user_id AS user_id",
-              "DATE(attendance.timestamp) AS date",
+              'attendance.user_id AS user_id',
+              'DATE(attendance.timestamp) AS date',
             ])
-            .groupBy("attendance.user_id")
-            .addGroupBy("DATE(attendance.timestamp)")
+            .groupBy('attendance.user_id')
+            .addGroupBy('DATE(attendance.timestamp)')
             .getRawMany(),
       );
       return { totalAttendance: result.length };
     }
 
     const result = await this.attendanceRepo
-      .createQueryBuilder("attendance")
-      .leftJoin("attendance.user", "user")
-      .where("user.tenant_id = :tenantId", { tenantId })
+      .createQueryBuilder('attendance')
+      .leftJoin('attendance.user', 'user')
+      .where('user.tenant_id = :tenantId', { tenantId })
       .andWhere(
-        "attendance.timestamp >= :startOfMonth AND attendance.timestamp <= :endOfMonth",
+        'attendance.timestamp >= :startOfMonth AND attendance.timestamp <= :endOfMonth',
         {
           startOfMonth,
           endOfMonth,
         },
       )
       .select([
-        "attendance.user_id AS user_id",
-        "DATE(attendance.timestamp) AS date",
+        'attendance.user_id AS user_id',
+        'DATE(attendance.timestamp) AS date',
       ])
-      .groupBy("attendance.user_id")
-      .addGroupBy("DATE(attendance.timestamp)")
+      .groupBy('attendance.user_id')
+      .addGroupBy('DATE(attendance.timestamp)')
       .getRawMany();
 
     return { totalAttendance: result.length };
@@ -581,13 +665,13 @@ export class AttendanceService {
   ): { start?: Date; end?: Date } {
     const out: { start?: Date; end?: Date } = {};
     if (startDate)
-      out.start = startDate.includes("T")
+      out.start = startDate.includes('T')
         ? new Date(startDate)
-        : new Date(startDate + "T00:00:00.000Z");
+        : new Date(startDate + 'T00:00:00.000Z');
     if (endDate)
-      out.end = endDate.includes("T")
+      out.end = endDate.includes('T')
         ? new Date(endDate)
-        : new Date(endDate + "T23:59:59.999Z");
+        : new Date(endDate + 'T23:59:59.999Z');
     return out;
   }
 
@@ -601,12 +685,12 @@ export class AttendanceService {
 
     const buildQuery = (repo: Repository<Attendance>) => {
       const qb = repo
-        .createQueryBuilder("attendance")
-        .leftJoinAndSelect("attendance.user", "user")
-        .where("user.tenant_id = :tenantId", { tenantId })
-        .orderBy("attendance.timestamp", "DESC");
-      if (start) qb.andWhere("attendance.timestamp >= :start", { start });
-      if (end) qb.andWhere("attendance.timestamp <= :end", { end });
+        .createQueryBuilder('attendance')
+        .leftJoinAndSelect('attendance.user', 'user')
+        .where('user.tenant_id = :tenantId', { tenantId })
+        .orderBy('attendance.timestamp', 'DESC');
+      if (start) qb.andWhere('attendance.timestamp >= :start', { start });
+      if (end) qb.andWhere('attendance.timestamp <= :end', { end });
       return qb.getMany();
     };
 
@@ -622,8 +706,7 @@ export class AttendanceService {
       }
       return { items, total: items.length };
     } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error("Error fetching attendance with user join:", error);
+      console.error('Error fetching attendance with user join:', error);
       return { items: [], total: 0 };
     }
   }
@@ -640,13 +723,13 @@ export class AttendanceService {
 
     const buildQuery = (repo: Repository<Attendance>) => {
       const qb = repo
-        .createQueryBuilder("attendance")
-        .leftJoinAndSelect("attendance.user", "user")
-        .where("user.tenant_id = :tenantId", { tenantId });
-      if (start) qb.andWhere("attendance.timestamp >= :start", { start });
-      if (end) qb.andWhere("attendance.timestamp <= :end", { end });
+        .createQueryBuilder('attendance')
+        .leftJoinAndSelect('attendance.user', 'user')
+        .where('user.tenant_id = :tenantId', { tenantId });
+      if (start) qb.andWhere('attendance.timestamp >= :start', { start });
+      if (end) qb.andWhere('attendance.timestamp <= :end', { end });
       return qb
-        .orderBy("attendance.timestamp", "DESC")
+        .orderBy('attendance.timestamp', 'DESC')
         .skip(skip)
         .take(take)
         .getMany();
@@ -664,10 +747,10 @@ export class AttendanceService {
   async getUserDisplayName(userId: string): Promise<string> {
     const user = await this.userRepo.findOne({
       where: { id: userId },
-      select: ["first_name", "last_name"],
+      select: ['first_name', 'last_name'],
     });
-    if (!user) return "";
-    return `${user.first_name || ""} ${user.last_name || ""}`.trim();
+    if (!user) return '';
+    return `${user.first_name || ''} ${user.last_name || ''}`.trim();
   }
 
   async findEvents(userId?: string, startDate?: string, endDate?: string) {
@@ -683,12 +766,12 @@ export class AttendanceService {
 
     const buildQuery = (repo: Repository<Attendance>) => {
       const qb = repo
-        .createQueryBuilder("attendance")
-        .leftJoinAndSelect("attendance.user", "user")
-        .orderBy("attendance.timestamp", "DESC");
-      if (userId) qb.where("attendance.user_id = :userId", { userId });
-      if (start) qb.andWhere("attendance.timestamp >= :start", { start });
-      if (end) qb.andWhere("attendance.timestamp <= :end", { end });
+        .createQueryBuilder('attendance')
+        .leftJoinAndSelect('attendance.user', 'user')
+        .orderBy('attendance.timestamp', 'DESC');
+      if (userId) qb.where('attendance.user_id = :userId', { userId });
+      if (start) qb.andWhere('attendance.timestamp >= :start', { start });
+      if (end) qb.andWhere('attendance.timestamp <= :end', { end });
       return qb.getMany();
     };
 
@@ -769,21 +852,21 @@ export class AttendanceService {
 
     const fetchAttendance = (repo: Repository<Attendance>) => {
       const q = repo
-        .createQueryBuilder("attendance")
-        .where("attendance.user_id IN (:...userIds)", { userIds });
+        .createQueryBuilder('attendance')
+        .where('attendance.user_id IN (:...userIds)', { userIds });
       if (startDate) {
-        q.andWhere("attendance.timestamp >= :start", {
-          start: startDate.includes("T")
+        q.andWhere('attendance.timestamp >= :start', {
+          start: startDate.includes('T')
             ? new Date(startDate)
-            : new Date(startDate + "T00:00:00.000Z"),
+            : new Date(startDate + 'T00:00:00.000Z'),
         });
       }
       if (endDate) {
-        q.andWhere("attendance.timestamp <= :end", {
-          end: new Date(endDate + "T23:59:59.999Z"),
+        q.andWhere('attendance.timestamp <= :end', {
+          end: new Date(endDate + 'T23:59:59.999Z'),
         });
       }
-      return q.orderBy("attendance.timestamp", "ASC").getMany();
+      return q.orderBy('attendance.timestamp', 'ASC').getMany();
     };
 
     const attendanceRecords: Attendance[] = isProvisioned
@@ -794,7 +877,7 @@ export class AttendanceService {
 
     const groupedAttendance: Record<
       string,
-      Record<string, { checkIn?: Attendance; checkOut?: Attendance }>
+      Record<string, Array<{ checkIn: Attendance; checkOut?: Attendance }>>
     > = {};
 
     // Initialize groupedAttendance for all userIds to ensure all team members are included
@@ -821,7 +904,7 @@ export class AttendanceService {
         startDate: string;
       }> = [];
       for (const checkIn of checkIns) {
-        const startDate = checkIn.timestamp.toISOString().split("T")[0] || "";
+        const startDate = checkIn.timestamp.toISOString().split('T')[0] || '';
         const matchingCheckOut = checkOuts.find(
           (checkout) => checkout.timestamp > checkIn.timestamp,
         );
@@ -841,16 +924,12 @@ export class AttendanceService {
         const userGroup = groupedAttendance[userIdKey];
         if (!userGroup) continue;
         if (!userGroup[dateKey]) {
-          userGroup[dateKey] = {};
+          userGroup[dateKey] = [];
         }
-        if (
-          !userGroup[dateKey].checkIn ||
-          session.checkIn.timestamp >
-            (userGroup[dateKey].checkIn?.timestamp || new Date(0))
-        ) {
-          userGroup[dateKey].checkIn = session.checkIn;
-          userGroup[dateKey].checkOut = session.checkOut;
-        }
+        userGroup[dateKey].push({
+          checkIn: session.checkIn,
+          checkOut: session.checkOut,
+        });
       }
     }
 
@@ -860,39 +939,38 @@ export class AttendanceService {
       const userIdKey = String(member.user.id);
       const userAttendance = groupedAttendance[userIdKey] || {};
       const attendanceData = Object.entries(userAttendance).map(
-        ([date, { checkIn, checkOut }]) => {
-          let workedHours = 0;
-          if (
-            checkIn &&
-            checkOut &&
-            new Date(checkOut.timestamp) > new Date(checkIn.timestamp)
-          ) {
-            const diffMs =
-              new Date(checkOut.timestamp).getTime() -
-              new Date(checkIn.timestamp).getTime();
-            workedHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
-          }
+        ([date, daySessions]) => {
+          daySessions.sort(
+            (a, b) =>
+              new Date(a.checkIn.timestamp).getTime() -
+              new Date(b.checkIn.timestamp).getTime(),
+          );
+          const firstCheckIn = daySessions[0]?.checkIn;
+          const lastCheckOut = daySessions[daySessions.length - 1]?.checkOut;
+          const workedHours = this.sumSessionHours(daySessions);
           return {
             date,
-            checkIn: checkIn?.timestamp || null,
-            checkInId: checkIn?.id || null,
+            checkIn: firstCheckIn?.timestamp || null,
+            checkInId: firstCheckIn?.id || null,
             checkOut:
-              checkOut &&
-              checkIn &&
-              new Date(checkOut.timestamp) > new Date(checkIn.timestamp)
-                ? checkOut.timestamp
+              lastCheckOut &&
+              firstCheckIn &&
+              new Date(lastCheckOut.timestamp) >
+                new Date(firstCheckIn.timestamp)
+                ? lastCheckOut.timestamp
                 : null,
             checkOutId:
-              checkOut &&
-              checkIn &&
-              new Date(checkOut.timestamp) > new Date(checkIn.timestamp)
-                ? checkOut.id
+              lastCheckOut &&
+              firstCheckIn &&
+              new Date(lastCheckOut.timestamp) >
+                new Date(firstCheckIn.timestamp)
+                ? lastCheckOut.id
                 : null,
             workedHours,
-            approvalStatus: checkIn?.approval_status || null,
-            approvalRemarks: checkIn?.approval_remarks || null,
-            approvedBy: checkIn?.approved_by || null,
-            approvedAt: checkIn?.approved_at || null,
+            approvalStatus: firstCheckIn?.approval_status || null,
+            approvalRemarks: firstCheckIn?.approval_remarks || null,
+            approvedBy: firstCheckIn?.approved_by || null,
+            approvedAt: firstCheckIn?.approved_at || null,
           };
         },
       );
@@ -909,8 +987,8 @@ export class AttendanceService {
         last_name: member.user.last_name,
         email: member.user.email,
         profile_pic: member.user.profile_pic || undefined,
-        designation: member.designation?.title || "N/A",
-        department: member.department?.name || "N/A",
+        designation: member.designation?.title || 'N/A',
+        department: member.department?.name || 'N/A',
         attendance: attendanceData,
         totalDaysWorked,
         totalHoursWorked: Math.round(totalHoursWorked * 100) / 100,
@@ -964,39 +1042,38 @@ export class AttendanceService {
   }> {
     // Build query to get attendance with user and tenant relations
     const qb = this.attendanceRepo
-      .createQueryBuilder("attendance")
-      .leftJoinAndSelect("attendance.user", "user")
-      .leftJoinAndSelect("user.tenant", "tenant")
-      .orderBy("attendance.timestamp", "ASC");
+      .createQueryBuilder('attendance')
+      .leftJoinAndSelect('attendance.user', 'user')
+      .leftJoinAndSelect('user.tenant', 'tenant')
+      .orderBy('attendance.timestamp', 'ASC');
 
     // Filter by tenant if provided
     if (tenantId) {
-      qb.where("user.tenant_id = :tenantId", { tenantId });
+      qb.where('user.tenant_id = :tenantId', { tenantId });
     }
 
     // Apply date filters
     if (startDate) {
-      const start = startDate.includes("T")
+      const start = startDate.includes('T')
         ? new Date(startDate)
-        : new Date(startDate + "T00:00:00.000Z");
+        : new Date(startDate + 'T00:00:00.000Z');
       if (tenantId) {
-        qb.andWhere("attendance.timestamp >= :start", { start });
+        qb.andWhere('attendance.timestamp >= :start', { start });
       } else {
-        qb.where("attendance.timestamp >= :start", { start });
+        qb.where('attendance.timestamp >= :start', { start });
       }
     }
     if (endDate) {
-      qb.andWhere("attendance.timestamp <= :end", {
-        end: new Date(endDate + "T23:59:59.999Z"),
+      qb.andWhere('attendance.timestamp <= :end', {
+        end: new Date(endDate + 'T23:59:59.999Z'),
       });
     }
 
     // Filter by employee name (partial match on first_name, last_name, or full name)
     if (name && name.trim()) {
       const namePattern = `%${name.trim()}%`;
-      // prettier-ignore
       qb.andWhere(
-        '(LOWER(COALESCE(user.first_name, \'\')) LIKE LOWER(:namePattern) OR LOWER(COALESCE(user.last_name, \'\')) LIKE LOWER(:namePattern) OR LOWER(CONCAT(COALESCE(user.first_name, \'\'), \' \', COALESCE(user.last_name, \'\'))) LIKE LOWER(:namePattern))',
+        "(LOWER(COALESCE(user.first_name, '')) LIKE LOWER(:namePattern) OR LOWER(COALESCE(user.last_name, '')) LIKE LOWER(:namePattern) OR LOWER(CONCAT(COALESCE(user.first_name, ''), ' ', COALESCE(user.last_name, ''))) LIKE LOWER(:namePattern))",
         { namePattern },
       );
     }
@@ -1012,7 +1089,7 @@ export class AttendanceService {
         tenant_status: string;
         userAttendance: Record<
           string,
-          Record<string, { checkIn?: Attendance; checkOut?: Attendance }>
+          Record<string, Array<{ checkIn: Attendance; checkOut?: Attendance }>>
         >;
       }
     > = {};
@@ -1090,9 +1167,15 @@ export class AttendanceService {
         const remainingCheckOuts = [...checkOuts];
 
         for (const checkIn of checkIns) {
-          const startDate = checkIn.timestamp.toISOString().split("T")[0] || "";
+          const startDate = checkIn.timestamp.toISOString().split('T')[0] || '';
+          const sessionDeadline = new Date(
+            new Date(checkIn.timestamp).getTime() +
+              AttendanceService.MAX_SESSION_HOURS * 60 * 60 * 1000,
+          );
           const matchingCheckOut = remainingCheckOuts.find(
-            (checkout) => checkout.timestamp > checkIn.timestamp,
+            (checkout) =>
+              checkout.timestamp > checkIn.timestamp &&
+              checkout.timestamp <= sessionDeadline,
           );
           sessions.push({
             checkIn,
@@ -1110,17 +1193,12 @@ export class AttendanceService {
           const dateKey = session.startDate;
           if (!dateKey) continue;
           if (!userAttendance[dateKey]) {
-            userAttendance[dateKey] = {};
+            userAttendance[dateKey] = [];
           }
-          // Keep the latest check-in and its matching check-out for each date
-          if (
-            !userAttendance[dateKey].checkIn ||
-            session.checkIn.timestamp >
-              (userAttendance[dateKey].checkIn?.timestamp || new Date(0))
-          ) {
-            userAttendance[dateKey].checkIn = session.checkIn;
-            userAttendance[dateKey].checkOut = session.checkOut;
-          }
+          userAttendance[dateKey].push({
+            checkIn: session.checkIn,
+            checkOut: session.checkOut,
+          });
         }
       }
     }
@@ -1190,26 +1268,24 @@ export class AttendanceService {
         if (!userDetails) continue;
 
         const attendanceData = Object.entries(dateAttendance).map(
-          ([date, { checkIn, checkOut }]) => {
-            let workedHours = 0;
-            if (
-              checkIn &&
-              checkOut &&
-              new Date(checkOut.timestamp) > new Date(checkIn.timestamp)
-            ) {
-              const diffMs =
-                new Date(checkOut.timestamp).getTime() -
-                new Date(checkIn.timestamp).getTime();
-              workedHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
-            }
+          ([date, daySessions]) => {
+            daySessions.sort(
+              (a, b) =>
+                new Date(a.checkIn.timestamp).getTime() -
+                new Date(b.checkIn.timestamp).getTime(),
+            );
+            const firstCheckIn = daySessions[0]?.checkIn;
+            const lastCheckOut = daySessions[daySessions.length - 1]?.checkOut;
+            const workedHours = this.sumSessionHours(daySessions);
             return {
               date,
-              checkIn: checkIn?.timestamp || null,
+              checkIn: firstCheckIn?.timestamp || null,
               checkOut:
-                checkOut &&
-                checkIn &&
-                new Date(checkOut.timestamp) > new Date(checkIn.timestamp)
-                  ? checkOut.timestamp
+                lastCheckOut &&
+                firstCheckIn &&
+                new Date(lastCheckOut.timestamp) >
+                  new Date(firstCheckIn.timestamp)
+                  ? lastCheckOut.timestamp
                   : null,
               workedHours,
             };
@@ -1318,43 +1394,24 @@ export class AttendanceService {
 
     const userIds = allTeamMembers.map((member) => member.user.id);
 
-    // Get today's date range
-    const now = new Date();
-    const startOfDay = new Date(
-      Date.UTC(
-        now.getUTCFullYear(),
-        now.getUTCMonth(),
-        now.getUTCDate(),
-        0,
-        0,
-        0,
-        0,
-      ),
-    );
-    const endOfDay = new Date(
-      Date.UTC(
-        now.getUTCFullYear(),
-        now.getUTCMonth(),
-        now.getUTCDate() + 1,
-        0,
-        0,
-        0,
-        0,
-      ),
+    // Use the same MAX_SESSION_HOURS lookback as getActiveSession so that
+    // cross-midnight check-ins (e.g. UTC+5 users who clocked in before 5 AM
+    // local) are visible to the manager and not silently dropped.
+    const lookback = new Date(
+      Date.now() - AttendanceService.MAX_SESSION_HOURS * 60 * 60 * 1000,
     );
 
     const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
 
     const fetchTodayCheckIns = (repo: Repository<Attendance>) =>
       repo
-        .createQueryBuilder("attendance")
-        .leftJoinAndSelect("attendance.user", "user")
-        .leftJoinAndSelect("attendance.approver", "approver")
-        .where("attendance.user_id IN (:...userIds)", { userIds })
-        .andWhere("attendance.type = :type", { type: AttendanceType.CHECK_IN })
-        .andWhere("attendance.timestamp >= :startOfDay", { startOfDay })
-        .andWhere("attendance.timestamp < :endOfDay", { endOfDay })
-        .orderBy("attendance.timestamp", "DESC")
+        .createQueryBuilder('attendance')
+        .leftJoinAndSelect('attendance.user', 'user')
+        .leftJoinAndSelect('attendance.approver', 'approver')
+        .where('attendance.user_id IN (:...userIds)', { userIds })
+        .andWhere('attendance.type = :type', { type: AttendanceType.CHECK_IN })
+        .andWhere('attendance.timestamp >= :lookback', { lookback })
+        .orderBy('attendance.timestamp', 'DESC')
         .getMany();
 
     const todayCheckIns: Attendance[] = isProvisioned
@@ -1385,8 +1442,8 @@ export class AttendanceService {
         last_name: checkIn.user.last_name,
         email: checkIn.user.email,
         profile_pic: checkIn.user.profile_pic || undefined,
-        designation: member?.designation?.title || "N/A",
-        department: member?.department?.name || "N/A",
+        designation: member?.designation?.title || 'N/A',
+        department: member?.department?.name || 'N/A',
         check_in_time: checkIn.timestamp,
         approval_status: checkIn.approval_status,
         approved_by: checkIn.approved_by,
@@ -1422,11 +1479,11 @@ export class AttendanceService {
     const findAndSave = async (repo: Repository<Attendance>) => {
       const checkIn = await repo.findOne({
         where: { id: checkInId },
-        relations: ["user"],
+        relations: ['user'],
       });
-      if (!checkIn) throw new NotFoundException("Check-in record not found");
+      if (!checkIn) throw new NotFoundException('Check-in record not found');
       if (checkIn.type !== AttendanceType.CHECK_IN) {
-        throw new BadRequestException("Only check-in records can be approved");
+        throw new BadRequestException('Only check-in records can be approved');
       }
       const isTeamMember = await this.verifyTeamMember(
         checkIn.user_id,
@@ -1435,7 +1492,7 @@ export class AttendanceService {
       );
       if (!isTeamMember) {
         throw new ForbiddenException(
-          "You can only approve check-ins for your team members",
+          'You can only approve check-ins for your team members',
         );
       }
       checkIn.approval_status = CheckInApprovalStatus.APPROVED;
@@ -1455,21 +1512,20 @@ export class AttendanceService {
       const notification = await this.notificationService.create(
         saved.user_id,
         tenantId,
-        "Your check-in has been approved",
+        'Your check-in has been approved',
         NotificationType.ATTENDANCE,
-        { relatedEntityType: "attendance", relatedEntityId: saved.id },
+        { relatedEntityType: 'attendance', relatedEntityId: saved.id },
       );
-      this.notificationGateway.sendToUser(saved.user_id, "new_notification", {
+      this.notificationGateway.sendToUser(saved.user_id, 'new_notification', {
         id: notification.id,
         message: notification.message,
         type: notification.type,
-        related_entity_type: "attendance",
+        related_entity_type: 'attendance',
         related_entity_id: saved.id,
         created_at: notification.created_at,
       });
     } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error("Failed to create check-in approval notification:", error);
+      console.error('Failed to create check-in approval notification:', error);
     }
     return saved;
   }
@@ -1488,12 +1544,12 @@ export class AttendanceService {
     const findAndSave = async (repo: Repository<Attendance>) => {
       const checkIn = await repo.findOne({
         where: { id: checkInId },
-        relations: ["user"],
+        relations: ['user'],
       });
-      if (!checkIn) throw new NotFoundException("Check-in record not found");
+      if (!checkIn) throw new NotFoundException('Check-in record not found');
       if (checkIn.type !== AttendanceType.CHECK_IN) {
         throw new BadRequestException(
-          "Only check-in records can be disapproved",
+          'Only check-in records can be disapproved',
         );
       }
       const isTeamMember = await this.verifyTeamMember(
@@ -1503,7 +1559,7 @@ export class AttendanceService {
       );
       if (!isTeamMember) {
         throw new ForbiddenException(
-          "You can only disapprove check-ins for your team members",
+          'You can only disapprove check-ins for your team members',
         );
       }
       checkIn.approval_status = CheckInApprovalStatus.REJECTED;
@@ -1523,21 +1579,20 @@ export class AttendanceService {
       const notification = await this.notificationService.create(
         saved.user_id,
         tenantId,
-        "Your check-in was rejected",
+        'Your check-in was rejected',
         NotificationType.ATTENDANCE,
-        { relatedEntityType: "attendance", relatedEntityId: saved.id },
+        { relatedEntityType: 'attendance', relatedEntityId: saved.id },
       );
-      this.notificationGateway.sendToUser(saved.user_id, "new_notification", {
+      this.notificationGateway.sendToUser(saved.user_id, 'new_notification', {
         id: notification.id,
         message: notification.message,
         type: notification.type,
-        related_entity_type: "attendance",
+        related_entity_type: 'attendance',
         related_entity_id: saved.id,
         created_at: notification.created_at,
       });
     } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error("Failed to create check-in rejection notification:", error);
+      console.error('Failed to create check-in rejection notification:', error);
     }
     return saved;
   }
@@ -1572,8 +1627,8 @@ export class AttendanceService {
           approved_at: now,
           approval_remarks: remarks || null,
         })
-        .where("id IN (:...ids)", { ids: checkInIds })
-        .andWhere("type = :type", { type: AttendanceType.CHECK_IN })
+        .where('id IN (:...ids)', { ids: checkInIds })
+        .andWhere('type = :type', { type: AttendanceType.CHECK_IN })
         .execute();
       return repo.find({ where: { id: In(checkInIds) } });
     };
@@ -1589,24 +1644,23 @@ export class AttendanceService {
         const notification = await this.notificationService.create(
           checkIn.user_id,
           tenantId,
-          "Your check-in has been approved",
+          'Your check-in has been approved',
           NotificationType.ATTENDANCE,
-          { relatedEntityType: "attendance", relatedEntityId: checkIn.id },
+          { relatedEntityType: 'attendance', relatedEntityId: checkIn.id },
         );
         this.notificationGateway.sendToUser(
           checkIn.user_id,
-          "new_notification",
+          'new_notification',
           {
             id: notification.id,
             message: notification.message,
             type: notification.type,
-            related_entity_type: "attendance",
+            related_entity_type: 'attendance',
             related_entity_id: checkIn.id,
             created_at: notification.created_at,
           },
         );
       } catch (error) {
-        // eslint-disable-next-line no-console
         console.error(
           `Failed to notify employee ${checkIn.user_id} for check-in approval:`,
           error,
@@ -1646,8 +1700,8 @@ export class AttendanceService {
           approved_at: now,
           approval_remarks: remarks || null,
         })
-        .where("id IN (:...ids)", { ids: checkInIds })
-        .andWhere("type = :type", { type: AttendanceType.CHECK_IN })
+        .where('id IN (:...ids)', { ids: checkInIds })
+        .andWhere('type = :type', { type: AttendanceType.CHECK_IN })
         .execute();
       return repo.find({ where: { id: In(checkInIds) } });
     };
@@ -1663,24 +1717,23 @@ export class AttendanceService {
         const notification = await this.notificationService.create(
           checkIn.user_id,
           tenantId,
-          "Your check-in was rejected",
+          'Your check-in was rejected',
           NotificationType.ATTENDANCE,
-          { relatedEntityType: "attendance", relatedEntityId: checkIn.id },
+          { relatedEntityType: 'attendance', relatedEntityId: checkIn.id },
         );
         this.notificationGateway.sendToUser(
           checkIn.user_id,
-          "new_notification",
+          'new_notification',
           {
             id: notification.id,
             message: notification.message,
             type: notification.type,
-            related_entity_type: "attendance",
+            related_entity_type: 'attendance',
             related_entity_id: checkIn.id,
             created_at: notification.created_at,
           },
         );
       } catch (error) {
-        // eslint-disable-next-line no-console
         console.error(
           `Failed to notify employee ${checkIn.user_id} for check-in rejection:`,
           error,
@@ -1722,6 +1775,24 @@ export class AttendanceService {
 
     return false;
   }
+  private sumSessionHours(
+    sessions: Array<{ checkIn: Attendance; checkOut?: Attendance }>,
+  ): number {
+    let total = 0;
+    for (const { checkIn, checkOut } of sessions) {
+      if (
+        checkOut &&
+        new Date(checkOut.timestamp) > new Date(checkIn.timestamp)
+      ) {
+        total +=
+          (new Date(checkOut.timestamp).getTime() -
+            new Date(checkIn.timestamp).getTime()) /
+          (1000 * 60 * 60);
+      }
+    }
+    return Math.round(total * 100) / 100;
+  }
+
   private calculateTotalWorkHours(items: AttendanceEvent[]): number {
     const sorted = items.sort(
       (a, b) =>

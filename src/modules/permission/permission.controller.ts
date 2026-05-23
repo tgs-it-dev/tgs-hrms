@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -11,7 +20,6 @@ import { CreatePermissionDto } from './dto/create-permission.dto';
 import { UpdatePermissionDto } from './dto/update-permission.dto';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { RolesGuard } from 'src/common/guards/roles.guard';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { Permissions } from 'src/common/decorators/permissions.decorator';
 import { PermissionsGuard } from 'src/common/guards/permissions.guard';
 
@@ -22,7 +30,7 @@ export class PermissionController {
   constructor() {}
 
   @Get()
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @UseGuards(RolesGuard, PermissionsGuard)
   @Roles('admin', 'system-admin')
   @Permissions('manage_permissions')
   @ApiOperation({ summary: 'Get all permissions (Admin only)' })
@@ -52,7 +60,7 @@ export class PermissionController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @UseGuards(RolesGuard, PermissionsGuard)
   @Roles('admin', 'system-admin')
   @Permissions('manage_permissions')
   @ApiOperation({ summary: 'Get permission by ID (Admin only)' })
@@ -81,7 +89,7 @@ export class PermissionController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @UseGuards(RolesGuard, PermissionsGuard)
   @Roles('admin', 'system-admin')
   @Permissions('manage_permissions')
   @ApiOperation({ summary: 'Create a new permission (Admin only)' })
@@ -106,7 +114,7 @@ export class PermissionController {
   }
 
   @Put(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @UseGuards(RolesGuard, PermissionsGuard)
   @Roles('admin', 'system-admin')
   @Permissions('manage_permissions')
   @ApiOperation({ summary: 'Update permission by ID (Admin only)' })
@@ -124,12 +132,15 @@ export class PermissionController {
     status: 404,
     description: 'Permission not found',
   })
-  updatePermission(@Param('id') id: string, @Body() _updatePermissionDto: UpdatePermissionDto) {
+  updatePermission(
+    @Param('id') id: string,
+    @Body() _updatePermissionDto: UpdatePermissionDto,
+  ) {
     return { message: `Update permission: ${id} - Implementation pending` };
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(RolesGuard)
   @Roles('admin', 'system-admin')
   @ApiOperation({ summary: 'Delete permission by ID (Admin only)' })
   @ApiParam({

@@ -47,7 +47,7 @@ export class Leave {
   reason: string;
 
   @Index()
-  @Column({ type: 'varchar', default: LeaveStatus.PENDING }) 
+  @Column({ type: 'varchar', default: LeaveStatus.PENDING })
   status: LeaveStatus;
 
   @Column({ type: 'uuid', nullable: true })
@@ -85,9 +85,9 @@ export class Leave {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  @ManyToOne(() => Tenant, (tenant) => tenant.leaves, { 
+  @ManyToOne(() => Tenant, (tenant) => tenant.leaves, {
     nullable: false,
-    onDelete: 'RESTRICT' // Prevent hard delete, use soft delete instead
+    onDelete: 'RESTRICT', // Prevent hard delete, use soft delete instead
   })
   @JoinColumn({ name: 'tenantId' })
   tenant: Tenant;

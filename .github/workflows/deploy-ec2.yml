@@ -62,6 +62,7 @@ jobs:
             unzip -o deploy.zip
             rm deploy.zip
             npm ci --omit=dev
+            node dist/src/migrate.js
             pm2 restart ${{ secrets.PM2_APP_NAME }} --update-env || pm2 start dist/src/main.js --name ${{ secrets.PM2_APP_NAME }}
             pm2 save
             echo "Deploy completed successfully."

@@ -4,6 +4,8 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Designation } from '../../entities/designation.entity';
 import { Department } from '../../entities/department.entity';
+import { Tenant } from '../../entities/tenant.entity';
+import { TenantDatabaseService } from '../../common/services/tenant-database.service';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 
 describe('DesignationService', () => {
@@ -30,10 +32,10 @@ describe('DesignationService', () => {
     id: designationId,
     department_id: departmentId,
     tenant_id: tenantId,
-    title: "Manager",
+    title: 'Manager',
     created_at: new Date(),
     department: mockDepartment,
-    tenant: {} as Designation["tenant"],
+    tenant: {} as Designation['tenant'],
     employees: [],
   };
 
@@ -61,6 +63,29 @@ describe('DesignationService', () => {
             create: jest.fn(),
             save: jest.fn(),
             delete: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(Tenant),
+          useValue: {
+            findOne: jest
+              .fn()
+              .mockResolvedValue({ id: tenantId, schema_provisioned: false }),
+          },
+        },
+        {
+          provide: TenantDatabaseService,
+          useValue: {
+            withTenantSchema: jest
+              .fn()
+              .mockImplementation(
+                (_id: string, fn: (em: any) => Promise<any>) => fn({}),
+              ),
+            withTenantSchemaReadOnly: jest
+              .fn()
+              .mockImplementation(
+                (_id: string, fn: (em: any) => Promise<any>) => fn({}),
+              ),
           },
         },
       ],
@@ -93,46 +118,57 @@ describe('DesignationService', () => {
       service.create(tenantId, {
         title: 'Manager',
         department_id: departmentId,
-      })
+      }),
     ).rejects.toThrow(ConflictException);
   });
 
   it('should update designation if title is unique', async () => {
-    jest.spyOn(designationRepo, 'findOneBy').mockResolvedValue(mockDesignation);
-    jest.spyOn(designationRepo, 'findOne').mockResolvedValue(null);
-    jest.spyOn(designationRepo, 'save').mockResolvedValue({ ...mockDesignation, title: 'Lead' });
+    jest
+      .spyOn(designationRepo, 'findOne')
+      .mockResolvedValueOnce(mockDesignation) // initial lookup by id
+      .mockResolvedValueOnce(null); // duplicate title check
+    jest
+      .spyOn(designationRepo, 'save')
+      .mockResolvedValue({ ...mockDesignation, title: 'Lead' });
 
-    const result = await service.update(tenantId, designationId, { title: "Lead" });
+    const result = await service.update(tenantId, designationId, {
+      title: 'Lead',
+    });
     expect(result.title).toBe('Lead');
   });
 
   it('should throw ConflictException when updating to duplicate title', async () => {
-    const anotherDesignation = { ...mockDesignation, id: '6ba7b812-9dad-11d1-80b4-00c04fd430c8' };
-    jest.spyOn(designationRepo, 'findOneBy').mockResolvedValue(mockDesignation);
-    jest.spyOn(designationRepo, 'findOne').mockResolvedValue(anotherDesignation);
+    const anotherDesignation = {
+      ...mockDesignation,
+      id: '6ba7b812-9dad-11d1-80b4-00c04fd430c8',
+    };
+    jest
+      .spyOn(designationRepo, 'findOne')
+      .mockResolvedValueOnce(mockDesignation) // initial lookup by id
+      .mockResolvedValueOnce(anotherDesignation); // duplicate title check
 
     await expect(
-      service.update(tenantId, designationId, { title: "Manager" }),
-    ).rejects.toThrow(
-      ConflictException
-    );
+      service.update(tenantId, designationId, { title: 'Manager' }),
+    ).rejects.toThrow(ConflictException);
   });
 
   it('should delete designation', async () => {
-    jest.spyOn(designationRepo, 'findOneBy').mockResolvedValue(mockDesignation);
-    jest.spyOn(designationRepo, 'delete').mockResolvedValue({ affected: 1 } as any);
+    jest
+      .spyOn(designationRepo, 'findOne')
+      .mockResolvedValue({ ...mockDesignation, employees: [] });
+    jest
+      .spyOn(designationRepo, 'delete')
+      .mockResolvedValue({ affected: 1 } as any);
 
     const result = await service.remove(tenantId, designationId);
     expect(result).toEqual({ deleted: true, id: designationId });
   });
 
   it('should throw 404 if deleting non-existent designation', async () => {
-    jest.spyOn(designationRepo, 'findOneBy').mockResolvedValue(null);
+    jest.spyOn(designationRepo, 'findOne').mockResolvedValue(null);
 
     await expect(
-      service.remove(tenantId, "6ba7b813-9dad-11d1-80b4-00c04fd430c8"),
-    ).rejects.toThrow(
-      NotFoundException
-    );
+      service.remove(tenantId, '6ba7b813-9dad-11d1-80b4-00c04fd430c8'),
+    ).rejects.toThrow(NotFoundException);
   });
 });

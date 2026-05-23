@@ -11,11 +11,16 @@ import {
   Query,
 } from '@nestjs/common';
 import { AuthenticatedRequest } from '../../common/types/request.types';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { DepartmentService } from './department.service';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { TenantGuard } from 'src/common/guards/tenant.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -24,7 +29,7 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard';
 
 @ApiTags('Departments')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, TenantGuard, RolesGuard, PermissionsGuard)
+@UseGuards(TenantGuard, RolesGuard, PermissionsGuard)
 @Controller('departments')
 export class DepartmentController {
   constructor(private service: DepartmentService) {}
@@ -46,7 +51,10 @@ export class DepartmentController {
     },
   })
   @ApiResponse({ status: 400, description: 'Validation error.' })
-  async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateDepartmentDto) {
+  async create(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: CreateDepartmentDto,
+  ) {
     const tenant_id = req.user.tenant_id;
     return await this.service.create(tenant_id, dto);
   }
@@ -68,14 +76,21 @@ export class DepartmentController {
     },
   })
   @ApiResponse({ status: 404, description: 'Department not found.' })
-  async update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateDepartmentDto) {
+  async update(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: UpdateDepartmentDto,
+  ) {
     const tenant_id = req.user.tenant_id;
     return await this.service.update(tenant_id, id, dto);
   }
 
   @Get('all-tenants')
   @Roles('system-admin')
-  @ApiOperation({ summary: 'Get all departments across all tenants with tenant filter (System Admin only)' })
+  @ApiOperation({
+    summary:
+      'Get all departments across all tenants with tenant filter (System Admin only)',
+  })
   @ApiQuery({
     name: 'tenant_id',
     required: false,
@@ -90,9 +105,7 @@ export class DepartmentController {
     status: 403,
     description: 'Forbidden - System admin access required',
   })
-  async getAllDepartmentsAcrossTenants(
-    @Query('tenant_id') tenantId?: string
-  ) {
+  async getAllDepartmentsAcrossTenants(@Query('tenant_id') tenantId?: string) {
     return this.service.getAllDepartmentsAcrossTenants(tenantId);
   }
 
@@ -118,7 +131,7 @@ export class DepartmentController {
   }
 
   @Delete(':id')
-  @Roles('admin', 'system-admin', )
+  @Roles('admin', 'system-admin')
   @Permissions('manage_departments')
   @ApiOperation({ summary: 'Delete department' })
   @ApiResponse({ status: 200, description: 'Department deleted successfully.' })

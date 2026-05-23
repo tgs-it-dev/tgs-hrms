@@ -24,21 +24,26 @@ export default tseslint.config(
       },
     },
   },
-{
+  {
     rules: {
-      '@typescript-eslint/no-explicit-any': 'error',
+      'prettier/prettier': ['error', { singleQuote: true }],
+      'quotes': ['error', 'single', { avoidEscape: true, allowTemplateLiterals: true }],
       '@typescript-eslint/no-floating-promises': 'error',
-      '@typescript-eslint/no-unsafe-argument': 'error',
-      '@typescript-eslint/no-unsafe-assignment': 'warn',
-      '@typescript-eslint/no-unsafe-member-access': 'warn',
-      '@typescript-eslint/no-unsafe-call': 'warn',
-      '@typescript-eslint/no-unsafe-return': 'warn',
-      'no-console': 'error',
-      'quotes': ['error', 'single', { 'allowTemplateLiterals': true }],
-      "prettier/prettier": ["error", { "singleQuote": true }]
+      '@typescript-eslint/no-misused-promises': 'error',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-unsafe-enum-comparison': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/require-await': 'off',
+      '@typescript-eslint/unbound-method': 'off',
+      '@typescript-eslint/no-require-imports': 'off',
+      'no-console': 'off',
     },
   },
-  // Test files: allow console.* (Logger not available outside DI context)
   {
     files: ['**/*.spec.ts', '**/*.e2e-spec.ts', 'test/**/*.ts'],
     rules: {

@@ -1,20 +1,20 @@
-import { Injectable } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   S3Client,
   PutObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
-} from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+} from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import {
   STORAGE_CONFIG_KEYS,
   DEFAULT_S3_REGION,
   DEFAULT_SIGNED_URL_EXPIRES_IN,
   DEFAULT_CONTENT_TYPE,
   INLINE_DISPOSITION,
-} from "./storage.constants";
-import type { S3UploadResult } from "./storage.types";
+} from './storage.constants';
+import type { S3UploadResult } from './storage.types';
 
 /** Single S3 provider; inject as S3StorageService for backward compatibility. */
 @Injectable()
@@ -26,7 +26,7 @@ export class S3StorageService {
   readonly enabled: boolean;
 
   constructor(private readonly config: ConfigService) {
-    this.bucket = this.config.get<string>(STORAGE_CONFIG_KEYS.BUCKET) ?? "";
+    this.bucket = this.config.get<string>(STORAGE_CONFIG_KEYS.BUCKET) ?? '';
     this.region =
       this.config.get<string>(STORAGE_CONFIG_KEYS.REGION) ?? DEFAULT_S3_REGION;
     this.publicUrlBase = this.config.get<string>(
@@ -62,7 +62,7 @@ export class S3StorageService {
   ): Promise<S3UploadResult> {
     if (!this.enabled || !this.client) {
       throw new Error(
-        "S3 is not configured. Set AWS_S3_BUCKET, AWS_ACCESS_KEY_ID, and AWS_SECRET_ACCESS_KEY.",
+        'S3 is not configured. Set AWS_S3_BUCKET, AWS_ACCESS_KEY_ID, and AWS_SECRET_ACCESS_KEY.',
       );
     }
     await this.client.send(
@@ -91,7 +91,7 @@ export class S3StorageService {
 
   getPublicUrl(key: string): string {
     if (this.publicUrlBase) {
-      const base = this.publicUrlBase.replace(/\/$/, "");
+      const base = this.publicUrlBase.replace(/\/$/, '');
       return `${base}/${key}`;
     }
     return `https://${this.bucket}.s3.${this.region}.amazonaws.com/${key}`;
@@ -103,22 +103,22 @@ export class S3StorageService {
   urlToKey(url: string): string | null {
     try {
       if (this.publicUrlBase) {
-        const base = this.publicUrlBase.replace(/\/$/, "");
-        if (url.startsWith(base + "/") || url === base) {
-          const key = url.slice(base.length).replace(/^\/+/, "").split("?")[0];
+        const base = this.publicUrlBase.replace(/\/$/, '');
+        if (url.startsWith(base + '/') || url === base) {
+          const key = url.slice(base.length).replace(/^\/+/, '').split('?')[0];
           return key || null;
         }
       }
       const u = new URL(url);
-      const pathname = u.pathname.replace(/^\/+/, "");
+      const pathname = u.pathname.replace(/^\/+/, '');
       if (!pathname) return null;
       if (
-        u.hostname.includes(".s3.") &&
-        u.hostname.endsWith(".amazonaws.com")
+        u.hostname.includes('.s3.') &&
+        u.hostname.endsWith('.amazonaws.com')
       ) {
         return pathname;
       }
-      if (pathname.startsWith(this.bucket + "/")) {
+      if (pathname.startsWith(this.bucket + '/')) {
         return pathname.slice(this.bucket.length + 1);
       }
       return pathname;
@@ -132,10 +132,10 @@ export class S3StorageService {
    * Use when comparing frontend-supplied URL (signed) with DB-stored URL.
    */
   getKeyFromUrlOrPath(urlOrPath: string): string | null {
-    if (!urlOrPath || typeof urlOrPath !== "string") return null;
+    if (!urlOrPath || typeof urlOrPath !== 'string') return null;
     const key = this.urlToKey(urlOrPath);
     if (key) return key;
-    const pathStyle = urlOrPath.replace(/^\/+/, "").split("?")[0].trim();
+    const pathStyle = urlOrPath.replace(/^\/+/, '').split('?')[0].trim();
     return pathStyle || null;
   }
 
@@ -170,7 +170,7 @@ export class S3StorageService {
     expiresInSeconds = DEFAULT_SIGNED_URL_EXPIRES_IN,
   ): Promise<string> {
     if (!this.enabled || !this.client) {
-      throw new Error("S3 is not configured.");
+      throw new Error('S3 is not configured.');
     }
     const command = new GetObjectCommand({
       Bucket: this.bucket,
@@ -192,7 +192,7 @@ export class S3StorageService {
   ): Promise<string> {
     if (
       !storedValue ||
-      typeof storedValue !== "string" ||
+      typeof storedValue !== 'string' ||
       !this.enabled ||
       !this.client ||
       !this.isS3Url(storedValue)

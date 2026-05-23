@@ -1,7 +1,9 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 
-export class AddTaskPermissionsToManager1769000000000 implements MigrationInterface {
+export class AddTaskPermissionsToManager1769000000000
+  implements MigrationInterface
+{
   public async up(queryRunner: QueryRunner): Promise<void> {
     // 1. Insert task permissions in JSON format (matching roles-permissions.json)
     const taskPermissions = [
@@ -72,7 +74,12 @@ export class AddTaskPermissionsToManager1769000000000 implements MigrationInterf
     const managerRoleId = managerRole[0].id;
 
     // Get task permission IDs
-    const taskPermissionNames = ['task.create', 'task.read', 'task.update', 'task.delete'];
+    const taskPermissionNames = [
+      'task.create',
+      'task.read',
+      'task.update',
+      'task.delete',
+    ];
     const permissionIds: string[] = [];
 
     for (const permName of taskPermissionNames) {
