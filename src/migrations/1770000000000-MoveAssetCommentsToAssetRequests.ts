@@ -1,6 +1,8 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class MoveAssetCommentsToAssetRequests1770000000000 implements MigrationInterface {
+export class MoveAssetCommentsToAssetRequests1770000000000
+  implements MigrationInterface
+{
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Step 1: Add new column asset_request_id to asset_comments table
     await queryRunner.query(`

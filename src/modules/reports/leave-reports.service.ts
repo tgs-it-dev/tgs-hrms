@@ -1,12 +1,12 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
-import { DataSource, EntityManager, Repository } from "typeorm";
-import { Leave } from "../../entities/leave.entity";
-import { LeaveType } from "../../entities/leave-type.entity";
-import { User } from "../../entities/user.entity";
-import { Employee } from "../../entities/employee.entity";
-import { LeaveStatus } from "../../common/constants/enums";
-import { TenantDatabaseService } from "../../common/services/tenant-database.service";
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
+import { Leave } from '../../entities/leave.entity';
+import { LeaveType } from '../../entities/leave-type.entity';
+import { User } from '../../entities/user.entity';
+import { Employee } from '../../entities/employee.entity';
+import { LeaveStatus } from '../../common/constants/enums';
+import { TenantDatabaseService } from '../../common/services/tenant-database.service';
 
 @Injectable()
 export class LeaveReportsService {
@@ -59,7 +59,7 @@ export class LeaveReportsService {
     const employee = await this.userRepo.findOne({
       where: { id: employeeId, tenant_id: tenantId },
     });
-    if (!employee) throw new NotFoundException("Employee not found");
+    if (!employee) throw new NotFoundException('Employee not found');
 
     const startOfYear = new Date(year, 0, 1, 0, 0, 0, 0);
     const endOfYear = new Date(year, 11, 31, 23, 59, 59, 999);
@@ -68,22 +68,22 @@ export class LeaveReportsService {
       tenantId,
       async (leaveRepo, leaveTypeRepo) => {
         const leaveTypes = await leaveTypeRepo.find({
-          where: { tenantId, status: "active" },
+          where: { tenantId, status: 'active' },
         });
 
         const summary = await Promise.all(
           leaveTypes.map(async (leaveType) => {
             const leaves = await leaveRepo
-              .createQueryBuilder("leave")
-              .where("leave.employeeId = :employeeId", { employeeId })
-              .andWhere("leave.leaveTypeId = :leaveTypeId", {
+              .createQueryBuilder('leave')
+              .where('leave.employeeId = :employeeId', { employeeId })
+              .andWhere('leave.leaveTypeId = :leaveTypeId', {
                 leaveTypeId: leaveType.id,
               })
-              .andWhere("leave.status = :status", {
+              .andWhere('leave.status = :status', {
                 status: LeaveStatus.APPROVED,
               })
-              .andWhere("leave.startDate <= :endOfYear", { endOfYear })
-              .andWhere("leave.endDate >= :startOfYear", { startOfYear })
+              .andWhere('leave.startDate <= :endOfYear', { endOfYear })
+              .andWhere('leave.endDate >= :startOfYear', { startOfYear })
               .getMany();
 
             const used = leaves.reduce(
@@ -119,7 +119,7 @@ export class LeaveReportsService {
     const manager = await this.userRepo.findOne({
       where: { id: managerId, tenant_id: tenantId },
     });
-    if (!manager) throw new NotFoundException("Manager not found");
+    if (!manager) throw new NotFoundException('Manager not found');
 
     const startOfMonth = new Date(year, month - 1, 1, 0, 0, 0, 0);
     const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
@@ -128,30 +128,30 @@ export class LeaveReportsService {
       tenantId,
       async (leaveRepo, _lt, employeeRepo) => {
         const teamMembers = await employeeRepo
-          .createQueryBuilder("employee")
-          .leftJoinAndSelect("employee.user", "user")
-          .leftJoinAndSelect("employee.designation", "designation")
-          .leftJoinAndSelect("designation.department", "department")
-          .leftJoin("employee.team", "team")
-          .where("user.tenant_id = :tenantId", { tenantId })
-          .andWhere("employee.deleted_at IS NULL")
-          .andWhere("team.manager_id = :managerId", { managerId })
-          .andWhere("employee.user_id != :managerId", { managerId })
+          .createQueryBuilder('employee')
+          .leftJoinAndSelect('employee.user', 'user')
+          .leftJoinAndSelect('employee.designation', 'designation')
+          .leftJoinAndSelect('designation.department', 'department')
+          .leftJoin('employee.team', 'team')
+          .where('user.tenant_id = :tenantId', { tenantId })
+          .andWhere('employee.deleted_at IS NULL')
+          .andWhere('team.manager_id = :managerId', { managerId })
+          .andWhere('employee.user_id != :managerId', { managerId })
           .getMany();
 
         const teamLeaveData = await Promise.all(
           teamMembers.map(async (member) => {
             const leaves = await leaveRepo
-              .createQueryBuilder("leave")
-              .where("leave.employeeId = :employeeId", {
+              .createQueryBuilder('leave')
+              .where('leave.employeeId = :employeeId', {
                 employeeId: member.user_id,
               })
-              .andWhere("leave.status = :status", {
+              .andWhere('leave.status = :status', {
                 status: LeaveStatus.APPROVED,
               })
-              .andWhere("leave.startDate <= :endOfMonth", { endOfMonth })
-              .andWhere("leave.endDate >= :startOfMonth", { startOfMonth })
-              .leftJoinAndSelect("leave.leaveType", "leaveType")
+              .andWhere('leave.startDate <= :endOfMonth', { endOfMonth })
+              .andWhere('leave.endDate >= :startOfMonth', { startOfMonth })
+              .leftJoinAndSelect('leave.leaveType', 'leaveType')
               .getMany();
 
             const leaveSummary = leaves.map((leave) => ({
@@ -170,8 +170,8 @@ export class LeaveReportsService {
               employeeId: member.user_id,
               name: `${member.user.first_name} ${member.user.last_name}`,
               email: member.user.email,
-              department: member.designation?.department?.name || "N/A",
-              designation: member.designation?.title || "N/A",
+              department: member.designation?.department?.name || 'N/A',
+              designation: member.designation?.title || 'N/A',
               leaves: leaveSummary,
               totalLeaveDays: leaveSummary.reduce(
                 (total, l) => total + l.days,
@@ -204,7 +204,7 @@ export class LeaveReportsService {
     const employee = await this.userRepo.findOne({
       where: { id: employeeId, tenant_id: tenantId },
     });
-    if (!employee) throw new NotFoundException("Employee not found");
+    if (!employee) throw new NotFoundException('Employee not found');
 
     const targetYear = year ?? new Date().getFullYear();
     const validMonth = month && month >= 1 && month <= 12;
@@ -213,7 +213,7 @@ export class LeaveReportsService {
       tenantId,
       async (leaveRepo, leaveTypeRepo) => {
         const leaveTypes = await leaveTypeRepo.find({
-          where: { tenantId, status: "active" },
+          where: { tenantId, status: 'active' },
         });
         const balances = await this.calculateEmployeeLeaveBalance(
           employeeId,
@@ -248,15 +248,15 @@ export class LeaveReportsService {
       tenantId,
       async (leaveRepo, leaveTypeRepo, employeeRepo) => {
         const employeeQuery = employeeRepo
-          .createQueryBuilder("employee")
-          .leftJoinAndSelect("employee.user", "user")
-          .leftJoinAndSelect("employee.designation", "designation")
-          .leftJoinAndSelect("designation.department", "department")
-          .where("user.tenant_id = :tenantId", { tenantId })
-          .andWhere("employee.deleted_at IS NULL");
+          .createQueryBuilder('employee')
+          .leftJoinAndSelect('employee.user', 'user')
+          .leftJoinAndSelect('employee.designation', 'designation')
+          .leftJoinAndSelect('designation.department', 'department')
+          .where('user.tenant_id = :tenantId', { tenantId })
+          .andWhere('employee.deleted_at IS NULL');
 
         if (employeeName) {
-          const trimmedName = employeeName.trim().replace(/\s+/g, " ");
+          const trimmedName = employeeName.trim().replace(/\s+/g, ' ');
           employeeQuery.andWhere(
             `LOWER(TRIM(CONCAT(COALESCE(user.first_name, ''), ' ', COALESCE(user.last_name, '')))) = LOWER(:name)`,
             { name: trimmedName },
@@ -264,7 +264,7 @@ export class LeaveReportsService {
         }
 
         const [allEmployees, total] = await employeeQuery
-          .orderBy("user.first_name", "ASC")
+          .orderBy('user.first_name', 'ASC')
           .skip(skip)
           .take(limit)
           .getManyAndCount();
@@ -274,11 +274,11 @@ export class LeaveReportsService {
 
         if (employeeIds.length > 0) {
           const leaves = await leaveRepo
-            .createQueryBuilder("leave")
-            .leftJoinAndSelect("leave.leaveType", "leaveType")
-            .where("leave.employeeId IN (:...employeeIds)", { employeeIds })
-            .andWhere("leave.startDate <= :endDate", { endDate })
-            .andWhere("leave.endDate >= :startDate", { startDate })
+            .createQueryBuilder('leave')
+            .leftJoinAndSelect('leave.leaveType', 'leaveType')
+            .where('leave.employeeId IN (:...employeeIds)', { employeeIds })
+            .andWhere('leave.startDate <= :endDate', { endDate })
+            .andWhere('leave.endDate >= :startDate', { startDate })
             .getMany();
 
           leaves.forEach((leave) => {
@@ -289,7 +289,7 @@ export class LeaveReportsService {
         }
 
         const leaveTypes = await leaveTypeRepo.find({
-          where: { tenantId, status: "active" },
+          where: { tenantId, status: 'active' },
         });
 
         const employeeReportsWithBalances = await Promise.all(
@@ -352,7 +352,7 @@ export class LeaveReportsService {
 
             const leaveRecords = employeeYearLeaves.map((leave) => ({
               id: leave.id,
-              leaveTypeName: leave.leaveType?.name || "Unknown",
+              leaveTypeName: leave.leaveType?.name || 'Unknown',
               startDate: leave.startDate,
               endDate: leave.endDate,
               totalDays: this.calculateWorkingDaysInRange(
@@ -372,8 +372,8 @@ export class LeaveReportsService {
               employeeId: employee.user_id,
               employeeName: `${employee.user.first_name} ${employee.user.last_name}`,
               email: employee.user.email,
-              department: employee.designation?.department?.name || "N/A",
-              designation: employee.designation?.title || "N/A",
+              department: employee.designation?.department?.name || 'N/A',
+              designation: employee.designation?.title || 'N/A',
               leaveSummary,
               leaveRecords,
               totals: {
@@ -447,15 +447,15 @@ export class LeaveReportsService {
       tenantId,
       async (leaveRepo, _leaveTypeRepo, employeeRepo) => {
         const employeeQuery = employeeRepo
-          .createQueryBuilder("employee")
-          .leftJoinAndSelect("employee.user", "user")
-          .leftJoinAndSelect("employee.designation", "designation")
-          .leftJoinAndSelect("designation.department", "department")
-          .where("user.tenant_id = :tenantId", { tenantId })
-          .andWhere("employee.deleted_at IS NULL");
+          .createQueryBuilder('employee')
+          .leftJoinAndSelect('employee.user', 'user')
+          .leftJoinAndSelect('employee.designation', 'designation')
+          .leftJoinAndSelect('designation.department', 'department')
+          .where('user.tenant_id = :tenantId', { tenantId })
+          .andWhere('employee.deleted_at IS NULL');
 
         if (employeeName?.trim()) {
-          const trimmedName = employeeName.trim().replace(/\s+/g, " ");
+          const trimmedName = employeeName.trim().replace(/\s+/g, ' ');
           employeeQuery.andWhere(
             `LOWER(TRIM(CONCAT(COALESCE(user.first_name, ''), ' ', COALESCE(user.last_name, '')))) = LOWER(:name)`,
             { name: trimmedName },
@@ -463,7 +463,7 @@ export class LeaveReportsService {
         }
 
         const allEmployees = await employeeQuery
-          .orderBy("user.first_name", "ASC")
+          .orderBy('user.first_name', 'ASC')
           .getMany();
 
         const employeeIds = allEmployees.map((e) => e.user_id);
@@ -471,11 +471,11 @@ export class LeaveReportsService {
 
         if (employeeIds.length > 0) {
           const leaves = await leaveRepo
-            .createQueryBuilder("leave")
-            .leftJoinAndSelect("leave.leaveType", "leaveType")
-            .where("leave.employeeId IN (:...employeeIds)", { employeeIds })
-            .andWhere("leave.startDate <= :endDate", { endDate })
-            .andWhere("leave.endDate >= :startDate", { startDate })
+            .createQueryBuilder('leave')
+            .leftJoinAndSelect('leave.leaveType', 'leaveType')
+            .where('leave.employeeId IN (:...employeeIds)', { employeeIds })
+            .andWhere('leave.startDate <= :endDate', { endDate })
+            .andWhere('leave.endDate >= :startDate', { startDate })
             .getMany();
 
           leaves.forEach((leave) => {
@@ -505,10 +505,10 @@ export class LeaveReportsService {
         for (const employee of allEmployees) {
           const employeeYearLeaves = leavesByEmployee[employee.user_id] || [];
           const employeeNameStr =
-            `${employee.user?.first_name ?? ""} ${employee.user?.last_name ?? ""}`.trim();
-          const email = employee.user?.email ?? "";
-          const department = employee.designation?.department?.name ?? "N/A";
-          const designation = employee.designation?.title ?? "N/A";
+            `${employee.user?.first_name ?? ''} ${employee.user?.last_name ?? ''}`.trim();
+          const email = employee.user?.email ?? '';
+          const department = employee.designation?.department?.name ?? 'N/A';
+          const designation = employee.designation?.title ?? 'N/A';
 
           if (employeeYearLeaves.length === 0) {
             rows.push({
@@ -517,15 +517,15 @@ export class LeaveReportsService {
               email,
               department,
               designation,
-              leave_type: "",
-              start_date: "",
-              end_date: "",
+              leave_type: '',
+              start_date: '',
+              end_date: '',
               total_days: 0,
-              status: "",
-              reason: "",
-              applied_date: "",
-              approved_by: "",
-              approved_date: "",
+              status: '',
+              reason: '',
+              applied_date: '',
+              approved_by: '',
+              approved_date: '',
             });
           } else {
             for (const leave of employeeYearLeaves) {
@@ -535,15 +535,15 @@ export class LeaveReportsService {
                 email,
                 department,
                 designation,
-                leave_type: leave.leaveType?.name ?? "Unknown",
+                leave_type: leave.leaveType?.name ?? 'Unknown',
                 start_date:
                   leave.startDate instanceof Date
-                    ? leave.startDate.toISOString().split("T")[0]
-                    : String(leave.startDate).split("T")[0],
+                    ? leave.startDate.toISOString().split('T')[0]
+                    : String(leave.startDate).split('T')[0],
                 end_date:
                   leave.endDate instanceof Date
-                    ? leave.endDate.toISOString().split("T")[0]
-                    : String(leave.endDate).split("T")[0],
+                    ? leave.endDate.toISOString().split('T')[0]
+                    : String(leave.endDate).split('T')[0],
                 total_days: this.calculateWorkingDaysInRange(
                   leave.startDate,
                   leave.endDate,
@@ -551,14 +551,14 @@ export class LeaveReportsService {
                   endDate,
                 ),
                 status: leave.status,
-                reason: leave.reason ?? "",
+                reason: leave.reason ?? '',
                 applied_date: leave.createdAt
                   ? new Date(leave.createdAt).toISOString()
-                  : "",
-                approved_by: leave.approvedBy ?? "",
+                  : '',
+                approved_by: leave.approvedBy ?? '',
                 approved_date: leave.approvedAt
                   ? new Date(leave.approvedAt).toISOString()
-                  : "",
+                  : '',
               });
             }
           }
@@ -588,11 +588,11 @@ export class LeaveReportsService {
     }
 
     const yearLeaves = await leaveRepo
-      .createQueryBuilder("leave")
-      .where("leave.employeeId = :employeeId", { employeeId })
-      .andWhere("leave.status = :status", { status: LeaveStatus.APPROVED })
-      .andWhere("leave.startDate <= :endOfYear", { endOfYear })
-      .andWhere("leave.endDate >= :startOfYear", { startOfYear })
+      .createQueryBuilder('leave')
+      .where('leave.employeeId = :employeeId', { employeeId })
+      .andWhere('leave.status = :status', { status: LeaveStatus.APPROVED })
+      .andWhere('leave.startDate <= :endOfYear', { endOfYear })
+      .andWhere('leave.endDate >= :startOfYear', { startOfYear })
       .getMany();
 
     return leaveTypes.map((leaveType) => {

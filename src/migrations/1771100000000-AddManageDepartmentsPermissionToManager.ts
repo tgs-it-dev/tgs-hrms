@@ -64,4 +64,3 @@ export class AddManageDepartmentsPermissionToManager1771100000000
     );
   }
 }
-

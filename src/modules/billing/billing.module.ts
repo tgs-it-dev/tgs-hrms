@@ -22,4 +22,3 @@ import { TenantModule } from '../tenant/tenant.module';
   exports: [BillingService],
 })
 export class BillingModule {}
-

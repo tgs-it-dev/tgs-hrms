@@ -1,9 +1,9 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class AddTenantToDesignations1769000000002
   implements MigrationInterface
 {
-  name = "AddTenantToDesignations1769000000002";
+  name = 'AddTenantToDesignations1769000000002';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // 1) Add nullable tenant_id column to designations
@@ -67,5 +67,3 @@ export class AddTenantToDesignations1769000000002
     `);
   }
 }
-
-

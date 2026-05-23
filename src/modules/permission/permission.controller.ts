@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -9,11 +18,11 @@ import {
 } from '@nestjs/swagger';
 import { CreatePermissionDto } from './dto/create-permission.dto';
 import { UpdatePermissionDto } from './dto/update-permission.dto';
-import { Roles } from 'src/common/decorators/roles.decorator';
-import { RolesGuard } from 'src/common/guards/roles.guard';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
-import { Permissions } from 'src/common/decorators/permissions.decorator';
-import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Permissions } from '../../common/decorators/permissions.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
 
 @ApiTags('Permissions')
 @ApiBearerAuth()
@@ -124,7 +133,10 @@ export class PermissionController {
     status: 404,
     description: 'Permission not found',
   })
-  updatePermission(@Param('id') id: string, @Body() _updatePermissionDto: UpdatePermissionDto) {
+  updatePermission(
+    @Param('id') id: string,
+    @Body() _updatePermissionDto: UpdatePermissionDto,
+  ) {
     return { message: `Update permission: ${id} - Implementation pending` };
   }
 

@@ -6,7 +6,6 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { DashboardService } from './dashboard.service';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -19,19 +18,26 @@ interface AuthedRequest {
 
 @ApiTags('Dashboard')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
+@UseGuards(TenantGuard, RolesGuard)
 @Controller('dashboard')
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   @Get('kpi')
-  @Roles('admin', 'system-admin', 'network-admin', 'hr-admin', 'manager', 'employee')
+  @Roles(
+    'admin',
+    'system-admin',
+    'network-admin',
+    'hr-admin',
+    'manager',
+    'employee',
+  )
   @ApiOperation({ summary: 'Get top-level KPI metrics for dashboard cards' })
-  @ApiResponse({ status: 200, description: 'KPI metrics ready for direct display' })
-  async getKpi(
-    @TenantId() tenantId: string,
-    @Req() req: AuthedRequest,
-  ) {
+  @ApiResponse({
+    status: 200,
+    description: 'KPI metrics ready for direct display',
+  })
+  async getKpi(@TenantId() tenantId: string, @Req() req: AuthedRequest) {
     return this.dashboardService.getKpiMetrics({
       tenantId,
       userId: req.user.id,
@@ -41,16 +47,26 @@ export class DashboardController {
 
   @Get('employee-growth')
   @Roles('admin', 'system-admin', 'network-admin', 'hr-admin', 'manager')
-  @ApiOperation({ summary: 'Get employee growth over time (monthly cumulative totals)' })
-  @ApiResponse({ status: 200, description: 'Employee growth series' })
+  @ApiOperation({
+    summary: 'Get employee growth over time (monthly cumulative totals)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Employee growth series',
+  })
   async getEmployeeGrowth(@TenantId() tenantId: string) {
     return this.dashboardService.getEmployeeGrowth(tenantId);
   }
 
   @Get('attendance-summary')
   @Roles('admin', 'system-admin', 'network-admin', 'hr-admin', 'manager')
-  @ApiOperation({ summary: 'Get department-wise attendance summary for a given date' })
-  @ApiResponse({ status: 200, description: 'Department attendance summary' })
+  @ApiOperation({
+    summary: 'Get department-wise attendance summary for a given date',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Department attendance summary',
+  })
   async getAttendanceSummary(
     @TenantId() tenantId: string,
     @Req() req: AuthedRequest,
@@ -66,20 +82,31 @@ export class DashboardController {
 
   @Get('employee-availability')
   @Roles('admin', 'system-admin', 'network-admin', 'hr-admin', 'manager')
-  @ApiOperation({ summary: 'Get gender distribution and active vs inactive employees' })
-  @ApiResponse({ status: 200, description: 'Employee availability breakdown' })
+  @ApiOperation({
+    summary: 'Get gender distribution and active vs inactive employees',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Employee availability breakdown',
+  })
   async getEmployeeAvailability(@TenantId() tenantId: string) {
     return this.dashboardService.getEmployeeAvailability(tenantId);
   }
 
   @Get('alerts')
-  @Roles('admin', 'system-admin', 'network-admin', 'hr-admin', 'manager', 'employee')
-  @ApiOperation({ summary: 'Get dashboard alerts (auto checkouts, pending approvals)' })
+  @Roles(
+    'admin',
+    'system-admin',
+    'network-admin',
+    'hr-admin',
+    'manager',
+    'employee',
+  )
+  @ApiOperation({
+    summary: 'Get dashboard alerts (auto checkouts, pending approvals)',
+  })
   @ApiResponse({ status: 200, description: 'Dashboard alerts' })
-  async getAlerts(
-    @TenantId() tenantId: string,
-    @Req() req: AuthedRequest,
-  ) {
+  async getAlerts(@TenantId() tenantId: string, @Req() req: AuthedRequest) {
     return this.dashboardService.getAlerts({
       tenantId,
       userId: req.user.id,

@@ -1,11 +1,16 @@
 import { Controller, Post, Get, UseGuards, Req, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { TimesheetService } from './timesheet.service';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
-import { RolesGuard } from 'src/common/guards/roles.guard';
-import { Roles } from 'src/common/decorators/roles.decorator';
-import { Permissions } from 'src/common/decorators/permissions.decorator';
-import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { Permissions } from '../../common/decorators/permissions.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { TimesheetListQueryDto } from './dto/timesheet-list-query.dto';
 import { TimesheetSummaryQueryDto } from './dto/timesheet-summary-query.dto';
 
@@ -36,7 +41,10 @@ export class TimesheetController {
 
   @Get()
   @ApiOperation({ summary: 'List timesheet sessions for current user' })
-  @ApiResponse({ status: 200, description: 'Returns paginated timesheet sessions' })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns paginated timesheet sessions',
+  })
   async list(@Req() req: AuthedRequest, @Query() query: TimesheetListQueryDto) {
     return this.timesheetService.list(req.user.id, query.page ?? 1);
   }
@@ -45,8 +53,13 @@ export class TimesheetController {
   @UseGuards(RolesGuard, PermissionsGuard)
   @Roles('admin', 'system-admin', 'manager')
   @Permissions('manage_timesheets', 'view_team_timesheets')
-  @ApiOperation({ summary: 'Get tenant-wide timesheet summary (Admin/Manager only)' })
-  @ApiResponse({ status: 200, description: 'Returns paginated timesheet summary for all employees' })
+  @ApiOperation({
+    summary: 'Get tenant-wide timesheet summary (Admin/Manager only)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns paginated timesheet summary for all employees',
+  })
   async summary(
     @Req() req: AuthedRequest,
     @Query() query: TimesheetSummaryQueryDto,

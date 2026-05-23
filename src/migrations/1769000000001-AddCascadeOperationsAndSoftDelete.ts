@@ -1,13 +1,15 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddCascadeOperationsAndSoftDelete1769000000001 implements MigrationInterface {
-  name = "AddCascadeOperationsAndSoftDelete1769000000001";
+export class AddCascadeOperationsAndSoftDelete1769000000001
+  implements MigrationInterface
+{
+  name = 'AddCascadeOperationsAndSoftDelete1769000000001';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // ============================================
     // USER ENTITY RELATIONSHIPS
     // ============================================
-    
+
     // User -> Tenant: RESTRICT (prevent hard delete)
     await queryRunner.query(`
       DO $$
@@ -65,7 +67,7 @@ export class AddCascadeOperationsAndSoftDelete1769000000001 implements Migration
     // ============================================
     // DEPARTMENT ENTITY RELATIONSHIPS
     // ============================================
-    
+
     // Department -> Tenant: RESTRICT
     await queryRunner.query(`
       DO $$
@@ -96,7 +98,7 @@ export class AddCascadeOperationsAndSoftDelete1769000000001 implements Migration
     // ============================================
     // DESIGNATION ENTITY RELATIONSHIPS
     // ============================================
-    
+
     // Designation -> Department: CASCADE
     await queryRunner.query(`
       DO $$
@@ -127,7 +129,7 @@ export class AddCascadeOperationsAndSoftDelete1769000000001 implements Migration
     // ============================================
     // EMPLOYEE ENTITY RELATIONSHIPS
     // ============================================
-    
+
     // Employee -> User: CASCADE
     await queryRunner.query(`
       DO $$
@@ -212,7 +214,7 @@ export class AddCascadeOperationsAndSoftDelete1769000000001 implements Migration
     // ============================================
     // EMPLOYEE BENEFIT ENTITY RELATIONSHIPS
     // ============================================
-    
+
     // EmployeeBenefit -> Employee: CASCADE
     await queryRunner.query(`
       DO $$
@@ -270,7 +272,7 @@ export class AddCascadeOperationsAndSoftDelete1769000000001 implements Migration
     // ============================================
     // EMPLOYEE KPI ENTITY RELATIONSHIPS
     // ============================================
-    
+
     // EmployeeKpi -> Employee: CASCADE
     await queryRunner.query(`
       DO $$
@@ -328,7 +330,7 @@ export class AddCascadeOperationsAndSoftDelete1769000000001 implements Migration
     // ============================================
     // BENEFIT ENTITY RELATIONSHIPS
     // ============================================
-    
+
     // Benefit -> Tenant: RESTRICT
     await queryRunner.query(`
       DO $$
@@ -359,7 +361,7 @@ export class AddCascadeOperationsAndSoftDelete1769000000001 implements Migration
     // ============================================
     // LEAVE ENTITY RELATIONSHIPS
     // ============================================
-    
+
     // Leave -> Tenant: RESTRICT
     await queryRunner.query(`
       DO $$
@@ -545,4 +547,3 @@ export class AddCascadeOperationsAndSoftDelete1769000000001 implements Migration
     `);
   }
 }
-
