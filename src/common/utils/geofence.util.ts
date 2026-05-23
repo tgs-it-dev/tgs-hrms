@@ -309,7 +309,7 @@ export function checkPointWithinGeofence(
   const geofenceLng = parseFloat(geofence.longitude);
 
   if (isNaN(geofenceLat) || isNaN(geofenceLng)) {
-    console.error(
+    logger.error(
       `Invalid geofence coordinates: lat=${geofence.latitude}, lng=${geofence.longitude}`,
     );
     return { isWithin: false, isNearBoundary: false };
@@ -430,7 +430,7 @@ export function isPointWithinGeofence(
   const geofenceLng = parseFloat(geofence.longitude);
 
   if (isNaN(geofenceLat) || isNaN(geofenceLng)) {
-    console.error(
+    logger.error(
       `Invalid geofence coordinates: lat=${geofence.latitude}, lng=${geofence.longitude}`,
     );
     return false;

@@ -6,7 +6,9 @@ module.exports = {
       'always',
       ['feat', 'fix', 'refactor', 'perf', 'test', 'docs', 'style', 'chore', 'revert', 'ci', 'build'],
     ],
-    'subject-case': [2, 'always', 'lower-case'],
+    // Allow lowercase subjects that may contain uppercase acronyms (WFH, DTO, API, etc.).
+    // Only prohibit pure sentence-case, all-start-case, pascal-case, and all-upper-case.
+    'subject-case': [2, 'never', ['sentence-case', 'start-case', 'pascal-case', 'upper-case']],
     'subject-empty': [2, 'never'],
     'type-empty': [2, 'never'],
     'scope-case': [2, 'always', 'lower-case'],

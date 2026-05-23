@@ -1114,7 +1114,7 @@ export class EmployeeService implements OnModuleInit {
               invite_status: InviteStatus.INVITE_EXPIRED,
             });
           } catch {
-            // ignore update errors — stale status is non-critical
+            /* intentionally empty */
           }
         }
       }

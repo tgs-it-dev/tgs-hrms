@@ -26,10 +26,17 @@ export default tseslint.config(
   },
   {
     rules: {
+      // Formatting — enforced strictly (auto-fixable via prettier)
       'prettier/prettier': ['error', { singleQuote: true }],
+      // avoidEscape: allow double quotes when string contains single quotes (aligns with prettier)
       'quotes': ['error', 'single', { avoidEscape: true, allowTemplateLiterals: true }],
+
+      // Promise safety — enforced
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/no-misused-promises': 'error',
+
+      // TODO: Enable progressively as the codebase is cleaned up
+      // These rules have too many pre-existing violations to fix in one pass
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unsafe-argument': 'off',
       '@typescript-eslint/no-unsafe-assignment': 'off',
@@ -44,6 +51,7 @@ export default tseslint.config(
       'no-console': 'off',
     },
   },
+  // Test files: allow console.* (Logger not available outside DI context)
   {
     files: ['**/*.spec.ts', '**/*.e2e-spec.ts', 'test/**/*.ts'],
     rules: {

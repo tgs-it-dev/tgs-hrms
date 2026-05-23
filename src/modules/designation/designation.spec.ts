@@ -5,8 +5,8 @@ import { Repository } from 'typeorm';
 import { Designation } from '../../entities/designation.entity';
 import { Department } from '../../entities/department.entity';
 import { Tenant } from '../../entities/tenant.entity';
-import { TenantDatabaseService } from '../../common/services/tenant-database.service';
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import { TenantDatabaseService } from '../../common/services/tenant-database.service';
 
 describe('DesignationService', () => {
   let service: DesignationService;
@@ -67,26 +67,11 @@ describe('DesignationService', () => {
         },
         {
           provide: getRepositoryToken(Tenant),
-          useValue: {
-            findOne: jest
-              .fn()
-              .mockResolvedValue({ id: tenantId, schema_provisioned: false }),
-          },
+          useValue: { findOne: jest.fn(), findOneBy: jest.fn() },
         },
         {
           provide: TenantDatabaseService,
-          useValue: {
-            withTenantSchema: jest
-              .fn()
-              .mockImplementation(
-                (_id: string, fn: (em: any) => Promise<any>) => fn({}),
-              ),
-            withTenantSchemaReadOnly: jest
-              .fn()
-              .mockImplementation(
-                (_id: string, fn: (em: any) => Promise<any>) => fn({}),
-              ),
-          },
+          useValue: { getSchemaName: jest.fn(), runInTenantSchema: jest.fn() },
         },
       ],
     }).compile();
@@ -123,10 +108,14 @@ describe('DesignationService', () => {
   });
 
   it('should update designation if title is unique', async () => {
+    // First findOne: fetch by id (where.id present)
+    // Second findOne: duplicate title check (where.title present) — returns null (no conflict)
     jest
       .spyOn(designationRepo, 'findOne')
-      .mockResolvedValueOnce(mockDesignation) // initial lookup by id
-      .mockResolvedValueOnce(null); // duplicate title check
+      .mockImplementation(async (options: any) => {
+        if (options?.where?.id) return { ...mockDesignation } as any; // copy prevents mutation
+        return null; // no duplicate
+      });
     jest
       .spyOn(designationRepo, 'save')
       .mockResolvedValue({ ...mockDesignation, title: 'Lead' });
@@ -142,20 +131,24 @@ describe('DesignationService', () => {
       ...mockDesignation,
       id: '6ba7b812-9dad-11d1-80b4-00c04fd430c8',
     };
+    // Return a COPY to prevent service's Object.assign from mutating the shared constant
     jest
       .spyOn(designationRepo, 'findOne')
-      .mockResolvedValueOnce(mockDesignation) // initial lookup by id
-      .mockResolvedValueOnce(anotherDesignation); // duplicate title check
+      .mockImplementation(async (options: any) => {
+        if (options?.where?.id) return { ...mockDesignation } as any; // fetch by id — copy!
+        return anotherDesignation as any; // duplicate found
+      });
 
     await expect(
-      service.update(tenantId, designationId, { title: 'Manager' }),
+      service.update(tenantId, designationId, { title: 'Lead' }),
     ).rejects.toThrow(ConflictException);
   });
 
   it('should delete designation', async () => {
+    const designationWithRelations = { ...mockDesignation, employees: [] };
     jest
       .spyOn(designationRepo, 'findOne')
-      .mockResolvedValue({ ...mockDesignation, employees: [] });
+      .mockResolvedValue(designationWithRelations as any);
     jest
       .spyOn(designationRepo, 'delete')
       .mockResolvedValue({ affected: 1 } as any);

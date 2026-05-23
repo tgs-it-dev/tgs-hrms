@@ -23,13 +23,13 @@ import {
   ApiResponse,
   ApiExcludeEndpoint,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { TenantGuard } from '../../../common/guards/tenant.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { PermissionsGuard } from '../../../common/guards/permissions.guard';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { Public } from '../../../common/decorators/public.decorator';
 import { TenantId } from '../../../common/decorators/company.deorator';
 import { BillingService } from '../services/billing.service';
-import { Public } from '../../../common/decorators/public.decorator';
 
 @ApiTags('Billing')
 @Controller('billing')

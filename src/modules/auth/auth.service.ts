@@ -3,6 +3,7 @@ import {
   UnauthorizedException,
   BadRequestException,
   ForbiddenException,
+  NotFoundException,
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -19,9 +20,13 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ConfigService } from '@nestjs/config';
 import { EmailService } from '../../common/utils/email';
 import { InviteStatusService } from '../invite-status/invite-status.service';
-import { Employee } from 'src/entities/employee.entity';
-import { SignupSession } from 'src/entities/signup-session.entity';
-import { GLOBAL_SYSTEM_TENANT_ID } from '../../common/constants/enums';
+import { Employee } from '../../entities/employee.entity';
+import { SignupSession } from '../../entities/signup-session.entity';
+import {
+  GLOBAL_SYSTEM_TENANT_ID,
+  UserRole,
+} from '../../common/constants/enums';
+import { SystemSettingsService } from '../system/system-settings/system-settings.service';
 import { isMobileRequest } from '../../common/utils/mobile-detection';
 import { Role } from '../../entities/role.entity';
 import { Tenant } from '../../entities/tenant.entity';
@@ -29,6 +34,7 @@ import {
   TenantSettingsService,
   TenantSettingKey,
 } from '../tenant-settings/tenant-settings.service';
+import { IpWhitelistService } from '../ip-whitelist/ip-whitelist.service';
 
 interface RefreshTokenPayload {
   sub: string;
@@ -61,6 +67,7 @@ export class AuthService {
     private emailService: EmailService,
     private inviteStatusService: InviteStatusService,
     private tenantSettings: TenantSettingsService,
+    private ipWhitelistService: IpWhitelistService,
   ) {}
 
   // ── Token helpers ──────────────────────────────────────────────────────────
@@ -70,6 +77,7 @@ export class AuthService {
     tenantId: string,
     permissions: string[],
     sessionId?: string,
+    isMobile: boolean = false,
   ): string {
     const payload: Record<string, unknown> = {
       email: user.email,
@@ -79,6 +87,7 @@ export class AuthService {
       permissions,
       first_name: user.first_name,
       last_name: user.last_name,
+      is_mobile: isMobile,
     };
     if (sessionId) {
       payload['sid'] = sessionId;
@@ -449,6 +458,12 @@ export class AuthService {
     const isSystemAdmin = this.isSystemAdminRole(user.role.name);
     const tenantId = isSystemAdmin ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
 
+    const isMobileClient = isMobileRequest({
+      platform,
+      userAgent,
+      appPlatform,
+    });
+
     // Check tenant status and per-tenant flags (system-admins are exempt)
     if (!isSystemAdmin && tenantId) {
       const tenant = await this.tenantRepository.findOne({
@@ -471,20 +486,45 @@ export class AuthService {
           'Your organization account has been suspended. Please contact support.',
         );
       }
+
       const mobileLoginEnabled = await this.tenantSettings.getBoolean(
         tenantId,
         TenantSettingKey.MOBILE_LOGIN_ENABLED,
       );
-      if (
-        !mobileLoginEnabled &&
-        isMobileRequest({ platform, userAgent, appPlatform })
-      ) {
-        this.logger.warn(
-          `Mobile login blocked for email: ${normalizedEmail} (platform=${platform}, appPlatform=${appPlatform})`,
+
+      if (isMobileClient && !mobileLoginEnabled) {
+        const exemptRoles: string[] = [UserRole.ADMIN, UserRole.SYSTEM_ADMIN];
+        const isExempt = exemptRoles.includes(user.role.name.toLowerCase());
+        if (!isExempt) {
+          this.logger.warn(
+            `Mobile login blocked for ${user.role.name} email: ${normalizedEmail} (mobile_login_enabled=false)`,
+          );
+          throw new ForbiddenException(
+            'Mobile app login is currently disabled for your role. Please contact your administrator.',
+          );
+        }
+      }
+
+      const ipRestrictionExempt: string[] = [
+        UserRole.ADMIN,
+        UserRole.SYSTEM_ADMIN,
+      ];
+      const isIpExempt = ipRestrictionExempt.includes(
+        user.role.name.toLowerCase(),
+      );
+      if (!isIpExempt && ipAddress) {
+        const isWhitelisted = await this.ipWhitelistService.isIpWhitelisted(
+          tenantId,
+          ipAddress,
         );
-        throw new ForbiddenException(
-          'Mobile app login is currently disabled. Please contact your administrator.',
-        );
+        if (!isWhitelisted) {
+          this.logger.warn(
+            `Login blocked: IP ${ipAddress} not whitelisted for tenant ${tenantId}, email: ${normalizedEmail}`,
+          );
+          throw new ForbiddenException(
+            'Login is not allowed from your current IP address. Please contact your administrator.',
+          );
+        }
       }
     }
 
@@ -525,7 +565,13 @@ export class AuthService {
       ipAddress,
     );
 
-    const accessToken = this.buildAccessToken(user, tenantId, permissions, jti);
+    const accessToken = this.buildAccessToken(
+      user,
+      tenantId,
+      permissions,
+      jti,
+      isMobileClient,
+    );
 
     if (!user.first_login_time) {
       this.logger.log(`First login recorded for user: ${normalizedEmail}`);
@@ -814,6 +860,11 @@ export class AuthService {
       const newJti = crypto.randomUUID();
       const newRefreshToken = this.buildRefreshToken(user.id, newJti);
 
+      const isMobileClient =
+        tokenRecord.platform?.toLowerCase() === 'mobile' ||
+        tokenRecord.platform?.toLowerCase() === 'ios' ||
+        tokenRecord.platform?.toLowerCase() === 'android';
+
       await this.userTokenRepository.manager.transaction(async (em) => {
         await em.update(UserToken, tokenRecord.id, {
           is_revoked: true,
@@ -836,6 +887,7 @@ export class AuthService {
         tenantId,
         permissions,
         newJti,
+        isMobileClient,
       );
 
       this.logger.log(
@@ -935,14 +987,6 @@ export class AuthService {
     return sessions;
   }
 
-  // Google OAuth — token-based login (SPA / mobile flow)
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Validates a Google ID token and returns a JWT pair.
-   * Used for login of existing users via Google ("Sign in with Google").
-   * For new-user Google signup, see SignupService.googleSignupInit().
-   */
   async googleLogin(idToken: string): Promise<{
     accessToken: string;
     refreshToken: string;

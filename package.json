@@ -30,7 +30,7 @@
   },
   "lint-staged": {
     "*.ts": [
-      "eslint --fix --max-warnings=9999",
+      "eslint --fix --max-warnings 9999",
       "prettier --write"
     ]
   },
@@ -120,11 +120,11 @@
     ],
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
-    "moduleNameMapper": {
-      "^src/(.*)$": "<rootDir>/$1"
-    },
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "moduleNameMapper": {
+      "^src/(.*)$": "<rootDir>/$1"
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s"

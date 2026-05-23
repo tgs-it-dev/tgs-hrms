@@ -10,24 +10,23 @@ import { Team } from '../../entities/team.entity';
 import { Tenant } from '../../entities/tenant.entity';
 import { CreateEmployeeDto, UpdateEmployeeDto } from './dto/employee.dto';
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SendGridService } from '../../common/utils/email/sendgrid.service';
 import { InviteStatusService } from '../invite-status/invite-status.service';
 import { EmployeeFileUploadService } from './services/employee-file-upload.service';
 import { S3StorageService } from '../storage/storage.service';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BillingService } from '../billing/services/billing.service';
 import { TenantDatabaseService } from '../../common/services/tenant-database.service';
 
 const tenantId = '93ada9b3-fef5-4af3-ba65-035c833ea390';
-const desigUuid = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
-const desigUuid2 = '6ba7b811-9dad-11d1-80b4-00c04fd430c8';
 
 const createDto: CreateEmployeeDto = {
   first_name: 'John',
   last_name: 'Doe',
   email: 'john@example.com',
   phone: '123456',
-  designation_id: desigUuid,
+  designation_id: 'desig-uuid',
 };
 
 const updateDto: UpdateEmployeeDto = {
@@ -35,7 +34,7 @@ const updateDto: UpdateEmployeeDto = {
   last_name: 'Doe Updated',
   email: 'john.updated@example.com',
   phone: '123457',
-  designation_id: desigUuid2,
+  designation_id: 'desig-uuid-2',
 };
 
 const mockEmployeeRepo = {
@@ -60,34 +59,32 @@ const mockUserRepo = {
   create: jest.fn(),
   save: jest.fn(),
   update: jest.fn(),
-  delete: jest.fn().mockResolvedValue({ affected: 1 }),
   createQueryBuilder: jest.fn(() => ({
     where: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
+    orWhere: jest.fn().mockReturnThis(),
     getOne: jest.fn().mockResolvedValue(null),
+    getMany: jest.fn().mockResolvedValue([]),
+    getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
   })),
   manager: {
-    getRepository: (entity: any) => {
-      if (entity === Employee) return mockEmployeeRepo;
-      if (entity === Designation) return mockDesignationRepo;
-      if (entity === Role) return mockRoleRepo;
-      if (entity === Team) return mockTeamRepo;
-      if (entity === Department) return mockDepartmentRepo;
-      return { findOne: jest.fn(), save: jest.fn() };
-    },
-    transaction: jest.fn().mockImplementation(async (fn: any) =>
-      fn({
-        getRepository: (entity: any) => {
-          if (entity === Employee) return mockEmployeeRepo;
-          if (entity === User) return mockUserRepo;
-          if (entity === Designation) return mockDesignationRepo;
-          if (entity === Role) return mockRoleRepo;
-          if (entity === Team) return mockTeamRepo;
-          if (entity === Department) return mockDepartmentRepo;
-          return { findOne: jest.fn(), save: jest.fn(), create: jest.fn() };
-        },
-      }),
-    ),
+    // Used by runInTenantSchema (non-provisioned path)
+    getRepository: jest.fn().mockImplementation((entity: any) => {
+      if (entity === Employee || entity?.name === 'Employee')
+        return mockEmployeeRepo;
+      return mockUserRepo;
+    }),
+    // Used by executeInTenantContext (non-provisioned path)
+    transaction: jest.fn().mockImplementation(async (fn: (em: any) => any) => {
+      const mockEm = {
+        getRepository: jest.fn().mockImplementation((entity: any) => {
+          if (entity === Employee || entity?.name === 'Employee')
+            return mockEmployeeRepo;
+          return mockUserRepo;
+        }),
+      };
+      return fn(mockEm);
+    }),
   },
 };
 
@@ -96,8 +93,8 @@ const mockDesignationRepo = { findOne: jest.fn(), findOneBy: jest.fn() };
 const mockRoleRepo = { findOne: jest.fn(), create: jest.fn(), save: jest.fn() };
 const mockTeamRepo = { findOne: jest.fn() };
 
-const customRoleId = '6ba7b812-9dad-11d1-80b4-00c04fd430c8';
-const nonExistentRoleId = '6ba7b813-9dad-11d1-80b4-00c04fd430c8';
+// Must be a valid UUID — the service validates format before DB lookup
+const customRoleId = '550e8400-e29b-41d4-a716-446655440001';
 const createDtoWithRole: CreateEmployeeDto = {
   ...createDto,
   role_id: customRoleId,
@@ -124,23 +121,25 @@ describe('EmployeeService', () => {
         },
         {
           provide: getRepositoryToken(Tenant),
-          useValue: { findOne: jest.fn() },
+          useValue: { findOne: jest.fn(), findOneBy: jest.fn() },
         },
+        { provide: ConfigService, useValue: { get: jest.fn() } },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         {
           provide: SendGridService,
-          useValue: { sendEmail: jest.fn() },
+          useValue: { sendEmail: jest.fn().mockResolvedValue(undefined) },
         },
         {
           provide: InviteStatusService,
           useValue: {
             getInviteStatus: jest.fn(),
             setInviteStatus: jest.fn(),
-            updateInviteStatusOnLogin: jest.fn(),
+            createOrUpdate: jest.fn(),
           },
         },
         {
           provide: EmployeeFileUploadService,
-          useValue: { uploadDocument: jest.fn(), deleteDocument: jest.fn() },
+          useValue: { uploadDocument: jest.fn(), removeDocument: jest.fn() },
         },
         {
           provide: S3StorageService,
@@ -150,51 +149,17 @@ describe('EmployeeService', () => {
             getSignedUrl: jest.fn(),
           },
         },
-        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         {
           provide: BillingService,
           useValue: {
-            createCheckoutSession: jest.fn(),
+            chargeForEmployee: jest.fn(),
+            cancelEmployeeSeat: jest.fn(),
             handleEmployeeCreated: jest.fn().mockResolvedValue(undefined),
-            createEmployeePaymentCheckout: jest.fn(),
           },
         },
         {
           provide: TenantDatabaseService,
-          useValue: {
-            withTenantSchema: jest
-              .fn()
-              .mockImplementation(
-                (_id: string, fn: (em: any) => Promise<any>) =>
-                  fn({
-                    getRepository: (entity: any) => {
-                      if (entity === Employee) return mockEmployeeRepo;
-                      if (entity === User) return mockUserRepo;
-                      if (entity === Designation) return mockDesignationRepo;
-                      if (entity === Role) return mockRoleRepo;
-                      if (entity === Team) return mockTeamRepo;
-                      if (entity === Department) return mockDepartmentRepo;
-                      return { findOne: jest.fn(), save: jest.fn() };
-                    },
-                  }),
-              ),
-            withTenantSchemaReadOnly: jest
-              .fn()
-              .mockImplementation(
-                (_id: string, fn: (em: any) => Promise<any>) =>
-                  fn({
-                    getRepository: (entity: any) => {
-                      if (entity === Employee) return mockEmployeeRepo;
-                      if (entity === User) return mockUserRepo;
-                      if (entity === Designation) return mockDesignationRepo;
-                      if (entity === Role) return mockRoleRepo;
-                      if (entity === Team) return mockTeamRepo;
-                      if (entity === Department) return mockDepartmentRepo;
-                      return { findOne: jest.fn(), save: jest.fn() };
-                    },
-                  }),
-              ),
-          },
+          useValue: { getSchemaName: jest.fn(), runInTenantSchema: jest.fn() },
         },
       ],
     }).compile();
@@ -233,10 +198,19 @@ describe('EmployeeService', () => {
         id: 'desig-uuid',
         department: { tenant_id: tenantId },
       });
-      // First call: email conflict check → null; second call: post-creation fetch → user
-      mockUserRepo.findOne
-        .mockResolvedValueOnce(null)
-        .mockResolvedValue({ ...createDto, id: 'user-uuid' });
+      // Return null for email-uniqueness check (where.email), but return the user
+      // for the post-save lookup (where.id) that the service performs
+      const savedUser = {
+        id: 'user-uuid',
+        email: createDto.email,
+        first_name: createDto.first_name,
+        last_name: createDto.last_name,
+        tenant_id: tenantId,
+      };
+      mockUserRepo.findOne.mockImplementation(async ({ where }: any) => {
+        if (where?.id) return savedUser;
+        return null; // email uniqueness check
+      });
 
       mockUserRepo.create.mockReturnValue({ ...createDto, id: 'user-uuid' });
       mockUserRepo.save.mockResolvedValue({ ...createDto, id: 'user-uuid' });
@@ -264,10 +238,16 @@ describe('EmployeeService', () => {
         id: 'desig-uuid',
         department: { tenant_id: tenantId },
       });
-      mockUserRepo.findOne.mockResolvedValueOnce(null).mockResolvedValue({
-        ...createDtoWithRole,
+      const savedUser = {
         id: 'user-uuid',
-        role_id: customRoleId,
+        email: createDtoWithRole.email,
+        first_name: createDtoWithRole.first_name,
+        last_name: createDtoWithRole.last_name,
+        tenant_id: tenantId,
+      };
+      mockUserRepo.findOne.mockImplementation(async ({ where }: any) => {
+        if (where?.id) return savedUser;
+        return null;
       });
       mockRoleRepo.findOne.mockImplementation(({ where }) => {
         if (where && where.id === customRoleId) {
@@ -314,26 +294,22 @@ describe('EmployeeService', () => {
       });
       mockUserRepo.findOne.mockResolvedValue(null);
       mockRoleRepo.findOne.mockResolvedValue(null);
+      // Use a valid UUID that doesn't exist in the DB — service validates UUID format first
       await expect(
         service.create(tenantId, 'actor-user-id', {
           ...createDto,
-          role_id: nonExistentRoleId,
+          role_id: '550e8400-e29b-41d4-a716-446655440099',
         }),
       ).rejects.toThrow('Specified role not found.');
     });
   });
 
   describe('update', () => {
-    const empUuid = '6ba7b814-9dad-11d1-80b4-00c04fd430c8';
     const existingEmployee = {
-      id: empUuid,
-      user: {
-        id: '6ba7b815-9dad-11d1-80b4-00c04fd430c8',
-        email: 'old@example.com',
-        tenant_id: tenantId,
-      },
-      designation_id: desigUuid,
-      designation: { id: desigUuid, department: { tenant_id: tenantId } },
+      id: 'emp-uuid',
+      user: { id: 'user-uuid', email: 'old@example.com', tenant_id: tenantId },
+      designation_id: 'desig-uuid',
+      designation: { id: 'desig-uuid', department: { tenant_id: tenantId } },
     };
 
     beforeEach(() => {
@@ -350,8 +326,8 @@ describe('EmployeeService', () => {
       mockUserRepo.findOne.mockResolvedValue(null);
 
       mockDesignationRepo.findOneBy.mockImplementation(async ({ id }) => {
-        if (id === desigUuid2) {
-          return { id: desigUuid2, department: { tenant_id: tenantId } };
+        if (id === 'desig-uuid-2') {
+          return { id: 'desig-uuid-2', department: { tenant_id: tenantId } };
         }
         return null;
       });
@@ -375,9 +351,9 @@ describe('EmployeeService', () => {
       mockUserRepo.findOne.mockResolvedValue(null);
       const updatedData = {
         ...existingEmployee,
-        designation_id: desigUuid2,
+        designation_id: 'desig-uuid-2',
         designation: {
-          id: desigUuid2,
+          id: 'desig-uuid-2',
           department: { tenant_id: tenantId },
         },
         user: {

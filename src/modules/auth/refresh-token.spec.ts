@@ -14,6 +14,7 @@ import { EmailService } from '../../common/utils/email';
 import { InviteStatusService } from '../invite-status/invite-status.service';
 import { SystemSettingsService } from '../system/system-settings/system-settings.service';
 import { TenantSettingsService } from '../tenant-settings/tenant-settings.service';
+import { IpWhitelistService } from '../ip-whitelist/ip-whitelist.service';
 import { UnauthorizedException, BadRequestException } from '@nestjs/common';
 
 describe('AuthService - Refresh Token', () => {
@@ -155,6 +156,13 @@ describe('AuthService - Refresh Token', () => {
           useValue: {
             get: jest.fn().mockResolvedValue(null),
             getBoolean: jest.fn().mockResolvedValue(false),
+          },
+        },
+        {
+          provide: IpWhitelistService,
+          useValue: {
+            isIpWhitelisted: jest.fn().mockResolvedValue(true),
+            isIpRestrictionEnabled: jest.fn().mockResolvedValue(false),
           },
         },
         {
