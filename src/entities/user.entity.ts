@@ -87,4 +87,10 @@ export class User extends BaseEntity {
 
   @Column({ type: 'timestamptz', nullable: true })
   email_verification_expires_at: Date | null;
+
+  @Column({ type: 'int', default: 0 })
+  failed_login_attempts: number;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  locked_until: Date | null;
 }

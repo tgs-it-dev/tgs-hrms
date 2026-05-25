@@ -524,6 +524,26 @@ export class AuthService {
       };
     }
 
+    // ── Lockout check (before password verification to avoid timing leaks) ──
+    // Use the first matching-email user for lockout; if multiple tenants share
+    // the same email we check any one of them (single user per email per tenant,
+    // but email alone uniquely identifies the login attempt here).
+    const lockoutCandidate = users[0];
+    if (
+      lockoutCandidate.locked_until &&
+      lockoutCandidate.locked_until > new Date()
+    ) {
+      const retryAfterMs = lockoutCandidate.locked_until.getTime() - Date.now();
+      const retryAfterMin = Math.ceil(retryAfterMs / 60_000);
+      this.logger.warn(
+        `Login blocked: account locked for email: ${normalizedEmail}, unlocks in ${retryAfterMin}m`,
+      );
+      throw new BadRequestException({
+        field: 'email',
+        message: `Account is temporarily locked due to too many failed attempts. Try again in ${retryAfterMin} minute(s).`,
+      });
+    }
+
     let user: User | null = null;
     for (const u of users) {
       const isPasswordValid = await bcrypt.compare(password, u.password);
@@ -534,12 +554,48 @@ export class AuthService {
     }
 
     if (!user) {
+      // Increment failed attempts on the candidate user and lock if threshold reached
+      const MAX_ATTEMPTS = 5;
+      const LOCKOUT_MINUTES = 15;
+      const newAttempts = (lockoutCandidate.failed_login_attempts ?? 0) + 1;
+      const shouldLock = newAttempts >= MAX_ATTEMPTS;
+      await this.userRepository.update(lockoutCandidate.id, {
+        failed_login_attempts: newAttempts,
+        ...(shouldLock
+          ? {
+              locked_until: new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1_000),
+            }
+          : {}),
+      });
       this.logger.warn(
-        `Login failed: invalid password for email: ${normalizedEmail}`,
+        `Login failed: invalid password for email: ${normalizedEmail} (attempt ${newAttempts}/${MAX_ATTEMPTS})`,
       );
+      const remaining = MAX_ATTEMPTS - newAttempts;
       throw new BadRequestException({
         field: 'password',
-        message: 'Incorrect password',
+        message: shouldLock
+          ? `Too many failed attempts. Account locked for ${LOCKOUT_MINUTES} minutes.`
+          : `Incorrect password. ${remaining} attempt(s) remaining before lockout.`,
+      });
+    }
+
+    // ── Email verification check ──────────────────────────────────────────────
+    if (!user.email_verified) {
+      this.logger.warn(
+        `Login blocked: email not verified for email: ${normalizedEmail}`,
+      );
+      throw new ForbiddenException({
+        field: 'email',
+        message:
+          'Please verify your email address before logging in. Check your inbox for the verification link.',
+      });
+    }
+
+    // Successful login — reset failed attempt counter
+    if (user.failed_login_attempts > 0 || user.locked_until) {
+      await this.userRepository.update(user.id, {
+        failed_login_attempts: 0,
+        locked_until: null,
       });
     }
 
