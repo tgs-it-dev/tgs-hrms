@@ -67,6 +67,9 @@ const mockUser: User = {
   employees: [],
   attendances: [],
   managedTeams: [],
+  email_verified: true,
+  email_verification_token: null,
+  email_verification_expires_at: null,
 };
 
 const mockUserRepository = () => ({

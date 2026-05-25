@@ -78,4 +78,13 @@ export class User extends BaseEntity {
 
   @Column({ type: 'timestamptz', nullable: true })
   reset_token_expiry: Date | null;
+
+  @Column({ type: 'boolean', default: false })
+  email_verified: boolean;
+
+  @Column({ type: 'text', nullable: true })
+  email_verification_token: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  email_verification_expires_at: Date | null;
 }

@@ -65,6 +65,9 @@ const mockUser: User = {
   employees: [],
   attendances: [],
   managedTeams: [],
+  email_verified: true,
+  email_verification_token: null,
+  email_verification_expires_at: null,
 };
 
 // A valid token record for the new refresh-token-rotation flow
