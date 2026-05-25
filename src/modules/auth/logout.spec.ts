@@ -15,6 +15,7 @@ import { SignupSession } from '../../entities/signup-session.entity';
 import { UserToken } from '../../entities/user-token.entity';
 import { EmailService } from '../../common/utils/email';
 import { InviteStatusService } from '../invite-status/invite-status.service';
+import { SystemSettingsService } from '../system/system-settings/system-settings.service';
 import { TenantSettingsService } from '../tenant-settings/tenant-settings.service';
 import { IpWhitelistService } from '../ip-whitelist/ip-whitelist.service';
 
@@ -60,9 +61,9 @@ const mockUser: User = {
   first_login_time: new Date(0),
   created_at: new Date(),
   updated_at: new Date(),
-  deleted_at: null,
   role: mockRole,
   tenant: mockTenant,
+  deleted_at: null,
   employees: [],
   attendances: [],
   managedTeams: [],
@@ -158,19 +159,29 @@ describe('AuthService - Login', () => {
         { provide: EmailService, useValue: mockEmailService },
         {
           provide: InviteStatusService,
-          useValue: { getInviteStatus: jest.fn(), setInviteStatus: jest.fn() },
+          useValue: {
+            getInviteStatus: jest.fn(),
+            setInviteStatus: jest.fn(),
+            updateInviteStatusOnLogin: jest.fn().mockResolvedValue(undefined),
+          },
         },
         {
           provide: TenantSettingsService,
           useValue: {
-            getSettings: jest.fn().mockResolvedValue(null),
+            get: jest.fn().mockResolvedValue(null),
+            getBoolean: jest.fn().mockResolvedValue(false),
           },
         },
         {
           provide: IpWhitelistService,
           useValue: {
-            isAllowed: jest.fn().mockResolvedValue(true),
+            isIpWhitelisted: jest.fn().mockResolvedValue(true),
+            isIpRestrictionEnabled: jest.fn().mockResolvedValue(false),
           },
+        },
+        {
+          provide: SystemSettingsService,
+          useValue: { getBoolean: jest.fn().mockReturnValue(true) },
         },
       ],
     }).compile();
@@ -180,9 +191,7 @@ describe('AuthService - Login', () => {
   });
 
   it('should validate and return access token for valid credentials', async () => {
-    jest
-      .spyOn(bcrypt, 'compare')
-      .mockResolvedValue(true as unknown as never);
+    jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
 
     const result = await service.validateUser('admin@company.com', '123456');
 
@@ -198,9 +207,7 @@ describe('AuthService - Login', () => {
   });
 
   it('should throw error for invalid password', async () => {
-    jest
-      .spyOn(bcrypt, 'compare')
-      .mockResolvedValue(false as unknown as never);
+    jest.spyOn(bcrypt, 'compare').mockResolvedValue(false as never);
 
     await expect(
       service.validateUser('admin@company.com', 'wrongpass'),

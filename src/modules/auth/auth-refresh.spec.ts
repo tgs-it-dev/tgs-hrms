@@ -15,6 +15,7 @@ import { SignupSession } from '../../entities/signup-session.entity';
 import { UserToken } from '../../entities/user-token.entity';
 import { EmailService } from '../../common/utils/email';
 import { InviteStatusService } from '../invite-status/invite-status.service';
+import { SystemSettingsService } from '../system/system-settings/system-settings.service';
 import { TenantSettingsService } from '../tenant-settings/tenant-settings.service';
 import { IpWhitelistService } from '../ip-whitelist/ip-whitelist.service';
 
@@ -58,9 +59,9 @@ const mockUser: User = {
   first_login_time: new Date(0),
   created_at: new Date(),
   updated_at: new Date(),
-  deleted_at: null,
   role: mockRole,
   tenant: mockTenant,
+  deleted_at: null,
   employees: [],
   attendances: [],
   managedTeams: [],
@@ -195,14 +196,20 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
         {
           provide: TenantSettingsService,
           useValue: {
-            getSettings: jest.fn().mockResolvedValue(null),
+            get: jest.fn().mockResolvedValue(null),
+            getBoolean: jest.fn().mockResolvedValue(false),
           },
         },
         {
           provide: IpWhitelistService,
           useValue: {
-            isAllowed: jest.fn().mockResolvedValue(true),
+            isIpWhitelisted: jest.fn().mockResolvedValue(true),
+            isIpRestrictionEnabled: jest.fn().mockResolvedValue(false),
           },
+        },
+        {
+          provide: SystemSettingsService,
+          useValue: { getBoolean: jest.fn().mockReturnValue(true) },
         },
       ],
     }).compile();
@@ -266,10 +273,8 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
           tenant: mockTenant,
         },
       ]);
-      jest
-        .spyOn(bcrypt, 'hash')
-        .mockResolvedValue('hashedPassword' as unknown as never);
-      jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as unknown as never);
+      jest.spyOn(bcrypt, 'hash').mockResolvedValue('hashedPassword' as never);
+      jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
 
       const result = await service.resetPassword({
         token: 'valid-token',
