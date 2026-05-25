@@ -11,7 +11,17 @@ import { Employee } from '../../entities/employee.entity';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Attendance, Leave, User, Department, Designation, Employee]), SharedJwtModule],
+  imports: [
+    TypeOrmModule.forFeature([
+      Attendance,
+      Leave,
+      User,
+      Department,
+      Designation,
+      Employee,
+    ]),
+    SharedJwtModule,
+  ],
   controllers: [ReportsController],
   providers: [ReportsService],
 })

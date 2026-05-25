@@ -1,7 +1,7 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class CreateBenefitsTables1760355520083 implements MigrationInterface {
-  name = "CreateBenefitsTables1760355520083";
+  name = 'CreateBenefitsTables1760355520083';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Create benefits table if not exists
@@ -128,11 +128,11 @@ export class CreateBenefitsTables1760355520083 implements MigrationInterface {
   public async down(queryRunner: QueryRunner): Promise<void> {
     // Drop constraints if exist
     const constraints = [
-      "FK_93a9cbef80993a39415d94b310b",
-      "FK_fde882fa7799392110d25c80174",
-      "FK_b71e5c8ec86a3c1a881b5952614",
-      "FK_6f762f96c97f977adf0892b2820",
-      "FK_ac38f8fbe45fb10e281d2e3f3f4",
+      'FK_93a9cbef80993a39415d94b310b',
+      'FK_fde882fa7799392110d25c80174',
+      'FK_b71e5c8ec86a3c1a881b5952614',
+      'FK_6f762f96c97f977adf0892b2820',
+      'FK_ac38f8fbe45fb10e281d2e3f3f4',
     ];
     for (const c of constraints) {
       await queryRunner.query(`

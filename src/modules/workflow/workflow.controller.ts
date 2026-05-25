@@ -75,6 +75,11 @@ export class WorkflowController {
     required: false,
     description: 'Items per page (default 20)',
   })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Filter by requestor first name or last name (partial match)',
+  })
   @ApiOkResponse({
     description: `Paginated list of approval requests`,
     schema: {
@@ -187,6 +192,7 @@ export class WorkflowController {
     @Query('type') type?: WorkflowRequestType,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('search') search?: string,
   ) {
     return this.workflowService.getPendingStepsForRole(
       req.user.tenant_id,
@@ -196,6 +202,7 @@ export class WorkflowController {
       type,
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 20,
+      search,
     );
   }
 

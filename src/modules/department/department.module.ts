@@ -9,7 +9,11 @@ import { DepartmentController } from './department.controller';
 import { DepartmentService } from './department.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Tenant, Department]), SharedJwtModule, TenantModule],
+  imports: [
+    TypeOrmModule.forFeature([Tenant, Department]),
+    SharedJwtModule,
+    TenantModule,
+  ],
   controllers: [DepartmentController],
   providers: [DepartmentService],
   exports: [DepartmentService],

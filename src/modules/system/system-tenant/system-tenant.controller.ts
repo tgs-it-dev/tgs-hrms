@@ -3,18 +3,21 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Post,
   Put,
   Query,
+  Req,
   UseGuards,
   UseInterceptors,
   UploadedFile,
   ParseFilePipe,
   MaxFileSizeValidator,
   FileTypeValidator,
-} from "@nestjs/common";
+} from '@nestjs/common';
+import { AuthenticatedRequest } from 'src/common/types/request.types';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -23,20 +26,21 @@ import {
   ApiQuery,
   ApiBody,
   ApiConsumes,
-} from "@nestjs/swagger";
-import { FileInterceptor } from "@nestjs/platform-express";
+} from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 // import { CreateTenantDto } from "../dto/system-tenant/create-tenant.dto";
-import { JwtAuthGuard } from "src/common/guards/jwt-auth.guard";
-import { Roles } from "src/common/decorators/roles.decorator";
-import { SystemTenantService } from "./system-tenant.service";
-import { CreateTenantDto } from "../dto/system-tenant/create-tenant.dto";
-import { UpdateTenantDto } from "../dto/system-tenant/update-tenant.dto";
+import { RolesGuard } from 'src/common/guards/roles.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
+import { SystemTenantService } from './system-tenant.service';
+import { CreateTenantDto } from '../dto/system-tenant/create-tenant.dto';
+import { UpdateTenantDto } from '../dto/system-tenant/update-tenant.dto';
+import { ToggleMobileLoginDto } from '../dto/system-tenant/toggle-mobile-login.dto';
 
-@ApiTags("System (Tenants)")
+@ApiTags('System (Tenants)')
 @ApiBearerAuth()
-@Roles("system-admin")
-@UseGuards(JwtAuthGuard)
-@Controller("system/tenants")
+@Roles('system-admin')
+@UseGuards(RolesGuard)
+@Controller('system/tenants')
 export class SystemTenantController {
   constructor(private readonly tenantService: SystemTenantService) {}
 
@@ -46,7 +50,7 @@ export class SystemTenantController {
   @Post()
   @UseInterceptors(FileInterceptor('logo'))
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: "Create a new tenant (System Admin only)" })
+  @ApiOperation({ summary: 'Create a new tenant (System Admin only)' })
   @ApiBody({
     schema: {
       type: 'object',
@@ -62,7 +66,8 @@ export class SystemTenantController {
         logo: {
           type: 'string',
           format: 'binary',
-          description: 'Company logo file (jpg, jpeg, png, gif - max 5MB). Optional - can also provide logo URL as string.',
+          description:
+            'Company logo file (jpg, jpeg, png, gif - max 5MB). Optional - can also provide logo URL as string.',
         },
         adminName: {
           type: 'string',
@@ -76,12 +81,12 @@ export class SystemTenantController {
       required: ['name', 'domain', 'adminName', 'adminEmail'],
     },
   })
-  @ApiResponse({ status: 201, description: "Tenant created successfully." })
+  @ApiResponse({ status: 201, description: 'Tenant created successfully.' })
   @ApiResponse({
     status: 409,
-    description: "Conflict: Tenant with this name already exists.",
+    description: 'Conflict: Tenant with this name already exists.',
   })
-  @ApiResponse({ status: 400, description: "Invalid file type or size" })
+  @ApiResponse({ status: 400, description: 'Invalid file type or size' })
   async create(
     @Body() dto: CreateTenantDto,
     @UploadedFile(
@@ -104,7 +109,9 @@ export class SystemTenantController {
   @Put()
   @UseInterceptors(FileInterceptor('logo'))
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: "Update tenant company details (System Admin only)" })
+  @ApiOperation({
+    summary: 'Update tenant company details (System Admin only)',
+  })
   @ApiBody({
     schema: {
       type: 'object',
@@ -127,7 +134,8 @@ export class SystemTenantController {
         logo: {
           type: 'string',
           format: 'binary',
-          description: 'Company logo file (jpg, jpeg, png, gif - max 5MB). Optional - can also provide logo URL as string.',
+          description:
+            'Company logo file (jpg, jpeg, png, gif - max 5MB). Optional - can also provide logo URL as string.',
         },
       },
       required: ['tenantId'],
@@ -135,17 +143,17 @@ export class SystemTenantController {
   })
   @ApiResponse({
     status: 200,
-    description: "Tenant company details updated successfully.",
+    description: 'Tenant company details updated successfully.',
   })
   @ApiResponse({
     status: 404,
-    description: "Tenant not found.",
+    description: 'Tenant not found.',
   })
   @ApiResponse({
     status: 409,
-    description: "Conflict: Tenant name or domain already exists.",
+    description: 'Conflict: Tenant name or domain already exists.',
   })
-  @ApiResponse({ status: 400, description: "Invalid file type or size" })
+  @ApiResponse({ status: 400, description: 'Invalid file type or size' })
   async update(
     @Body() dto: UpdateTenantDto,
     @UploadedFile(
@@ -168,102 +176,133 @@ export class SystemTenantController {
   @Get()
   @ApiOperation({
     summary:
-      "List all tenants (System Admin only) - Paginated, or all when limit=all",
+      'List all tenants (System Admin only) - Paginated, or all when limit=all',
   })
-  @ApiResponse({ status: 200, description: "List of tenants." })
+  @ApiResponse({ status: 200, description: 'List of tenants.' })
   @ApiQuery({
-    name: "page",
+    name: 'page',
     required: false,
     type: Number,
-    description: "Page number (default: 1, ignored when limit=all)",
+    description: 'Page number (default: 1, ignored when limit=all)',
   })
   @ApiQuery({
-    name: "limit",
+    name: 'limit',
     required: false,
     type: String,
     description:
       'Items per page (default: 25, max: 100). Use "all" to fetch all tenants.',
   })
   @ApiQuery({
-    name: "includeDeleted",
+    name: 'includeDeleted',
     required: false,
     type: Boolean,
-    description: "Include deleted tenants (default: false)",
+    description: 'Include deleted tenants (default: false)',
   })
   async findAll(
-    @Query("page") page?: string,
-    @Query("limit") limit?: string,
-    @Query("includeDeleted") includeDeleted?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('includeDeleted') includeDeleted?: string,
   ) {
     // By default, do NOT include deleted tenants unless explicitly requested
     const includeDeletedFlag =
-      includeDeleted !== undefined ? includeDeleted === "true" : false;
+      includeDeleted !== undefined ? includeDeleted === 'true' : false;
 
     // When limit=all, return all tenants without pagination
-    if (limit && limit.toLowerCase() === "all") {
-      return this.tenantService.findAll(undefined, undefined, includeDeletedFlag);
+    if (limit && limit.toLowerCase() === 'all') {
+      return this.tenantService.findAll(
+        undefined,
+        undefined,
+        includeDeletedFlag,
+      );
     }
 
-    const pageNumber = Math.max(1, parseInt(page || "1", 10) || 1);
+    const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
     const limitNumber = Math.min(
       100,
-      Math.max(1, parseInt(limit || "25", 10) || 25),
+      Math.max(1, parseInt(limit || '25', 10) || 25),
     );
 
-    return this.tenantService.findAll(pageNumber, limitNumber, includeDeletedFlag);
+    return this.tenantService.findAll(
+      pageNumber,
+      limitNumber,
+      includeDeletedFlag,
+    );
   }
 
   /**
    * Get single tenant by ID
    */
-  @Get(":id")
-  @ApiOperation({ summary: "Get tenant details by ID (System Admin only)" })
-  @ApiResponse({ status: 200, description: "Tenant details." })
-  @ApiResponse({ status: 404, description: "Tenant not found." })
-  async getTenantDetails(@Param("id") id: string) {
+  @Get(':id')
+  @ApiOperation({ summary: 'Get tenant details by ID (System Admin only)' })
+  @ApiResponse({ status: 200, description: 'Tenant details.' })
+  @ApiResponse({ status: 404, description: 'Tenant not found.' })
+  async getTenantDetails(@Param('id') id: string) {
     return this.tenantService.getTenantDetails(id);
   }
 
   /**
    * Update tenant status
    */
-  @Put(":id/status")
-  @ApiOperation({ summary: "Update tenant status (active/suspended)" })
+  @Put(':id/status')
+  @ApiOperation({ summary: 'Update tenant status (active/suspended)' })
   @ApiResponse({
     status: 200,
-    description: "Tenant status updated successfully.",
+    description: 'Tenant status updated successfully.',
   })
-  @ApiResponse({ status: 404, description: "Tenant not found." })
+  @ApiResponse({ status: 404, description: 'Tenant not found.' })
   async updateStatus(
-    @Param("id") id: string,
-    @Query("status") status: "active" | "suspended",
+    @Param('id') id: string,
+    @Query('status') status: 'active' | 'suspended',
   ) {
     if (!status) {
-      throw new BadRequestException("Status query param required");
+      throw new BadRequestException('Status query param required');
     }
 
     return this.tenantService.updateStatus(id, status);
   }
 
   /**
+   * Toggle mobile login access for a tenant.
+   * System admin can update any tenant; tenant/admin can only update their own.
+   */
+  @Put(':id/mobile-login')
+  @Roles('system-admin', 'tenant-admin', 'admin')
+  @ApiOperation({
+    summary: 'Enable or disable mobile login for a tenant',
+  })
+  @ApiResponse({ status: 200, description: 'Mobile login setting updated.' })
+  @ApiResponse({ status: 403, description: 'Cannot modify another tenant.' })
+  @ApiResponse({ status: 404, description: 'Tenant not found.' })
+  async setMobileLogin(
+    @Param('id') id: string,
+    @Body() dto: ToggleMobileLoginDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (req.user.role !== 'system-admin' && req.user.tenant_id !== id) {
+      throw new ForbiddenException('You can only modify your own tenant.');
+    }
+    return this.tenantService.setMobileLoginEnabled(id, dto.enabled);
+  }
+
+  /**
    * Soft delete tenant
    */
-  @Delete(":id")
-  @ApiOperation({ summary: "Soft delete a tenant (System Admin only)" })
-  @ApiResponse({ status: 200, description: "Tenant deleted successfully." })
-  @ApiResponse({ status: 404, description: "Tenant not found." })
-  async remove(@Param("id") id: string) {
+  @Delete(':id')
+  @ApiOperation({ summary: 'Soft delete a tenant (System Admin only)' })
+  @ApiResponse({ status: 200, description: 'Tenant deleted successfully.' })
+  @ApiResponse({ status: 404, description: 'Tenant not found.' })
+  async remove(@Param('id') id: string) {
     return this.tenantService.remove(id);
   }
 
   /**
    * Restore deleted tenant
    */
-  @Put(":id/restore")
-  @ApiOperation({ summary: "Restore a deleted tenant (System Admin only)" })
-  @ApiResponse({ status: 200, description: "Tenant restored successfully." })
-  @ApiResponse({ status: 404, description: "Tenant not found or not deleted." })
-  async restore(@Param("id") id: string) {
+  @Put(':id/restore')
+  @ApiOperation({ summary: 'Restore a deleted tenant (System Admin only)' })
+  @ApiResponse({ status: 200, description: 'Tenant restored successfully.' })
+  @ApiResponse({ status: 404, description: 'Tenant not found or not deleted.' })
+  async restore(@Param('id') id: string) {
     return await this.tenantService.restore(id);
   }
 }

@@ -13,13 +13,15 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { LogoutDto } from './dto/logout.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
 import { Throttle } from '@nestjs/throttler';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
-import { Roles } from 'src/common/decorators/roles.decorator';
-import { Permissions } from 'src/common/decorators/permissions.decorator';
-import { PermissionsGuard } from 'src/common/guards/permissions.guard';
-import { Public } from 'src/common/decorators/public.decorator';
-import { AuthenticatedRequest } from 'src/common/types/request.types';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { Permissions } from '../../common/decorators/permissions.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { Public } from '../../common/decorators/public.decorator';
+import { AuthenticatedRequest } from '../../common/types/request.types';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -56,6 +58,32 @@ export class AuthController {
   })
   async register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
+  }
+
+  @Post('verify-email')
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'Verify email address using the token sent on registration',
+  })
+  @ApiBody({ type: VerifyEmailDto })
+  @ApiResponse({ status: 200, description: 'Email verified successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid or expired token' })
+  async verifyEmail(@Body() dto: VerifyEmailDto) {
+    return this.authService.verifyEmail(dto.token);
+  }
+
+  @Post('resend-verification')
+  @Public()
+  @Throttle({ default: { limit: 3, ttl: 300_000 } }) // 3 per 5 min to prevent abuse
+  @ApiOperation({ summary: 'Resend email verification link' })
+  @ApiBody({ schema: { example: { email: 'user@example.com' } } })
+  @ApiResponse({
+    status: 200,
+    description: 'Verification email resent if applicable',
+  })
+  async resendVerification(@Body('email') email: string) {
+    return this.authService.resendVerificationEmail(email);
   }
 
   @Post('login')
@@ -293,7 +321,7 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Post('admin-data')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles('admin', 'system-admin')
   @Permissions('manage_users')
   getAdminData() {
@@ -386,5 +414,21 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Active sessions returned' })
   async getSessions(@Req() req: AuthenticatedRequest) {
     return this.authService.getActiveSessions(req.user.id);
+  }
+
+  @Post('google-login')
+  @Public()
+  @Throttle({ short: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Login with Google ID token' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { idToken: { type: 'string' } },
+      required: ['idToken'],
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Login successful' })
+  async googleLogin(@Body('idToken') idToken: string) {
+    return this.authService.googleLogin(idToken);
   }
 }

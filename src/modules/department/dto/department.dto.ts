@@ -13,18 +13,27 @@ export class CreateDepartmentDto {
   @MaxLength(100)
   name: string;
 
-  @ApiPropertyOptional({ description: 'Department description', example: 'Software development department' })
+  @ApiPropertyOptional({
+    description: 'Department description',
+    example: 'Software development department',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(500)
   description?: string;
 
-  @ApiPropertyOptional({ description: 'Parent department ID', example: 'uuid-string' })
+  @ApiPropertyOptional({
+    description: 'Parent department ID',
+    example: 'uuid-string',
+  })
   @IsOptional()
   @IsUUID()
   parent_id?: string;
 
-  @ApiPropertyOptional({ description: 'Department manager ID', example: 'uuid-string' })
+  @ApiPropertyOptional({
+    description: 'Department manager ID',
+    example: 'uuid-string',
+  })
   @IsOptional()
   @IsUUID()
   manager_id?: string;
@@ -32,24 +41,36 @@ export class CreateDepartmentDto {
 
 // Update Department DTO
 export class UpdateDepartmentDto {
-  @ApiPropertyOptional({ description: 'Department name', example: 'Engineering' })
+  @ApiPropertyOptional({
+    description: 'Department name',
+    example: 'Engineering',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(100)
   name?: string;
 
-  @ApiPropertyOptional({ description: 'Department description', example: 'Software development department' })
+  @ApiPropertyOptional({
+    description: 'Department description',
+    example: 'Software development department',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(500)
   description?: string;
 
-  @ApiPropertyOptional({ description: 'Parent department ID', example: 'uuid-string' })
+  @ApiPropertyOptional({
+    description: 'Parent department ID',
+    example: 'uuid-string',
+  })
   @IsOptional()
   @IsUUID()
   parent_id?: string;
 
-  @ApiPropertyOptional({ description: 'Department manager ID', example: 'uuid-string' })
+  @ApiPropertyOptional({
+    description: 'Department manager ID',
+    example: 'uuid-string',
+  })
   @IsOptional()
   @IsUUID()
   manager_id?: string;
@@ -57,12 +78,18 @@ export class UpdateDepartmentDto {
 
 // Department Query DTO
 export class DepartmentQueryDto extends BaseQueryDto {
-  @ApiPropertyOptional({ description: 'Filter by parent department ID', example: 'uuid-string' })
+  @ApiPropertyOptional({
+    description: 'Filter by parent department ID',
+    example: 'uuid-string',
+  })
   @IsOptional()
   @IsUUID()
   parent_id?: string;
 
-  @ApiPropertyOptional({ description: 'Filter by manager ID', example: 'uuid-string' })
+  @ApiPropertyOptional({
+    description: 'Filter by manager ID',
+    example: 'uuid-string',
+  })
   @IsOptional()
   @IsUUID()
   manager_id?: string;
@@ -76,7 +103,10 @@ export class DepartmentResponseDto {
   @ApiProperty({ description: 'Department name', example: 'Engineering' })
   name: string;
 
-  @ApiProperty({ description: 'Department description', example: 'Software development department' })
+  @ApiProperty({
+    description: 'Department description',
+    example: 'Software development department',
+  })
   description: string;
 
   @ApiProperty({ description: 'Parent department information' })
@@ -104,7 +134,10 @@ export class DepartmentResponseDto {
 
 // Department List Response DTO
 export class DepartmentListResponseDto {
-  @ApiProperty({ description: 'List of departments', type: [DepartmentResponseDto] })
+  @ApiProperty({
+    description: 'List of departments',
+    type: [DepartmentResponseDto],
+  })
   departments: DepartmentResponseDto[];
 
   @ApiProperty({ description: 'Total count of departments' })
@@ -146,7 +179,10 @@ export class DepartmentHierarchyDto {
   @ApiProperty({ description: 'Department level in hierarchy' })
   level: number;
 
-  @ApiProperty({ description: 'Child departments', type: [DepartmentHierarchyDto] })
+  @ApiProperty({
+    description: 'Child departments',
+    type: [DepartmentHierarchyDto],
+  })
   children: DepartmentHierarchyDto[];
 
   @ApiProperty({ description: 'Employee count' })

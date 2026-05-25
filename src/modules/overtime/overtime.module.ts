@@ -10,6 +10,7 @@ import { WorkflowModule } from '../workflow/workflow.module';
 import { TenantModule } from '../tenant/tenant.module';
 import { NotificationModule } from '../notification/notification.module';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
+import { TenantSettingsModule } from '../tenant-settings/tenant-settings.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { SharedJwtModule } from '../../common/modules/jwt.module';
     TenantModule,
     NotificationModule,
     WorkflowModule,
+    TenantSettingsModule,
   ],
   providers: [OvertimeService, OvertimeWorkflowListener],
   controllers: [OvertimeController],

@@ -1,6 +1,8 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class CreateAnnouncementsTable1771400000000 implements MigrationInterface {
+export class CreateAnnouncementsTable1771400000000
+  implements MigrationInterface
+{
   name = 'CreateAnnouncementsTable1771400000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -113,13 +115,23 @@ export class CreateAnnouncementsTable1771400000000 implements MigrationInterface
     `);
 
     // Drop indexes
-    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_announcements_tenant_scheduled"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_announcements_tenant_category"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_announcements_tenant_status"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "IDX_announcements_tenant_scheduled"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "IDX_announcements_tenant_category"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "IDX_announcements_tenant_status"`,
+    );
 
     // Drop foreign keys
-    await queryRunner.query(`ALTER TABLE "announcements" DROP CONSTRAINT IF EXISTS "FK_announcements_creator"`);
-    await queryRunner.query(`ALTER TABLE "announcements" DROP CONSTRAINT IF EXISTS "FK_announcements_tenant"`);
+    await queryRunner.query(
+      `ALTER TABLE "announcements" DROP CONSTRAINT IF EXISTS "FK_announcements_creator"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "announcements" DROP CONSTRAINT IF EXISTS "FK_announcements_tenant"`,
+    );
 
     // Drop table
     await queryRunner.query(`DROP TABLE IF EXISTS "announcements"`);

@@ -1,8 +1,10 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
-import { v4 as uuidv4 } from "uuid";
+import { MigrationInterface, QueryRunner } from 'typeorm';
+import { v4 as uuidv4 } from 'uuid';
 
-export class AddViewLeaveReportsPermissionToHrAdmin1760000000001 implements MigrationInterface {
-  name = 'AddViewLeaveReportsPermissionToHrAdmin1760000000001'
+export class AddViewLeaveReportsPermissionToHrAdmin1760000000001
+  implements MigrationInterface
+{
+  name = 'AddViewLeaveReportsPermissionToHrAdmin1760000000001';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // 1. Add view_leave_reports permission if it doesn't exist
@@ -16,7 +18,7 @@ export class AddViewLeaveReportsPermissionToHrAdmin1760000000001 implements Migr
     const hrAdminRole = await queryRunner.query(
       `SELECT id FROM roles WHERE name = 'hr-admin' LIMIT 1`,
     );
-    
+
     if (!hrAdminRole.length) {
       throw new Error('HR Admin role not found');
     }
@@ -25,7 +27,7 @@ export class AddViewLeaveReportsPermissionToHrAdmin1760000000001 implements Migr
     const permission = await queryRunner.query(
       `SELECT id FROM permissions WHERE name = 'view_leave_reports' LIMIT 1`,
     );
-    
+
     if (!permission.length) {
       throw new Error('view_leave_reports permission not found');
     }

@@ -21,7 +21,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { AuthenticatedRequest } from '../../common/types/request.types';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -31,7 +31,7 @@ import { CreateAnnouncementDto, UpdateAnnouncementDto } from './dto';
 
 @ApiTags('Announcements')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, TenantGuard, PermissionsGuard)
+@UseGuards(TenantGuard, RolesGuard, PermissionsGuard)
 @Controller('announcements')
 export class AnnouncementController {
   constructor(private readonly service: AnnouncementService) {}
@@ -44,9 +44,15 @@ export class AnnouncementController {
     description:
       'Create an announcement. Set send_now=true to send immediately, or set scheduled_at for scheduled delivery.',
   })
-  @ApiResponse({ status: 201, description: 'Announcement created successfully.' })
+  @ApiResponse({
+    status: 201,
+    description: 'Announcement created successfully.',
+  })
   @ApiResponse({ status: 400, description: 'Validation error.' })
-  @ApiResponse({ status: 403, description: 'Forbidden - insufficient permissions.' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - insufficient permissions.',
+  })
   async create(
     @Req() req: AuthenticatedRequest,
     @Body() dto: CreateAnnouncementDto,
@@ -69,7 +75,12 @@ export class AnnouncementController {
     summary: 'Get all announcements',
     description: 'Retrieve paginated list of all announcements for the tenant.',
   })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (default: 1)',
+  })
   @ApiResponse({ status: 200, description: 'List of announcements.' })
   async findAll(
     @Req() req: AuthenticatedRequest,
@@ -116,10 +127,14 @@ export class AnnouncementController {
   @Permissions('announcement.update')
   @ApiOperation({
     summary: 'Update an announcement',
-    description: 'Update an existing announcement. Cannot update if already sent.',
+    description:
+      'Update an existing announcement. Cannot update if already sent.',
   })
   @ApiParam({ name: 'id', type: String, description: 'Announcement UUID' })
-  @ApiResponse({ status: 200, description: 'Announcement updated successfully.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Announcement updated successfully.',
+  })
   @ApiResponse({ status: 400, description: 'Cannot update sent announcement.' })
   @ApiResponse({ status: 404, description: 'Announcement not found.' })
   async update(
@@ -140,11 +155,15 @@ export class AnnouncementController {
   @Permissions('announcement.send')
   @ApiOperation({
     summary: 'Send an announcement',
-    description: 'Send a draft or scheduled announcement immediately to all tenant users.',
+    description:
+      'Send a draft or scheduled announcement immediately to all tenant users.',
   })
   @ApiParam({ name: 'id', type: String, description: 'Announcement UUID' })
   @ApiResponse({ status: 200, description: 'Announcement sent successfully.' })
-  @ApiResponse({ status: 400, description: 'Announcement already sent or cancelled.' })
+  @ApiResponse({
+    status: 400,
+    description: 'Announcement already sent or cancelled.',
+  })
   @ApiResponse({ status: 404, description: 'Announcement not found.' })
   async send(
     @Req() req: AuthenticatedRequest,
@@ -163,10 +182,14 @@ export class AnnouncementController {
   @Permissions('announcement.update')
   @ApiOperation({
     summary: 'Cancel a scheduled announcement',
-    description: 'Cancel a scheduled announcement. Cannot cancel if already sent.',
+    description:
+      'Cancel a scheduled announcement. Cannot cancel if already sent.',
   })
   @ApiParam({ name: 'id', type: String, description: 'Announcement UUID' })
-  @ApiResponse({ status: 200, description: 'Announcement cancelled successfully.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Announcement cancelled successfully.',
+  })
   @ApiResponse({ status: 400, description: 'Cannot cancel sent announcement.' })
   @ApiResponse({ status: 404, description: 'Announcement not found.' })
   async cancel(
@@ -189,7 +212,10 @@ export class AnnouncementController {
     description: 'Soft delete an announcement.',
   })
   @ApiParam({ name: 'id', type: String, description: 'Announcement UUID' })
-  @ApiResponse({ status: 200, description: 'Announcement deleted successfully.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Announcement deleted successfully.',
+  })
   @ApiResponse({ status: 404, description: 'Announcement not found.' })
   async remove(
     @Req() req: AuthenticatedRequest,

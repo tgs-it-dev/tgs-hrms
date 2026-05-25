@@ -30,7 +30,6 @@ export class Team {
   @CreateDateColumn()
   created_at: Date;
 
-  
   @ManyToOne(() => User, (user) => user.managedTeams, { nullable: false })
   @JoinColumn({ name: 'manager_id' })
   manager: User;

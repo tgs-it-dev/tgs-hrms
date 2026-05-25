@@ -1,7 +1,9 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class CreateAssetRequestsTable1760100000001 implements MigrationInterface {
-  name = 'CreateAssetRequestsTable1760100000001'
+export class CreateAssetRequestsTable1760100000001
+  implements MigrationInterface
+{
+  name = 'CreateAssetRequestsTable1760100000001';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
@@ -47,12 +49,18 @@ export class CreateAssetRequestsTable1760100000001 implements MigrationInterface
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "asset_requests" DROP CONSTRAINT "FK_asset_requests_tenant"`);
-    await queryRunner.query(`ALTER TABLE "asset_requests" DROP CONSTRAINT "FK_asset_requests_approved_by_user"`);
-    await queryRunner.query(`ALTER TABLE "asset_requests" DROP CONSTRAINT "FK_asset_requests_requested_by_user"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "public"."IDX_asset_requests_tenant"`);
+    await queryRunner.query(
+      `ALTER TABLE "asset_requests" DROP CONSTRAINT "FK_asset_requests_tenant"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "asset_requests" DROP CONSTRAINT "FK_asset_requests_approved_by_user"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "asset_requests" DROP CONSTRAINT "FK_asset_requests_requested_by_user"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "public"."IDX_asset_requests_tenant"`,
+    );
     await queryRunner.query(`DROP TABLE "asset_requests"`);
   }
 }
-
-

@@ -1,7 +1,7 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class TenantDeleted1761048855939 implements MigrationInterface {
-  name = "TenantDeleted1761048855939";
+  name = 'TenantDeleted1761048855939';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Add isDeleted column if not exists
@@ -45,8 +45,14 @@ export class TenantDeleted1761048855939 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "tenants" DROP COLUMN IF EXISTS "deleted_at"`);
-    await queryRunner.query(`ALTER TABLE "tenants" DROP COLUMN IF EXISTS "updated_at"`);
-    await queryRunner.query(`ALTER TABLE "tenants" DROP COLUMN IF EXISTS "isDeleted"`);
+    await queryRunner.query(
+      `ALTER TABLE "tenants" DROP COLUMN IF EXISTS "deleted_at"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "tenants" DROP COLUMN IF EXISTS "updated_at"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "tenants" DROP COLUMN IF EXISTS "isDeleted"`,
+    );
   }
 }

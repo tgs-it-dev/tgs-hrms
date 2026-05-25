@@ -46,7 +46,10 @@ const PERMISSIONS_FROM_CSV: { name: string; description: string }[] = [
   { name: 'manage_company', description: 'manage company details' },
   { name: 'manage_leave_types', description: 'Manage leave types' },
   { name: 'view_leave_types', description: 'View leave types' },
-  { name: 'view_leave_reports', description: 'View comprehensive leave reports' },
+  {
+    name: 'view_leave_reports',
+    description: 'View comprehensive leave reports',
+  },
   { name: 'task.create', description: 'Create new tasks' },
   { name: 'task.read', description: 'View task information' },
   { name: 'task.update', description: 'Update task information' },
@@ -286,11 +289,17 @@ async function run() {
       if (inserted.length > 0) permissionsInserted++;
     }
     if (permissionsInserted > 0) {
-      console.log(`[seed-missing-role-permissions] Inserted ${permissionsInserted} missing permission(s).`);
+      console.log(
+        `[seed-missing-role-permissions] Inserted ${permissionsInserted} missing permission(s).`,
+      );
     }
 
-    const roleRows: { id: string; name: string }[] = await dataSource.query(`SELECT id, name FROM roles`);
-    const permRows: { id: string; name: string }[] = await dataSource.query(`SELECT id, name FROM permissions`);
+    const roleRows: { id: string; name: string }[] = await dataSource.query(
+      `SELECT id, name FROM roles`,
+    );
+    const permRows: { id: string; name: string }[] = await dataSource.query(
+      `SELECT id, name FROM permissions`,
+    );
 
     const roleIdByNormalizedName = new Map<string, string>();
     for (const r of roleRows) {
@@ -308,7 +317,9 @@ async function run() {
     const missingRoles: string[] = [];
     const missingPerms = new Set<string>();
 
-    for (const [roleKey, permissionNames] of Object.entries(roleToPermissions)) {
+    for (const [roleKey, permissionNames] of Object.entries(
+      roleToPermissions,
+    )) {
       const roleId = roleIdByNormalizedName.get(roleKey);
       if (!roleId) {
         missingRoles.push(roleKey);
@@ -341,7 +352,10 @@ async function run() {
     }
 
     if (missingRoles.length) {
-      console.warn('[seed-missing-role-permissions] Roles not found in DB (skipped):', missingRoles.join(', '));
+      console.warn(
+        '[seed-missing-role-permissions] Roles not found in DB (skipped):',
+        missingRoles.join(', '),
+      );
     }
     if (missingPerms.size) {
       console.warn(
@@ -350,7 +364,9 @@ async function run() {
       );
     }
 
-    console.log(`[seed-missing-role-permissions] Done. Inserted: ${inserted}, Already existed: ${skipped}`);
+    console.log(
+      `[seed-missing-role-permissions] Done. Inserted: ${inserted}, Already existed: ${skipped}`,
+    );
   } catch (err) {
     console.error('[seed-missing-role-permissions] Error:', err);
     process.exit(1);

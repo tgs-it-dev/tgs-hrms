@@ -1,12 +1,12 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
-import { Tenant } from "src/entities/tenant.entity";
-import { Employee } from "src/entities/employee.entity";
-import { Department } from "src/entities/department.entity";
-import { Designation } from "src/entities/designation.entity";
-import { SystemLog } from "src/entities/system-log.entity";
-import { toCsv } from "src/common/utils/csv.util";
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Tenant } from 'src/entities/tenant.entity';
+import { Employee } from 'src/entities/employee.entity';
+import { Department } from 'src/entities/department.entity';
+import { Designation } from 'src/entities/designation.entity';
+import { SystemLog } from 'src/entities/system-log.entity';
+import { toCsv } from 'src/common/utils/csv.util';
 
 @Injectable()
 export class SystemService {
@@ -39,7 +39,7 @@ export class SystemService {
   async getDashboardSummary() {
     const totalTenants = await this.tenantRepo.count();
     const activeTenants = await this.tenantRepo.count({
-      where: { status: "active" },
+      where: { status: 'active' },
     });
 
     const totalEmployees = await this.employeeRepo.count();
@@ -55,24 +55,24 @@ export class SystemService {
     //   .getRawMany();
 
     const activeEmployeesPerTenant = await this.employeeRepo
-  .createQueryBuilder("employee")
-  .innerJoin("employee.user", "user")
-  .innerJoin("user.tenant", "tenant")
-  .select("user.tenant_id", "tenantId")
-  .addSelect("tenant.name", "tenantName")
-  .addSelect("COUNT(employee.id)", "activeCount")
-  .where("employee.status = :status", { status: "active" })
-  .andWhere("tenant.status = :tenantStatus", { tenantStatus: "active" })
-  .andWhere("tenant.deleted_at IS NULL")
-  .groupBy("user.tenant_id")
-  .addGroupBy("tenant.name")
-  .orderBy("COUNT(employee.id)", "DESC")
-  .getRawMany();
+      .createQueryBuilder('employee')
+      .innerJoin('employee.user', 'user')
+      .innerJoin('user.tenant', 'tenant')
+      .select('user.tenant_id', 'tenantId')
+      .addSelect('tenant.name', 'tenantName')
+      .addSelect('COUNT(employee.id)', 'activeCount')
+      .where('employee.status = :status', { status: 'active' })
+      .andWhere('tenant.status = :tenantStatus', { tenantStatus: 'active' })
+      .andWhere('tenant.deleted_at IS NULL')
+      .groupBy('user.tenant_id')
+      .addGroupBy('tenant.name')
+      .orderBy('COUNT(employee.id)', 'DESC')
+      .getRawMany();
 
     const systemUptimeSeconds = Math.floor(process.uptime());
 
     let recentLogs = await this.systemLogRepo.find({
-      order: { createdAt: "DESC" },
+      order: { createdAt: 'DESC' },
       take: 10,
     });
 
@@ -119,21 +119,27 @@ export class SystemService {
     const skip = (page - 1) * take;
 
     const query = this.systemLogRepo
-      .createQueryBuilder("log")
-      .orderBy("log.createdAt", "DESC")
+      .createQueryBuilder('log')
+      .orderBy('log.createdAt', 'DESC')
       .skip(skip)
       .take(take);
 
     if (filters?.userRole) {
-      query.andWhere("log.userRole = :userRole", { userRole: filters.userRole });
+      query.andWhere('log.userRole = :userRole', {
+        userRole: filters.userRole,
+      });
     }
 
     if (filters?.tenantId) {
-      query.andWhere("log.tenantId = :tenantId", { tenantId: filters.tenantId });
+      query.andWhere('log.tenantId = :tenantId', {
+        tenantId: filters.tenantId,
+      });
     }
 
     if (filters?.method) {
-      query.andWhere("log.method = :method", { method: filters.method.toUpperCase() });
+      query.andWhere('log.method = :method', {
+        method: filters.method.toUpperCase(),
+      });
     }
 
     const logs = await query.getMany();
@@ -158,12 +164,12 @@ export class SystemService {
    */
   async exportSystemLogs(): Promise<string> {
     const logs = await this.systemLogRepo.find({
-      order: { createdAt: "DESC" },
+      order: { createdAt: 'DESC' },
       take: 1000,
     });
 
     if (!logs || logs.length === 0) {
-      throw new NotFoundException("No system logs available for export");
+      throw new NotFoundException('No system logs available for export');
     }
 
     const csvData = logs.map((log) => ({
@@ -176,7 +182,7 @@ export class SystemService {
       Route: log.route,
       Method: log.method,
       IP: log.ip,
-      Meta: log.meta ? JSON.stringify(log.meta) : "",
+      Meta: log.meta ? JSON.stringify(log.meta) : '',
     }));
 
     return toCsv(csvData);
@@ -190,7 +196,7 @@ export class SystemService {
    */
   async getTenantGrowthOverview(year: number, tenant_id: string) {
     if (!tenant_id) {
-      throw new NotFoundException("Tenant ID is required");
+      throw new NotFoundException('Tenant ID is required');
     }
 
     // Fetch tenant information
@@ -200,14 +206,14 @@ export class SystemService {
     });
 
     if (!tenant) {
-      throw new NotFoundException("Tenant not found");
+      throw new NotFoundException('Tenant not found');
     }
 
     // Generate months up to current month only (exclude future months)
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth() + 1; // getMonth() returns 0-11
-    
+
     let months: number[];
     if (year === currentYear) {
       // For current year, only include months up to current month
@@ -223,58 +229,58 @@ export class SystemService {
     // Get monthly new additions (non-cumulative) for each entity
     // Employees: New employees created per month
     const employeeMonthlyAdditions = await this.employeeRepo
-      .createQueryBuilder("employee")
-      .innerJoin("employee.user", "user")
-      .select("TO_CHAR(employee.created_at, 'YYYY-MM')", "month")
-      .addSelect("COUNT(employee.id)", "count")
-      .where("EXTRACT(YEAR FROM employee.created_at) = :year", { year })
-      .andWhere("user.tenant_id = :tenant_id", { tenant_id })
-      .groupBy("month")
-      .orderBy("month", "ASC")
+      .createQueryBuilder('employee')
+      .innerJoin('employee.user', 'user')
+      .select("TO_CHAR(employee.created_at, 'YYYY-MM')", 'month')
+      .addSelect('COUNT(employee.id)', 'count')
+      .where('EXTRACT(YEAR FROM employee.created_at) = :year', { year })
+      .andWhere('user.tenant_id = :tenant_id', { tenant_id })
+      .groupBy('month')
+      .orderBy('month', 'ASC')
       .getRawMany();
 
     // Departments: New departments created per month
     const departmentMonthlyAdditions = await this.departmentRepo
-      .createQueryBuilder("department")
-      .select("TO_CHAR(department.created_at, 'YYYY-MM')", "month")
-      .addSelect("COUNT(department.id)", "count")
-      .where("EXTRACT(YEAR FROM department.created_at) = :year", { year })
-      .andWhere("department.tenant_id = :tenant_id", { tenant_id })
-      .groupBy("month")
-      .orderBy("month", "ASC")
+      .createQueryBuilder('department')
+      .select("TO_CHAR(department.created_at, 'YYYY-MM')", 'month')
+      .addSelect('COUNT(department.id)', 'count')
+      .where('EXTRACT(YEAR FROM department.created_at) = :year', { year })
+      .andWhere('department.tenant_id = :tenant_id', { tenant_id })
+      .groupBy('month')
+      .orderBy('month', 'ASC')
       .getRawMany();
 
     // Designations: New designations created per month (tenant-based)
     const designationMonthlyAdditions = await this.designationRepo
-      .createQueryBuilder("designation")
-      .innerJoin("designation.department", "department")
-      .select("TO_CHAR(designation.created_at, 'YYYY-MM')", "month")
-      .addSelect("COUNT(designation.id)", "count")
-      .where("EXTRACT(YEAR FROM designation.created_at) = :year", { year })
-      .andWhere("designation.tenant_id = :tenant_id", { tenant_id })
-      .groupBy("month")
-      .orderBy("month", "ASC")
+      .createQueryBuilder('designation')
+      .innerJoin('designation.department', 'department')
+      .select("TO_CHAR(designation.created_at, 'YYYY-MM')", 'month')
+      .addSelect('COUNT(designation.id)', 'count')
+      .where('EXTRACT(YEAR FROM designation.created_at) = :year', { year })
+      .andWhere('designation.tenant_id = :tenant_id', { tenant_id })
+      .groupBy('month')
+      .orderBy('month', 'ASC')
       .getRawMany();
 
     // Get baseline counts (total created before the specified year)
     const baselineEmployees = await this.employeeRepo
-      .createQueryBuilder("employee")
-      .innerJoin("employee.user", "user")
-      .where("EXTRACT(YEAR FROM employee.created_at) < :year", { year })
-      .andWhere("user.tenant_id = :tenant_id", { tenant_id })
+      .createQueryBuilder('employee')
+      .innerJoin('employee.user', 'user')
+      .where('EXTRACT(YEAR FROM employee.created_at) < :year', { year })
+      .andWhere('user.tenant_id = :tenant_id', { tenant_id })
       .getCount();
 
     const baselineDepartments = await this.departmentRepo
-      .createQueryBuilder("department")
-      .where("EXTRACT(YEAR FROM department.created_at) < :year", { year })
-      .andWhere("department.tenant_id = :tenant_id", { tenant_id })
+      .createQueryBuilder('department')
+      .where('EXTRACT(YEAR FROM department.created_at) < :year', { year })
+      .andWhere('department.tenant_id = :tenant_id', { tenant_id })
       .getCount();
 
     const baselineDesignations = await this.designationRepo
-      .createQueryBuilder("designation")
-      .innerJoin("designation.department", "department")
-      .where("EXTRACT(YEAR FROM designation.created_at) < :year", { year })
-      .andWhere("designation.tenant_id = :tenant_id", { tenant_id })
+      .createQueryBuilder('designation')
+      .innerJoin('designation.department', 'department')
+      .where('EXTRACT(YEAR FROM designation.created_at) < :year', { year })
+      .andWhere('designation.tenant_id = :tenant_id', { tenant_id })
       .getCount();
 
     // Initialize cumulative counters with baseline
@@ -293,21 +299,21 @@ export class SystemService {
       designations: number;
     }> = [];
     for (const month of months) {
-      const monthKey = `${year}-${String(month).padStart(2, "0")}`;
-      const monthName = new Date(year, month - 1).toLocaleString("default", {
-        month: "short",
+      const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+      const monthName = new Date(year, month - 1).toLocaleString('default', {
+        month: 'short',
       });
 
       // Find additions for this month
       const newEmployees =
         employeeMonthlyAdditions.find((e) => e.month === monthKey)?.count ||
-        "0";
+        '0';
       const newDepartments =
         departmentMonthlyAdditions.find((d) => d.month === monthKey)?.count ||
-        "0";
+        '0';
       const newDesignations =
         designationMonthlyAdditions.find((d) => d.month === monthKey)?.count ||
-        "0";
+        '0';
 
       // Update cumulative totals
       cumulativeEmployees += parseInt(newEmployees, 10);

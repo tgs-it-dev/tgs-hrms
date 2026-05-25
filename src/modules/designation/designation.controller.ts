@@ -1,9 +1,25 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards, Query } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Put,
+  UseGuards,
+  Query,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { DesignationService } from './designation.service';
 import { CreateDesignationDto } from './dto/create-designation.dto';
 import { UpdateDesignationDto } from './dto/update-designation.dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { TenantGuard } from '../../common/guards/tenant.guard';
 import { TenantId } from '../../common/decorators/company.deorator';
@@ -12,7 +28,7 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard';
 
 @ApiTags('Designations')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, TenantGuard, PermissionsGuard)
+@UseGuards(TenantGuard, RolesGuard, PermissionsGuard)
 @Controller('designations')
 export class DesignationController {
   constructor(private service: DesignationService) {}
@@ -28,17 +44,21 @@ export class DesignationController {
     schema: {
       example: {
         statusCode: 409,
-        message: 'Designation with this title already exists in this department',
+        message:
+          'Designation with this title already exists in this department',
         error: 'Conflict',
       },
     },
   })
-  async create(@TenantId() tenant_id: string, @Body() dto: CreateDesignationDto) {
+  async create(
+    @TenantId() tenant_id: string,
+    @Body() dto: CreateDesignationDto,
+  ) {
     return this.service.create(tenant_id, dto);
   }
 
   @Put(':id')
-  @Roles('admin', 'system-admin' , 'hr-admin')
+  @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('manage_designations')
   @ApiOperation({ summary: 'Update designation' })
   @ApiResponse({ status: 200, description: 'Designation updated.' })
@@ -62,10 +82,12 @@ export class DesignationController {
     return this.service.update(tenant_id, id, dto);
   }
 
-  
   @Get('all-tenants')
   @Roles('system-admin')
-  @ApiOperation({ summary: 'Get all designations across all tenants with tenant filter (System Admin only)' })
+  @ApiOperation({
+    summary:
+      'Get all designations across all tenants with tenant filter (System Admin only)',
+  })
   @ApiQuery({
     name: 'tenant_id',
     required: false,
@@ -74,15 +96,14 @@ export class DesignationController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Returns all designations grouped by tenant with department information',
+    description:
+      'Returns all designations grouped by tenant with department information',
   })
   @ApiResponse({
     status: 403,
     description: 'Forbidden - System admin access required',
   })
-  async getAllDesignationsAcrossTenants(
-    @Query('tenant_id') tenantId?: string
-  ) {
+  async getAllDesignationsAcrossTenants(@Query('tenant_id') tenantId?: string) {
     return this.service.getAllDesignationsAcrossTenants(tenantId);
   }
 
@@ -97,7 +118,11 @@ export class DesignationController {
     @Query('page') page?: string,
   ) {
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-    return this.service.findAllByDepartment(tenant_id, departmentId, pageNumber);
+    return this.service.findAllByDepartment(
+      tenant_id,
+      departmentId,
+      pageNumber,
+    );
   }
 
   @Get(':id')

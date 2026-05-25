@@ -1,13 +1,11 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { SendGridService } from "./sendgrid.service";
+import { Injectable, Logger } from '@nestjs/common';
+import { SendGridService } from './sendgrid.service';
 
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
 
-  constructor(
-    private readonly sendGridService: SendGridService,
-  ) {}
+  constructor(private readonly sendGridService: SendGridService) {}
 
   async sendPasswordResetEmail(
     email: string,
@@ -25,7 +23,7 @@ export class EmailService {
         `Failed to send password reset email to ${email}:`,
         error,
       );
-      throw new Error("Failed to send password reset email");
+      throw new Error('Failed to send password reset email');
     }
   }
 
@@ -40,6 +38,26 @@ export class EmailService {
         `Failed to send password reset success email to ${email}:`,
         error,
       );
+    }
+  }
+
+  async sendVerificationEmail(
+    email: string,
+    verificationToken: string,
+    userName: string,
+  ): Promise<void> {
+    try {
+      await this.sendGridService.sendVerificationEmail(
+        email,
+        verificationToken,
+        userName,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to send verification email to ${email}:`,
+        error,
+      );
+      // Do not re-throw — registration should still succeed even if email fails
     }
   }
 }

@@ -10,7 +10,11 @@ import {
 } from 'typeorm';
 import { User } from './user.entity';
 import { Tenant } from './tenant.entity';
-import { NotificationType, NotificationStatus, NotificationAction } from '../common/constants/enums';
+import {
+  NotificationType,
+  NotificationStatus,
+  NotificationAction,
+} from '../common/constants/enums';
 
 @Index(['user_id'])
 @Index(['tenant_id'])

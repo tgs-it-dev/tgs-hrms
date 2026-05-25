@@ -1,11 +1,11 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
-import { InjectDataSource, InjectRepository } from "@nestjs/typeorm";
-import { DataSource, EntityManager, Repository } from "typeorm";
-import { LeaveType } from "../../entities/leave-type.entity";
-import { CreateLeaveTypeDto } from "./dto/create-leave-type.dto";
-import { UpdateLeaveTypeDto } from "./dto/update-leave-type.dto";
-import { PaginationResponse } from "../../common/interfaces/pagination.interface";
-import { TenantDatabaseService } from "../../common/services/tenant-database.service";
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
+import { LeaveType } from '../../entities/leave-type.entity';
+import { CreateLeaveTypeDto } from './dto/create-leave-type.dto';
+import { UpdateLeaveTypeDto } from './dto/update-leave-type.dto';
+import { PaginationResponse } from '../../common/interfaces/pagination.interface';
+import { TenantDatabaseService } from '../../common/services/tenant-database.service';
 
 @Injectable()
 export class LeaveTypeService {
@@ -68,8 +68,8 @@ export class LeaveTypeService {
 
     const fetch = (repo: Repository<LeaveType>) =>
       repo.findAndCount({
-        where: { tenantId, status: "active" },
-        order: { createdAt: "DESC" },
+        where: { tenantId, status: 'active' },
+        order: { createdAt: 'DESC' },
         skip,
         take: limit,
       });
@@ -93,7 +93,7 @@ export class LeaveTypeService {
     return this.runInTenantContext(tenantId, async (repo) => {
       const leaveType = await repo.findOne({ where: { id, tenantId } });
       if (!leaveType) {
-        throw new NotFoundException("Leave type not found");
+        throw new NotFoundException('Leave type not found');
       }
       return leaveType;
     });
@@ -107,7 +107,7 @@ export class LeaveTypeService {
     return this.runInTenantContext(tenantId, async (repo) => {
       const leaveType = await repo.findOne({ where: { id, tenantId } });
       if (!leaveType) {
-        throw new NotFoundException("Leave type not found");
+        throw new NotFoundException('Leave type not found');
       }
       Object.assign(leaveType, updateLeaveTypeDto);
       return repo.save(leaveType);
@@ -118,9 +118,9 @@ export class LeaveTypeService {
     await this.runInTenantContext(tenantId, async (repo) => {
       const leaveType = await repo.findOne({ where: { id, tenantId } });
       if (!leaveType) {
-        throw new NotFoundException("Leave type not found");
+        throw new NotFoundException('Leave type not found');
       }
-      leaveType.status = "inactive";
+      leaveType.status = 'inactive';
       await repo.save(leaveType);
     });
   }

@@ -161,7 +161,9 @@ export class CreateWorkflowTables1772900000000 implements MigrationInterface {
     await queryRunner.query(
       `DROP INDEX IF EXISTS "${schema}"."IDX_workflow_steps_approver_${schema}"`,
     );
-    await queryRunner.query(`DROP TABLE IF EXISTS "${schema}"."workflow_steps"`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "${schema}"."workflow_steps"`,
+    );
 
     await queryRunner.query(
       `DROP INDEX IF EXISTS "${schema}"."IDX_workflow_requests_tenant_status_${schema}"`,
@@ -175,12 +177,16 @@ export class CreateWorkflowTables1772900000000 implements MigrationInterface {
     await queryRunner.query(
       `DROP INDEX IF EXISTS "${schema}"."IDX_workflow_requests_tenant_type_${schema}"`,
     );
-    await queryRunner.query(`DROP TABLE IF EXISTS "${schema}"."workflow_requests"`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "${schema}"."workflow_requests"`,
+    );
 
     await queryRunner.query(
       `DROP INDEX IF EXISTS "${schema}"."IDX_workflow_configs_tenant_type_${schema}"`,
     );
-    await queryRunner.query(`DROP TABLE IF EXISTS "${schema}"."workflow_configs"`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "${schema}"."workflow_configs"`,
+    );
   }
 
   // ── up ─────────────────────────────────────────────────────────────────────
@@ -239,7 +245,7 @@ export class CreateWorkflowTables1772900000000 implements MigrationInterface {
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     // 1. Clean up each provisioned tenant schema
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
     const provisionedRowsDown = await queryRunner.query(
       `SELECT id FROM public.tenants WHERE schema_provisioned = true`,
     );

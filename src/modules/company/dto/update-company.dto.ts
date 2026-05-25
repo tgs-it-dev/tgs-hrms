@@ -4,7 +4,7 @@ import { IsNotEmpty, IsString, IsOptional } from 'class-validator';
 export class UpdateCompanyDto {
   @ApiProperty({
     description: 'Company name',
-    example: 'Tech Solutions Inc'
+    example: 'Tech Solutions Inc',
   })
   @IsString()
   @IsNotEmpty()
@@ -12,7 +12,7 @@ export class UpdateCompanyDto {
 
   @ApiProperty({
     description: 'Company domain',
-    example: 'techsolutions.com'
+    example: 'techsolutions.com',
   })
   @IsString()
   @IsNotEmpty()
@@ -21,7 +21,7 @@ export class UpdateCompanyDto {
   @ApiProperty({
     description: 'Company logo URL',
     example: 'https://example.com/logo.png',
-    required: false
+    required: false,
   })
   @IsString()
   @IsOptional()
