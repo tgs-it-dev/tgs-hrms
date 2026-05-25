@@ -361,6 +361,8 @@ export class LeaveController {
   }
 
   @Get()
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('admin', 'system-admin', 'hr-admin', 'manager', 'employee')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all leaves for logged-in employee' })
   @ApiResponse({ status: 200, description: 'Returns leave requests' })
@@ -529,48 +531,6 @@ export class LeaveController {
   })
   @ApiResponse({ status: 200, description: 'Leave rejected successfully' })
   async rejectLeave(
-    @Param('id') id: string,
-    @Body() dto: RejectLeaveDto,
-    @Request() req: AuthenticatedRequest,
-  ) {
-    return this.leaveService.rejectLeave(
-      id,
-      req.user.id,
-      req.user.tenant_id,
-      dto.remarks,
-    );
-  }
-
-  @Put(':id/approve')
-  @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin', 'manager')
-  @Permissions('approve_leaves', 'manage_leaves')
-  @ApiBearerAuth()
-  @ApiOperation({
-    summary: 'Approve a leave request — PUT alias (legacy path)',
-  })
-  @ApiResponse({ status: 200, description: 'Leave approved successfully' })
-  async approveLeavePut(
-    @Param('id') id: string,
-    @Body() dto: ApproveLeaveDto,
-    @Request() req: AuthenticatedRequest,
-  ) {
-    return this.leaveService.approveLeave(
-      id,
-      req.user.id,
-      req.user.tenant_id,
-      dto.remarks,
-    );
-  }
-
-  @Put(':id/reject')
-  @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin', 'manager')
-  @Permissions('approve_leaves', 'manage_leaves')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Reject a leave request — PUT alias (legacy path)' })
-  @ApiResponse({ status: 200, description: 'Leave rejected successfully' })
-  async rejectLeavePut(
     @Param('id') id: string,
     @Body() dto: RejectLeaveDto,
     @Request() req: AuthenticatedRequest,

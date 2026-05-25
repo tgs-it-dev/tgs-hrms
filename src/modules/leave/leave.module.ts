@@ -16,6 +16,7 @@ import { TenantModule } from '../tenant/tenant.module';
 import { WorkflowModule } from '../workflow/workflow.module';
 import { LeaveWorkflowListener } from './listeners/workflow.listener';
 import { TenantSettingsModule } from '../tenant-settings/tenant-settings.module';
+import { EmailModule } from '../../common/utils/email/email.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { TenantSettingsModule } from '../tenant-settings/tenant-settings.module'
     TenantModule,
     WorkflowModule,
     TenantSettingsModule,
+    EmailModule,
   ],
   providers: [LeaveService, LeaveFileUploadService, LeaveWorkflowListener],
   controllers: [LeaveController, LeaveBalancesController],

@@ -16,12 +16,14 @@ import { NotificationService } from '../../notification/notification.service';
 import { NotificationGateway } from '../../notification/notification.gateway';
 import { WorkflowCompletedEvent } from '../../workflow/events/workflow-completed.event';
 import { WORKFLOW_EVENTS } from '../../workflow/constants/workflow.constants';
+import { LeaveService } from '../../leave/leave.service';
 
 @Injectable()
 export class LeaveWorkflowListener {
   private readonly logger = new Logger(LeaveWorkflowListener.name);
 
   constructor(
+    private readonly leaveService: LeaveService,
     @InjectRepository(Leave)
     private readonly leaveRepo: Repository<Leave>,
     @InjectRepository(LeaveBalance)
@@ -71,33 +73,6 @@ export class LeaveWorkflowListener {
     return work(this.leaveRepo, this.leaveBalanceRepo, this.leaveTypeRepo, null);
   }
 
-  private async deductLeaveBalance(
-    balanceRepo: Repository<LeaveBalance>,
-    leaveTypeRepo: Repository<LeaveType>,
-    leave: Leave,
-    tenantId: string,
-  ): Promise<void> {
-    const year = new Date(leave.startDate).getFullYear();
-    let balance = await balanceRepo.findOne({
-      where: { employeeId: leave.employeeId, leaveTypeId: leave.leaveTypeId, year, tenantId },
-    });
-    if (!balance) {
-      const leaveType = await leaveTypeRepo.findOne({
-        where: { id: leave.leaveTypeId, tenantId },
-      });
-      balance = balanceRepo.create({
-        employeeId: leave.employeeId,
-        leaveTypeId: leave.leaveTypeId,
-        year,
-        allocated: leaveType?.maxDaysPerYear ?? 0,
-        used: 0,
-        tenantId,
-      });
-    }
-    balance.used += leave.totalDays;
-    await balanceRepo.save(balance);
-  }
-
   private async getAdminUserIds(tenantId: string): Promise<string[]> {
     const users = await this.userRepo
       .createQueryBuilder('user')
@@ -119,8 +94,12 @@ export class LeaveWorkflowListener {
   @OnEvent(WORKFLOW_EVENTS.STEP_APPROVED, { async: true })
   async handleStepApproved(event: WorkflowCompletedEvent): Promise<void> {
     if (event.requestType !== (WorkflowRequestType.LEAVE as string)) return;
+    if (event.finalApproverId === event.requestorId) {
+      this.logger.warn(`User ${event.finalApproverId} attempted to approve their own leave ${event.relatedEntityId} — skipping`);
+      return;
+    }
     try {
-      await this.runInTenantContext(event.tenantId, async (leaveRepo, _balanceRepo, _leaveTypeRepo) => {
+      await this.runInTenantContext(event.tenantId, async (leaveRepo, _balanceRepo, _leaveTypeRepo, _em) => {
         const leave = await leaveRepo.findOne({
           where: { id: event.relatedEntityId },
         });
@@ -174,22 +153,56 @@ export class LeaveWorkflowListener {
   @OnEvent(WORKFLOW_EVENTS.REQUEST_APPROVED, { async: true })
   async handleApproved(event: WorkflowCompletedEvent): Promise<void> {
     if (event.requestType !== (WorkflowRequestType.LEAVE as string)) return;
+    if (event.finalApproverId === event.requestorId) {
+      this.logger.warn(`User ${event.finalApproverId} attempted to approve their own leave ${event.relatedEntityId} — skipping`);
+      return;
+    }
+    
+    const isProvisioned = await this.isTenantSchemaProvisioned(event.tenantId);
+    const queryRunner = this.dataSource.createQueryRunner();
+    
     try {
-      await this.runInTenantContext(event.tenantId, async (leaveRepo, balanceRepo, leaveTypeRepo) => {
-        const leave = await leaveRepo.findOne({
-          where: { id: event.relatedEntityId },
-        });
-        if (!leave) return;
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
+      if (isProvisioned) {
+        await queryRunner.query(`SET search_path TO "${event.tenantId}"`);
+      }
 
-        leave.status = LeaveStatus.APPROVED;
-        leave.approvedBy = event.finalApproverId!;
-        leave.approvedAt = new Date();
-        leave.remarks = event.finalRemarks ?? '';
-        await leaveRepo.save(leave);
+      const em = queryRunner.manager;
+      const leaveRepo = em.getRepository(Leave);
+      const balanceRepo = em.getRepository(LeaveBalance);
+      const leaveTypeRepo = em.getRepository(LeaveType);
 
-        await this.deductLeaveBalance(balanceRepo, leaveTypeRepo, leave, event.tenantId);
+      const leave = await leaveRepo.findOne({
+        where: { id: event.relatedEntityId },
       });
+      if (!leave) {
+        await queryRunner.rollbackTransaction();
+        return;
+      }
 
+      // Deduct balance BEFORE marking APPROVED so both succeed or both fail
+      await this.leaveService.deductLeaveBalance(balanceRepo, leaveTypeRepo, leave, event.tenantId);
+
+      leave.status = LeaveStatus.APPROVED;
+      leave.approvedBy = event.finalApproverId!;
+      leave.approvedAt = new Date();
+      leave.remarks = event.finalRemarks ?? '';
+      await leaveRepo.save(leave);
+
+      await queryRunner.commitTransaction();
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      this.logger.error(
+        `Failed to handle approval for leave ${event.relatedEntityId}`,
+        error,
+      );
+      return;
+    } finally {
+      await queryRunner.release();
+    }
+
+    try {
       const employee = await this.userRepo.findOne({
         where: { id: event.requestorId },
       });
@@ -229,7 +242,7 @@ export class LeaveWorkflowListener {
       this.logger.log(`Leave ${event.relatedEntityId} fully APPROVED`);
     } catch (error) {
       this.logger.error(
-        `Failed to handle approval for leave ${event.relatedEntityId}`,
+        `Failed to send notification for leave ${event.relatedEntityId}`,
         error,
       );
     }
@@ -242,13 +255,15 @@ export class LeaveWorkflowListener {
   async handleRejected(event: WorkflowCompletedEvent): Promise<void> {
     if (event.requestType !== (WorkflowRequestType.LEAVE as string)) return;
     try {
-      await this.runInTenantContext(event.tenantId, async (leaveRepo, _balanceRepo, _leaveTypeRepo) => {
+      await this.runInTenantContext(event.tenantId, async (leaveRepo, _balanceRepo, _leaveTypeRepo, _em) => {
         const leave = await leaveRepo.findOne({
           where: { id: event.relatedEntityId },
         });
         if (!leave) return;
 
         leave.status = LeaveStatus.REJECTED;
+        leave.approvedBy = event.finalApproverId!;
+        leave.approvedAt = new Date();
         leave.remarks = event.finalRemarks ?? '';
         await leaveRepo.save(leave);
       });

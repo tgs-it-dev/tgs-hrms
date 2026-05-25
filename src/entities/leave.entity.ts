@@ -14,6 +14,7 @@ import { LeaveStatus } from '../common/constants/enums';
 import { Tenant } from './tenant.entity';
 
 @Entity('leaves')
+@Index(['status', 'employeeId', 'tenantId'])
 export class Leave {
   @PrimaryGeneratedColumn('uuid')
   id: string;
