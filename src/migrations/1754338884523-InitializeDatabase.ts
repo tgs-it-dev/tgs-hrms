@@ -75,14 +75,30 @@ export class InitializeDatabase1754338884523 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "users" DROP CONSTRAINT "FK_109638590074998bb72a2f2cf08"`);
-    await queryRunner.query(`ALTER TABLE "users" DROP CONSTRAINT "FK_a2cecd1a3531c0b041e29ba46e1"`);
-    await queryRunner.query(`ALTER TABLE "employees" DROP CONSTRAINT "FK_2de5d6e4fb3345f18bc467017f0"`);
-    await queryRunner.query(`ALTER TABLE "employees" DROP CONSTRAINT "FK_2d83c53c3e553a48dadb9722e38"`);
-    await queryRunner.query(`ALTER TABLE "designations" DROP CONSTRAINT "FK_97884615dba807341722aa7aa4b"`);
-    await queryRunner.query(`ALTER TABLE "departments" DROP CONSTRAINT "FK_146fd7019eea73f8ee7bbb52d4a"`);
-    await queryRunner.query(`ALTER TABLE "role_permissions" DROP CONSTRAINT "FK_17022daf3f885f7d35423e9971e"`);
-    await queryRunner.query(`ALTER TABLE "role_permissions" DROP CONSTRAINT "FK_178199805b901ccd220ab7740ec"`);
+    await queryRunner.query(
+      `ALTER TABLE "users" DROP CONSTRAINT "FK_109638590074998bb72a2f2cf08"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "users" DROP CONSTRAINT "FK_a2cecd1a3531c0b041e29ba46e1"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "employees" DROP CONSTRAINT "FK_2de5d6e4fb3345f18bc467017f0"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "employees" DROP CONSTRAINT "FK_2d83c53c3e553a48dadb9722e38"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "designations" DROP CONSTRAINT "FK_97884615dba807341722aa7aa4b"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "departments" DROP CONSTRAINT "FK_146fd7019eea73f8ee7bbb52d4a"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "role_permissions" DROP CONSTRAINT "FK_17022daf3f885f7d35423e9971e"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "role_permissions" DROP CONSTRAINT "FK_178199805b901ccd220ab7740ec"`,
+    );
     await queryRunner.query(`DROP TABLE "tenants"`);
     await queryRunner.query(`DROP TABLE "users"`);
     await queryRunner.query(`DROP TABLE "employees"`);

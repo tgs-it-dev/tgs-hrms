@@ -3,14 +3,14 @@ import {
   ExecutionContext,
   Injectable,
   NestInterceptor,
-} from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
-import { Request } from "express";
-import { Observable } from "rxjs";
-import { SystemLog } from "src/entities/system-log.entity";
-import { JwtUserPayloadDto } from "src/modules/auth/dto/jwt-payload.dto";
-import { Repository } from "typeorm";
-import { sanitizeRequestBody } from "../utils/sanitize-request-body";
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Request } from 'express';
+import { Observable } from 'rxjs';
+import { SystemLog } from 'src/entities/system-log.entity';
+import { JwtUserPayloadDto } from 'src/modules/auth/dto/jwt-payload.dto';
+import { Repository } from 'typeorm';
+import { sanitizeRequestBody } from '../utils/sanitize-request-body';
 
 @Injectable()
 export class SystemLoggingInterceptor implements NestInterceptor {
@@ -57,7 +57,7 @@ export class SystemLoggingInterceptor implements NestInterceptor {
   }
 
   private extractEntityFromPath(path: string): string {
-    const match = path?.split("/")?.[1];
-    return match ? match.replace(/s$/, "") : "Unknown";
+    const match = path?.split('/')?.[1];
+    return match ? match.replace(/s$/, '') : 'Unknown';
   }
 }

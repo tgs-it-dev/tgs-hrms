@@ -5,6 +5,6 @@ export class TenantGuard implements CanActivate {
   canActivate(ctx: ExecutionContext): boolean {
     const request = ctx.switchToHttp().getRequest();
     const user = request.user;
-    return Boolean(user?.tenant_id); 
+    return Boolean(user?.tenant_id);
   }
 }

@@ -2,7 +2,13 @@
  * Environment validation schema and configuration
  */
 
-import { IsString, IsNumber, IsBoolean, IsOptional, validateSync } from 'class-validator';
+import {
+  IsString,
+  IsNumber,
+  IsBoolean,
+  IsOptional,
+  validateSync,
+} from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { Logger } from '@nestjs/common';
 
@@ -150,9 +156,11 @@ export class EnvironmentVariables {
   AWS_S3_PUBLIC_URL_BASE: string;
 }
 
-export function validateEnvironment(config: Record<string, unknown>): EnvironmentVariables {
+export function validateEnvironment(
+  config: Record<string, unknown>,
+): EnvironmentVariables {
   const validatedConfig = new EnvironmentVariables();
-  
+
   // Transform and assign values
   Object.assign(validatedConfig, config);
 
@@ -163,16 +171,16 @@ export function validateEnvironment(config: Record<string, unknown>): Environmen
   if (errors.length > 0) {
     const logger = new Logger('EnvironmentValidation');
     logger.error('Environment validation failed:');
-    
+
     errors.forEach((error) => {
       const constraints = Object.values(error.constraints || {}).join(', ');
       logger.error(`  ${error.property}: ${constraints}`);
     });
-    
-    throw new Error('Environment validation failed. Please check your .env file.');
+
+    throw new Error(
+      'Environment validation failed. Please check your .env file.',
+    );
   }
 
   return validatedConfig;
 }
-
-

@@ -1,9 +1,9 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class AllowNullSignupSessionInCompanyDetails1768000000002
   implements MigrationInterface
 {
-  name = "AllowNullSignupSessionInCompanyDetails1768000000002";
+  name = 'AllowNullSignupSessionInCompanyDetails1768000000002';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(

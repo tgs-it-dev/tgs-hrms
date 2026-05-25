@@ -10,4 +10,3 @@ export class EmployeeCreatedEvent {
     public readonly employeeName: string,
   ) {}
 }
-

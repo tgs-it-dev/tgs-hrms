@@ -9,7 +9,10 @@ import {
   Index,
 } from 'typeorm';
 import { User } from './user.entity';
-import { AttendanceType, CheckInApprovalStatus } from '../common/constants/enums';
+import {
+  AttendanceType,
+  CheckInApprovalStatus,
+} from '../common/constants/enums';
 
 @Index(['user_id'])
 @Index(['timestamp'])
@@ -38,11 +41,11 @@ export class Attendance {
   created_at: Date;
 
   // Approval fields (only for CHECK_IN type)
-  @Column({ 
-    type: 'varchar', 
-    length: 20, 
+  @Column({
+    type: 'varchar',
+    length: 20,
     nullable: true,
-    default: CheckInApprovalStatus.PENDING 
+    default: CheckInApprovalStatus.PENDING,
   })
   approval_status: CheckInApprovalStatus | null;
 

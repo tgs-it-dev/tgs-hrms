@@ -1,9 +1,9 @@
-import { Injectable } from "@nestjs/common";
-import { S3StorageService } from "./storage.service";
+import { Injectable } from '@nestjs/common';
+import { S3StorageService } from './storage.service';
 import {
   FILE_URL_FIELD_NAMES,
   DEFAULT_SIGNED_URL_EXPIRES_IN,
-} from "./storage.constants";
+} from './storage.constants';
 
 const FILE_URL_FIELD_SET = new Set<string>(FILE_URL_FIELD_NAMES);
 
@@ -21,7 +21,7 @@ export class FileUrlSignerService {
         body.map((item) => this.signResponseBody(item, expiresInSeconds)),
       )) as T;
     }
-    if (typeof body !== "object") return body;
+    if (typeof body !== 'object') return body;
     if (
       body instanceof Date ||
       body instanceof RegExp ||
@@ -30,7 +30,7 @@ export class FileUrlSignerService {
       return body;
     }
     const keys = Object.keys(body);
-    const isPlainObject = body.constructor?.name === "Object";
+    const isPlainObject = body.constructor?.name === 'Object';
     const hasFileUrlField = keys.some((k) => FILE_URL_FIELD_SET.has(k));
     if (!isPlainObject && !hasFileUrlField) return body;
 
@@ -40,7 +40,7 @@ export class FileUrlSignerService {
         if (Array.isArray(value)) {
           out[key] = await Promise.all(
             value.map((item) =>
-              typeof item === "string"
+              typeof item === 'string'
                 ? this.storage.getSignedUrlForStoredValue(
                     item,
                     expiresInSeconds,
@@ -48,7 +48,7 @@ export class FileUrlSignerService {
                 : item,
             ),
           );
-        } else if (typeof value === "string") {
+        } else if (typeof value === 'string') {
           out[key] = await this.storage.getSignedUrlForStoredValue(
             value,
             expiresInSeconds,

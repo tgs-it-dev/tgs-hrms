@@ -1,4 +1,4 @@
-import { ConfigService } from "@nestjs/config";
+import { ConfigService } from '@nestjs/config';
 
 interface FrontendUrls {
   url: string;
@@ -10,17 +10,17 @@ interface FrontendUrls {
 
 export const getFrontendUrls = (configService: ConfigService): FrontendUrls => {
   const frontendUrl =
-    configService.get<string>("FRONTEND_URL") || "http://localhost:5173";
+    configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
   const linkedin_logo_url =
-    configService.get<string>("LINKEDIN_LOGO_URL") ||
+    configService.get<string>('LINKEDIN_LOGO_URL') ||
     `${frontendUrl}/linkedin.png`;
   const x_logo_url =
-    configService.get<string>("X_LOGO_URL") || `${frontendUrl}/x.png`;
+    configService.get<string>('X_LOGO_URL') || `${frontendUrl}/x.png`;
   const instagram_logo_url =
-    configService.get<string>("INSTAGRAM_LOGO_URL") ||
+    configService.get<string>('INSTAGRAM_LOGO_URL') ||
     `${frontendUrl}/instagram.png`;
   const companyLogoUrl =
-    configService.get<string>("COMPANY_LOGO_URL") || `${frontendUrl}/logo.png`;
+    configService.get<string>('COMPANY_LOGO_URL') || `${frontendUrl}/logo.png`;
   return {
     url: frontendUrl,
     linkedin_logo_url,
