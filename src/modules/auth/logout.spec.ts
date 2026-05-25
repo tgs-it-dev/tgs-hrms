@@ -9,7 +9,14 @@ import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Role } from '../../entities/role.entity';
 import { Tenant } from '../../entities/tenant.entity';
+import { Employee } from '../../entities/employee.entity';
+import { CompanyDetails } from '../../entities/company-details.entity';
+import { SignupSession } from '../../entities/signup-session.entity';
+import { UserToken } from '../../entities/user-token.entity';
 import { EmailService } from '../../common/utils/email';
+import { InviteStatusService } from '../invite-status/invite-status.service';
+import { TenantSettingsService } from '../tenant-settings/tenant-settings.service';
+import { IpWhitelistService } from '../ip-whitelist/ip-whitelist.service';
 
 const mockPassword = bcrypt.hashSync('123456', 10);
 
@@ -27,9 +34,6 @@ const mockTenant: Tenant = {
   status: 'active',
   schema_provisioned: false,
   workflow_enabled: false,
-  leave_workflow_enabled: false,
-  wfh_workflow_enabled: false,
-  overtime_workflow_enabled: false,
   created_at: new Date(),
   updated_at: new Date(),
   deleted_at: null,
@@ -56,6 +60,7 @@ const mockUser: User = {
   first_login_time: new Date(0),
   created_at: new Date(),
   updated_at: new Date(),
+  deleted_at: null,
   role: mockRole,
   tenant: mockTenant,
   employees: [],
@@ -105,6 +110,53 @@ describe('AuthService - Login', () => {
       providers: [
         AuthService,
         { provide: getRepositoryToken(User), useFactory: mockUserRepository },
+        {
+          provide: getRepositoryToken(Employee),
+          useValue: { findOne: jest.fn().mockResolvedValue(null) },
+        },
+        {
+          provide: getRepositoryToken(CompanyDetails),
+          useValue: { findOne: jest.fn().mockResolvedValue(null) },
+        },
+        {
+          provide: getRepositoryToken(SignupSession),
+          useValue: {
+            findOne: jest.fn().mockResolvedValue(null),
+            save: jest.fn(),
+            create: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(Role),
+          useValue: { findOne: jest.fn().mockResolvedValue(mockRole) },
+        },
+        {
+          provide: getRepositoryToken(Tenant),
+          useValue: { findOne: jest.fn().mockResolvedValue(mockTenant) },
+        },
+        {
+          provide: getRepositoryToken(UserToken),
+          useValue: {
+            findOne: jest.fn().mockResolvedValue(null),
+            save: jest.fn(),
+            create: jest.fn(),
+            update: jest.fn().mockResolvedValue({ affected: 1 }),
+          },
+        },
+        {
+          provide: InviteStatusService,
+          useValue: {
+            updateInviteStatusOnLogin: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: TenantSettingsService,
+          useValue: { getSettings: jest.fn().mockResolvedValue(null) },
+        },
+        {
+          provide: IpWhitelistService,
+          useValue: { isAllowed: jest.fn().mockResolvedValue(true) },
+        },
         { provide: JwtService, useValue: mockJwtService },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: EmailService, useValue: mockEmailService },

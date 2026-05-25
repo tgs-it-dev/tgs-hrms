@@ -1,27 +1,27 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, In } from "typeorm";
-import { Employee } from "../../entities/employee.entity";
-import { Leave } from "../../entities/leave.entity";
-import { Team } from "../../entities/team.entity";
-import { Attendance } from "../../entities/attendance.entity";
-import { User } from "../../entities/user.entity";
-import { GLOBAL_SYSTEM_TENANT_ID } from "../../common/constants/enums";
+import { Injectable, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, In } from 'typeorm';
+import { Employee } from '../../entities/employee.entity';
+import { Leave } from '../../entities/leave.entity';
+import { Team } from '../../entities/team.entity';
+import { Attendance } from '../../entities/attendance.entity';
+import { User } from '../../entities/user.entity';
+import { GLOBAL_SYSTEM_TENANT_ID } from '../../common/constants/enums';
 import {
   SearchModule,
   SearchResultItem,
   GlobalSearchResponseDto,
-} from "./dto/search.dto";
-import { RolesPermissionsService } from "../../common/services/roles-permissions.service";
+} from './dto/search.dto';
+import { RolesPermissionsService } from '../../common/services/roles-permissions.service';
 
 const MODULE_READ_PERMISSION: Record<
   Exclude<SearchModule, SearchModule.ALL>,
   string
 > = {
-  [SearchModule.EMPLOYEES]: "employee.read",
-  [SearchModule.LEAVES]: "leave.read",
-  [SearchModule.TEAMS]: "team.read",
-  [SearchModule.ATTENDANCE]: "attendance.read",
+  [SearchModule.EMPLOYEES]: 'employee.read',
+  [SearchModule.LEAVES]: 'leave.read',
+  [SearchModule.TEAMS]: 'team.read',
+  [SearchModule.ATTENDANCE]: 'attendance.read',
 };
 
 const ALL_MODULES = Object.keys(MODULE_READ_PERMISSION) as Exclude<
@@ -48,7 +48,7 @@ export class SearchService {
   ) {}
 
   buildEmptyResponse(query: string): GlobalSearchResponseDto {
-    const results: GlobalSearchResponseDto["results"] = {
+    const results: GlobalSearchResponseDto['results'] = {
       employees: [],
       leaves: [],
       teams: [],
@@ -78,13 +78,13 @@ export class SearchService {
     );
 
     const isAdminRole =
-      userRole === "system-admin" || userRole === "network-admin";
+      userRole === 'system-admin' || userRole === 'network-admin';
     const searchAllTenants =
       isAdminRole && tenantId === GLOBAL_SYSTEM_TENANT_ID;
-    const searchTerm = query ? `%${query}%` : "%";
+    const searchTerm = query ? `%${query}%` : '%';
 
     const allowedModules = this.getAllowedModules(userRole, module);
-    const results: GlobalSearchResponseDto["results"] = {};
+    const results: GlobalSearchResponseDto['results'] = {};
     const counts = {
       employees: 0,
       leaves: 0,
@@ -148,7 +148,7 @@ export class SearchService {
 
     const totalResults = Object.values(counts).reduce((s, c) => s + c, 0);
     return {
-      query: query ?? "",
+      query: query ?? '',
       totalResults,
       results,
       counts,
@@ -161,12 +161,9 @@ export class SearchService {
   ): Exclude<SearchModule, SearchModule.ALL>[] {
     const role = userRole.toLowerCase();
     if (requestedModule !== SearchModule.ALL) {
-      const perm =
-        MODULE_READ_PERMISSION[
-          requestedModule as Exclude<SearchModule, SearchModule.ALL>
-        ];
+      const perm = MODULE_READ_PERMISSION[requestedModule];
       return perm && this.rolesPermissions.hasPermission(role, perm)
-        ? [requestedModule as Exclude<SearchModule, SearchModule.ALL>]
+        ? [requestedModule]
         : [];
     }
     return ALL_MODULES.filter((m) =>
@@ -184,10 +181,10 @@ export class SearchService {
     teamIds?: string[],
   ): Promise<{ items: SearchResultItem[]; total: number }> {
     const queryBuilder = this.employeeRepository
-      .createQueryBuilder("employee")
-      .leftJoinAndSelect("employee.user", "user")
-      .leftJoinAndSelect("employee.designation", "designation")
-      .leftJoinAndSelect("employee.team", "team")
+      .createQueryBuilder('employee')
+      .leftJoinAndSelect('employee.user', 'user')
+      .leftJoinAndSelect('employee.designation', 'designation')
+      .leftJoinAndSelect('employee.team', 'team')
       .where(
         `(
           user.first_name ILIKE :searchTerm OR
@@ -201,27 +198,27 @@ export class SearchService {
       );
 
     if (!searchAllTenants) {
-      queryBuilder.andWhere("user.tenant_id = :tenantId", { tenantId });
+      queryBuilder.andWhere('user.tenant_id = :tenantId', { tenantId });
     }
 
     if (teamIds && teamIds.length > 0) {
-      queryBuilder.andWhere("employee.team_id IN (:...teamIds)", { teamIds });
+      queryBuilder.andWhere('employee.team_id IN (:...teamIds)', { teamIds });
     }
 
-    const [employees, total] = await queryBuilder
-      .take(limit)
-      .getManyAndCount();
+    const [employees, total] = await queryBuilder.take(limit).getManyAndCount();
 
-    let finalEmployees = [...employees];
-    if (currentUserId && searchTerm !== "%") {
-      const searchLower = searchTerm.replace(/%/g, "").toLowerCase().trim();
+    const finalEmployees = [...employees];
+    if (currentUserId && searchTerm !== '%') {
+      const searchLower = searchTerm.replace(/%/g, '').toLowerCase().trim();
       const currentUserEmployee = await this.employeeRepository.findOne({
         where: { user_id: currentUserId },
-        relations: ["user", "designation", "designation.department", "team"],
+        relations: ['user', 'designation', 'designation.department', 'team'],
       });
 
       if (currentUserEmployee) {
-        const empUserEmail = currentUserEmployee.user.email.toLowerCase().trim();
+        const empUserEmail = currentUserEmployee.user.email
+          .toLowerCase()
+          .trim();
         const currentUserInResults = employees.some(
           (emp) => emp.user_id === currentUserId,
         );
@@ -233,7 +230,8 @@ export class SearchService {
           currentUserEmail.toLowerCase().includes(searchLower);
         const isEmployeeEmailMatch =
           empUserEmail === searchLower || empUserEmail.includes(searchLower);
-        const fullName = `${currentUserEmployee.user.first_name} ${currentUserEmployee.user.last_name}`.toLowerCase();
+        const fullName =
+          `${currentUserEmployee.user.first_name} ${currentUserEmployee.user.last_name}`.toLowerCase();
         const matchesSearchTerm =
           isExactEmailMatch ||
           isPartialEmailMatch ||
@@ -245,12 +243,8 @@ export class SearchService {
             .toLowerCase()
             .includes(searchLower) ||
           fullName.includes(searchLower) ||
-          currentUserEmployee.user.phone
-            ?.toLowerCase()
-            .includes(searchLower) ||
-          currentUserEmployee.cnic_number
-            ?.toLowerCase()
-            .includes(searchLower);
+          currentUserEmployee.user.phone?.toLowerCase().includes(searchLower) ||
+          currentUserEmployee.cnic_number?.toLowerCase().includes(searchLower);
 
         if (matchesSearchTerm) {
           if (!currentUserInResults) {
@@ -275,7 +269,7 @@ export class SearchService {
         if (isExactEmailMatch || isPartialEmailMatch) {
           const currentUser = await this.userRepository.findOne({
             where: { id: currentUserId },
-            relations: ["role"],
+            relations: ['role'],
           });
           if (currentUser) {
             const pseudoEmployee = {
@@ -294,14 +288,14 @@ export class SearchService {
     }
 
     const items: SearchResultItem[] = finalEmployees.map((emp) => {
-      const roleName = emp.user?.role?.name || "N/A";
+      const roleName = emp.user?.role?.name || 'N/A';
       const designationTitle = emp.designation?.title || roleName;
-      const teamName = emp.team?.name || "No Team";
+      const teamName = emp.team?.name || 'No Team';
       return {
         id: emp.id,
         title: `${emp.user.first_name} ${emp.user.last_name}`,
         description: `${emp.user.email} | ${designationTitle} | ${teamName}`,
-        module: "employees",
+        module: 'employees',
         metadata: {
           employeeId: emp.id,
           userId: emp.user_id,
@@ -309,8 +303,8 @@ export class SearchService {
           phone: emp.user.phone,
           profilePic: emp.user.profile_pic || null,
           designation: designationTitle,
-          team: teamName !== "No Team" ? teamName : null,
-          status: emp.status || "active",
+          team: teamName !== 'No Team' ? teamName : null,
+          status: emp.status || 'active',
           cnic: emp.cnic_number || null,
         },
       };
@@ -332,10 +326,10 @@ export class SearchService {
     teamIds?: string[],
   ): Promise<{ items: SearchResultItem[]; total: number }> {
     const queryBuilder = this.leaveRepository
-      .createQueryBuilder("leave")
-      .leftJoinAndSelect("leave.employee", "employee")
-      .leftJoinAndSelect("leave.leaveType", "leaveType")
-      .leftJoinAndSelect("leave.approver", "approver")
+      .createQueryBuilder('leave')
+      .leftJoinAndSelect('leave.employee', 'employee')
+      .leftJoinAndSelect('leave.leaveType', 'leaveType')
+      .leftJoinAndSelect('leave.approver', 'approver')
       .where(
         `(
           employee.first_name ILIKE :searchTerm OR
@@ -351,24 +345,24 @@ export class SearchService {
       );
 
     if (!searchAllTenants) {
-      queryBuilder.andWhere("leave.tenantId = :tenantId", { tenantId });
+      queryBuilder.andWhere('leave.tenantId = :tenantId', { tenantId });
     }
 
     if (teamIds && teamIds.length > 0) {
       const teamEmployees = await this.employeeRepository.find({
         where: { team_id: In(teamIds) },
-        select: ["user_id"],
+        select: ['user_id'],
       });
       if (teamEmployees.length > 0) {
         const userIds = teamEmployees.map((emp) => emp.user_id);
-        queryBuilder.andWhere("leave.employeeId IN (:...userIds)", { userIds });
+        queryBuilder.andWhere('leave.employeeId IN (:...userIds)', { userIds });
       } else {
-        queryBuilder.andWhere("1 = 0");
+        queryBuilder.andWhere('1 = 0');
       }
     }
 
     const [leaves, total] = await queryBuilder
-      .orderBy("leave.createdAt", "DESC")
+      .orderBy('leave.createdAt', 'DESC')
       .take(limit)
       .getManyAndCount();
 
@@ -377,18 +371,20 @@ export class SearchService {
       userIds.length > 0
         ? await this.employeeRepository.find({
             where: userIds.map((userId) => ({ user_id: userId })),
-            select: ["id", "user_id"],
+            select: ['id', 'user_id'],
           })
         : [];
-    const userToEmployeeMap = new Map(employees.map((emp) => [emp.user_id, emp.id]));
+    const userToEmployeeMap = new Map(
+      employees.map((emp) => [emp.user_id, emp.id]),
+    );
 
     const items: SearchResultItem[] = leaves.map((leave) => {
       const employeeId = userToEmployeeMap.get(leave.employeeId);
       return {
         id: leave.id,
         title: `${leave.employee.first_name} ${leave.employee.last_name} - ${leave.leaveType.name}`,
-        description: `${leave.reason.substring(0, 100)}${leave.reason.length > 100 ? "..." : ""} | Status: ${leave.status} | ${leave.totalDays} days`,
-        module: "leaves",
+        description: `${leave.reason.substring(0, 100)}${leave.reason.length > 100 ? '...' : ''} | Status: ${leave.status} | ${leave.totalDays} days`,
+        module: 'leaves',
         metadata: {
           leaveId: leave.id,
           employeeId: employeeId || null,
@@ -417,10 +413,10 @@ export class SearchService {
     limit: number,
   ): Promise<{ items: SearchResultItem[]; total: number }> {
     const queryBuilder = this.teamRepository
-      .createQueryBuilder("team")
-      .leftJoinAndSelect("team.manager", "manager")
-      .leftJoinAndSelect("team.teamMembers", "teamMembers")
-      .leftJoinAndSelect("teamMembers.user", "memberUser")
+      .createQueryBuilder('team')
+      .leftJoinAndSelect('team.manager', 'manager')
+      .leftJoinAndSelect('team.teamMembers', 'teamMembers')
+      .leftJoinAndSelect('teamMembers.user', 'memberUser')
       .where(
         `(
           team.name ILIKE :searchTerm OR
@@ -434,19 +430,19 @@ export class SearchService {
       );
 
     if (!searchAllTenants) {
-      queryBuilder.andWhere("manager.tenant_id = :tenantId", { tenantId });
+      queryBuilder.andWhere('manager.tenant_id = :tenantId', { tenantId });
     }
 
     const [teams, total] = await queryBuilder
-      .orderBy("team.created_at", "DESC")
+      .orderBy('team.created_at', 'DESC')
       .take(limit)
       .getManyAndCount();
 
     const items: SearchResultItem[] = teams.map((team) => ({
       id: team.id,
       title: team.name,
-      description: `${team.description || "No description"} | Manager: ${team.manager.first_name} ${team.manager.last_name} | Members: ${team.teamMembers?.length || 0}`,
-      module: "teams",
+      description: `${team.description || 'No description'} | Manager: ${team.manager.first_name} ${team.manager.last_name} | Members: ${team.teamMembers?.length || 0}`,
+      module: 'teams',
       metadata: {
         name: team.name,
         description: team.description,
@@ -468,8 +464,8 @@ export class SearchService {
     teamIds?: string[],
   ): Promise<{ items: SearchResultItem[]; total: number }> {
     const queryBuilder = this.attendanceRepository
-      .createQueryBuilder("attendance")
-      .leftJoinAndSelect("attendance.user", "user")
+      .createQueryBuilder('attendance')
+      .leftJoinAndSelect('attendance.user', 'user')
       .where(
         `(
           user.first_name ILIKE :searchTerm OR
@@ -482,26 +478,26 @@ export class SearchService {
       );
 
     if (!searchAllTenants) {
-      queryBuilder.andWhere("user.tenant_id = :tenantId", { tenantId });
+      queryBuilder.andWhere('user.tenant_id = :tenantId', { tenantId });
     }
 
     if (teamIds && teamIds.length > 0) {
       const teamEmployees = await this.employeeRepository.find({
         where: { team_id: In(teamIds) },
-        select: ["user_id"],
+        select: ['user_id'],
       });
       if (teamEmployees.length > 0) {
         const userIds = teamEmployees.map((emp) => emp.user_id);
-        queryBuilder.andWhere("attendance.user_id IN (:...userIds)", {
+        queryBuilder.andWhere('attendance.user_id IN (:...userIds)', {
           userIds,
         });
       } else {
-        queryBuilder.andWhere("1 = 0");
+        queryBuilder.andWhere('1 = 0');
       }
     }
 
     const [attendances, total] = await queryBuilder
-      .orderBy("attendance.timestamp", "DESC")
+      .orderBy('attendance.timestamp', 'DESC')
       .take(limit)
       .getManyAndCount();
 
@@ -509,7 +505,7 @@ export class SearchService {
       id: attendance.id,
       title: `${attendance.user.first_name} ${attendance.user.last_name} - ${attendance.type}`,
       description: `${attendance.type} | ${attendance.timestamp.toLocaleString()}`,
-      module: "attendance",
+      module: 'attendance',
       metadata: {
         userName: `${attendance.user.first_name} ${attendance.user.last_name}`,
         userEmail: attendance.user.email,

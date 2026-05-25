@@ -1,11 +1,11 @@
-import { Injectable, BadRequestException } from "@nestjs/common";
-import { InjectDataSource, InjectRepository } from "@nestjs/typeorm";
-import { DataSource, Repository, IsNull } from "typeorm";
-import { Timesheet } from "../../entities/timesheet.entity";
-import { Attendance } from "../../entities/attendance.entity";
-import { User } from "../../entities/user.entity";
-import { AttendanceType } from "../../common/constants/enums";
-import { TenantDatabaseService } from "../../common/services/tenant-database.service";
+import { Injectable, BadRequestException } from '@nestjs/common';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, Repository, IsNull } from 'typeorm';
+import { Timesheet } from '../../entities/timesheet.entity';
+import { Attendance } from '../../entities/attendance.entity';
+import { User } from '../../entities/user.entity';
+import { AttendanceType } from '../../common/constants/enums';
+import { TenantDatabaseService } from '../../common/services/tenant-database.service';
 
 @Injectable()
 export class TimesheetService {
@@ -91,10 +91,9 @@ export class TimesheetService {
       !latestAttendance ||
       latestAttendance.type !== AttendanceType.CHECK_IN
     ) {
-      throw new BadRequestException("You must check in before starting work");
+      throw new BadRequestException('You must check in before starting work');
     }
 
-    
     const activeSession = await this.timesheetRepo.findOne({
       where: { user_id: userId, end_time: IsNull() },
     });
@@ -102,7 +101,6 @@ export class TimesheetService {
       throw new BadRequestException('Active work session already exists');
     }
 
-    
     const user = await this.userRepo.findOne({ where: { id: userId } });
     const fullName = user ? `${user.first_name} ${user.last_name}` : null;
     const record = this.timesheetRepo.create({
@@ -115,7 +113,6 @@ export class TimesheetService {
     return this.timesheetRepo.save(record);
   }
 
-  
   async endWork(userId: string) {
     const activeSession = await this.timesheetRepo.findOne({
       where: { user_id: userId, end_time: IsNull() },
@@ -125,20 +122,22 @@ export class TimesheetService {
     activeSession.end_time = new Date();
     activeSession.duration_hours =
       Math.round(
-        ((activeSession.end_time.getTime() - new Date(activeSession.start_time).getTime()) /
+        ((activeSession.end_time.getTime() -
+          new Date(activeSession.start_time).getTime()) /
           (1000 * 60 * 60)) *
-          100
+          100,
       ) / 100;
 
     if (!activeSession.employee_full_name) {
       const user = await this.userRepo.findOne({ where: { id: userId } });
-      activeSession.employee_full_name = user ? `${user.first_name} ${user.last_name}` : null;
+      activeSession.employee_full_name = user
+        ? `${user.first_name} ${user.last_name}`
+        : null;
     }
 
     return this.timesheetRepo.save(activeSession);
   }
 
-  
   async autoEndIfActive(userId: string) {
     const activeSession = await this.timesheetRepo.findOne({
       where: { user_id: userId, end_time: IsNull() },
@@ -148,22 +147,24 @@ export class TimesheetService {
     activeSession.end_time = new Date();
     activeSession.duration_hours =
       Math.round(
-        ((activeSession.end_time.getTime() - new Date(activeSession.start_time).getTime()) /
+        ((activeSession.end_time.getTime() -
+          new Date(activeSession.start_time).getTime()) /
           (1000 * 60 * 60)) *
-          100
+          100,
       ) / 100;
 
     if (!activeSession.employee_full_name) {
       const user = await this.userRepo.findOne({ where: { id: userId } });
-      activeSession.employee_full_name = user ? `${user.first_name} ${user.last_name}` : null;
+      activeSession.employee_full_name = user
+        ? `${user.first_name} ${user.last_name}`
+        : null;
     }
 
     return this.timesheetRepo.save(activeSession);
   }
 
-  
   async list(userId: string, page: number = 1) {
-    const limit = 10; 
+    const limit = 10;
     const skip = (page - 1) * limit;
 
     const [sessions, total] = await this.timesheetRepo.findAndCount({
@@ -178,17 +179,26 @@ export class TimesheetService {
         s.duration_hours ??
         (s.end_time
           ? Math.round(
-              ((new Date(s.end_time).getTime() - new Date(s.start_time).getTime()) /
+              ((new Date(s.end_time).getTime() -
+                new Date(s.start_time).getTime()) /
                 (1000 * 60 * 60)) *
-                100
+                100,
             ) / 100
           : null);
-      return { ...s, durationHours, employee_full_name: s.employee_full_name ?? undefined };
+      return {
+        ...s,
+        durationHours,
+        employee_full_name: s.employee_full_name ?? undefined,
+      };
     });
 
     const totalHours =
-      Math.round(sessionsWithDuration.reduce((sum, s) => sum + (s.durationHours || 0), 0) * 100) /
-      100;
+      Math.round(
+        sessionsWithDuration.reduce(
+          (sum, s) => sum + (s.durationHours || 0),
+          0,
+        ) * 100,
+      ) / 100;
     const user = await this.userRepo.findOne({ where: { id: userId } });
     const fullName = user ? `${user.first_name} ${user.last_name}` : undefined;
 
@@ -207,8 +217,12 @@ export class TimesheetService {
     };
   }
 
-  
-  async summaryByTenant(tenantId: string, from?: string, to?: string, page: number = 1) {
+  async summaryByTenant(
+    tenantId: string,
+    from?: string,
+    to?: string,
+    page: number = 1,
+  ) {
     const limit = 25;
     const skip = (page - 1) * limit;
 
@@ -228,17 +242,15 @@ export class TimesheetService {
       qb.andWhere('t.start_time <= :toDate', { toDate });
     }
 
-  
     const totalQuery = qb.clone();
     const total = await totalQuery.getCount();
 
-  
     const items = await qb
       .select('u.id', 'user_id')
       .addSelect("CONCAT(u.first_name, ' ', u.last_name)", 'employee_name')
       .addSelect(
         'ROUND(SUM(EXTRACT(EPOCH FROM (t.end_time - t.start_time)) / 3600)::numeric, 2)',
-        'total_hours'
+        'total_hours',
       )
       .groupBy('u.id')
       .addGroupBy('u.first_name')

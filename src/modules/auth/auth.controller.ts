@@ -15,13 +15,13 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { LogoutDto } from './dto/logout.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { Throttle } from '@nestjs/throttler';
-import { RolesGuard } from 'src/common/guards/roles.guard';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
-import { Roles } from 'src/common/decorators/roles.decorator';
-import { Permissions } from 'src/common/decorators/permissions.decorator';
-import { PermissionsGuard } from 'src/common/guards/permissions.guard';
-import { Public } from 'src/common/decorators/public.decorator';
-import { AuthenticatedRequest } from 'src/common/types/request.types';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { Permissions } from '../../common/decorators/permissions.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { Public } from '../../common/decorators/public.decorator';
+import { AuthenticatedRequest } from '../../common/types/request.types';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -414,5 +414,21 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Active sessions returned' })
   async getSessions(@Req() req: AuthenticatedRequest) {
     return this.authService.getActiveSessions(req.user.id);
+  }
+
+  @Post('google-login')
+  @Public()
+  @Throttle({ short: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Login with Google ID token' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { idToken: { type: 'string' } },
+      required: ['idToken'],
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Login successful' })
+  async googleLogin(@Body('idToken') idToken: string) {
+    return this.authService.googleLogin(idToken);
   }
 }

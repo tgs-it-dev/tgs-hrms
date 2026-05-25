@@ -24,6 +24,10 @@ import { NotificationGateway } from '../notification/notification.gateway';
 import { CreateWfhDto } from './dto/create-wfh.dto';
 import { UpdateWfhDto } from './dto/update-wfh.dto';
 import { DocumentUploadService } from '../storage/document-upload.service';
+import {
+  TenantSettingsService,
+  TenantSettingKey,
+} from '../tenant-settings/tenant-settings.service';
 
 @Injectable()
 export class WfhService {
@@ -39,6 +43,7 @@ export class WfhService {
     private readonly notificationGateway: NotificationGateway,
     private readonly tenantDbService: TenantDatabaseService,
     private readonly fileUploadService: DocumentUploadService,
+    private readonly tenantSettings: TenantSettingsService,
     @InjectDataSource()
     private readonly dataSource: DataSource,
   ) {}
@@ -55,12 +60,10 @@ export class WfhService {
   }
 
   private async isWorkflowEnabled(tenantId: string): Promise<boolean> {
-    const result = await this.dataSource.query<
-      { wfh_workflow_enabled: boolean }[]
-    >(`SELECT wfh_workflow_enabled FROM public.tenants WHERE id = $1 LIMIT 1`, [
+    return this.tenantSettings.getBoolean(
       tenantId,
-    ]);
-    return result[0]?.wfh_workflow_enabled ?? false;
+      TenantSettingKey.WFH_WORKFLOW_ENABLED,
+    );
   }
 
   private async runInTenantContext<T>(
@@ -98,8 +101,8 @@ export class WfhService {
       throw new BadRequestException('end_date cannot be before start_date');
     }
 
-    return this.runInTenantContext(tenantId, async (wfhRepo) => {
-      // Overlap check: reject if any active request spans any of the requested dates
+    return this.runInTenantContext(tenantId, async (wfhRepo, em) => {
+      // Overlap check: reject if any active WFH request spans the requested dates
       const overlap = await wfhRepo
         .createQueryBuilder('w')
         .where('w.employee_id = :employeeId', { employeeId })
@@ -118,6 +121,38 @@ export class WfhService {
             : 'You already have a pending WFH request that overlaps these dates',
         );
       }
+
+      // Cross-type check: block if any Leave or Overtime request overlaps these dates
+      const runQuery = <T>(sql: string, params: unknown[]) =>
+        em ? em.query<T>(sql, params) : this.dataSource.query<T>(sql, params);
+
+      const [leaveRows, overtimeRows] = await Promise.all([
+        runQuery<{ id: string }[]>(
+          `SELECT id FROM leaves
+           WHERE "employeeId" = $1 AND "tenantId" = $2
+             AND status IN ('pending','processing','approved')
+             AND "startDate"::date <= $3::date AND "endDate"::date >= $4::date
+           LIMIT 1`,
+          [employeeId, tenantId, dto.end_date, dto.start_date],
+        ),
+        runQuery<{ id: string }[]>(
+          `SELECT id FROM overtime_requests
+           WHERE employee_id = $1 AND tenant_id = $2
+             AND status IN ('pending','approved')
+             AND start_date <= $3 AND end_date >= $4
+           LIMIT 1`,
+          [employeeId, tenantId, dto.end_date, dto.start_date],
+        ),
+      ]);
+
+      if (leaveRows.length > 0)
+        throw new ForbiddenException(
+          'You already have a leave request on these dates',
+        );
+      if (overtimeRows.length > 0)
+        throw new ForbiddenException(
+          'You already have an overtime request on these dates',
+        );
 
       const wfh = wfhRepo.create({
         employee_id: employeeId,
@@ -178,20 +213,38 @@ export class WfhService {
             ? dto.start_date
             : `${dto.start_date} to ${dto.end_date}`;
 
-        await this.notificationService.create(
-          employeeId,
-          tenantId,
-          `${employeeName} has submitted a WFH request for ${dateRange}`,
-          NotificationType.IN_APP,
-          {
-            relatedEntityType: WorkflowRequestType.WFH,
-            relatedEntityId: savedWfh.id,
-            senderId: employeeId,
-            senderRole: UserRole.EMPLOYEE,
-            action: NotificationAction.APPLIED,
-            isSystem: false,
-          },
+        // Notify the manager (step-1 approver), not the employee who submitted
+        const managerRows = await runQuery<{ manager_id: string }[]>(
+          `SELECT t.manager_id FROM employees e
+           JOIN teams t ON e.team_id = t.id
+           WHERE e.user_id = $1 AND e.tenant_id = $2 LIMIT 1`,
+          [employeeId, tenantId],
         );
+        const managerId = managerRows[0]?.manager_id;
+        if (managerId && managerId !== employeeId) {
+          const notification = await this.notificationService.create(
+            managerId,
+            tenantId,
+            `${employeeName} has submitted a WFH request for ${dateRange}`,
+            NotificationType.WFH,
+            {
+              relatedEntityType: 'wfh',
+              relatedEntityId: savedWfh.id,
+              senderId: employeeId,
+              senderRole: UserRole.EMPLOYEE,
+              action: NotificationAction.APPLIED,
+              isSystem: false,
+            },
+          );
+          this.notificationGateway.sendToUser(managerId, 'new_notification', {
+            id: notification.id,
+            message: notification.message,
+            type: notification.type,
+            related_entity_type: 'wfh',
+            related_entity_id: savedWfh.id,
+            created_at: notification.created_at,
+          });
+        }
       } catch (err: unknown) {
         this.logger.warn(
           `Failed to send WFH notification for ${savedWfh.id}`,

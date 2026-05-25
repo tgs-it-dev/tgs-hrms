@@ -25,10 +25,13 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { EmployeeService } from '../services/employee.service';
-import { CreateEmployeeDto, UpdateEmployeeDto, EmployeeQueryDto } from '../dto/employee.dto';
+import {
+  CreateEmployeeDto,
+  UpdateEmployeeDto,
+  EmployeeQueryDto,
+} from '../dto/employee.dto';
 import { RemoveEmployeeDocumentDto } from '../dto/update-employee.dto';
 
-import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { TenantGuard } from '../../../common/guards/tenant.guard';
@@ -40,18 +43,21 @@ import { PermissionsGuard } from '../../../common/guards/permissions.guard';
 import { Response } from 'express';
 import { sendCsvResponse } from '../../../common/utils/csv.util';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
-import { validateImageFile, createImageFileFilter } from '../../../common/utils/file-validation.util';
+import {
+  validateImageFile,
+  createImageFileFilter,
+} from '../../../common/utils/file-validation.util';
 
 @ApiTags('Employees')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, TenantGuard, RolesGuard, PermissionsGuard)
+@UseGuards(TenantGuard, RolesGuard, PermissionsGuard)
 @Controller('employees')
 export class EmployeeController {
   constructor(
     private readonly service: EmployeeService,
     private readonly attendanceService: AttendanceService,
-    private readonly leaveService: LeaveService
-  ) { }
+    private readonly leaveService: LeaveService,
+  ) {}
 
   @Post('manager')
   @Roles('admin', 'system-admin')
@@ -69,7 +75,10 @@ export class EmployeeController {
     ),
   )
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Create a new manager employee with optional profile and CNIC pictures' })
+  @ApiOperation({
+    summary:
+      'Create a new manager employee with optional profile and CNIC pictures',
+  })
   @ApiBody({
     schema: {
       type: 'object',
@@ -93,20 +102,27 @@ export class EmployeeController {
   })
   @ApiResponse({
     status: 201,
-    description: 'Manager created successfully with manager role assigned (or custom role if provided)',
+    description:
+      'Manager created successfully with manager role assigned (or custom role if provided)',
   })
   async createManager(
     @Req() req: any,
     @TenantId() tenant_id: string,
     @Body() createEmployeeDto: CreateEmployeeDto,
-    @UploadedFiles() files?: {
-      profile_picture?: Express.Multer.File[],
-      cnic_picture?: Express.Multer.File[],
-      cnic_back_picture?: Express.Multer.File[]
-    }
+    @UploadedFiles()
+    files?: {
+      profile_picture?: Express.Multer.File[];
+      cnic_picture?: Express.Multer.File[];
+      cnic_back_picture?: Express.Multer.File[];
+    },
   ) {
     const createdByUserId = req.user?.id;
-    return this.service.createManager(tenant_id, createdByUserId, createEmployeeDto, files);
+    return this.service.createManager(
+      tenant_id,
+      createdByUserId,
+      createEmployeeDto,
+      files,
+    );
   }
 
   @Patch(':id/promote-to-manager')
@@ -117,7 +133,10 @@ export class EmployeeController {
     description: 'Employee promoted to manager successfully',
   })
   @ApiParam({ name: 'id', description: 'Employee ID to promote' })
-  async promoteToManager(@TenantId() tenant_id: string, @Param('id') id: string) {
+  async promoteToManager(
+    @TenantId() tenant_id: string,
+    @Param('id') id: string,
+  ) {
     return this.service.promoteToManager(tenant_id, id);
   }
 
@@ -129,7 +148,10 @@ export class EmployeeController {
     description: 'Manager demoted to employee successfully',
   })
   @ApiParam({ name: 'id', description: 'Manager ID to demote' })
-  async demoteToEmployee(@TenantId() tenant_id: string, @Param('id') id: string) {
+  async demoteToEmployee(
+    @TenantId() tenant_id: string,
+    @Param('id') id: string,
+  ) {
     return this.service.demoteToEmployee(tenant_id, id);
   }
 
@@ -150,7 +172,9 @@ export class EmployeeController {
     ),
   )
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Create employee with optional profile and CNIC pictures' })
+  @ApiOperation({
+    summary: 'Create employee with optional profile and CNIC pictures',
+  })
   @ApiBody({
     schema: {
       type: 'object',
@@ -187,7 +211,8 @@ export class EmployeeController {
   })
   @ApiResponse({
     status: 409,
-    description: 'Conflict: duplicate email, phone, or CNIC (e.g. "Phone number already exists.", "CNIC already exists.").',
+    description:
+      'Conflict: duplicate email, phone, or CNIC (e.g. "Phone number already exists.", "CNIC already exists.").',
     schema: {
       example: {
         message: 'Phone number already exists.',
@@ -200,11 +225,12 @@ export class EmployeeController {
     @Req() req: any,
     @TenantId() tenant_id: string,
     @Body() dto: CreateEmployeeDto,
-    @UploadedFiles() files?: {
-      profile_picture?: Express.Multer.File[],
-      cnic_picture?: Express.Multer.File[],
-      cnic_back_picture?: Express.Multer.File[]
-    }
+    @UploadedFiles()
+    files?: {
+      profile_picture?: Express.Multer.File[];
+      cnic_picture?: Express.Multer.File[];
+      cnic_back_picture?: Express.Multer.File[];
+    },
   ) {
     const createdByUserId = req.user?.id;
     return this.service.create(tenant_id, createdByUserId, dto, files);
@@ -227,7 +253,10 @@ export class EmployeeController {
     ),
   )
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Update employee details including designation, role, and pictures (profile, CNIC front/back)' })
+  @ApiOperation({
+    summary:
+      'Update employee details including designation, role, and pictures (profile, CNIC front/back)',
+  })
   @ApiBody({
     schema: {
       type: 'object',
@@ -276,11 +305,12 @@ export class EmployeeController {
     @TenantId() tenant_id: string,
     @Param('id') id: string,
     @Body() dto: UpdateEmployeeDto,
-    @UploadedFiles() files?: {
-      profile_picture?: Express.Multer.File[],
-      cnic_picture?: Express.Multer.File[],
-      cnic_back_picture?: Express.Multer.File[]
-    }
+    @UploadedFiles()
+    files?: {
+      profile_picture?: Express.Multer.File[];
+      cnic_picture?: Express.Multer.File[];
+      cnic_back_picture?: Express.Multer.File[];
+    },
   ) {
     return this.service.update(tenant_id, id, dto, files);
   }
@@ -289,7 +319,8 @@ export class EmployeeController {
   @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('manage_employees')
   @ApiOperation({
-    summary: 'List all employees for tenant with optional designation, department filters, and search',
+    summary:
+      'List all employees for tenant with optional designation, department filters, and search',
   })
   @ApiQuery({
     name: 'designation_id',
@@ -306,7 +337,8 @@ export class EmployeeController {
   @ApiQuery({
     name: 'search',
     required: false,
-    description: 'Search term to filter employees by name, email, phone, CNIC, designation, department, or team',
+    description:
+      'Search term to filter employees by name, email, phone, CNIC, designation, department, or team',
   })
   @ApiQuery({
     name: 'page',
@@ -316,7 +348,8 @@ export class EmployeeController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Returns paginated list of employees matching optional filters.',
+    description:
+      'Returns paginated list of employees matching optional filters.',
   })
   @ApiResponse({
     status: 400,
@@ -329,11 +362,16 @@ export class EmployeeController {
       },
     },
   })
-  async findAll(@TenantId() tenant_id: string, @Query() query: EmployeeQueryDto) {
-    const pageNumber = Math.max(1, parseInt(query.page?.toString() || '1', 10) || 1);
+  async findAll(
+    @TenantId() tenant_id: string,
+    @Query() query: EmployeeQueryDto,
+  ) {
+    const pageNumber = Math.max(
+      1,
+      parseInt(query.page?.toString() || '1', 10) || 1,
+    );
     return this.service.findAll(tenant_id, query, pageNumber);
   }
-
 
   @Get('export')
   @Roles('admin', 'system-admin', 'hr-admin')
@@ -341,14 +379,18 @@ export class EmployeeController {
   async exportAll(
     @TenantId() tenant_id: string,
     @Query() query: EmployeeQueryDto,
-    @Res() res: Response
+    @Res() res: Response,
   ) {
     // Fetch all pages of employees so CSV includes complete dataset (no pagination)
     let pageNumber = 1;
     const allItems: any[] = [];
 
     while (true) {
-      const { items, total, limit } = await this.service.findAll(tenant_id, query, pageNumber);
+      const { items, total, limit } = await this.service.findAll(
+        tenant_id,
+        query,
+        pageNumber,
+      );
       allItems.push(...(items || []));
 
       if (!items.length || allItems.length >= total) {
@@ -379,7 +421,9 @@ export class EmployeeController {
   @Get('system/export')
   @Roles('system-admin')
   @Permissions('manage_employees')
-  @ApiOperation({ summary: 'Download employees for all tenants as CSV (System-admin only)' })
+  @ApiOperation({
+    summary: 'Download employees for all tenants as CSV (System-admin only)',
+  })
   @ApiQuery({
     name: 'tenantId',
     required: false,
@@ -435,7 +479,8 @@ export class EmployeeController {
   @ApiOperation({ summary: 'Get employee joining report month-wise' })
   @ApiResponse({
     status: 200,
-    description: 'Employee joining report retrieved successfully. Returns empty array if no employees found.',
+    description:
+      'Employee joining report retrieved successfully. Returns empty array if no employees found.',
     schema: {
       example: [
         {
@@ -494,8 +539,13 @@ export class EmployeeController {
   @Get('leaves-this-month')
   @Roles('admin', 'system-admin', 'hr-admin')
   @Permissions('view_reports', 'view_team_reports')
-  @ApiOperation({ summary: 'Get total leaves applied by all employees for the current month' })
-  @ApiResponse({ status: 200, description: 'Total leaves for the current month.' })
+  @ApiOperation({
+    summary: 'Get total leaves applied by all employees for the current month',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Total leaves for the current month.',
+  })
   async getLeavesThisMonth(@TenantId() tenant_id: string) {
     return this.leaveService.getTotalLeavesForCurrentMonth(tenant_id);
   }
@@ -507,7 +557,10 @@ export class EmployeeController {
     summary:
       'Get total attendance for all employees for the current month (one per day per employee)',
   })
-  @ApiResponse({ status: 200, description: 'Total attendance for the current month.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Total attendance for the current month.',
+  })
   async getAttendanceThisMonth(@TenantId() tenant_id: string) {
     return this.attendanceService.getTotalAttendanceForCurrentMonth(tenant_id);
   }
@@ -524,7 +577,10 @@ export class EmployeeController {
 
   @Delete(':id/documents')
   @Roles('admin', 'system-admin', 'hr-admin')
-  @ApiOperation({ summary: 'Remove one document from employee (e.g. click on image to delete)' })
+  @ApiOperation({
+    summary:
+      'Remove one document from employee (e.g. click on image to delete)',
+  })
   @ApiBody({
     type: RemoveEmployeeDocumentDto,
     schema: {
@@ -563,9 +619,18 @@ export class EmployeeController {
   @Roles('admin', 'system-admin')
   @ApiOperation({ summary: 'Resend invite if status is Invite Expired' })
   @ApiResponse({ status: 200, description: 'Invite resent successfully' })
-  @ApiResponse({ status: 400, description: 'Invite can only be resent if status is Invite Expired' })
-  @ApiResponse({ status: 404, description: 'Employee not found for this tenant' })
-  async refreshInviteStatus(@TenantId() tenant_id: string, @Param('id') id: string) {
+  @ApiResponse({
+    status: 400,
+    description: 'Invite can only be resent if status is Invite Expired',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Employee not found for this tenant',
+  })
+  async refreshInviteStatus(
+    @TenantId() tenant_id: string,
+    @Param('id') id: string,
+  ) {
     return this.service.refreshInviteStatus(tenant_id, id);
   }
 
@@ -586,5 +651,4 @@ export class EmployeeController {
       department_id: emp.designation?.department?.id ?? null,
     };
   }
-
 }

@@ -1,6 +1,8 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class CreateNotificationsTable1771200000003 implements MigrationInterface {
+export class CreateNotificationsTable1771200000003
+  implements MigrationInterface
+{
   name = 'CreateNotificationsTable1771200000003';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -19,11 +21,21 @@ export class CreateNotificationsTable1771200000003 implements MigrationInterface
       );
     `);
 
-    await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);`);
-    await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_notifications_tenant_id ON notifications(tenant_id);`);
-    await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications(status);`);
-    await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type);`);
-    await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_notifications_user_status ON notifications(user_id, status);`);
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_notifications_tenant_id ON notifications(tenant_id);`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications(status);`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type);`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS idx_notifications_user_status ON notifications(user_id, status);`,
+    );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

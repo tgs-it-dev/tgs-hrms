@@ -1,6 +1,7 @@
 import { Request } from 'express';
 
 export interface AuthenticatedRequest extends Request {
+  clientIp?: string;
   user: {
     id: string;
     email: string;
@@ -11,4 +12,3 @@ export interface AuthenticatedRequest extends Request {
     permissions: string[];
   };
 }
-

@@ -3,6 +3,7 @@ import {
   UnauthorizedException,
   BadRequestException,
   ForbiddenException,
+  NotFoundException,
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -19,13 +20,21 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ConfigService } from '@nestjs/config';
 import { EmailService } from '../../common/utils/email';
 import { InviteStatusService } from '../invite-status/invite-status.service';
-import { Employee } from 'src/entities/employee.entity';
-import { SignupSession } from 'src/entities/signup-session.entity';
-import { GLOBAL_SYSTEM_TENANT_ID } from '../../common/constants/enums';
+import { Employee } from '../../entities/employee.entity';
+import { SignupSession } from '../../entities/signup-session.entity';
+import {
+  GLOBAL_SYSTEM_TENANT_ID,
+  UserRole,
+} from '../../common/constants/enums';
 import { SystemSettingsService } from '../system/system-settings/system-settings.service';
 import { isMobileRequest } from '../../common/utils/mobile-detection';
 import { Role } from '../../entities/role.entity';
 import { Tenant } from '../../entities/tenant.entity';
+import {
+  TenantSettingsService,
+  TenantSettingKey,
+} from '../tenant-settings/tenant-settings.service';
+import { IpWhitelistService } from '../ip-whitelist/ip-whitelist.service';
 
 interface RefreshTokenPayload {
   sub: string;
@@ -57,7 +66,8 @@ export class AuthService {
     private configService: ConfigService,
     private emailService: EmailService,
     private inviteStatusService: InviteStatusService,
-    private systemSettings: SystemSettingsService,
+    private tenantSettings: TenantSettingsService,
+    private ipWhitelistService: IpWhitelistService,
   ) {}
 
   // ── Token helpers ──────────────────────────────────────────────────────────
@@ -67,6 +77,7 @@ export class AuthService {
     tenantId: string,
     permissions: string[],
     sessionId?: string,
+    isMobile: boolean = false,
   ): string {
     const payload: Record<string, unknown> = {
       email: user.email,
@@ -76,6 +87,7 @@ export class AuthService {
       permissions,
       first_name: user.first_name,
       last_name: user.last_name,
+      is_mobile: isMobile,
     };
     if (sessionId) {
       payload['sid'] = sessionId;
@@ -540,26 +552,13 @@ export class AuthService {
     const isSystemAdmin = this.isSystemAdminRole(user.role.name);
     const tenantId = isSystemAdmin ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
 
-    // Block mobile logins when the system setting is disabled (system-admins are exempt)
-    if (!isSystemAdmin) {
-      const mobileLoginEnabled = this.systemSettings.getBoolean(
-        'mobile_login_enabled',
-        true,
-      );
-      if (
-        !mobileLoginEnabled &&
-        isMobileRequest({ platform, userAgent, appPlatform })
-      ) {
-        this.logger.warn(
-          `Mobile login blocked for email: ${normalizedEmail} (platform=${platform}, appPlatform=${appPlatform})`,
-        );
-        throw new ForbiddenException(
-          'Mobile app login is currently disabled. Please contact your administrator.',
-        );
-      }
-    }
+    const isMobileClient = isMobileRequest({
+      platform,
+      userAgent,
+      appPlatform,
+    });
 
-    // Check if tenant is deleted or suspended (for non-system-admin users)
+    // Check tenant status and per-tenant flags (system-admins are exempt)
     if (!isSystemAdmin && tenantId) {
       const tenant = await this.tenantRepository.findOne({
         where: { id: tenantId },
@@ -580,6 +579,46 @@ export class AuthService {
         throw new UnauthorizedException(
           'Your organization account has been suspended. Please contact support.',
         );
+      }
+
+      const mobileLoginEnabled = await this.tenantSettings.getBoolean(
+        tenantId,
+        TenantSettingKey.MOBILE_LOGIN_ENABLED,
+      );
+
+      if (isMobileClient && !mobileLoginEnabled) {
+        const exemptRoles: string[] = [UserRole.ADMIN, UserRole.SYSTEM_ADMIN];
+        const isExempt = exemptRoles.includes(user.role.name.toLowerCase());
+        if (!isExempt) {
+          this.logger.warn(
+            `Mobile login blocked for ${user.role.name} email: ${normalizedEmail} (mobile_login_enabled=false)`,
+          );
+          throw new ForbiddenException(
+            'Mobile app login is currently disabled for your role. Please contact your administrator.',
+          );
+        }
+      }
+
+      const ipRestrictionExempt: string[] = [
+        UserRole.ADMIN,
+        UserRole.SYSTEM_ADMIN,
+      ];
+      const isIpExempt = ipRestrictionExempt.includes(
+        user.role.name.toLowerCase(),
+      );
+      if (!isIpExempt && ipAddress) {
+        const isWhitelisted = await this.ipWhitelistService.isIpWhitelisted(
+          tenantId,
+          ipAddress,
+        );
+        if (!isWhitelisted) {
+          this.logger.warn(
+            `Login blocked: IP ${ipAddress} not whitelisted for tenant ${tenantId}, email: ${normalizedEmail}`,
+          );
+          throw new ForbiddenException(
+            'Login is not allowed from your current IP address. Please contact your administrator.',
+          );
+        }
       }
     }
 
@@ -620,7 +659,13 @@ export class AuthService {
       ipAddress,
     );
 
-    const accessToken = this.buildAccessToken(user, tenantId, permissions, jti);
+    const accessToken = this.buildAccessToken(
+      user,
+      tenantId,
+      permissions,
+      jti,
+      isMobileClient,
+    );
 
     if (!user.first_login_time) {
       this.logger.log(`First login recorded for user: ${normalizedEmail}`);
@@ -909,6 +954,11 @@ export class AuthService {
       const newJti = crypto.randomUUID();
       const newRefreshToken = this.buildRefreshToken(user.id, newJti);
 
+      const isMobileClient =
+        tokenRecord.platform?.toLowerCase() === 'mobile' ||
+        tokenRecord.platform?.toLowerCase() === 'ios' ||
+        tokenRecord.platform?.toLowerCase() === 'android';
+
       await this.userTokenRepository.manager.transaction(async (em) => {
         await em.update(UserToken, tokenRecord.id, {
           is_revoked: true,
@@ -931,6 +981,7 @@ export class AuthService {
         tenantId,
         permissions,
         newJti,
+        isMobileClient,
       );
 
       this.logger.log(
@@ -1028,5 +1079,92 @@ export class AuthService {
       .getMany();
 
     return sessions;
+  }
+
+  async googleLogin(idToken: string): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    user: Partial<User>;
+    permissions: string[];
+  }> {
+    // Verify the ID token with Google
+    let googlePayload: Record<string, string>;
+    try {
+      const axios = await import('axios');
+      const resp = await axios.default.get(
+        'https://oauth2.googleapis.com/tokeninfo',
+        {
+          params: { id_token: idToken },
+        },
+      );
+      googlePayload = resp.data as Record<string, string>;
+    } catch {
+      throw new BadRequestException('Invalid or expired Google ID token');
+    }
+
+    const email = String(googlePayload.email || '').toLowerCase();
+    if (!email) {
+      throw new BadRequestException(
+        'Google token does not contain an email address',
+      );
+    }
+
+    const user = await this.userRepository.findOne({
+      where: { email },
+      relations: ['role'],
+    });
+
+    if (!user) {
+      throw new BadRequestException(
+        'No account found for this Google email. Please complete signup first.',
+      );
+    }
+
+    if (!user.role?.name) {
+      throw new BadRequestException('User account has no role assigned');
+    }
+
+    const permissions = await this.userRepository.query(
+      `SELECT p.name FROM permissions p
+       JOIN role_permissions rp ON p.id = rp.permission_id
+       WHERE rp.role_id = $1`,
+      [user.role.id],
+    );
+    const perms: string[] = (permissions as { name: string }[]).map((r) =>
+      r.name.toLowerCase(),
+    );
+
+    const tokenPayload = {
+      email: user.email,
+      sub: user.id,
+      role: user.role.name.toLowerCase(),
+      tenant_id: user.tenant_id,
+      permissions: perms,
+    };
+
+    const secret = this.configService.get<string>('JWT_SECRET');
+    const accessToken = this.jwtService.sign(tokenPayload, {
+      secret,
+      expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '24h',
+    });
+    const refreshToken = this.jwtService.sign(tokenPayload, {
+      secret,
+      expiresIn: '7d',
+    });
+
+    this.logger.log(`Google login successful for ${email}`);
+
+    return {
+      accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        tenant_id: user.tenant_id,
+      },
+      permissions: perms,
+    };
   }
 }

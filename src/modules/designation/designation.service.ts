@@ -52,11 +52,7 @@ export class DesignationService {
   ): Promise<T> {
     if (isProvisioned) {
       return this.tenantDbService.withTenantSchema(tenantId, (em) =>
-        work(
-          em.getRepository(Designation),
-          em.getRepository(Department),
-          em,
-        ),
+        work(em.getRepository(Designation), em.getRepository(Department), em),
       );
     }
     return work(this.designationRepo, this.departmentRepo, null);
@@ -66,7 +62,10 @@ export class DesignationService {
   // CRUD
   // ---------------------------------------------------------------------------
 
-  async create(tenant_id: string, dto: CreateDesignationDto): Promise<Designation> {
+  async create(
+    tenant_id: string,
+    dto: CreateDesignationDto,
+  ): Promise<Designation> {
     const isProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
 
     return this.run(tenant_id, isProvisioned, async (desgRepo, deptRepo) => {
@@ -74,7 +73,9 @@ export class DesignationService {
       // GLOBAL departments (copied during provisioning).  If the lookup misses
       // (e.g. a freshly added GLOBAL dept not yet in the tenant schema), fall
       // back to the public repo so the user still gets a meaningful error.
-      let department = await deptRepo.findOne({ where: { id: dto.department_id } });
+      let department = await deptRepo.findOne({
+        where: { id: dto.department_id },
+      });
 
       if (!department && isProvisioned) {
         department = await this.departmentRepo.findOne({
@@ -114,7 +115,9 @@ export class DesignationService {
       } catch (err) {
         const errorCode = getPostgresErrorCode(err);
         if (errorCode === '23505') {
-          throw new ConflictException('Title must be unique within the department');
+          throw new ConflictException(
+            'Title must be unique within the department',
+          );
         }
         if (errorCode === '23502') {
           throw new BadRequestException('Missing required fields');
@@ -166,7 +169,9 @@ export class DesignationService {
       } catch (err) {
         const errorCode = getPostgresErrorCode(err);
         if (errorCode === '23505') {
-          throw new ConflictException('Title must be unique within the department');
+          throw new ConflictException(
+            'Title must be unique within the department',
+          );
         }
         throw err;
       }
@@ -210,7 +215,13 @@ export class DesignationService {
 
       const total = all.length;
       const items = all.slice(skip, skip + limit);
-      return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
+      return {
+        items,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      };
     }
 
     return this.run(tenant_id, isProvisioned, async (desgRepo) => {
@@ -220,7 +231,13 @@ export class DesignationService {
         skip,
         take: limit,
       });
-      return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
+      return {
+        items,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      };
     });
   }
 
@@ -239,7 +256,10 @@ export class DesignationService {
     });
   }
 
-  async remove(tenant_id: string, id: string): Promise<{ deleted: true; id: string }> {
+  async remove(
+    tenant_id: string,
+    id: string,
+  ): Promise<{ deleted: true; id: string }> {
     const isProvisioned = await this.isTenantSchemaProvisioned(tenant_id);
 
     return this.run(tenant_id, isProvisioned, async (desgRepo) => {

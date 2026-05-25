@@ -2,7 +2,12 @@
  * Base entity with common fields for all entities
  */
 
-import { PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
+import {
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  DeleteDateColumn,
+} from 'typeorm';
 
 export abstract class BaseEntity {
   @PrimaryGeneratedColumn('uuid')
@@ -17,5 +22,3 @@ export abstract class BaseEntity {
   @DeleteDateColumn({ type: 'timestamptz', nullable: true })
   deleted_at: Date | null;
 }
-
-

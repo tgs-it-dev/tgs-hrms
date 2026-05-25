@@ -31,9 +31,9 @@ export class Department {
   @CreateDateColumn()
   created_at: Date;
 
-  @ManyToOne(() => Tenant, (tenant) => tenant.departments, { 
+  @ManyToOne(() => Tenant, (tenant) => tenant.departments, {
     nullable: false,
-    onDelete: 'RESTRICT' // Prevent hard delete, use soft delete instead
+    onDelete: 'RESTRICT', // Prevent hard delete, use soft delete instead
   })
   @JoinColumn({ name: 'tenant_id' })
   tenant: Tenant;

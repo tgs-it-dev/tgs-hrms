@@ -17,7 +17,9 @@ interface AuthenticatedSocket extends Socket {
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.CORS_ORIGINS?.split(',').map(origin => origin.trim()) || [
+    origin: process.env.CORS_ORIGINS?.split(',').map((origin) =>
+      origin.trim(),
+    ) || [
       'http://localhost:5173',
       'http://localhost:3000',
       'http://localhost:3001',
@@ -26,7 +28,9 @@ interface AuthenticatedSocket extends Socket {
   },
   namespace: '/notifications',
 })
-export class NotificationGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class NotificationGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server: Server;
 
@@ -41,7 +45,8 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
   async handleConnection(client: AuthenticatedSocket) {
     try {
       // Extract token from handshake auth or query
-      const token = client.handshake.auth?.token || client.handshake.query?.token;
+      const token =
+        client.handshake.auth?.token || client.handshake.query?.token;
 
       if (!token || typeof token !== 'string') {
         this.logger.warn(`Client ${client.id} disconnected: No token provided`);
@@ -60,11 +65,13 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
       try {
         const payload = this.jwtService.verify(token, { secret });
         if (!payload.id || typeof payload.id !== 'string') {
-          this.logger.warn(`Client ${client.id} disconnected: Token missing user ID`);
+          this.logger.warn(
+            `Client ${client.id} disconnected: Token missing user ID`,
+          );
           client.disconnect();
           return;
         }
-        
+
         const userId: string = payload.id;
         client.userId = userId;
         client.tenantId = payload.tenant_id;
@@ -78,7 +85,10 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
         client.disconnect();
       }
     } catch (error) {
-      this.logger.error(`Error handling connection for client ${client.id}:`, error);
+      this.logger.error(
+        `Error handling connection for client ${client.id}:`,
+        error,
+      );
       client.disconnect();
     }
   }
@@ -86,7 +96,9 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
   handleDisconnect(client: AuthenticatedSocket) {
     if (client.userId) {
       this.connectedClients.delete(client.userId);
-      this.logger.log(`Client ${client.id} disconnected (user ${client.userId})`);
+      this.logger.log(
+        `Client ${client.id} disconnected (user ${client.userId})`,
+      );
     } else {
       this.logger.log(`Client ${client.id} disconnected`);
     }

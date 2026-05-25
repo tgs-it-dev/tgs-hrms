@@ -1,7 +1,7 @@
-
 import { Module, Logger, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
+import { IpExtractionMiddleware } from './common/middleware/ip-extraction.middleware';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { typeOrmConfig } from './config/typeorm.config';
 import { ThrottlerModule } from '@nestjs/throttler';
@@ -11,7 +11,7 @@ import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handleba
 import { ScheduleModule } from '@nestjs/schedule';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { join } from 'path';
-import { StorageModule } from "./modules/storage/storage.module";
+import { StorageModule } from './modules/storage/storage.module';
 import { EmailModule } from './common/utils/email/email.module';
 import { UserModule } from './modules/user/user.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -33,9 +33,12 @@ import { SubscriptionModule } from './modules/subscription/subscription.module';
 import { CompanyModule } from './modules/company/company.module';
 import { SystemModule } from './modules/system/system.module';
 import { SearchModule } from './modules/search/search.module';
+import { TenantSettingsModule } from './modules/tenant-settings/tenant-settings.module';
+import { IpWhitelistModule } from './modules/ip-whitelist/ip-whitelist.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { GeofenceModule } from './modules/geofence/geofence.module';
+import { InviteStatusModule } from './modules/invite-status/invite-status.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { AnnouncementModule } from './modules/announcement/announcement.module';
 import { WorkflowModule } from './modules/workflow/workflow.module';
@@ -43,9 +46,11 @@ import { WfhModule } from './modules/wfh/wfh.module';
 import { OvertimeModule } from './modules/overtime/overtime.module';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { SystemLoggingInterceptor } from './common/interceptors/system-logging.interceptor';
-import { SignedFileUrlInterceptor } from "./modules/storage/signed-file-url.interceptor";
+import { SignedFileUrlInterceptor } from './modules/storage/signed-file-url.interceptor';
 import { SystemLog } from './entities/system-log.entity';
+import { TenantIpWhitelist } from './entities/tenant-ip-whitelist.entity';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { IpWhitelistGuard } from './common/guards/ip-whitelist.guard';
 @Module({
   imports: [
     ScheduleModule.forRoot(),
@@ -59,22 +64,20 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
       useFactory: typeOrmConfig,
       inject: [ConfigService],
     }),
-    TypeOrmModule.forFeature([SystemLog]),
+    TypeOrmModule.forFeature([SystemLog, TenantIpWhitelist]),
 
     ThrottlerModule.forRoot({
       throttlers: [
-      
         { name: 'default', ttl: 900_000, limit: 100 },
-        
+
         { name: 'short', ttl: 60_000, limit: 10 },
       ],
     }),
 
-    
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (config: ConfigService) => {
+      useFactory: (config: ConfigService) => {
         const secret = config.get<string>('JWT_SECRET');
         if (!secret) throw new Error('JWT_SECRET not found');
         return {
@@ -86,21 +89,20 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
       },
     }),
 
-  
     MailerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (config: ConfigService) => {
+      useFactory: (config: ConfigService) => {
         const logger = new Logger('MailerModule');
         const sendgridApiKey = config.get<string>('SENDGRID_API_KEY');
         const sendgridFrom = config.get<string>('SENDGRID_FROM');
 
-        
         if (!sendgridApiKey || !sendgridFrom) {
-          logger.warn('SendGrid configuration incomplete. Using fallback configuration.');
+          logger.warn(
+            'SendGrid configuration incomplete. Using fallback configuration.',
+          );
           logger.warn('Required: SENDGRID_API_KEY, SENDGRID_FROM');
-          
-          
+
           return {
             transport: {
               service: 'sendgrid',
@@ -142,7 +144,6 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
       },
     }),
 
-    
     UserModule,
     AuthModule,
     DepartmentModule,
@@ -166,16 +167,23 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     BillingModule,
     DashboardModule,
     GeofenceModule,
+    InviteStatusModule,
     NotificationModule,
     AnnouncementModule,
     WorkflowModule,
     WfhModule,
     OvertimeModule,
+    TenantSettingsModule,
+    IpWhitelistModule,
   ],
   providers: [
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: IpWhitelistGuard,
     },
     {
       provide: APP_INTERCEPTOR,
@@ -185,12 +193,12 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
       provide: APP_INTERCEPTOR,
       useClass: SignedFileUrlInterceptor,
     },
-  ]
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
-      .apply(CorrelationIdMiddleware)
+      .apply(IpExtractionMiddleware, CorrelationIdMiddleware)
       .forRoutes('*');
   }
 }

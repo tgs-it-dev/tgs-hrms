@@ -26,7 +26,8 @@ export class CreateAnnouncementDto {
   title: string;
 
   @ApiProperty({
-    example: 'The office will remain closed on Monday and Tuesday for Eid celebrations. Enjoy the holidays!',
+    example:
+      'The office will remain closed on Monday and Tuesday for Eid celebrations. Enjoy the holidays!',
     description: 'Full content/body of the announcement',
   })
   @IsString()
@@ -56,7 +57,8 @@ export class CreateAnnouncementDto {
 
   @ApiPropertyOptional({
     example: '2025-02-01T09:00:00.000Z',
-    description: 'Schedule date/time to send. If null, sends immediately when published.',
+    description:
+      'Schedule date/time to send. If null, sends immediately when published.',
   })
   @IsOptional()
   @IsDateString()
@@ -64,7 +66,8 @@ export class CreateAnnouncementDto {
 
   @ApiPropertyOptional({
     example: false,
-    description: 'If true, sends the announcement immediately. If false, saves as draft.',
+    description:
+      'If true, sends the announcement immediately. If false, saves as draft.',
     default: false,
   })
   @IsOptional()
