@@ -44,7 +44,13 @@ function makeLeave(overrides: Partial<Leave> = {}): Leave {
 function makeUser(id: string, roleName: string): User {
   return {
     id,
-    role: { id: 'role-id', name: roleName, description: '', users: [], rolePermissions: [] },
+    role: {
+      id: 'role-id',
+      name: roleName,
+      description: '',
+      users: [],
+      rolePermissions: [],
+    },
     role_id: 'role-id',
     email: `${roleName}@test.com`,
     first_name: roleName,
@@ -52,11 +58,14 @@ function makeUser(id: string, roleName: string): User {
   } as unknown as User;
 }
 
-function makeEmployee(userId: string, managerId: string | null = null): Employee {
+function makeEmployee(
+  userId: string,
+  managerId: string | null = null,
+): Employee {
   return {
     id: 'emp-001',
     user_id: userId,
-    team: managerId ? { id: TEAM_ID, manager_id: managerId } as Team : null,
+    team: managerId ? ({ id: TEAM_ID, manager_id: managerId } as Team) : null,
   } as unknown as Employee;
 }
 
@@ -79,7 +88,12 @@ const mockDataSource = () => ({
   query: jest.fn().mockResolvedValue([{ schema_provisioned: false }]),
 });
 
-const mockNotif = { id: 'notif-1', message: 'test', type: 'leave', created_at: new Date() };
+const mockNotif = {
+  id: 'notif-1',
+  message: 'test',
+  type: 'leave',
+  created_at: new Date(),
+};
 const mockNotificationService = () => ({
   create: jest.fn().mockResolvedValue(mockNotif),
   notifyLeaveProcessing: jest.fn().mockResolvedValue(mockNotif),
@@ -109,7 +123,10 @@ describe('LeaveService', () => {
       providers: [
         LeaveService,
         { provide: getRepositoryToken(Leave), useFactory: mockLeaveRepo },
-        { provide: getRepositoryToken(LeaveType), useFactory: mockLeaveTypeRepo },
+        {
+          provide: getRepositoryToken(LeaveType),
+          useFactory: mockLeaveTypeRepo,
+        },
         { provide: getRepositoryToken(User), useFactory: mockUserRepo },
         { provide: getRepositoryToken(Employee), useFactory: mockEmployeeRepo },
         { provide: getRepositoryToken(Team), useFactory: mockTeamRepo },
@@ -140,7 +157,9 @@ describe('LeaveService', () => {
     });
 
     it('throws ForbiddenException when leave is already APPROVED', async () => {
-      leaveRepo.findOne.mockResolvedValue(makeLeave({ status: LeaveStatus.APPROVED }));
+      leaveRepo.findOne.mockResolvedValue(
+        makeLeave({ status: LeaveStatus.APPROVED }),
+      );
 
       await expect(
         service.approveLeave(LEAVE_ID, ADMIN_USER_ID, TENANT_ID),
@@ -148,7 +167,9 @@ describe('LeaveService', () => {
     });
 
     it('throws ForbiddenException when leave is REJECTED', async () => {
-      leaveRepo.findOne.mockResolvedValue(makeLeave({ status: LeaveStatus.REJECTED }));
+      leaveRepo.findOne.mockResolvedValue(
+        makeLeave({ status: LeaveStatus.REJECTED }),
+      );
 
       await expect(
         service.approveLeave(LEAVE_ID, ADMIN_USER_ID, TENANT_ID),
@@ -156,16 +177,29 @@ describe('LeaveService', () => {
     });
 
     it('manager approving PENDING leave moves status to PROCESSING', async () => {
-      leaveRepo.findOne.mockResolvedValue(makeLeave({ status: LeaveStatus.PENDING }));
-      employeeRepo.findOne.mockResolvedValue(makeEmployee(EMPLOYEE_USER_ID, MANAGER_USER_ID));
+      leaveRepo.findOne.mockResolvedValue(
+        makeLeave({ status: LeaveStatus.PENDING }),
+      );
+      employeeRepo.findOne.mockResolvedValue(
+        makeEmployee(EMPLOYEE_USER_ID, MANAGER_USER_ID),
+      );
       // Manager is NOT an admin
-      userRepo.findOne.mockImplementation(({ where }: { where: { id: string } }) => {
-        if (where.id === MANAGER_USER_ID) return Promise.resolve(makeUser(MANAGER_USER_ID, 'manager'));
-        if (where.id === EMPLOYEE_USER_ID) return Promise.resolve(makeUser(EMPLOYEE_USER_ID, 'employee'));
-        return Promise.resolve(null);
-      });
+      userRepo.findOne.mockImplementation(
+        ({ where }: { where: { id: string } }) => {
+          if (where.id === MANAGER_USER_ID)
+            return Promise.resolve(makeUser(MANAGER_USER_ID, 'manager'));
+          if (where.id === EMPLOYEE_USER_ID)
+            return Promise.resolve(makeUser(EMPLOYEE_USER_ID, 'employee'));
+          return Promise.resolve(null);
+        },
+      );
 
-      const result = await service.approveLeave(LEAVE_ID, MANAGER_USER_ID, TENANT_ID, 'Looks good');
+      const result = await service.approveLeave(
+        LEAVE_ID,
+        MANAGER_USER_ID,
+        TENANT_ID,
+        'Looks good',
+      );
 
       expect(result.status).toBe(LeaveStatus.PROCESSING);
       expect(result.approvedBy).toBe(MANAGER_USER_ID);
@@ -173,35 +207,62 @@ describe('LeaveService', () => {
     });
 
     it('admin approving PENDING leave moves status directly to APPROVED', async () => {
-      leaveRepo.findOne.mockResolvedValue(makeLeave({ status: LeaveStatus.PENDING }));
-      employeeRepo.findOne.mockResolvedValue(makeEmployee(EMPLOYEE_USER_ID, null)); // no manager
-      userRepo.findOne.mockImplementation(({ where }: { where: { id: string } }) => {
-        if (where.id === ADMIN_USER_ID) return Promise.resolve(makeUser(ADMIN_USER_ID, 'admin'));
-        return Promise.resolve(null);
-      });
+      leaveRepo.findOne.mockResolvedValue(
+        makeLeave({ status: LeaveStatus.PENDING }),
+      );
+      employeeRepo.findOne.mockResolvedValue(
+        makeEmployee(EMPLOYEE_USER_ID, null),
+      ); // no manager
+      userRepo.findOne.mockImplementation(
+        ({ where }: { where: { id: string } }) => {
+          if (where.id === ADMIN_USER_ID)
+            return Promise.resolve(makeUser(ADMIN_USER_ID, 'admin'));
+          return Promise.resolve(null);
+        },
+      );
 
-      const result = await service.approveLeave(LEAVE_ID, ADMIN_USER_ID, TENANT_ID, 'Approved');
+      const result = await service.approveLeave(
+        LEAVE_ID,
+        ADMIN_USER_ID,
+        TENANT_ID,
+        'Approved',
+      );
 
       expect(result.status).toBe(LeaveStatus.APPROVED);
       expect(result.approvedBy).toBe(ADMIN_USER_ID);
     });
 
     it('admin approving PROCESSING leave moves status to APPROVED', async () => {
-      leaveRepo.findOne.mockResolvedValue(makeLeave({ status: LeaveStatus.PROCESSING }));
-      employeeRepo.findOne.mockResolvedValue(makeEmployee(EMPLOYEE_USER_ID, MANAGER_USER_ID));
-      userRepo.findOne.mockImplementation(({ where }: { where: { id: string } }) => {
-        if (where.id === ADMIN_USER_ID) return Promise.resolve(makeUser(ADMIN_USER_ID, 'admin'));
-        return Promise.resolve(null);
-      });
+      leaveRepo.findOne.mockResolvedValue(
+        makeLeave({ status: LeaveStatus.PROCESSING }),
+      );
+      employeeRepo.findOne.mockResolvedValue(
+        makeEmployee(EMPLOYEE_USER_ID, MANAGER_USER_ID),
+      );
+      userRepo.findOne.mockImplementation(
+        ({ where }: { where: { id: string } }) => {
+          if (where.id === ADMIN_USER_ID)
+            return Promise.resolve(makeUser(ADMIN_USER_ID, 'admin'));
+          return Promise.resolve(null);
+        },
+      );
 
-      const result = await service.approveLeave(LEAVE_ID, ADMIN_USER_ID, TENANT_ID);
+      const result = await service.approveLeave(
+        LEAVE_ID,
+        ADMIN_USER_ID,
+        TENANT_ID,
+      );
 
       expect(result.status).toBe(LeaveStatus.APPROVED);
     });
 
     it('throws ForbiddenException when manager tries to approve a PROCESSING leave', async () => {
-      leaveRepo.findOne.mockResolvedValue(makeLeave({ status: LeaveStatus.PROCESSING }));
-      employeeRepo.findOne.mockResolvedValue(makeEmployee(EMPLOYEE_USER_ID, MANAGER_USER_ID));
+      leaveRepo.findOne.mockResolvedValue(
+        makeLeave({ status: LeaveStatus.PROCESSING }),
+      );
+      employeeRepo.findOne.mockResolvedValue(
+        makeEmployee(EMPLOYEE_USER_ID, MANAGER_USER_ID),
+      );
       userRepo.findOne.mockResolvedValue(makeUser(MANAGER_USER_ID, 'manager'));
 
       await expect(
@@ -210,8 +271,12 @@ describe('LeaveService', () => {
     });
 
     it('throws ForbiddenException when an unrelated user tries to approve', async () => {
-      leaveRepo.findOne.mockResolvedValue(makeLeave({ status: LeaveStatus.PENDING }));
-      employeeRepo.findOne.mockResolvedValue(makeEmployee(EMPLOYEE_USER_ID, 'some-other-manager'));
+      leaveRepo.findOne.mockResolvedValue(
+        makeLeave({ status: LeaveStatus.PENDING }),
+      );
+      employeeRepo.findOne.mockResolvedValue(
+        makeEmployee(EMPLOYEE_USER_ID, 'some-other-manager'),
+      );
       userRepo.findOne.mockResolvedValue(makeUser('random-user', 'employee'));
 
       await expect(
@@ -232,7 +297,9 @@ describe('LeaveService', () => {
     });
 
     it('throws ForbiddenException when leave is already APPROVED', async () => {
-      leaveRepo.findOne.mockResolvedValue(makeLeave({ status: LeaveStatus.APPROVED }));
+      leaveRepo.findOne.mockResolvedValue(
+        makeLeave({ status: LeaveStatus.APPROVED }),
+      );
 
       await expect(
         service.rejectLeave(LEAVE_ID, ADMIN_USER_ID, TENANT_ID),
@@ -240,7 +307,9 @@ describe('LeaveService', () => {
     });
 
     it('throws ForbiddenException when leave is CANCELLED', async () => {
-      leaveRepo.findOne.mockResolvedValue(makeLeave({ status: LeaveStatus.CANCELLED }));
+      leaveRepo.findOne.mockResolvedValue(
+        makeLeave({ status: LeaveStatus.CANCELLED }),
+      );
 
       await expect(
         service.rejectLeave(LEAVE_ID, ADMIN_USER_ID, TENANT_ID),
@@ -248,15 +317,28 @@ describe('LeaveService', () => {
     });
 
     it('manager can reject a PENDING leave', async () => {
-      leaveRepo.findOne.mockResolvedValue(makeLeave({ status: LeaveStatus.PENDING }));
-      employeeRepo.findOne.mockResolvedValue(makeEmployee(EMPLOYEE_USER_ID, MANAGER_USER_ID));
-      userRepo.findOne.mockImplementation(({ where }: { where: { id: string } }) => {
-        if (where.id === MANAGER_USER_ID) return Promise.resolve(makeUser(MANAGER_USER_ID, 'manager'));
-        if (where.id === EMPLOYEE_USER_ID) return Promise.resolve(makeUser(EMPLOYEE_USER_ID, 'employee'));
-        return Promise.resolve(null);
-      });
+      leaveRepo.findOne.mockResolvedValue(
+        makeLeave({ status: LeaveStatus.PENDING }),
+      );
+      employeeRepo.findOne.mockResolvedValue(
+        makeEmployee(EMPLOYEE_USER_ID, MANAGER_USER_ID),
+      );
+      userRepo.findOne.mockImplementation(
+        ({ where }: { where: { id: string } }) => {
+          if (where.id === MANAGER_USER_ID)
+            return Promise.resolve(makeUser(MANAGER_USER_ID, 'manager'));
+          if (where.id === EMPLOYEE_USER_ID)
+            return Promise.resolve(makeUser(EMPLOYEE_USER_ID, 'employee'));
+          return Promise.resolve(null);
+        },
+      );
 
-      const result = await service.rejectLeave(LEAVE_ID, MANAGER_USER_ID, TENANT_ID, 'Not eligible');
+      const result = await service.rejectLeave(
+        LEAVE_ID,
+        MANAGER_USER_ID,
+        TENANT_ID,
+        'Not eligible',
+      );
 
       expect(result.status).toBe(LeaveStatus.REJECTED);
       expect(result.approvedBy).toBe(MANAGER_USER_ID);
@@ -264,35 +346,62 @@ describe('LeaveService', () => {
     });
 
     it('admin can reject a PENDING leave', async () => {
-      leaveRepo.findOne.mockResolvedValue(makeLeave({ status: LeaveStatus.PENDING }));
-      employeeRepo.findOne.mockResolvedValue(makeEmployee(EMPLOYEE_USER_ID, null));
-      userRepo.findOne.mockImplementation(({ where }: { where: { id: string } }) => {
-        if (where.id === ADMIN_USER_ID) return Promise.resolve(makeUser(ADMIN_USER_ID, 'admin'));
-        return Promise.resolve(null);
-      });
+      leaveRepo.findOne.mockResolvedValue(
+        makeLeave({ status: LeaveStatus.PENDING }),
+      );
+      employeeRepo.findOne.mockResolvedValue(
+        makeEmployee(EMPLOYEE_USER_ID, null),
+      );
+      userRepo.findOne.mockImplementation(
+        ({ where }: { where: { id: string } }) => {
+          if (where.id === ADMIN_USER_ID)
+            return Promise.resolve(makeUser(ADMIN_USER_ID, 'admin'));
+          return Promise.resolve(null);
+        },
+      );
 
-      const result = await service.rejectLeave(LEAVE_ID, ADMIN_USER_ID, TENANT_ID);
+      const result = await service.rejectLeave(
+        LEAVE_ID,
+        ADMIN_USER_ID,
+        TENANT_ID,
+      );
 
       expect(result.status).toBe(LeaveStatus.REJECTED);
     });
 
     it('admin can reject a PROCESSING leave', async () => {
-      leaveRepo.findOne.mockResolvedValue(makeLeave({ status: LeaveStatus.PROCESSING }));
-      employeeRepo.findOne.mockResolvedValue(makeEmployee(EMPLOYEE_USER_ID, MANAGER_USER_ID));
-      userRepo.findOne.mockImplementation(({ where }: { where: { id: string } }) => {
-        if (where.id === ADMIN_USER_ID) return Promise.resolve(makeUser(ADMIN_USER_ID, 'admin'));
-        return Promise.resolve(null);
-      });
+      leaveRepo.findOne.mockResolvedValue(
+        makeLeave({ status: LeaveStatus.PROCESSING }),
+      );
+      employeeRepo.findOne.mockResolvedValue(
+        makeEmployee(EMPLOYEE_USER_ID, MANAGER_USER_ID),
+      );
+      userRepo.findOne.mockImplementation(
+        ({ where }: { where: { id: string } }) => {
+          if (where.id === ADMIN_USER_ID)
+            return Promise.resolve(makeUser(ADMIN_USER_ID, 'admin'));
+          return Promise.resolve(null);
+        },
+      );
 
-      const result = await service.rejectLeave(LEAVE_ID, ADMIN_USER_ID, TENANT_ID, 'Policy breach');
+      const result = await service.rejectLeave(
+        LEAVE_ID,
+        ADMIN_USER_ID,
+        TENANT_ID,
+        'Policy breach',
+      );
 
       expect(result.status).toBe(LeaveStatus.REJECTED);
       expect(result.remarks).toBe('Policy breach');
     });
 
     it('throws ForbiddenException when unrelated user tries to reject', async () => {
-      leaveRepo.findOne.mockResolvedValue(makeLeave({ status: LeaveStatus.PENDING }));
-      employeeRepo.findOne.mockResolvedValue(makeEmployee(EMPLOYEE_USER_ID, 'other-manager'));
+      leaveRepo.findOne.mockResolvedValue(
+        makeLeave({ status: LeaveStatus.PENDING }),
+      );
+      employeeRepo.findOne.mockResolvedValue(
+        makeEmployee(EMPLOYEE_USER_ID, 'other-manager'),
+      );
       userRepo.findOne.mockResolvedValue(makeUser('random-user', 'employee'));
 
       await expect(

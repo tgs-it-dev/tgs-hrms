@@ -93,8 +93,14 @@ describe('BillingService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         BillingService,
-        { provide: getRepositoryToken(BillingTransaction), useFactory: mockBillingTransactionRepo },
-        { provide: getRepositoryToken(CompanyDetails), useFactory: mockCompanyDetailsRepo },
+        {
+          provide: getRepositoryToken(BillingTransaction),
+          useFactory: mockBillingTransactionRepo,
+        },
+        {
+          provide: getRepositoryToken(CompanyDetails),
+          useFactory: mockCompanyDetailsRepo,
+        },
         { provide: getRepositoryToken(Tenant), useFactory: mockTenantRepo },
         { provide: ConfigService, useFactory: mockConfigService },
         { provide: TenantDatabaseService, useFactory: mockTenantDbService },
@@ -151,11 +157,22 @@ describe('BillingService', () => {
     });
 
     it('uses tenant schema when tenant is provisioned', async () => {
-      const provisionedTenant = { ...mockTenantUnprovisioned, schema_provisioned: true };
+      const provisionedTenant = {
+        ...mockTenantUnprovisioned,
+        schema_provisioned: true,
+      };
       tenantRepo.findOne.mockResolvedValue(provisionedTenant);
       tenantDbService.withTenantSchemaReadOnly.mockImplementation(
-        async (_id: string, work: (em: { getRepository: () => Repository<BillingTransaction> }) => Promise<unknown>) =>
-          work({ getRepository: () => billingRepo as unknown as Repository<BillingTransaction> }),
+        async (
+          _id: string,
+          work: (em: {
+            getRepository: () => Repository<BillingTransaction>;
+          }) => Promise<unknown>,
+        ) =>
+          work({
+            getRepository: () =>
+              billingRepo as unknown as Repository<BillingTransaction>,
+          }),
       );
       billingRepo.findAndCount.mockResolvedValue([[mockTransaction], 1]);
 
@@ -188,7 +205,10 @@ describe('BillingService', () => {
       tenantRepo.findOne.mockResolvedValue(mockTenantUnprovisioned);
       billingRepo.findOne.mockResolvedValue(null);
 
-      const result = await service.getTransactionById('non-existent-id', TENANT_ID);
+      const result = await service.getTransactionById(
+        'non-existent-id',
+        TENANT_ID,
+      );
 
       expect(result).toBeNull();
     });
@@ -198,7 +218,10 @@ describe('BillingService', () => {
       // The WHERE clause includes tenant_id so a cross-tenant query returns null
       billingRepo.findOne.mockResolvedValue(null);
 
-      const result = await service.getTransactionById(TXN_ID, 'different-tenant-id');
+      const result = await service.getTransactionById(
+        TXN_ID,
+        'different-tenant-id',
+      );
 
       expect(result).toBeNull();
     });
