@@ -15,6 +15,8 @@ import { NotificationGateway } from '../notification/notification.gateway';
 import { LeaveFileUploadService } from './services/leave-file-upload.service';
 import { S3StorageService } from '../storage/storage.service';
 import { TenantDatabaseService } from '../../common/services/tenant-database.service';
+import { WorkflowService } from '../workflow/workflow.service';
+import { TenantSettingsService } from '../tenant-settings/tenant-settings.service';
 
 // ── Fixture helpers ──────────────────────────────────────────────────────────
 
@@ -110,6 +112,15 @@ const mockTenantDbService = () => ({
   withTenantSchemaReadOnly: jest.fn(),
 });
 
+const mockWorkflowService = () => ({
+  isWorkflowEnabled: jest.fn().mockResolvedValue(false),
+  getWorkflowSteps: jest.fn().mockResolvedValue([]),
+});
+
+const mockTenantSettingsService = () => ({
+  getSettings: jest.fn().mockResolvedValue(null),
+});
+
 // ── Test suite ───────────────────────────────────────────────────────────────
 
 describe('LeaveService', () => {
@@ -136,6 +147,8 @@ describe('LeaveService', () => {
         { provide: LeaveFileUploadService, useValue: {} },
         { provide: S3StorageService, useValue: {} },
         { provide: TenantDatabaseService, useFactory: mockTenantDbService },
+        { provide: WorkflowService, useFactory: mockWorkflowService },
+        { provide: TenantSettingsService, useFactory: mockTenantSettingsService },
       ],
     }).compile();
 
