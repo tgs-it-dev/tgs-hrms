@@ -1,6 +1,15 @@
-import { MigrationInterface, QueryRunner, Table, TableForeignKey, TableIndex, TableColumn } from 'typeorm';
+import {
+  MigrationInterface,
+  QueryRunner,
+  Table,
+  TableForeignKey,
+  TableIndex,
+  TableColumn,
+} from 'typeorm';
 
-export class AddAssetCommentsAndLinkAssetToRequest1768000000000 implements MigrationInterface {
+export class AddAssetCommentsAndLinkAssetToRequest1768000000000
+  implements MigrationInterface
+{
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Add asset_id column to asset_requests table
     await queryRunner.addColumn(
@@ -144,9 +153,18 @@ export class AddAssetCommentsAndLinkAssetToRequest1768000000000 implements Migra
     }
 
     // Drop indexes
-    await queryRunner.dropIndex('asset_comments', 'IDX_asset_comments_tenant_id');
-    await queryRunner.dropIndex('asset_comments', 'IDX_asset_comments_commented_by');
-    await queryRunner.dropIndex('asset_comments', 'IDX_asset_comments_asset_id');
+    await queryRunner.dropIndex(
+      'asset_comments',
+      'IDX_asset_comments_tenant_id',
+    );
+    await queryRunner.dropIndex(
+      'asset_comments',
+      'IDX_asset_comments_commented_by',
+    );
+    await queryRunner.dropIndex(
+      'asset_comments',
+      'IDX_asset_comments_asset_id',
+    );
 
     // Drop asset_comments table
     await queryRunner.dropTable('asset_comments');
@@ -155,4 +173,3 @@ export class AddAssetCommentsAndLinkAssetToRequest1768000000000 implements Migra
     await queryRunner.dropColumn('asset_requests', 'asset_id');
   }
 }
-

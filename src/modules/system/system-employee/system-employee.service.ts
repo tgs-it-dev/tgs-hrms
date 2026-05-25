@@ -1,9 +1,9 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
-import { Employee } from "src/entities/employee.entity";
-import { Leave } from "src/entities/leave.entity";
-import { EmployeeStatus } from "src/common/constants/enums";
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Employee } from 'src/entities/employee.entity';
+import { Leave } from 'src/entities/leave.entity';
+import { EmployeeStatus } from 'src/common/constants/enums';
 
 @Injectable()
 export class SystemEmployeeService {
@@ -24,44 +24,44 @@ export class SystemEmployeeService {
     },
   ) {
     const qb = this.employeeRepo
-      .createQueryBuilder("employee")
-      .leftJoinAndSelect("employee.user", "user")
-      .leftJoinAndSelect("user.tenant", "tenant")
-      .leftJoinAndSelect("employee.designation", "designation")
-      .leftJoinAndSelect("designation.department", "department");
+      .createQueryBuilder('employee')
+      .leftJoinAndSelect('employee.user', 'user')
+      .leftJoinAndSelect('user.tenant', 'tenant')
+      .leftJoinAndSelect('employee.designation', 'designation')
+      .leftJoinAndSelect('designation.department', 'department');
 
     if (filters?.tenantId) {
-      qb.andWhere("user.tenant_id = :tenantId", {
+      qb.andWhere('user.tenant_id = :tenantId', {
         tenantId: filters.tenantId,
       });
     }
 
     if (filters?.departmentId) {
-      qb.andWhere("department.id = :departmentId", {
+      qb.andWhere('department.id = :departmentId', {
         departmentId: filters.departmentId,
       });
     }
 
     if (filters?.designationId) {
-      qb.andWhere("designation.id = :designationId", {
+      qb.andWhere('designation.id = :designationId', {
         designationId: filters.designationId,
       });
     }
 
     if (filters?.status) {
-      qb.andWhere("employee.status = :status", {
+      qb.andWhere('employee.status = :status', {
         status: filters.status,
       });
     }
 
-    qb.orderBy("employee.created_at", "DESC");
+    qb.orderBy('employee.created_at', 'DESC');
     qb.skip((page - 1) * 25).take(25);
 
     const results = await qb.getMany();
 
     const data = results.map((e) => {
       const isTenantDeleted = !!e.user?.tenant?.deleted_at;
-      const isTenantSuspended = e.user?.tenant?.status === "suspended";
+      const isTenantSuspended = e.user?.tenant?.status === 'suspended';
       const employeeStatus =
         isTenantDeleted || isTenantSuspended
           ? EmployeeStatus.INACTIVE
@@ -88,20 +88,20 @@ export class SystemEmployeeService {
     const employee = await this.employeeRepo.findOne({
       where: { id },
       relations: [
-        "user",
-        "user.tenant",
-        "designation",
-        "designation.department",
-        "team",
+        'user',
+        'user.tenant',
+        'designation',
+        'designation.department',
+        'team',
       ],
     });
 
     if (!employee) {
-      throw new NotFoundException("Employee not found");
+      throw new NotFoundException('Employee not found');
     }
 
     const isTenantDeleted = !!employee.user?.tenant?.deleted_at;
-    const isTenantSuspended = employee.user?.tenant?.status === "suspended";
+    const isTenantSuspended = employee.user?.tenant?.status === 'suspended';
     const employeeStatus =
       isTenantDeleted || isTenantSuspended
         ? EmployeeStatus.INACTIVE
@@ -128,11 +128,11 @@ export class SystemEmployeeService {
     if (employeeId) {
       const employee = await this.employeeRepo.findOne({
         where: { id: employeeId },
-        relations: ["user"],
+        relations: ['user'],
       });
 
       if (!employee) {
-        throw new NotFoundException("Employee not found");
+        throw new NotFoundException('Employee not found');
       }
 
       targetUserId = employee.user_id;
@@ -144,16 +144,16 @@ export class SystemEmployeeService {
 
     if (!targetUserId) {
       const leaves = await this.leaveRepo.find({
-        order: { createdAt: "DESC" },
-        relations: ["leaveType", "approver"],
+        order: { createdAt: 'DESC' },
+        relations: ['leaveType', 'approver'],
       });
       return leaves;
     }
 
     const leaves = await this.leaveRepo.find({
       where: { employeeId: targetUserId },
-      order: { createdAt: "DESC" },
-      relations: ["leaveType", "approver"],
+      order: { createdAt: 'DESC' },
+      relations: ['leaveType', 'approver'],
     });
 
     return leaves;

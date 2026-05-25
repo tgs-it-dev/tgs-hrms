@@ -1,7 +1,9 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddIndexesToCoreEntities1769000000003 implements MigrationInterface {
-  name = "AddIndexesToCoreEntities1769000000003";
+export class AddIndexesToCoreEntities1769000000003
+  implements MigrationInterface
+{
+  name = 'AddIndexesToCoreEntities1769000000003';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Users table indexes
@@ -34,32 +36,18 @@ export class AddIndexesToCoreEntities1769000000003 implements MigrationInterface
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     // Drop departments indexes
-    await queryRunner.query(
-      `DROP INDEX IF EXISTS "IDX_departments_tenant_id"`,
-    );
+    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_departments_tenant_id"`);
 
     // Drop employees indexes
-    await queryRunner.query(
-      `DROP INDEX IF EXISTS "IDX_employees_team_id"`,
-    );
+    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_employees_team_id"`);
     await queryRunner.query(
       `DROP INDEX IF EXISTS "IDX_employees_designation_id"`,
     );
-    await queryRunner.query(
-      `DROP INDEX IF EXISTS "IDX_employees_user_id"`,
-    );
+    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_employees_user_id"`);
 
     // Drop users indexes
-    await queryRunner.query(
-      `DROP INDEX IF EXISTS "IDX_users_tenant_id_email"`,
-    );
-    await queryRunner.query(
-      `DROP INDEX IF EXISTS "IDX_users_email"`,
-    );
-    await queryRunner.query(
-      `DROP INDEX IF EXISTS "IDX_users_tenant_id"`,
-    );
+    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_users_tenant_id_email"`);
+    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_users_email"`);
+    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_users_tenant_id"`);
   }
 }
-
-

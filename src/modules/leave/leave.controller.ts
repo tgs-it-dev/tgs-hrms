@@ -36,20 +36,22 @@ import {
   EditLeaveDto,
   RemoveLeaveDocumentDto,
 } from './dto/update-leave.dto';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
-import { RolesGuard } from 'src/common/guards/roles.guard';
-import { Roles } from 'src/common/decorators/roles.decorator';
-import { Permissions } from 'src/common/decorators/permissions.decorator';
-import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { Permissions } from '../../common/decorators/permissions.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { Response } from 'express';
-import { sendCsvResponse } from 'src/common/utils/csv.util';
+import { sendCsvResponse } from '../../common/utils/csv.util';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { validateImageFile, createImageFileFilter } from 'src/common/utils/file-validation.util';
-import { AuthenticatedRequest } from 'src/common/types/request.types';
+import {
+  validateImageFile,
+  createImageFileFilter,
+} from '../../common/utils/file-validation.util';
+import { AuthenticatedRequest } from '../../common/types/request.types';
 
 @ApiTags('Leaves')
 @Controller('leaves')
-@UseGuards(JwtAuthGuard)
 export class LeaveController {
   constructor(private readonly leaveService: LeaveService) {}
 
@@ -359,7 +361,6 @@ export class LeaveController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all leaves for logged-in employee' })
   @ApiResponse({ status: 200, description: 'Returns leave requests' })
@@ -656,7 +657,6 @@ export class LeaveController {
   }
 
   @Patch(':id/cancel')
-  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({
     summary:
@@ -803,9 +803,6 @@ export class LeaveController {
       }
     }
 
-    // Debug: Log the DTO to verify values are being received
-    // console.log('EditLeave DTO received:', JSON.stringify(dto, null, 2));
-
     return this.leaveService.editLeave(
       id,
       req.user.id,
@@ -856,7 +853,10 @@ export class LeaveController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Download your leave requests as CSV' })
   async exportSelf(@Request() req: AuthenticatedRequest, @Res() res: Response) {
-    const rows = await this.leaveService.getLeavesForExport(req.user.id, req.user.tenant_id);
+    const rows = await this.leaveService.getLeavesForExport(
+      req.user.id,
+      req.user.tenant_id,
+    );
     return sendCsvResponse(res, 'leaves-self.csv', rows);
   }
 

@@ -1,6 +1,8 @@
 import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
 
-export class AddCnicAndPicturesToEmployee1765000000000 implements MigrationInterface {
+export class AddCnicAndPicturesToEmployee1765000000000
+  implements MigrationInterface
+{
   name = 'AddCnicAndPicturesToEmployee1765000000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -11,7 +13,7 @@ export class AddCnicAndPicturesToEmployee1765000000000 implements MigrationInter
         type: 'varchar',
         length: '15',
         isNullable: true,
-      })
+      }),
     );
 
     await queryRunner.addColumn(
@@ -21,7 +23,7 @@ export class AddCnicAndPicturesToEmployee1765000000000 implements MigrationInter
         type: 'varchar',
         length: '500',
         isNullable: true,
-      })
+      }),
     );
 
     await queryRunner.addColumn(
@@ -31,7 +33,7 @@ export class AddCnicAndPicturesToEmployee1765000000000 implements MigrationInter
         type: 'varchar',
         length: '500',
         isNullable: true,
-      })
+      }),
     );
   }
 

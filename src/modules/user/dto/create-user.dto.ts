@@ -37,7 +37,7 @@ export class CreateUserDto {
   @ApiProperty({ enum: UserGender, required: false })
   @IsOptional()
   @IsEnum(UserGender)
-  gender?: UserGender; 
+  gender?: UserGender;
 
   @ApiProperty()
   @IsUUID()

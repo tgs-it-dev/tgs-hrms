@@ -44,7 +44,7 @@ export class EmailThrottleService {
       { enableReadyCheck: false, maxRetriesPerRequest: null, tls: undefined },
     );
 
-    this.redis.on('error', (err) =>
+    this.redis.on('error', (err: Error) =>
       this.logger.error('EmailThrottleService Redis error', err),
     );
 

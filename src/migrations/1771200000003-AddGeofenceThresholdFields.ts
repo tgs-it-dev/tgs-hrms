@@ -1,6 +1,8 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddGeofenceThresholdFields1771200000003 implements MigrationInterface {
+export class AddGeofenceThresholdFields1771200000003
+  implements MigrationInterface
+{
   name = 'AddGeofenceThresholdFields1771200000003';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
