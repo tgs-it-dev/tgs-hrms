@@ -33,6 +33,7 @@ const mockTenant: Tenant = {
   name: 'Test Company',
   status: 'active',
   schema_provisioned: false,
+  workflow_enabled: false,
   created_at: new Date(),
   updated_at: new Date(),
   deleted_at: null,
@@ -181,7 +182,7 @@ describe('AuthService - Login', () => {
   it('should validate and return access token for valid credentials', async () => {
     jest
       .spyOn(bcrypt, 'compare')
-      .mockImplementation(() => Promise.resolve(true));
+      .mockResolvedValue(true as unknown as never);
 
     const result = await service.validateUser('admin@company.com', '123456');
 
@@ -199,7 +200,7 @@ describe('AuthService - Login', () => {
   it('should throw error for invalid password', async () => {
     jest
       .spyOn(bcrypt, 'compare')
-      .mockImplementation(() => Promise.resolve(false));
+      .mockResolvedValue(false as unknown as never);
 
     await expect(
       service.validateUser('admin@company.com', 'wrongpass'),

@@ -31,6 +31,7 @@ const mockTenant: Tenant = {
   name: 'Test Company',
   status: 'active',
   schema_provisioned: false,
+  workflow_enabled: false,
   created_at: new Date(),
   updated_at: new Date(),
   deleted_at: null,
@@ -267,8 +268,8 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
       ]);
       jest
         .spyOn(bcrypt, 'hash')
-        .mockImplementation(async () => 'hashedPassword');
-      jest.spyOn(bcrypt, 'compare').mockImplementation(async () => true);
+        .mockResolvedValue('hashedPassword' as unknown as never);
+      jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as unknown as never);
 
       const result = await service.resetPassword({
         token: 'valid-token',
