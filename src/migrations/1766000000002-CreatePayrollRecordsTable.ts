@@ -1,6 +1,8 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class CreatePayrollRecordsTable1766000000002 implements MigrationInterface {
+export class CreatePayrollRecordsTable1766000000002
+  implements MigrationInterface
+{
   name = 'CreatePayrollRecordsTable1766000000002';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -183,4 +185,3 @@ export class CreatePayrollRecordsTable1766000000002 implements MigrationInterfac
     await queryRunner.query(`DROP TABLE IF EXISTS "payroll_records";`);
   }
 }
-

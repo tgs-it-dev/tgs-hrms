@@ -20,16 +20,17 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { NotificationService } from './notification.service';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { NotificationStatus, NotificationType } from '../../common/constants/enums';
+import {
+  NotificationStatus,
+  NotificationType,
+} from '../../common/constants/enums';
 import { SendNotificationDto } from './dto/send-notification.dto';
 import { AuthenticatedRequest } from '../../common/types/request.types';
 
 @ApiTags('Notifications')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
 @Controller('notifications')
 export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
@@ -107,7 +108,10 @@ export class NotificationController {
     status: 404,
     description: 'Notification not found',
   })
-  async markAsRead(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
+  async markAsRead(
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
     const userRole = req.user.role || 'employee';
     return this.notificationService.markAsRead(
       id,
@@ -131,13 +135,17 @@ export class NotificationController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Notification marked as read; redirect_path returned for click-to-redirect',
+    description:
+      'Notification marked as read; redirect_path returned for click-to-redirect',
   })
   @ApiResponse({
     status: 404,
     description: 'Notification not found',
   })
-  async markAsReadAndRedirect(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
+  async markAsReadAndRedirect(
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
     const userRole = req.user.role || 'employee';
     return this.notificationService.markAsReadAndGetRedirect(
       id,
@@ -163,6 +171,4 @@ export class NotificationController {
     );
     return { message: 'All notifications marked as read' };
   }
-
- 
 }

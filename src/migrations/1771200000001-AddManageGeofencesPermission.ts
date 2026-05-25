@@ -1,7 +1,9 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 
-export class AddManageGeofencesPermission1771200000001 implements MigrationInterface {
+export class AddManageGeofencesPermission1771200000001
+  implements MigrationInterface
+{
   name = 'AddManageGeofencesPermission1771200000001';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -22,7 +24,13 @@ export class AddManageGeofencesPermission1771200000001 implements MigrationInter
     const permissionId = perm[0].id;
 
     // 3) Assign permission to roles (idempotent)
-    const targetRoles = ['system-admin', 'admin', 'network-admin', 'hr-admin', 'manager'];
+    const targetRoles = [
+      'system-admin',
+      'admin',
+      'network-admin',
+      'hr-admin',
+      'manager',
+    ];
 
     for (const roleName of targetRoles) {
       const role = await queryRunner.query(
@@ -48,7 +56,13 @@ export class AddManageGeofencesPermission1771200000001 implements MigrationInter
     if (!perm.length) return;
 
     const permissionId = perm[0].id;
-    const targetRoles = ['system-admin', 'admin', 'network-admin', 'hr-admin', 'manager'];
+    const targetRoles = [
+      'system-admin',
+      'admin',
+      'network-admin',
+      'hr-admin',
+      'manager',
+    ];
 
     for (const roleName of targetRoles) {
       const role = await queryRunner.query(
@@ -64,4 +78,3 @@ export class AddManageGeofencesPermission1771200000001 implements MigrationInter
     }
   }
 }
-

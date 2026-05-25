@@ -6,9 +6,14 @@ import {
   Request,
   Res,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { LeaveReportsService } from './leave-reports.service';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -18,9 +23,8 @@ import { sendCsvResponse } from '../../common/utils/csv.util';
 
 @ApiTags('Leave Reports')
 @Controller('reports')
-@UseGuards(JwtAuthGuard)
 export class LeaveReportsController {
-  constructor(private readonly leaveReportsService: LeaveReportsService) { }
+  constructor(private readonly leaveReportsService: LeaveReportsService) {}
 
   @Get('leave-summary')
   @ApiBearerAuth()
@@ -34,18 +38,25 @@ export class LeaveReportsController {
         year: 2025,
         summary: [
           { type: 'Annual', used: 10, remaining: 14 },
-          { type: 'Sick', used: 4, remaining: 6 }
-        ]
-      }
-    }
+          { type: 'Sick', used: 4, remaining: 6 },
+        ],
+      },
+    },
   })
   async getLeaveSummary(
     @Query('employeeId') employeeId: string,
     @Query('year') year: string,
-    @Request() req: any
+    @Request() req: any,
   ) {
-    const yearNumber = parseInt(year || new Date().getFullYear().toString(), 10);
-    return this.leaveReportsService.getLeaveSummary(employeeId, yearNumber, req.user.tenant_id);
+    const yearNumber = parseInt(
+      year || new Date().getFullYear().toString(),
+      10,
+    );
+    return this.leaveReportsService.getLeaveSummary(
+      employeeId,
+      yearNumber,
+      req.user.tenant_id,
+    );
   }
 
   @Get('team-leave-summary')
@@ -62,11 +73,19 @@ export class LeaveReportsController {
     @Query('managerId') managerId: string,
     @Query('month') month: string,
     @Query('year') year: string,
-    @Request() req: any
+    @Request() req: any,
   ) {
     const monthNumber = parseInt(month || new Date().getMonth().toString(), 10);
-    const yearNumber = parseInt(year || new Date().getFullYear().toString(), 10);
-    return this.leaveReportsService.getTeamLeaveSummary(managerId, monthNumber, yearNumber, req.user.tenant_id);
+    const yearNumber = parseInt(
+      year || new Date().getFullYear().toString(),
+      10,
+    );
+    return this.leaveReportsService.getTeamLeaveSummary(
+      managerId,
+      monthNumber,
+      yearNumber,
+      req.user.tenant_id,
+    );
   }
 
   @Get('leave-balance')
@@ -80,7 +99,7 @@ export class LeaveReportsController {
     @Query('employeeId') employeeId: string,
     @Query('year') year: string,
     @Query('month') month: string,
-    @Request() req: any
+    @Request() req: any,
   ) {
     const yearNumber = year ? parseInt(year, 10) : undefined;
     const monthNumber = month ? parseInt(month, 10) : undefined;
@@ -102,12 +121,19 @@ export class LeaveReportsController {
     @Request() req: any,
     @Res() res: Response,
   ) {
-    const yearNumber = parseInt(year || new Date().getFullYear().toString(), 10);
-    const data = await this.leaveReportsService.getLeaveSummary(employeeId, yearNumber, req.user.tenant_id);
-    const rows = (data.summary || []).map(row => ({
+    const yearNumber = parseInt(
+      year || new Date().getFullYear().toString(),
+      10,
+    );
+    const data = await this.leaveReportsService.getLeaveSummary(
+      employeeId,
+      yearNumber,
+      req.user.tenant_id,
+    );
+    const rows = (data.summary || []).map((row) => ({
       employeeId: data.employeeId,
       year: data.year,
-      ...row
+      ...row,
     }));
     return sendCsvResponse(res, 'leave-summary.csv', rows);
   }
@@ -127,11 +153,19 @@ export class LeaveReportsController {
     @Res() res: Response,
   ) {
     const monthNumber = parseInt(month || new Date().getMonth().toString(), 10);
-    const yearNumber = parseInt(year || new Date().getFullYear().toString(), 10);
-    const data = await this.leaveReportsService.getTeamLeaveSummary(managerId, monthNumber, yearNumber, req.user.tenant_id);
+    const yearNumber = parseInt(
+      year || new Date().getFullYear().toString(),
+      10,
+    );
+    const data = await this.leaveReportsService.getTeamLeaveSummary(
+      managerId,
+      monthNumber,
+      yearNumber,
+      req.user.tenant_id,
+    );
     const rows: any[] = [];
     for (const member of data.teamMembers) {
-      (member.leaves || []).forEach(leave => {
+      (member.leaves || []).forEach((leave) => {
         rows.push({
           managerId: data.managerId,
           month: data.month,
@@ -201,11 +235,29 @@ export class LeaveReportsController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Get comprehensive leave reports for all employees (paginated)',
-    description: 'Returns detailed leave reports for the specified year (or current year if not provided) including employee summaries, leave records, and organization statistics. Accessible by admin, hr-admin, and system-admin roles. Supports pagination via page query parameter and filtering by year and month.'
+    description:
+      'Returns detailed leave reports for the specified year (or current year if not provided) including employee summaries, leave records, and organization statistics. Accessible by admin, hr-admin, and system-admin roles. Supports pagination via page query parameter and filtering by year and month.',
   })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
-  @ApiQuery({ name: 'year', required: false, type: Number, description: 'Filter by year (e.g., 2025). If not provided, uses current year.' })
-  @ApiQuery({ name: 'employeeName', required: false, type: String, description: 'Filter by employee full name (first name + last name, e.g. "Alex Parker"). Pass the complete name to match exactly one employee.' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (default: 1)',
+  })
+  @ApiQuery({
+    name: 'year',
+    required: false,
+    type: Number,
+    description:
+      'Filter by year (e.g., 2025). If not provided, uses current year.',
+  })
+  @ApiQuery({
+    name: 'employeeName',
+    required: false,
+    type: String,
+    description:
+      'Filter by employee full name (first name + last name, e.g. "Alex Parker"). Pass the complete name to match exactly one employee.',
+  })
   @ApiResponse({
     status: 200,
     description: 'Returns comprehensive leave reports with pagination',
@@ -214,7 +266,7 @@ export class LeaveReportsController {
         period: {
           year: 2025,
           startDate: '2025-01-01T00:00:00.000Z',
-          endDate: '2025-12-31T23:59:59.999Z'
+          endDate: '2025-12-31T23:59:59.999Z',
         },
         organizationStats: {
           totalEmployees: 50,
@@ -224,7 +276,7 @@ export class LeaveReportsController {
           totalLeaveRequests: 45,
           approvedRequests: 35,
           pendingRequests: 8,
-          rejectedRequests: 2
+          rejectedRequests: 2,
         },
         employeeReports: {
           items: [
@@ -243,8 +295,8 @@ export class LeaveReportsController {
                   pendingDays: 2,
                   rejectedDays: 0,
                   maxDaysPerYear: 20,
-                  remainingDays: 12
-                }
+                  remainingDays: 12,
+                },
               ],
               leaveRecords: [
                 {
@@ -257,8 +309,8 @@ export class LeaveReportsController {
                   reason: 'Family vacation',
                   appliedDate: '2025-01-10T09:00:00.000Z',
                   approvedBy: 'manager_123',
-                  approvedDate: '2025-01-11T14:30:00.000Z'
-                }
+                  approvedDate: '2025-01-11T14:30:00.000Z',
+                },
               ],
               totals: {
                 totalLeaveDays: 10,
@@ -267,25 +319,25 @@ export class LeaveReportsController {
                 totalLeaveRequests: 3,
                 approvedRequests: 2,
                 pendingRequests: 1,
-                rejectedRequests: 0
-              }
-            }
+                rejectedRequests: 0,
+              },
+            },
           ],
           total: 50,
           page: 1,
           limit: 25,
-          totalPages: 2
+          totalPages: 2,
         },
         leaveTypes: [
           {
             id: 'lt_1',
             name: 'Annual Leave',
             maxDaysPerYear: 20,
-            carryForward: true
-          }
-        ]
-      }
-    }
+            carryForward: true,
+          },
+        ],
+      },
+    },
   })
   async getAllLeaveReports(
     @Request() req: any,
@@ -310,10 +362,21 @@ export class LeaveReportsController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Export all leave reports as CSV',
-    description: 'Same filters as GET /reports/all-leave-reports (year, employeeName). No pagination; all matching records exported.',
+    description:
+      'Same filters as GET /reports/all-leave-reports (year, employeeName). No pagination; all matching records exported.',
   })
-  @ApiQuery({ name: 'year', required: false, type: Number, description: 'Filter by year (default: current year)' })
-  @ApiQuery({ name: 'employeeName', required: false, type: String, description: 'Filter by employee full name (e.g. Ramish Munawar)' })
+  @ApiQuery({
+    name: 'year',
+    required: false,
+    type: Number,
+    description: 'Filter by year (default: current year)',
+  })
+  @ApiQuery({
+    name: 'employeeName',
+    required: false,
+    type: String,
+    description: 'Filter by employee full name (e.g. Ramish Munawar)',
+  })
   @ApiResponse({ status: 200, description: 'CSV file download' })
   async exportAllLeaveReports(
     @Request() req: any,

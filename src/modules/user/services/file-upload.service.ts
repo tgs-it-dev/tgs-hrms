@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import { validateImageFile } from '../../../common/utils/file-validation.util';
-import { S3StorageService } from "../../storage/storage.service";
+import { S3StorageService } from '../../storage/storage.service';
 
 const PREFIX_PROFILE = 'profile-pictures';
 
@@ -10,7 +10,10 @@ const PREFIX_PROFILE = 'profile-pictures';
 export class FileUploadService {
   constructor(private readonly s3: S3StorageService) {}
 
-  async uploadProfilePicture(file: Express.Multer.File, userId: string): Promise<string> {
+  async uploadProfilePicture(
+    file: Express.Multer.File,
+    userId: string,
+  ): Promise<string> {
     validateImageFile(file);
     const ext = path.extname(file.originalname);
     const fileName = `${userId}-${Date.now()}${ext}`;
@@ -23,7 +26,7 @@ export class FileUploadService {
 
     const uploadDir = path.join(
       process.cwd(),
-      "public",
+      'public',
       PREFIX_PROFILE,
       userId,
     );
@@ -33,10 +36,10 @@ export class FileUploadService {
   }
 
   private localPathFromStoredUrl(prefix: string, storedUrl: string): string {
-    const relative = storedUrl.replace(/^\/+/, "").split("?")[0];
-    if (!relative || !relative.startsWith(prefix + "/"))
-      return path.join(process.cwd(), "public", prefix, relative || "");
-    return path.join(process.cwd(), "public", relative);
+    const relative = storedUrl.replace(/^\/+/, '').split('?')[0];
+    if (!relative || !relative.startsWith(prefix + '/'))
+      return path.join(process.cwd(), 'public', prefix, relative || '');
+    return path.join(process.cwd(), 'public', relative);
   }
 
   async deleteProfilePicture(profilePicUrl: string): Promise<void> {

@@ -8,7 +8,7 @@ import { TeamService } from './team.service';
 import { TeamController } from './team.controller';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
 import { TenantModule } from '../tenant/tenant.module';
-import { SendGridService } from 'src/common/utils/email';
+import { SendGridService } from '../../common/utils/email';
 
 @Module({
   imports: [

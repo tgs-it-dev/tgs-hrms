@@ -1,7 +1,9 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddAssetSubcategorySupport1762000000000 implements MigrationInterface {
-  name = 'AddAssetSubcategorySupport1762000000000'
+export class AddAssetSubcategorySupport1762000000000
+  implements MigrationInterface
+{
+  name = 'AddAssetSubcategorySupport1762000000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Create asset_subcategories table
@@ -75,20 +77,36 @@ export class AddAssetSubcategorySupport1762000000000 implements MigrationInterfa
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     // Drop indexes
-    await queryRunner.query(`DROP INDEX IF EXISTS "public"."IDX_asset_requests_subcategory"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "public"."IDX_assets_subcategory"`);
-    
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "public"."IDX_asset_requests_subcategory"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "public"."IDX_assets_subcategory"`,
+    );
+
     // Drop foreign keys
-    await queryRunner.query(`ALTER TABLE "asset_requests" DROP CONSTRAINT "FK_asset_requests_subcategory"`);
-    await queryRunner.query(`ALTER TABLE "assets" DROP CONSTRAINT "FK_assets_subcategory"`);
-    
+    await queryRunner.query(
+      `ALTER TABLE "asset_requests" DROP CONSTRAINT "FK_asset_requests_subcategory"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "assets" DROP CONSTRAINT "FK_assets_subcategory"`,
+    );
+
     // Drop columns
-    await queryRunner.query(`ALTER TABLE "asset_requests" DROP COLUMN "subcategory_id"`);
-    await queryRunner.query(`ALTER TABLE "assets" DROP COLUMN "subcategory_id"`);
-    
+    await queryRunner.query(
+      `ALTER TABLE "asset_requests" DROP COLUMN "subcategory_id"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "assets" DROP COLUMN "subcategory_id"`,
+    );
+
     // Drop asset_subcategories table
-    await queryRunner.query(`DROP INDEX IF EXISTS "public"."IDX_asset_subcategories_unique"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "public"."IDX_asset_subcategories_tenant"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "public"."IDX_asset_subcategories_unique"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "public"."IDX_asset_subcategories_tenant"`,
+    );
     await queryRunner.query(`DROP TABLE "asset_subcategories"`);
   }
 }

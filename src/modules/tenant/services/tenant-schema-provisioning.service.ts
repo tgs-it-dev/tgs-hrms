@@ -1,6 +1,6 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { InjectDataSource } from "@nestjs/typeorm";
-import { DataSource } from "typeorm";
+import { Injectable, Logger } from '@nestjs/common';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 
 /**
  * Responsible for provisioning a dedicated PostgreSQL schema for each tenant
@@ -71,7 +71,7 @@ export class TenantSchemaProvisioningService {
    * Returns the PostgreSQL schema name for a given tenant UUID.
    */
   getSchemaName(tenantId: string): string {
-    return `tenant_${tenantId.replace(/-/g, "")}`;
+    return `tenant_${tenantId.replace(/-/g, '')}`;
   }
 
   /**
@@ -119,10 +119,18 @@ export class TenantSchemaProvisioningService {
       await this.createAnnouncementsTable(queryRunner, schemaName);
       await this.createGeofencesTable(queryRunner, schemaName);
       await this.createNotificationsTable(queryRunner, schemaName);
+      await this.createWorkflowConfigsTable(queryRunner, schemaName);
+      await this.createWorkflowRequestsTable(queryRunner, schemaName);
+      await this.createWorkflowStepsTable(queryRunner, schemaName);
+      await this.createWfhRequestsTable(queryRunner, schemaName);
+      await this.createOvertimeRequestsTable(queryRunner, schemaName);
+      await this.seedDefaultWorkflowConfigs(queryRunner, schemaName, tenantId);
 
       // Copy platform-wide GLOBAL departments/designations so new tenants can
       // immediately create designations under them and see them in findAll.
       await this.migrateGlobalDataToTenantSchema(queryRunner, schemaName);
+
+      await this.seedDefaultTenantSettings(queryRunner, tenantId);
 
       await queryRunner.commitTransaction();
       this.logger.log(`Schema provisioning complete for tenant ${tenantId}`);
@@ -185,6 +193,12 @@ export class TenantSchemaProvisioningService {
       await this.upgradeEmployeesForeignKeys(queryRunner, schemaName);
       await this.upgradeGeofencesForeignKeys(queryRunner, schemaName);
       await this.upgradeNotificationsForeignKeys(queryRunner, schemaName);
+      await this.createWorkflowConfigsTable(queryRunner, schemaName);
+      await this.createWorkflowRequestsTable(queryRunner, schemaName);
+      await this.createWorkflowStepsTable(queryRunner, schemaName);
+      await this.createWfhRequestsTable(queryRunner, schemaName);
+      await this.createOvertimeRequestsTable(queryRunner, schemaName);
+      await this.seedDefaultWorkflowConfigs(queryRunner, schemaName, tenantId);
 
       // Migrate any existing public-schema rows for this tenant into the new
       // tenant schema tables.  Idempotent: ON CONFLICT DO NOTHING everywhere.
@@ -193,6 +207,8 @@ export class TenantSchemaProvisioningService {
         schemaName,
         tenantId,
       );
+
+      await this.seedDefaultTenantSettings(queryRunner, tenantId);
 
       await queryRunner.commitTransaction();
       this.logger.log(`Schema upgrade complete for tenant ${tenantId}`);
@@ -233,7 +249,7 @@ export class TenantSchemaProvisioningService {
    * Suffix budget used: _dept_tn (8) for FK
    */
   private async createDepartmentsTable(
-    queryRunner: ReturnType<DataSource["createQueryRunner"]>,
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
     schemaName: string,
   ): Promise<void> {
     await queryRunner.query(`
@@ -265,7 +281,7 @@ export class TenantSchemaProvisioningService {
    * Suffix budget used: _desig_dept (11)
    */
   private async createDesignationsTable(
-    queryRunner: ReturnType<DataSource["createQueryRunner"]>,
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
     schemaName: string,
   ): Promise<void> {
     await queryRunner.query(`
@@ -300,7 +316,7 @@ export class TenantSchemaProvisioningService {
    * Suffix budget used: _teams_mgr (10)
    */
   private async createTeamsTable(
-    queryRunner: ReturnType<DataSource["createQueryRunner"]>,
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
     schemaName: string,
   ): Promise<void> {
     await queryRunner.query(`
@@ -333,7 +349,7 @@ export class TenantSchemaProvisioningService {
    * Suffix budget used: _emp_user (9), _emp_desig (10), _emp_team (9)
    */
   private async createEmployeesTable(
-    queryRunner: ReturnType<DataSource["createQueryRunner"]>,
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
     schemaName: string,
   ): Promise<void> {
     await queryRunner.query(`
@@ -391,7 +407,7 @@ export class TenantSchemaProvisioningService {
    * "constraint already exists".
    */
   private async createBillingTransactionsTable(
-    queryRunner: ReturnType<DataSource["createQueryRunner"]>,
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
     schemaName: string,
   ): Promise<void> {
     // Create table without inline FK constraints — FKs are added below.
@@ -473,7 +489,7 @@ export class TenantSchemaProvisioningService {
    * Suffix budget used: _att_usr (8), _att_apr (8)
    */
   private async createAttendanceTable(
-    queryRunner: ReturnType<DataSource["createQueryRunner"]>,
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
     schemaName: string,
   ): Promise<void> {
     await queryRunner.query(`
@@ -527,7 +543,7 @@ export class TenantSchemaProvisioningService {
    * Suffix budget used: _lt_tn (6), _lt_usr (7)
    */
   private async createLeaveTypesTable(
-    queryRunner: ReturnType<DataSource["createQueryRunner"]>,
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
     schemaName: string,
   ): Promise<void> {
     await queryRunner.query(`
@@ -571,7 +587,7 @@ export class TenantSchemaProvisioningService {
    * Suffix budget used: _lv_emp (7), _lv_lt (6), _lv_apr (7), _lv_tn (6)
    */
   private async createLeavesTable(
-    queryRunner: ReturnType<DataSource["createQueryRunner"]>,
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
     schemaName: string,
   ): Promise<void> {
     await queryRunner.query(`
@@ -589,9 +605,10 @@ export class TenantSchemaProvisioningService {
         "approvedAt"      TIMESTAMP,
         "remarks"         TEXT,
         "managerRemarks"  TEXT,
-        "documents"       TEXT[]             DEFAULT '{}',
-        "createdAt"       TIMESTAMP NOT NULL DEFAULT now(),
-        "updatedAt"       TIMESTAMP NOT NULL DEFAULT now(),
+        "documents"           TEXT[]             DEFAULT '{}',
+        "workflow_request_id" UUID,
+        "createdAt"           TIMESTAMP NOT NULL DEFAULT now(),
+        "updatedAt"           TIMESTAMP NOT NULL DEFAULT now(),
         CONSTRAINT "pk_${schemaName}_lv"
           PRIMARY KEY ("id"),
         CONSTRAINT "fk_${schemaName}_lv_emp"
@@ -631,7 +648,7 @@ export class TenantSchemaProvisioningService {
    * Suffix budget used: _ann_tn (6), _ann_usr (7)
    */
   private async createAnnouncementsTable(
-    queryRunner: ReturnType<DataSource["createQueryRunner"]>,
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
     schemaName: string,
   ): Promise<void> {
     await queryRunner.query(`
@@ -683,7 +700,7 @@ export class TenantSchemaProvisioningService {
    * Suffix budget used: _gf_tn (6), _gf_tm (6)
    */
   private async createGeofencesTable(
-    queryRunner: ReturnType<DataSource["createQueryRunner"]>,
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
     schemaName: string,
   ): Promise<void> {
     await queryRunner.query(`
@@ -739,7 +756,7 @@ export class TenantSchemaProvisioningService {
    * Suffix budget used: _ntf_usr (8), _ntf_snd (8), _ntf_tn (7)
    */
   private async createNotificationsTable(
-    queryRunner: ReturnType<DataSource["createQueryRunner"]>,
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
     schemaName: string,
   ): Promise<void> {
     await queryRunner.query(`
@@ -815,7 +832,7 @@ export class TenantSchemaProvisioningService {
    * if the new FK already exists the DO block skips both the drop and the add.
    */
   private async upgradeEmployeesForeignKeys(
-    queryRunner: ReturnType<DataSource["createQueryRunner"]>,
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
     schemaName: string,
   ): Promise<void> {
     // ── designation_id FK ────────────────────────────────────────────────────
@@ -923,7 +940,7 @@ export class TenantSchemaProvisioningService {
    * it with the canonical tenant-local FK.
    */
   private async upgradeGeofencesForeignKeys(
-    queryRunner: ReturnType<DataSource["createQueryRunner"]>,
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
     schemaName: string,
   ): Promise<void> {
     await queryRunner.query(`
@@ -984,7 +1001,7 @@ export class TenantSchemaProvisioningService {
    * wrong tables or use non-canonical names.
    */
   private async upgradeNotificationsForeignKeys(
-    queryRunner: ReturnType<DataSource["createQueryRunner"]>,
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
     schemaName: string,
   ): Promise<void> {
     // user_id FK
@@ -1144,7 +1161,7 @@ export class TenantSchemaProvisioningService {
    * on manager_id and filtering by tenant_id there.
    */
   private async migratePublicDataToTenantSchema(
-    queryRunner: ReturnType<DataSource["createQueryRunner"]>,
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
     schemaName: string,
     tenantId: string,
   ): Promise<void> {
@@ -1248,12 +1265,12 @@ export class TenantSchemaProvisioningService {
       INSERT INTO "${schemaName}"."leaves"
         (id, "employeeId", "leaveTypeId", "startDate", "endDate", "totalDays",
          reason, status, "approvedBy", "tenantId", "approvedAt", remarks,
-         "managerRemarks", documents, "createdAt", "updatedAt")
+         "managerRemarks", documents, "workflow_request_id", "createdAt", "updatedAt")
       SELECT
         lv.id, lv."employeeId", lv."leaveTypeId", lv."startDate", lv."endDate",
         lv."totalDays", lv.reason, lv.status, lv."approvedBy", lv."tenantId",
         lv."approvedAt", lv.remarks, lv."managerRemarks", lv.documents,
-        lv."createdAt", lv."updatedAt"
+        lv."workflow_request_id", lv."createdAt", lv."updatedAt"
       FROM public.leaves lv
       WHERE lv."tenantId" = $1
         AND EXISTS (
@@ -1341,10 +1358,10 @@ export class TenantSchemaProvisioningService {
    * Idempotent: ON CONFLICT (id) DO NOTHING.
    */
   private async migrateGlobalDataToTenantSchema(
-    queryRunner: ReturnType<DataSource["createQueryRunner"]>,
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
     schemaName: string,
   ): Promise<void> {
-    const GLOBAL = "00000000-0000-0000-0000-000000000000";
+    const GLOBAL = '00000000-0000-0000-0000-000000000000';
 
     // ── GLOBAL departments ───────────────────────────────────────────────────
     await queryRunner.query(
@@ -1393,5 +1410,219 @@ export class TenantSchemaProvisioningService {
     this.logger.debug(
       `GLOBAL departments/designations ensured in tenant schema "${schemaName}"`,
     );
+  }
+
+  private async createWorkflowConfigsTable(
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
+    schemaName: string,
+  ): Promise<void> {
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."workflow_configs" (
+        "id"            UUID         NOT NULL DEFAULT gen_random_uuid(),
+        "tenant_id"     UUID         NOT NULL,
+        "request_type"  VARCHAR(32)  NOT NULL,
+        "step_order"    SMALLINT     NOT NULL,
+        "approver_role" VARCHAR(64)  NOT NULL,
+        "step_label"    VARCHAR(128) NOT NULL,
+        "is_active"     BOOLEAN      NOT NULL DEFAULT true,
+        "created_at"    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+        "updated_at"    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+        "deleted_at"    TIMESTAMPTZ,
+        CONSTRAINT "pk_${schemaName}_wfc" PRIMARY KEY ("id"),
+        CONSTRAINT "uq_${schemaName}_wfc_tenant_type_step"
+          UNIQUE ("tenant_id", "request_type", "step_order")
+      )
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_wfc_tenant_type"
+        ON "${schemaName}"."workflow_configs" ("tenant_id", "request_type")
+    `);
+    this.logger.debug(`Table "${schemaName}".workflow_configs ensured`);
+  }
+
+  private async createWorkflowRequestsTable(
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
+    schemaName: string,
+  ): Promise<void> {
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."workflow_requests" (
+        "id"                 UUID        NOT NULL DEFAULT gen_random_uuid(),
+        "tenant_id"          UUID        NOT NULL,
+        "request_type"       VARCHAR(32) NOT NULL,
+        "related_entity_id"  UUID        NOT NULL,
+        "requestor_id"       UUID        NOT NULL,
+        "status"             VARCHAR(32) NOT NULL DEFAULT 'pending',
+        "current_step_order" SMALLINT    NOT NULL DEFAULT 1,
+        "total_steps"        SMALLINT    NOT NULL,
+        "created_at"         TIMESTAMPTZ NOT NULL DEFAULT now(),
+        "updated_at"         TIMESTAMPTZ NOT NULL DEFAULT now(),
+        "deleted_at"         TIMESTAMPTZ,
+        CONSTRAINT "pk_${schemaName}_wfr" PRIMARY KEY ("id")
+      )
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_wfr_tenant_type"
+        ON "${schemaName}"."workflow_requests" ("tenant_id", "request_type")
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_wfr_tenant_requestor"
+        ON "${schemaName}"."workflow_requests" ("tenant_id", "requestor_id")
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_wfr_entity"
+        ON "${schemaName}"."workflow_requests" ("related_entity_id")
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_wfr_tenant_status"
+        ON "${schemaName}"."workflow_requests" ("tenant_id", "status")
+    `);
+    this.logger.debug(`Table "${schemaName}".workflow_requests ensured`);
+  }
+
+  private async createWorkflowStepsTable(
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
+    schemaName: string,
+  ): Promise<void> {
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."workflow_steps" (
+        "id"                  UUID         NOT NULL DEFAULT gen_random_uuid(),
+        "workflow_request_id" UUID         NOT NULL,
+        "tenant_id"           UUID         NOT NULL,
+        "step_order"          SMALLINT     NOT NULL,
+        "approver_role"       VARCHAR(64)  NOT NULL,
+        "step_label"          VARCHAR(128) NOT NULL,
+        "status"              VARCHAR(32)  NOT NULL DEFAULT 'pending',
+        "approver_id"         UUID,
+        "remarks"             TEXT,
+        "acted_at"            TIMESTAMPTZ,
+        "created_at"          TIMESTAMPTZ  NOT NULL DEFAULT now(),
+        "updated_at"          TIMESTAMPTZ  NOT NULL DEFAULT now(),
+        "deleted_at"          TIMESTAMPTZ,
+        CONSTRAINT "pk_${schemaName}_wfs" PRIMARY KEY ("id"),
+        CONSTRAINT "uq_${schemaName}_wfs_request_order"
+          UNIQUE ("workflow_request_id", "step_order"),
+        CONSTRAINT "fk_${schemaName}_wfs_request"
+          FOREIGN KEY ("workflow_request_id")
+          REFERENCES "${schemaName}"."workflow_requests"("id") ON DELETE CASCADE
+      )
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_wfs_approver"
+        ON "${schemaName}"."workflow_steps" ("approver_id")
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_wfs_tenant_status"
+        ON "${schemaName}"."workflow_steps" ("tenant_id", "status")
+    `);
+    this.logger.debug(`Table "${schemaName}".workflow_steps ensured`);
+  }
+
+  private async createWfhRequestsTable(
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
+    schemaName: string,
+  ): Promise<void> {
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."wfh_requests" (
+        "id"                  UUID        NOT NULL DEFAULT gen_random_uuid(),
+        "tenant_id"           UUID        NOT NULL,
+        "employee_id"         UUID        NOT NULL,
+        "start_date"          DATE        NOT NULL,
+        "end_date"            DATE        NOT NULL,
+        "reason"              TEXT        NOT NULL,
+        "status"              VARCHAR(32) NOT NULL DEFAULT 'pending',
+        "attachments"         JSONB       NOT NULL DEFAULT '[]',
+        "workflow_request_id" UUID,
+        "created_at"          TIMESTAMPTZ NOT NULL DEFAULT now(),
+        "updated_at"          TIMESTAMPTZ NOT NULL DEFAULT now(),
+        "deleted_at"          TIMESTAMPTZ,
+        CONSTRAINT "pk_${schemaName}_wfh" PRIMARY KEY ("id")
+      )
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_wfh_tenant_emp"
+        ON "${schemaName}"."wfh_requests" ("tenant_id", "employee_id")
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_wfh_tenant_status"
+        ON "${schemaName}"."wfh_requests" ("tenant_id", "status")
+    `);
+    this.logger.debug(`Table "${schemaName}".wfh_requests ensured`);
+  }
+
+  private async createOvertimeRequestsTable(
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
+    schemaName: string,
+  ): Promise<void> {
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."overtime_requests" (
+        "id"                  UUID         NOT NULL DEFAULT gen_random_uuid(),
+        "tenant_id"           UUID         NOT NULL,
+        "employee_id"         UUID         NOT NULL,
+        "start_date"          DATE         NOT NULL,
+        "end_date"            DATE         NOT NULL,
+        "hours"               DECIMAL(4,2) NOT NULL,
+        "reason"              TEXT         NOT NULL,
+        "status"              VARCHAR(32)  NOT NULL DEFAULT 'pending',
+        "attachments"         JSONB        NOT NULL DEFAULT '[]',
+        "workflow_request_id" UUID,
+        "created_at"          TIMESTAMPTZ  NOT NULL DEFAULT now(),
+        "updated_at"          TIMESTAMPTZ  NOT NULL DEFAULT now(),
+        "deleted_at"          TIMESTAMPTZ,
+        CONSTRAINT "pk_${schemaName}_ovt" PRIMARY KEY ("id")
+      )
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_ovt_tenant_emp"
+        ON "${schemaName}"."overtime_requests" ("tenant_id", "employee_id")
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_ovt_tenant_status"
+        ON "${schemaName}"."overtime_requests" ("tenant_id", "status")
+    `);
+    this.logger.debug(`Table "${schemaName}".overtime_requests ensured`);
+  }
+
+  private async seedDefaultWorkflowConfigs(
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
+    schemaName: string,
+    tenantId: string,
+  ): Promise<void> {
+    await queryRunner.query(
+      `INSERT INTO "${schemaName}"."workflow_configs"
+         (id, tenant_id, request_type, step_order, approver_role, step_label, is_active)
+       VALUES
+         (gen_random_uuid(), $1, 'leave',    1, 'manager',  'Manager Approval', true),
+         (gen_random_uuid(), $1, 'leave',    2, 'admin',    'Admin Approval',   true),
+         (gen_random_uuid(), $1, 'wfh',      1, 'manager',  'Manager Approval', true),
+         (gen_random_uuid(), $1, 'overtime', 1, 'manager',  'Manager Approval', true),
+         (gen_random_uuid(), $1, 'overtime', 2, 'hr-admin', 'HR Approval',      true)
+       ON CONFLICT (tenant_id, request_type, step_order) DO NOTHING`,
+      [tenantId],
+    );
+    this.logger.debug(
+      `Default workflow configs seeded in schema "${schemaName}"`,
+    );
+  }
+
+  /**
+   * Seeds default rows into public.tenant_settings for a tenant.
+   * Uses ON CONFLICT DO NOTHING so existing values set via the API are never overwritten.
+   * Values must match TenantSettingsService.DEFAULTS.
+   */
+  private async seedDefaultTenantSettings(
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
+    tenantId: string,
+  ): Promise<void> {
+    await queryRunner.query(
+      `INSERT INTO public.tenant_settings (id, tenant_id, key, value, created_at, updated_at)
+       VALUES
+         (gen_random_uuid(), $1, 'mobile_login_enabled',    'true',  now(), now()),
+         (gen_random_uuid(), $1, 'leave_workflow_enabled',  'false', now(), now()),
+         (gen_random_uuid(), $1, 'wfh_workflow_enabled',    'false', now(), now()),
+         (gen_random_uuid(), $1, 'overtime_workflow_enabled','false', now(), now())
+       ON CONFLICT (tenant_id, key) DO NOTHING`,
+      [tenantId],
+    );
+    this.logger.debug(`Default tenant settings seeded for tenant ${tenantId}`);
   }
 }

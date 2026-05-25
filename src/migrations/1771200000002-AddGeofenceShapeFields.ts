@@ -21,4 +21,3 @@ export class AddGeofenceShapeFields1771200000002 implements MigrationInterface {
     `);
   }
 }
-

@@ -9,7 +9,11 @@ import { SharedJwtModule } from '../../common/modules/jwt.module';
 import { TenantModule } from '../tenant/tenant.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Timesheet, Attendance, User]), SharedJwtModule, TenantModule],
+  imports: [
+    TypeOrmModule.forFeature([Timesheet, Attendance, User]),
+    SharedJwtModule,
+    TenantModule,
+  ],
   controllers: [TimesheetController],
   providers: [TimesheetService],
   exports: [TimesheetService],
