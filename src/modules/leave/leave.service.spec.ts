@@ -148,7 +148,10 @@ describe('LeaveService', () => {
         { provide: S3StorageService, useValue: {} },
         { provide: TenantDatabaseService, useFactory: mockTenantDbService },
         { provide: WorkflowService, useFactory: mockWorkflowService },
-        { provide: TenantSettingsService, useFactory: mockTenantSettingsService },
+        {
+          provide: TenantSettingsService,
+          useFactory: mockTenantSettingsService,
+        },
       ],
     }).compile();
 
