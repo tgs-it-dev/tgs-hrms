@@ -40,6 +40,7 @@ const mockTenantUnprovisioned: Tenant = {
   name: 'Test Corp',
   status: 'active',
   schema_provisioned: false,
+  workflow_enabled: false,
   created_at: new Date(),
   updated_at: new Date(),
   deleted_at: null,
