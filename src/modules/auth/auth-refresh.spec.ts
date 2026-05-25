@@ -1,35 +1,35 @@
-import { Test, TestingModule } from "@nestjs/testing";
-import { AuthService } from "./auth.service";
-import { getRepositoryToken } from "@nestjs/typeorm";
-import { User } from "../../entities/user.entity";
-import { JwtService } from "@nestjs/jwt";
-import * as bcrypt from "bcrypt";
-import { Repository } from "typeorm";
-import { BadRequestException, UnauthorizedException } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { Role } from "../../entities/role.entity";
-import { Tenant } from "../../entities/tenant.entity";
-import { Employee } from "../../entities/employee.entity";
-import { CompanyDetails } from "../../entities/company-details.entity";
-import { SignupSession } from "../../entities/signup-session.entity";
-import { UserToken } from "../../entities/user-token.entity";
-import { EmailService } from "../../common/utils/email";
-import { InviteStatusService } from "../invite-status/invite-status.service";
-import { TenantSettingsService } from "../tenant-settings/tenant-settings.service";
-import { IpWhitelistService } from "../ip-whitelist/ip-whitelist.service";
+import { Test, TestingModule } from '@nestjs/testing';
+import { AuthService } from './auth.service';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { User } from '../../entities/user.entity';
+import { JwtService } from '@nestjs/jwt';
+import * as bcrypt from 'bcrypt';
+import { Repository } from 'typeorm';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Role } from '../../entities/role.entity';
+import { Tenant } from '../../entities/tenant.entity';
+import { Employee } from '../../entities/employee.entity';
+import { CompanyDetails } from '../../entities/company-details.entity';
+import { SignupSession } from '../../entities/signup-session.entity';
+import { UserToken } from '../../entities/user-token.entity';
+import { EmailService } from '../../common/utils/email';
+import { InviteStatusService } from '../invite-status/invite-status.service';
+import { TenantSettingsService } from '../tenant-settings/tenant-settings.service';
+import { IpWhitelistService } from '../ip-whitelist/ip-whitelist.service';
 
 const mockRole: Role = {
-  id: "11111111-1111-1111-1111-111111111111",
-  name: "admin",
-  description: "Administrator role",
+  id: '11111111-1111-1111-1111-111111111111',
+  name: 'admin',
+  description: 'Administrator role',
   users: [],
   rolePermissions: [],
 };
 
 const mockTenant: Tenant = {
-  id: "11111111-1111-1111-1111-111111111111",
-  name: "Test Company",
-  status: "active",
+  id: '11111111-1111-1111-1111-111111111111',
+  name: 'Test Company',
+  status: 'active',
   schema_provisioned: false,
   created_at: new Date(),
   updated_at: new Date(),
@@ -42,16 +42,16 @@ const mockTenant: Tenant = {
 };
 
 const mockUser: User = {
-  id: "1",
-  email: "admin@company.com",
-  password: bcrypt.hashSync("123456", 10),
-  role_id: "11111111-1111-1111-1111-111111111111",
-  tenant_id: "11111111-1111-1111-1111-111111111111",
-  reset_token: "valid-token",
+  id: '1',
+  email: 'admin@company.com',
+  password: bcrypt.hashSync('123456', 10),
+  role_id: '11111111-1111-1111-1111-111111111111',
+  tenant_id: '11111111-1111-1111-1111-111111111111',
+  reset_token: 'valid-token',
   reset_token_expiry: new Date(Date.now() + 60000),
-  first_name: "Test",
-  last_name: "User",
-  phone: "1234567890",
+  first_name: 'Test',
+  last_name: 'User',
+  phone: '1234567890',
   gender: null,
   profile_pic: null,
   first_login_time: new Date(0),
@@ -67,8 +67,8 @@ const mockUser: User = {
 
 // A valid token record for the new refresh-token-rotation flow
 const mockTokenRecord = {
-  id: "valid-jti",
-  user_id: "1",
+  id: 'valid-jti',
+  user_id: '1',
   is_revoked: false,
   expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
   platform: null,
@@ -99,7 +99,7 @@ const mockEmailService = {
   sendPasswordResetSuccessEmail: jest.fn().mockResolvedValue(undefined),
 };
 
-describe("AuthService - Forgot/Reset/Refresh/Logout", () => {
+describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
   let service: AuthService;
   let userRepo: any;
   let jwtService: JwtService;
@@ -158,11 +158,11 @@ describe("AuthService - Forgot/Reset/Refresh/Logout", () => {
         {
           provide: JwtService,
           useValue: {
-            sign: jest.fn().mockReturnValue("new-token"),
+            sign: jest.fn().mockReturnValue('new-token'),
             verify: jest
               .fn()
-              .mockReturnValue({ type: "refresh", jti: "valid-jti", sub: "1" }),
-            decode: jest.fn().mockReturnValue({ jti: "valid-jti" }),
+              .mockReturnValue({ type: 'refresh', jti: 'valid-jti', sub: '1' }),
+            decode: jest.fn().mockReturnValue({ jti: 'valid-jti' }),
           },
         },
         {
@@ -170,14 +170,14 @@ describe("AuthService - Forgot/Reset/Refresh/Logout", () => {
           useValue: {
             get: jest.fn((key: string) => {
               switch (key) {
-                case "JWT_SECRET":
-                  return "test-secret";
-                case "JWT_EXPIRES_IN":
-                  return "24h";
-                case "RESET_TOKEN_SECRET":
-                  return "test-reset-secret";
+                case 'JWT_SECRET':
+                  return 'test-secret';
+                case 'JWT_EXPIRES_IN':
+                  return '24h';
+                case 'RESET_TOKEN_SECRET':
+                  return 'test-reset-secret';
                 default:
-                  return "dummy";
+                  return 'dummy';
               }
             }),
           },
@@ -212,8 +212,8 @@ describe("AuthService - Forgot/Reset/Refresh/Logout", () => {
     userTokenRepo = module.get(getRepositoryToken(UserToken));
   });
 
-  describe("forgotPassword", () => {
-    it("should generate reset token for valid email", async () => {
+  describe('forgotPassword', () => {
+    it('should generate reset token for valid email', async () => {
       // forgotPassword uses createQueryBuilder to find user
       const mockQb = {
         leftJoinAndSelect: jest.fn().mockReturnThis(),
@@ -222,13 +222,13 @@ describe("AuthService - Forgot/Reset/Refresh/Logout", () => {
           .fn()
           .mockResolvedValue({ ...mockUser, tenant: mockTenant }),
       };
-      jest.spyOn(userRepo, "createQueryBuilder").mockReturnValue(mockQb);
+      jest.spyOn(userRepo, 'createQueryBuilder').mockReturnValue(mockQb);
 
       const result = await service.forgotPassword({
-        email: "admin@company.com",
+        email: 'admin@company.com',
       });
       expect(result).toEqual({
-        message: "Check your email for the password reset link.",
+        message: 'Check your email for the password reset link.',
       });
       expect(userRepo.update).toHaveBeenCalledWith(
         expect.any(String),
@@ -239,25 +239,25 @@ describe("AuthService - Forgot/Reset/Refresh/Logout", () => {
       );
     });
 
-    it("should throw BadRequestException for unknown email", async () => {
+    it('should throw BadRequestException for unknown email', async () => {
       const mockQb = {
         leftJoinAndSelect: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         getOne: jest.fn().mockResolvedValue(null),
       };
-      jest.spyOn(userRepo, "createQueryBuilder").mockReturnValue(mockQb);
+      jest.spyOn(userRepo, 'createQueryBuilder').mockReturnValue(mockQb);
 
       await expect(
-        service.forgotPassword({ email: "invalid@example.com" }),
+        service.forgotPassword({ email: 'invalid@example.com' }),
       ).rejects.toThrow(BadRequestException);
     });
   });
 
-  describe("resetPassword", () => {
-    it("should reset password for valid token", async () => {
+  describe('resetPassword', () => {
+    it('should reset password for valid token', async () => {
       // Service uses find() to get all users with non-expired tokens, then bcrypt.compare per user
-      const hashedToken = await bcrypt.hash("valid-token", 10);
-      jest.spyOn(userRepo, "find").mockResolvedValue([
+      const hashedToken = await bcrypt.hash('valid-token', 10);
+      jest.spyOn(userRepo, 'find').mockResolvedValue([
         {
           ...mockUser,
           reset_token: hashedToken,
@@ -266,96 +266,96 @@ describe("AuthService - Forgot/Reset/Refresh/Logout", () => {
         },
       ]);
       jest
-        .spyOn(bcrypt, "hash")
-        .mockImplementation(async () => "hashedPassword");
-      jest.spyOn(bcrypt, "compare").mockImplementation(async () => true);
+        .spyOn(bcrypt, 'hash')
+        .mockImplementation(async () => 'hashedPassword');
+      jest.spyOn(bcrypt, 'compare').mockImplementation(async () => true);
 
       const result = await service.resetPassword({
-        token: "valid-token",
-        password: "newpass123",
-        confirmPassword: "newpass123",
+        token: 'valid-token',
+        password: 'newpass123',
+        confirmPassword: 'newpass123',
       });
 
-      expect(result).toEqual({ message: "Password reset successfully" });
+      expect(result).toEqual({ message: 'Password reset successfully' });
       expect(userRepo.update).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
-          password: "hashedPassword",
+          password: 'hashedPassword',
           reset_token: null,
           reset_token_expiry: null,
         }),
       );
     });
 
-    it("should throw for invalid/unknown token", async () => {
+    it('should throw for invalid/unknown token', async () => {
       // No users found with matching non-expired tokens
-      jest.spyOn(userRepo, "find").mockResolvedValue([]);
+      jest.spyOn(userRepo, 'find').mockResolvedValue([]);
 
       await expect(
         service.resetPassword({
-          token: "wrong",
-          password: "newpass123",
-          confirmPassword: "newpass123",
+          token: 'wrong',
+          password: 'newpass123',
+          confirmPassword: 'newpass123',
         }),
       ).rejects.toThrow(BadRequestException);
     });
 
-    it("should throw for expired token", async () => {
+    it('should throw for expired token', async () => {
       // Service query filters out expired tokens, so find returns []
-      jest.spyOn(userRepo, "find").mockResolvedValue([]);
+      jest.spyOn(userRepo, 'find').mockResolvedValue([]);
 
       await expect(
         service.resetPassword({
-          token: "valid-token",
-          password: "newpass123",
-          confirmPassword: "newpass123",
+          token: 'valid-token',
+          password: 'newpass123',
+          confirmPassword: 'newpass123',
         }),
       ).rejects.toThrow(BadRequestException);
     });
   });
 
-  describe("refreshToken", () => {
-    it("should return new access + refresh token if refresh token is valid", async () => {
+  describe('refreshToken', () => {
+    it('should return new access + refresh token if refresh token is valid', async () => {
       // verify returns { type: 'refresh', jti: 'valid-jti', sub: '1' } (set in beforeEach)
       // userTokenRepo.findOne returns non-revoked, non-expired record (set in beforeEach)
       // userRepo.findOne returns user with role (set in beforeEach)
-      const result = await service.refreshToken("refresh-token");
-      expect(result).toHaveProperty("accessToken", "new-token");
-      expect(result).toHaveProperty("refreshToken", "new-token");
+      const result = await service.refreshToken('refresh-token');
+      expect(result).toHaveProperty('accessToken', 'new-token');
+      expect(result).toHaveProperty('refreshToken', 'new-token');
     });
 
-    it("should throw UnauthorizedException if user not found", async () => {
-      jest.spyOn(userRepo, "findOne").mockResolvedValue(null);
-      await expect(service.refreshToken("refresh-token")).rejects.toThrow(
+    it('should throw UnauthorizedException if user not found', async () => {
+      jest.spyOn(userRepo, 'findOne').mockResolvedValue(null);
+      await expect(service.refreshToken('refresh-token')).rejects.toThrow(
         UnauthorizedException,
       );
     });
 
-    it("should throw UnauthorizedException if refresh token is tampered", async () => {
-      jest.spyOn(jwtService, "verify").mockImplementation(() => {
-        throw new Error("Invalid token");
+    it('should throw UnauthorizedException if refresh token is tampered', async () => {
+      jest.spyOn(jwtService, 'verify').mockImplementation(() => {
+        throw new Error('Invalid token');
       });
 
-      await expect(service.refreshToken("bad-token")).rejects.toThrow(
+      await expect(service.refreshToken('bad-token')).rejects.toThrow(
         UnauthorizedException,
       );
     });
   });
 
-  describe("logout", () => {
-    it("should revoke token on logout", async () => {
+  describe('logout', () => {
+    it('should revoke token on logout', async () => {
       // Service uses jwtService.decode() (not verify) and calls userTokenRepo.update
-      const result = await service.logout("refresh-token");
-      expect(result).toEqual({ message: "Successfully logged out" });
+      const result = await service.logout('refresh-token');
+      expect(result).toEqual({ message: 'Successfully logged out' });
     });
 
-    it("should throw BadRequestException if no token", async () => {
-      await expect(service.logout("")).rejects.toThrow(BadRequestException);
+    it('should throw BadRequestException if no token', async () => {
+      await expect(service.logout('')).rejects.toThrow(BadRequestException);
     });
 
-    it("should throw UnauthorizedException for token with missing jti", async () => {
-      jest.spyOn(jwtService, "decode").mockReturnValue({ jti: null } as any);
-      await expect(service.logout("invalid")).rejects.toThrow(
+    it('should throw UnauthorizedException for token with missing jti', async () => {
+      jest.spyOn(jwtService, 'decode').mockReturnValue({ jti: null } as any);
+      await expect(service.logout('invalid')).rejects.toThrow(
         UnauthorizedException,
       );
     });
