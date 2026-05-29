@@ -9,19 +9,20 @@ import {
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { GoogleLoginDto } from './dto/google-login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { LogoutDto } from './dto/logout.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { Throttle } from '@nestjs/throttler';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
-import { Permissions } from '../../common/decorators/permissions.decorator';
-import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { Public } from '../../common/decorators/public.decorator';
-import { AuthenticatedRequest } from '../../common/types/request.types';
+import { LoginThrottlerGuard } from 'src/common/guards/login-throttler.guard';
+import { RolesGuard } from 'src/common/guards/roles.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
+import { Permissions } from 'src/common/decorators/permissions.decorator';
+import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+import { Public } from 'src/common/decorators/public.decorator';
+import { AuthenticatedRequest } from 'src/common/types/request.types';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -30,7 +31,7 @@ export class AuthController {
 
   @Post('register')
   @Public()
-  @Throttle({ default: { limit: 3, ttl: 300_000 } }) // 3 requests per 5 minutes
+  @Throttle({ default: { limit: 3, ttl: 300_000 } })
   @ApiBody({ type: RegisterDto })
   @ApiResponse({ status: 201, description: 'User registered successfully' })
   @ApiResponse({
@@ -75,7 +76,7 @@ export class AuthController {
 
   @Post('resend-verification')
   @Public()
-  @Throttle({ default: { limit: 3, ttl: 300_000 } }) // 3 per 5 min to prevent abuse
+  @Throttle({ default: { limit: 3, ttl: 300_000 } })
   @ApiOperation({ summary: 'Resend email verification link' })
   @ApiBody({ schema: { example: { email: 'user@example.com' } } })
   @ApiResponse({
@@ -88,7 +89,8 @@ export class AuthController {
 
   @Post('login')
   @Public()
-  @Throttle({ default: { limit: 5, ttl: 60_000 } }) // 5 requests per minute (stricter for auth)
+  @UseGuards(LoginThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 900_000 } }) // 5 attempts per 15 min per IP+email
   @ApiBody({ type: LoginDto })
   @ApiResponse({
     status: 200,
@@ -120,36 +122,7 @@ export class AuthController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Missing Fields Error',
-    schema: {
-      example: {
-        message: 'Missing Fields Error',
-        errors: [
-          { field: 'email', message: 'Email is required' },
-          { field: 'password', message: 'Password is required' },
-        ],
-      },
-    },
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Email not found',
-    schema: {
-      example: {
-        field: 'email',
-        message: 'Email not found',
-      },
-    },
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid password',
-    schema: {
-      example: {
-        field: 'password',
-        message: 'Incorrect password',
-      },
-    },
+    description: 'Email not found or invalid password',
   })
   async login(@Body() body: LoginDto, @Req() req: AuthenticatedRequest) {
     const ipAddress =
@@ -169,6 +142,46 @@ export class AuthController {
     );
   }
 
+  @Post('google')
+  @Public()
+  @UseGuards(LoginThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 900_000 } })
+  @ApiOperation({
+    summary: 'Login with Google',
+    description:
+      'Authenticate using a Google ID token from the client-side Google Sign-In SDK.',
+  })
+  @ApiBody({ type: GoogleLoginDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Login successful',
+    schema: {
+      example: {
+        accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+        refreshToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Invalid Google ID token or no matching account',
+  })
+  async googleLogin(
+    @Body() dto: GoogleLoginDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ??
+      req.socket?.remoteAddress ??
+      null;
+    return this.authService.googleLogin(
+      dto.idToken,
+      undefined,
+      undefined,
+      ipAddress ?? undefined,
+    );
+  }
+
   @Post('forgot-password')
   @Public()
   @Throttle({ default: { limit: 3, ttl: 300_000 } })
@@ -178,26 +191,8 @@ export class AuthController {
     description:
       'Sends a password reset link to the provided email address. The link will expire in 1 hour.',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Password reset email sent',
-    schema: {
-      example: {
-        message:
-          'If an account with this email exists, a password reset link has been sent.',
-      },
-    },
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid email format',
-    schema: {
-      example: {
-        message: 'Validation failed',
-        errors: [{ field: 'email', message: 'Email must be a valid email' }],
-      },
-    },
-  })
+  @ApiResponse({ status: 200, description: 'Password reset email sent' })
+  @ApiResponse({ status: 400, description: 'Invalid email format' })
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgotPassword(dto);
   }
@@ -206,36 +201,11 @@ export class AuthController {
   @Public()
   @ApiOperation({
     summary: 'Verify reset token',
-    description:
-      'Verifies if a reset token is valid and not expired. Useful for frontend validation.',
+    description: 'Verifies if a reset token is valid and not expired.',
   })
-  @ApiBody({
-    schema: {
-      properties: {
-        token: { type: 'string' },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Token is valid',
-    schema: {
-      example: {
-        valid: true,
-        message: 'Token is valid',
-      },
-    },
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Token is invalid or expired',
-    schema: {
-      example: {
-        valid: false,
-        message: 'Invalid or expired reset token',
-      },
-    },
-  })
+  @ApiBody({ schema: { properties: { token: { type: 'string' } } } })
+  @ApiResponse({ status: 200, description: 'Token is valid' })
+  @ApiResponse({ status: 400, description: 'Token is invalid or expired' })
   async verifyResetToken(@Body('token') token: string) {
     return this.authService.verifyResetToken(token);
   }
@@ -249,40 +219,8 @@ export class AuthController {
       'Resets the user password using a valid reset token received via email.',
   })
   @ApiBody({ type: ResetPasswordDto })
-  @ApiResponse({
-    status: 200,
-    description: 'Password reset successful',
-    schema: {
-      example: {
-        message: 'Password reset successfully',
-      },
-    },
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid or expired token',
-    schema: {
-      example: {
-        message: 'Invalid or expired reset token',
-      },
-    },
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Password validation failed',
-    schema: {
-      example: {
-        message: 'Validation failed',
-        errors: [
-          {
-            field: 'password',
-            message: 'Password must be at least 6 characters long',
-          },
-          { field: 'confirmPassword', message: 'Passwords do not match' },
-        ],
-      },
-    },
-  })
+  @ApiResponse({ status: 200, description: 'Password reset successful' })
+  @ApiResponse({ status: 400, description: 'Invalid or expired token' })
   async resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto);
   }
@@ -291,8 +229,7 @@ export class AuthController {
   @Public()
   @ApiOperation({
     summary: 'Refresh access token',
-    description:
-      'Generate a new access token using a valid refresh token. Access tokens expire after 24 hours.',
+    description: 'Generate a new access token using a valid refresh token.',
   })
   @ApiBody({ type: RefreshTokenDto })
   @ApiResponse({
@@ -306,22 +243,14 @@ export class AuthController {
       },
     },
   })
-  @ApiResponse({
-    status: 401,
-    description: 'Invalid or expired refresh token',
-    schema: {
-      example: {
-        message: 'Invalid refresh token',
-      },
-    },
-  })
+  @ApiResponse({ status: 401, description: 'Invalid or expired refresh token' })
   async refresh(@Body() dto: RefreshTokenDto) {
     return this.authService.refreshToken(dto.refreshToken);
   }
 
   @ApiBearerAuth()
   @Post('admin-data')
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @UseGuards(RolesGuard, PermissionsGuard)
   @Roles('admin', 'system-admin')
   @Permissions('manage_users')
   getAdminData() {
@@ -330,7 +259,6 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Get('test-permissions')
-  @UseGuards(JwtAuthGuard)
   testPermissions(@Req() req: AuthenticatedRequest) {
     return {
       message: 'Permissions test endpoint',
@@ -351,31 +279,14 @@ export class AuthController {
     description: 'Invalidate the refresh token to log out the user',
   })
   @ApiBody({ type: LogoutDto })
-  @ApiResponse({
-    status: 200,
-    description: 'User logged out successfully',
-    schema: {
-      example: {
-        message: 'Successfully logged out',
-      },
-    },
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Refresh token missing or invalid',
-    schema: {
-      example: {
-        message: 'Refresh token is required',
-      },
-    },
-  })
+  @ApiResponse({ status: 200, description: 'User logged out successfully' })
+  @ApiResponse({ status: 400, description: 'Refresh token missing or invalid' })
   async logout(@Body() dto: LogoutDto) {
     return this.authService.logout(dto.refreshToken);
   }
 
   @ApiBearerAuth()
   @Get('validate-token')
-  @UseGuards(JwtAuthGuard)
   @ApiOperation({
     summary: 'Validate current token',
     description:
@@ -392,7 +303,6 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Post('logout-all')
-  @UseGuards(JwtAuthGuard)
   @ApiOperation({
     summary: 'Logout from all devices',
     description:
@@ -405,7 +315,6 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Get('sessions')
-  @UseGuards(JwtAuthGuard)
   @ApiOperation({
     summary: 'List active sessions',
     description:
@@ -414,21 +323,5 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Active sessions returned' })
   async getSessions(@Req() req: AuthenticatedRequest) {
     return this.authService.getActiveSessions(req.user.id);
-  }
-
-  @Post('google-login')
-  @Public()
-  @Throttle({ short: { limit: 5, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Login with Google ID token' })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: { idToken: { type: 'string' } },
-      required: ['idToken'],
-    },
-  })
-  @ApiResponse({ status: 200, description: 'Login successful' })
-  async googleLogin(@Body('idToken') idToken: string) {
-    return this.authService.googleLogin(idToken);
   }
 }
