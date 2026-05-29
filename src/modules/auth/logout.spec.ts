@@ -18,6 +18,12 @@ import { SystemSettingsService } from '../system/system-settings/system-settings
 import { TenantSettingsService } from '../tenant-settings/tenant-settings.service';
 import { IpWhitelistService } from '../ip-whitelist/ip-whitelist.service';
 
+jest.mock('bcrypt', () => ({
+  ...jest.requireActual<typeof import('bcrypt')>('bcrypt'),
+  hash: jest.fn(),
+  compare: jest.fn(),
+}));
+
 const mockPassword = bcrypt.hashSync('123456', 10);
 
 const mockRole: Role = {
@@ -118,7 +124,7 @@ const mockEmailService = {
 
 describe('AuthService - Login', () => {
   let service: AuthService;
-  let userRepo: any;
+  let userRepo: ReturnType<typeof mockUserRepository>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -191,10 +197,13 @@ describe('AuthService - Login', () => {
     }).compile();
 
     service = module.get<AuthService>(AuthService);
+    userRepo = module.get(getRepositoryToken(User));
   });
 
+  afterEach(() => jest.resetAllMocks());
+
   it('should validate and return access token for valid credentials', async () => {
-    jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
+    (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
     const result = await service.validateUser('admin@company.com', '123456');
 
@@ -210,7 +219,7 @@ describe('AuthService - Login', () => {
   });
 
   it('should throw error for invalid password', async () => {
-    jest.spyOn(bcrypt, 'compare').mockResolvedValue(false as never);
+    (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
     await expect(
       service.validateUser('admin@company.com', 'wrongpass'),

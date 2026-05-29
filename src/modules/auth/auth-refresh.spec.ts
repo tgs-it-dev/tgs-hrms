@@ -19,6 +19,12 @@ import { SystemSettingsService } from '../system/system-settings/system-settings
 import { TenantSettingsService } from '../tenant-settings/tenant-settings.service';
 import { IpWhitelistService } from '../ip-whitelist/ip-whitelist.service';
 
+jest.mock('bcrypt', () => ({
+  ...jest.requireActual<typeof import('bcrypt')>('bcrypt'),
+  hash: jest.fn(),
+  compare: jest.fn(),
+}));
+
 const mockRole: Role = {
   id: '11111111-1111-1111-1111-111111111111',
   name: 'admin',
@@ -225,7 +231,12 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
     jwtService = module.get<JwtService>(JwtService);
     _userTokenRepo = module.get(getRepositoryToken(UserToken));
     updateSpy = jest.spyOn(userRepo, 'update');
+
+    (bcrypt.hash as jest.Mock).mockResolvedValue('mocked-hash');
+    (bcrypt.compare as jest.Mock).mockResolvedValue(true);
   });
+
+  afterEach(() => jest.resetAllMocks());
 
   describe('forgotPassword', () => {
     it('should generate reset token for valid email', async () => {
@@ -280,8 +291,8 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
           tenant: mockTenant,
         },
       ]);
-      jest.spyOn(bcrypt, 'hash').mockResolvedValue('hashedPassword' as never);
-      jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
+      (bcrypt.hash as jest.Mock).mockResolvedValue('hashedPassword');
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
       const result = await service.resetPassword({
         token: 'valid-token',
