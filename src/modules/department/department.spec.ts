@@ -3,7 +3,9 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DepartmentService } from './department.service';
 import { Department } from '../../entities/department.entity';
+import { Tenant } from '../../entities/tenant.entity';
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import { TenantDatabaseService } from '../../common/services/tenant-database.service';
 
 describe('DepartmentService', () => {
   let service: DepartmentService;
@@ -40,6 +42,14 @@ describe('DepartmentService', () => {
             create: jest.fn(),
           },
         },
+        {
+          provide: getRepositoryToken(Tenant),
+          useValue: { findOne: jest.fn(), findOneBy: jest.fn() },
+        },
+        {
+          provide: TenantDatabaseService,
+          useValue: { getSchemaName: jest.fn(), runInTenantSchema: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -69,8 +79,11 @@ describe('DepartmentService', () => {
   });
 
   it('should update department if name is unique', async () => {
-    jest.spyOn(repo, 'findOneBy').mockResolvedValue(mockDepartment);
-    jest.spyOn(repo, 'findOne').mockResolvedValue(null);
+    // Service calls findOne twice: fetch by id, then check duplicate name
+    jest
+      .spyOn(repo, 'findOne')
+      .mockResolvedValueOnce(mockDepartment) // fetch by id
+      .mockResolvedValueOnce(null); // no duplicate with new name
     jest
       .spyOn(repo, 'save')
       .mockResolvedValue({ ...mockDepartment, name: 'Ops' });
@@ -81,7 +94,7 @@ describe('DepartmentService', () => {
   });
 
   it('should allow update when name is unchanged (self-update)', async () => {
-    jest.spyOn(repo, 'findOneBy').mockResolvedValue(mockDepartment);
+    // dto.name === department.name → duplicate check NOT triggered, only one findOne call
     jest.spyOn(repo, 'findOne').mockResolvedValue(mockDepartment);
     jest.spyOn(repo, 'save').mockResolvedValue(mockDepartment);
 
@@ -106,8 +119,10 @@ describe('DepartmentService', () => {
       designations: [],
     };
 
-    jest.spyOn(repo, 'findOneBy').mockResolvedValue(mockDepartment);
-    jest.spyOn(repo, 'findOne').mockResolvedValue(anotherDepartment);
+    jest
+      .spyOn(repo, 'findOne')
+      .mockResolvedValueOnce(mockDepartment) // fetch by id
+      .mockResolvedValueOnce(anotherDepartment); // duplicate found
 
     await expect(
       service.update(tenantId, deptId, { name: 'Engineering' }),
@@ -115,7 +130,7 @@ describe('DepartmentService', () => {
   });
 
   it('should throw NotFoundException when updating non-existent department', async () => {
-    jest.spyOn(repo, 'findOneBy').mockResolvedValue(null);
+    jest.spyOn(repo, 'findOne').mockResolvedValue(null);
 
     await expect(
       service.update(tenantId, 'non-existent-id', { name: 'New Name' }),

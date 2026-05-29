@@ -2,7 +2,6 @@ import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
-  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -11,13 +10,15 @@ import { TenantGuard } from '../../common/guards/tenant.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { TenantId } from '../../common/decorators/company.deorator';
+import { DashboardAttendanceQueryDto } from './dto/dashboard-attendance-query.dto';
+import { AuthenticatedRequest } from '../../common/types/request.types';
 
 @ApiTags('Dashboard')
 @ApiBearerAuth()
 @UseGuards(TenantGuard, RolesGuard)
 @Controller('dashboard')
 export class DashboardController {
-  constructor(private readonly dashboardService: DashboardService) {}
+  constructor(private readonly dashboardService: DashboardService) { }
 
   @Get('kpi')
   @Roles(
@@ -33,10 +34,7 @@ export class DashboardController {
     status: 200,
     description: 'KPI metrics ready for direct display',
   })
-  async getKpi(
-    @TenantId() tenantId: string,
-    @Req() req: { user: { id: string; role: string } },
-  ) {
+  async getKpi(@TenantId() tenantId: string, @Req() req: AuthenticatedRequest) {
     return this.dashboardService.getKpiMetrics({
       tenantId,
       userId: req.user.id,
@@ -62,22 +60,20 @@ export class DashboardController {
   @ApiOperation({
     summary: 'Get department-wise attendance summary for a given date',
   })
-  @ApiQuery({
-    name: 'date',
-    required: false,
-    type: String,
-    description: 'ISO date string (e.g. 2025-01-15). Defaults to today.',
+  @ApiResponse({
+    status: 200,
+    description: 'Department attendance summary',
   })
   async getAttendanceSummary(
     @TenantId() tenantId: string,
-    @Req() req: { user: { id: string; role: string } },
-    @Query('date') date?: string,
+    @Req() req: AuthenticatedRequest,
+    @Query() query: DashboardAttendanceQueryDto,
   ) {
     return this.dashboardService.getAttendanceSummary({
       tenantId,
       userId: req.user.id,
       role: req.user.role,
-      date,
+      date: query.date,
     });
   }
 
@@ -85,6 +81,10 @@ export class DashboardController {
   @Roles('admin', 'system-admin', 'network-admin', 'hr-admin', 'manager')
   @ApiOperation({
     summary: 'Get gender distribution and active vs inactive employees',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Employee availability breakdown',
   })
   async getEmployeeAvailability(@TenantId() tenantId: string) {
     return this.dashboardService.getEmployeeAvailability(tenantId);
@@ -102,10 +102,8 @@ export class DashboardController {
   @ApiOperation({
     summary: 'Get dashboard alerts (auto checkouts, pending approvals)',
   })
-  async getAlerts(
-    @TenantId() tenantId: string,
-    @Req() req: { user: { id: string; role: string } },
-  ) {
+  @ApiResponse({ status: 200, description: 'Dashboard alerts' })
+  async getAlerts(@TenantId() tenantId: string, @Req() req: AuthenticatedRequest) {
     return this.dashboardService.getAlerts({
       tenantId,
       userId: req.user.id,

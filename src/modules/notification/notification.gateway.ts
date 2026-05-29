@@ -45,9 +45,8 @@ export class NotificationGateway
   handleConnection(client: AuthenticatedSocket) {
     try {
       // Extract token from handshake auth or query
-      const auth = client.handshake.auth as Record<string, unknown>;
-      const query = client.handshake.query as Record<string, unknown>;
-      const token = auth?.token || query?.token;
+      const token =
+        client.handshake.auth?.token || client.handshake.query?.token;
 
       if (!token || typeof token !== 'string') {
         this.logger.warn(`Client ${client.id} disconnected: No token provided`);
@@ -67,7 +66,7 @@ export class NotificationGateway
         const payload = this.jwtService.verify(token, {
           secret,
         }) as unknown as Record<string, unknown>;
-        if (!payload['id'] || typeof payload['id'] !== 'string') {
+        if (!payload.id || typeof payload.id !== 'string') {
           this.logger.warn(
             `Client ${client.id} disconnected: Token missing user ID`,
           );
@@ -78,8 +77,8 @@ export class NotificationGateway
         const userId: string = payload['id'];
         client.userId = userId;
         client.tenantId =
-          typeof payload['tenant_id'] === 'string'
-            ? payload['tenant_id']
+          typeof payload.tenant_id === 'string'
+            ? payload.tenant_id
             : undefined;
 
         // Store client by userId for easy lookup

@@ -2,33 +2,67 @@ import {
   Controller,
   Get,
   Post,
-  Body,
   Param,
   Query,
   UseGuards,
-  ParseIntPipe,
-  DefaultValuePipe,
   BadRequestException,
+  NotFoundException,
+  Headers,
+  RawBodyRequest,
+  Req,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
+import { Request } from 'express';
 import {
   ApiTags,
   ApiBearerAuth,
   ApiOperation,
   ApiResponse,
+  ApiQuery,
+  ApiExcludeEndpoint,
 } from '@nestjs/swagger';
 import { TenantGuard } from '../../../common/guards/tenant.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { PermissionsGuard } from '../../../common/guards/permissions.guard';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { Public } from '../../../common/decorators/public.decorator';
 import { TenantId } from '../../../common/decorators/company.deorator';
 import { BillingService } from '../services/billing.service';
+import { BillingTransactionQueryDto } from '../dto/billing-transaction-query.dto';
 
 @ApiTags('Billing')
-@ApiBearerAuth()
-@UseGuards(TenantGuard, RolesGuard, PermissionsGuard)
 @Controller('billing')
 export class BillingController {
   constructor(private readonly billingService: BillingService) {}
 
+  // ── Stripe Webhook (no JWT — Stripe signs with its own secret) ─────────────
+
+  @Public()
+  @Post('webhook/stripe')
+  @HttpCode(HttpStatus.OK)
+  @ApiExcludeEndpoint()
+  async stripeWebhook(
+    @Req() req: RawBodyRequest<Request>,
+    @Headers('stripe-signature') signature: string,
+  ) {
+    if (!signature) {
+      throw new BadRequestException('Missing stripe-signature header');
+    }
+    const rawBody = req.rawBody;
+    if (!rawBody) {
+      throw new BadRequestException(
+        'Raw body not available. Ensure rawBody: true is set in NestJS bootstrap.',
+      );
+    }
+    const event = this.billingService.constructWebhookEvent(rawBody, signature);
+    return this.billingService.handleWebhookEvent(event);
+  }
+
+  // ── Authenticated endpoints ────────────────────────────────────────────────
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard, PermissionsGuard)
   @Get('transactions')
   @ApiOperation({ summary: 'Get billing transactions for the current tenant' })
   @ApiResponse({
@@ -37,22 +71,21 @@ export class BillingController {
   })
   async getTransactions(
     @TenantId() tenantId: string,
-    @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
-    @Query('offset', new DefaultValuePipe(0), ParseIntPipe) offset: number,
+    @Query() query: BillingTransactionQueryDto,
   ) {
-    return this.billingService.getTransactionsByTenant(tenantId, limit, offset);
+    return this.billingService.getTransactionsByTenant(
+      tenantId,
+      query.limit ?? 50,
+      query.offset ?? 0,
+    );
   }
 
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard, PermissionsGuard)
   @Get('transactions/:id')
   @ApiOperation({ summary: 'Get a specific billing transaction by ID' })
-  @ApiResponse({
-    status: 200,
-    description: 'Returns the billing transaction',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Transaction not found',
-  })
+  @ApiResponse({ status: 200, description: 'Returns the billing transaction' })
+  @ApiResponse({ status: 404, description: 'Transaction not found' })
   async getTransaction(
     @TenantId() tenantId: string,
     @Param('id') transactionId: string,
@@ -61,20 +94,26 @@ export class BillingController {
       transactionId,
       tenantId,
     );
-
     if (!transaction) {
-      return { message: 'Transaction not found' };
+      throw new NotFoundException(`Transaction '${transactionId}' not found`);
     }
-
     return transaction;
   }
 
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard, PermissionsGuard)
   @Post('employees/confirm-payment')
   @ApiOperation({ summary: 'Confirm employee payment after checkout success' })
+  @ApiQuery({
+    name: 'checkoutSessionId',
+    required: true,
+    description: 'Stripe checkout session ID',
+  })
   @ApiResponse({
     status: 200,
     description: 'Payment confirmed, employee will be created',
   })
+  @ApiResponse({ status: 400, description: 'Missing checkoutSessionId' })
   async confirmEmployeePayment(
     @TenantId() tenantId: string,
     @Query('checkoutSessionId') checkoutSessionId: string,
@@ -84,7 +123,6 @@ export class BillingController {
         'checkoutSessionId is required as query parameter',
       );
     }
-
     return this.billingService.confirmEmployeePayment(
       checkoutSessionId,
       tenantId,

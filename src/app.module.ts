@@ -38,11 +38,13 @@ import { IpWhitelistModule } from './modules/ip-whitelist/ip-whitelist.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { GeofenceModule } from './modules/geofence/geofence.module';
+import { InviteStatusModule } from './modules/invite-status/invite-status.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { AnnouncementModule } from './modules/announcement/announcement.module';
 import { WorkflowModule } from './modules/workflow/workflow.module';
 import { WfhModule } from './modules/wfh/wfh.module';
 import { OvertimeModule } from './modules/overtime/overtime.module';
+import { OrgsModule } from './modules/orgs/orgs.module';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { SystemLoggingInterceptor } from './common/interceptors/system-logging.interceptor';
 import { SignedFileUrlInterceptor } from './modules/storage/signed-file-url.interceptor';
@@ -166,11 +168,13 @@ import { IpWhitelistGuard } from './common/guards/ip-whitelist.guard';
     BillingModule,
     DashboardModule,
     GeofenceModule,
+    InviteStatusModule,
     NotificationModule,
     AnnouncementModule,
     WorkflowModule,
     WfhModule,
     OvertimeModule,
+    OrgsModule,
     TenantSettingsModule,
     IpWhitelistModule,
   ],

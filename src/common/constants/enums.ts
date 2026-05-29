@@ -1,6 +1,13 @@
 // Global System Tenant ID - Used for system-admin users across the entire HRMS
 export const GLOBAL_SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000000';
 
+// Org membership roles — mirrored as a native PostgreSQL ENUM (see migration 1773000000003)
+export enum OrgMemberRole {
+  OWNER = 'owner',
+  ADMIN = 'admin',
+  MEMBER = 'member',
+}
+
 // User and Role Enums
 export enum UserRole {
   ADMIN = 'admin',

@@ -1,4 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
+import { v4 as uuidv4 } from 'uuid';
 
 export class AddLeaveTypeEntity1759500000001 implements MigrationInterface {
   name = 'AddLeaveTypeEntity1759500000001';

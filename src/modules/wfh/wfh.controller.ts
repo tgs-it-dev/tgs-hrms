@@ -34,9 +34,8 @@ import { CreateWfhDto } from './dto/create-wfh.dto';
 import { UpdateWfhDto } from './dto/update-wfh.dto';
 import { RemoveAttachmentDto } from '../../common/dto/remove-attachment.dto';
 import { WfhStatus } from '../../common/constants/enums';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { AuthenticatedRequest } from 'src/common/types/request.types';
+import { AuthenticatedRequest } from '../../common/types/request.types';
 import { createImageFileFilter } from '../../common/utils/file-validation.util';
 
 const WFH_EXAMPLE = {
@@ -154,7 +153,6 @@ export class WfhController {
   }
 
   @Get()
-  @UseGuards(RolesGuard)
   @Roles('admin', 'hr-admin', 'system-admin', 'network-admin', 'manager')
   @ApiOperation({
     summary: 'List all WFH requests across the tenant (admin/manager)',
