@@ -108,12 +108,13 @@ export class SendGridService {
     }
   }
 
-  async sendVerificationEmail(
+   async sendVerificationEmail(
     email: string,
     verificationToken: string,
     userName: string,
   ): Promise<void> {
     const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+    const verifyUrl = `${frontendUrl}/verify-email?token=${verificationToken}`;
     const fromEmail = this.configService.get<string>('SENDGRID_FROM');
 
     if (!fromEmail) {
@@ -121,21 +122,27 @@ export class SendGridService {
       return;
     }
 
-    const verifyUrl = `${frontendUrl}/verify-email?token=${verificationToken}`;
     const msg = {
       to: email,
       from: fromEmail,
-      subject: 'Verify Your Email Address',
+      subject: 'Verify your email address',
       html: `
-        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2>Verify Your Email Address</h2>
           <p>Hello ${userName},</p>
-          <p>Please verify your email by clicking the button below:</p>
-          <div style="text-align:center;margin:30px 0">
-            <a href="${verifyUrl}" style="background-color:#007bff;color:white;padding:12px 24px;text-decoration:none;border-radius:4px;display:inline-block">Verify Email</a>
+          <p>Thank you for registering. Please verify your email address by clicking the button below:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${verifyUrl}"
+               style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
+              Verify Email
+            </a>
           </div>
-          <p>Or copy and paste: ${verifyUrl}</p>
-          <p>This link expires in 24 hours.</p>
+          <p>If the button doesn't work, copy and paste this link into your browser:</p>
+          <p style="word-break: break-all; color: #666;">${verifyUrl}</p>
+          <p>This link will expire in 24 hours.</p>
+          <p>If you did not create an account, you can safely ignore this email.</p>
+          <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
+          <p style="color: #666; font-size: 12px;">This is an automated message, please do not reply.</p>
         </div>
       `,
     };
@@ -148,6 +155,7 @@ export class SendGridService {
         `Failed to send verification email to ${email}:`,
         error,
       );
+      throw new Error('Failed to send verification email');
     }
   }
 
