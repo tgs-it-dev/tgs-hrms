@@ -1155,7 +1155,8 @@ export class AuthService {
     if (!users.length) {
       throw new BadRequestException({
         field: 'email',
-        message: 'No account found for this Google email. Please register first.',
+        message:
+          'No account found for this Google email. Please register first.',
       });
     }
 
@@ -1197,17 +1198,27 @@ export class AuthService {
     const companyDetails = await this.getCompanyDetails(tenantId);
 
     const jti = crypto.randomUUID();
-    await this.createUserTokenRecord(user.id, jti, platform, deviceInfo, ipAddress);
+    await this.createUserTokenRecord(
+      user.id,
+      jti,
+      platform,
+      deviceInfo,
+      ipAddress,
+    );
 
     const accessToken = this.buildAccessToken(user, tenantId, permissions, jti);
     const refreshToken = this.buildRefreshToken(user.id, jti);
 
     if (!user.first_login_time) {
-      await this.userRepository.update(user.id, { first_login_time: new Date() });
+      await this.userRepository.update(user.id, {
+        first_login_time: new Date(),
+      });
       await this.inviteStatusService.updateInviteStatusOnLogin(user.id);
     }
 
-    this.logger.log(`Google login successful for email: ${this.sanitizeEmailForLogging(email)}`);
+    this.logger.log(
+      `Google login successful for email: ${this.sanitizeEmailForLogging(email)}`,
+    );
 
     return {
       accessToken,
@@ -1240,5 +1251,4 @@ export class AuthService {
 
     return sessions;
   }
-
 }
