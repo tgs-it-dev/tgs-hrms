@@ -6,14 +6,13 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { AuthModule } from '../../modules/auth/auth.module';
 
 @Module({
   imports: [
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => ({
+      useFactory: (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET') || 'default_secret',
         signOptions: {
           expiresIn: configService.get<string>('JWT_EXPIRES_IN') || '24h',
@@ -21,8 +20,7 @@ import { AuthModule } from '../../modules/auth/auth.module';
       }),
     }),
     ConfigModule,
-    AuthModule,
   ],
-  exports: [JwtModule, ConfigModule, AuthModule],
+  exports: [JwtModule, ConfigModule],
 })
 export class SharedJwtModule {}

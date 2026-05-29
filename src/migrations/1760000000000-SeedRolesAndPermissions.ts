@@ -76,24 +76,24 @@ export class AddHrAdminAndNetworkAdminRoles1760000000000
 
     // Assign role → permissions for new roles only
     for (const rp of rolePermissions) {
-      const role = await queryRunner.query(
+      const role = (await queryRunner.query(
         `SELECT id FROM roles WHERE name = $1 LIMIT 1`,
         [rp.role],
-      );
+      )) as Array<{ id: string }>;
       if (!role.length) continue;
 
       for (const permName of rp.permissions) {
-        const perm = await queryRunner.query(
+        const perm = (await queryRunner.query(
           `SELECT id FROM permissions WHERE name = $1 LIMIT 1`,
           [permName],
-        );
+        )) as Array<{ id: string }>;
         if (!perm.length) continue;
 
         // Check if role-permission already exists
-        const existingRolePermission = await queryRunner.query(
+        const existingRolePermission = (await queryRunner.query(
           `SELECT id FROM role_permissions WHERE role_id = $1 AND permission_id = $2`,
           [role[0].id, perm[0].id],
-        );
+        )) as Array<{ id: string }>;
 
         if (existingRolePermission.length === 0) {
           await queryRunner.query(
@@ -108,7 +108,7 @@ export class AddHrAdminAndNetworkAdminRoles1760000000000
   public async down(queryRunner: QueryRunner): Promise<void> {
     // Remove role_permissions for hr-admin and network-admin
     await queryRunner.query(`
-      DELETE FROM role_permissions 
+      DELETE FROM role_permissions
       WHERE role_id IN (
         SELECT id FROM roles WHERE name IN ('hr-admin', 'network-admin')
       )

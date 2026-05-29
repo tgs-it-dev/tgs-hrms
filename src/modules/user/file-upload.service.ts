@@ -4,10 +4,7 @@ import * as path from 'path';
 
 @Injectable()
 export class FileUploadService {
-  async uploadProfilePicture(
-    file: Express.Multer.File,
-    userId: string,
-  ): Promise<string> {
+  uploadProfilePicture(file: Express.Multer.File, userId: string): string {
     const uploadDir = path.join(process.cwd(), 'public', 'profile-pictures');
 
     // Create directory if it doesn't exist
@@ -27,7 +24,7 @@ export class FileUploadService {
     return `/profile-pictures/${fileName}`;
   }
 
-  async deleteProfilePicture(profilePicUrl: string): Promise<void> {
+  deleteProfilePicture(profilePicUrl: string): void {
     if (!profilePicUrl) return;
 
     const fileName = profilePicUrl.split('/').pop();

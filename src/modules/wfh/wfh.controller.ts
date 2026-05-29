@@ -8,11 +8,9 @@ import {
   Body,
   Query,
   Request,
-  UseGuards,
   ParseUUIDPipe,
   UseInterceptors,
   UploadedFiles,
-  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,

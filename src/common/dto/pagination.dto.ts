@@ -126,8 +126,8 @@ export class PaginationService {
     if (!filters) return {};
 
     try {
-      return JSON.parse(filters);
-    } catch (error) {
+      return JSON.parse(filters) as Record<string, unknown>;
+    } catch (_error) {
       return {};
     }
   }

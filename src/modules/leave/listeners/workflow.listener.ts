@@ -78,7 +78,7 @@ export class LeaveWorkflowListener {
    */
   @OnEvent(WORKFLOW_EVENTS.STEP_APPROVED, { async: true })
   async handleStepApproved(event: WorkflowCompletedEvent): Promise<void> {
-    if (event.requestType !== WorkflowRequestType.LEAVE) return;
+    if (event.requestType !== (WorkflowRequestType.LEAVE as string)) return;
     try {
       await this.runInTenantContext(event.tenantId, async (leaveRepo) => {
         const leave = await leaveRepo.findOne({
@@ -133,7 +133,7 @@ export class LeaveWorkflowListener {
    */
   @OnEvent(WORKFLOW_EVENTS.REQUEST_APPROVED, { async: true })
   async handleApproved(event: WorkflowCompletedEvent): Promise<void> {
-    if (event.requestType !== WorkflowRequestType.LEAVE) return;
+    if (event.requestType !== (WorkflowRequestType.LEAVE as string)) return;
     try {
       await this.runInTenantContext(event.tenantId, async (leaveRepo) => {
         const leave = await leaveRepo.findOne({
@@ -198,7 +198,7 @@ export class LeaveWorkflowListener {
    */
   @OnEvent(WORKFLOW_EVENTS.REQUEST_REJECTED, { async: true })
   async handleRejected(event: WorkflowCompletedEvent): Promise<void> {
-    if (event.requestType !== WorkflowRequestType.LEAVE) return;
+    if (event.requestType !== (WorkflowRequestType.LEAVE as string)) return;
     try {
       await this.runInTenantContext(event.tenantId, async (leaveRepo) => {
         const leave = await leaveRepo.findOne({
@@ -257,8 +257,8 @@ export class LeaveWorkflowListener {
   }
 
   @OnEvent(WORKFLOW_EVENTS.REQUEST_CANCELLED, { async: true })
-  async handleCancelled(event: WorkflowCompletedEvent): Promise<void> {
-    if (event.requestType !== WorkflowRequestType.LEAVE) return;
+  handleCancelled(event: WorkflowCompletedEvent): void {
+    if (event.requestType !== (WorkflowRequestType.LEAVE as string)) return;
     // Leave cancellation is initiated from LeaveService.cancelLeave() itself.
     // This handler is a no-op guard — status is already set to CANCELLED.
     this.logger.debug(

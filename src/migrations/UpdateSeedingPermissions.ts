@@ -142,17 +142,17 @@ export class SeedRolesAndPermissionsUpdated1756000000000
 
     // Assign role → permissions
     for (const rp of rolePermissions) {
-      const role = await queryRunner.query(
+      const role = (await queryRunner.query(
         `SELECT id FROM roles WHERE name = $1 LIMIT 1`,
         [rp.role],
-      );
+      )) as Array<{ id: string }>;
       if (!role.length) continue;
 
       for (const permName of rp.permissions) {
-        const perm = await queryRunner.query(
+        const perm = (await queryRunner.query(
           `SELECT id FROM permissions WHERE name = $1 LIMIT 1`,
           [permName],
-        );
+        )) as Array<{ id: string }>;
         if (!perm.length) continue;
 
         await queryRunner.query(

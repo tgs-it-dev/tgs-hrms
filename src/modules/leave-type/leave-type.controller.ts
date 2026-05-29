@@ -23,6 +23,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import { AuthenticatedRequest } from '../../common/types/request.types';
 
 @ApiTags('Leave Types')
 @Controller('leave-types')
@@ -43,7 +44,7 @@ export class LeaveTypeController {
   })
   async create(
     @Body() createLeaveTypeDto: CreateLeaveTypeDto,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
   ) {
     return this.leaveTypeService.create(
       createLeaveTypeDto,
@@ -69,7 +70,7 @@ export class LeaveTypeController {
     description: 'Returns list of leave types',
   })
   async findAll(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
@@ -98,7 +99,7 @@ export class LeaveTypeController {
     status: 200,
     description: 'Returns leave type details',
   })
-  async findOne(@Param('id') id: string, @Request() req: any) {
+  async findOne(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
     return this.leaveTypeService.findOne(id, req.user.tenant_id);
   }
 
@@ -114,7 +115,7 @@ export class LeaveTypeController {
   async update(
     @Param('id') id: string,
     @Body() updateLeaveTypeDto: UpdateLeaveTypeDto,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
   ) {
     return this.leaveTypeService.update(
       id,
@@ -132,7 +133,7 @@ export class LeaveTypeController {
     status: 200,
     description: 'Leave type deactivated successfully',
   })
-  async remove(@Param('id') id: string, @Request() req: any) {
+  async remove(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
     await this.leaveTypeService.remove(id, req.user.tenant_id);
     return { message: 'Leave type deactivated successfully' };
   }

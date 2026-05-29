@@ -24,7 +24,7 @@ describe('DesignationService', () => {
     description: 'Engineering department',
     tenant_id: tenantId,
     created_at: new Date(),
-    tenant: {} as any,
+    tenant: {} as Department['tenant'],
     designations: [],
   };
 

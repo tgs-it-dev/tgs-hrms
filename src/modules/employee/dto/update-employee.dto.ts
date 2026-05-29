@@ -44,7 +44,7 @@ export class UpdateEmployeeDto {
     description:
       'Team ID to assign the employee to. Set to null to remove from team.',
   })
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }) => {
     if (value === undefined || value === null || value === '') return undefined;
     if (typeof value === 'string') {
       const v = value.trim();
@@ -67,7 +67,7 @@ export class UpdateEmployeeDto {
     description:
       'Optional. Role ID to assign to the employee. If not provided, role will not be changed.',
   })
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }) => {
     if (value === undefined || value === null || value === '') return undefined;
     if (typeof value === 'string') {
       const v = value.trim();

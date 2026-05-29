@@ -241,7 +241,7 @@ export class UserService {
       };
     } catch (error) {
       this.logger.error(
-        `Error getting profile picture: ${String(error?.message || error)}`,
+        `Error getting profile picture: ${error instanceof Error ? error.message : String(error)}`,
       );
       return null;
     }

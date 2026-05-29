@@ -1,6 +1,6 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, EntityManager } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import {
@@ -52,7 +52,9 @@ export class BillingService {
     return tenant?.schema_provisioned ?? false;
   }
 
-  private getBillingRepo(em: any): Repository<BillingTransaction> {
+  private getBillingRepo(
+    em: EntityManager | null,
+  ): Repository<BillingTransaction> {
     return em
       ? em.getRepository(BillingTransaction)
       : this.billingTransactionRepo;
@@ -153,12 +155,16 @@ export class BillingService {
         checkoutUrl: checkoutSession.url || '',
         checkoutSessionId: checkoutSession.id,
       };
-    } catch (stripeError: any) {
-      const errorMessage = stripeError?.message || 'Unknown Stripe error';
-      const errorCode = stripeError?.code || 'unknown';
+    } catch (stripeError: unknown) {
+      const errorMessage =
+        stripeError instanceof Error
+          ? stripeError.message
+          : 'Unknown Stripe error';
+      const se = stripeError as { code?: string; stack?: string };
+      const errorCode = se.code ?? 'unknown';
       this.logger.error(
         `Stripe checkout session creation failed: ${errorMessage} (code: ${errorCode})`,
-        stripeError?.stack,
+        se.stack,
       );
       throw new Error(
         `Failed to create Stripe checkout session: ${errorMessage} (code: ${errorCode})`,
@@ -269,12 +275,13 @@ export class BillingService {
           this.logger.log(
             `Successfully charged $${this.EMPLOYEE_CREATION_CHARGE_AMOUNT} for employee: ${employeeId}`,
           );
-        } catch (paymentError: any) {
+        } catch (paymentError: unknown) {
+          const pe = paymentError as { code?: string; message?: string };
           if (
-            paymentError?.code === 'payment_intent_authentication_required' ||
-            paymentError?.message?.includes('requires customer action') ||
-            paymentError?.message?.includes('Payment method') ||
-            paymentError?.message === 'PAYMENT_METHOD_REQUIRED'
+            pe.code === 'payment_intent_authentication_required' ||
+            pe.message?.includes('requires customer action') ||
+            pe.message?.includes('Payment method') ||
+            pe.message === 'PAYMENT_METHOD_REQUIRED'
           ) {
             throw new Error('PAYMENT_METHOD_REQUIRED');
           }
@@ -394,7 +401,8 @@ export class BillingService {
         (t) =>
           t.metadata &&
           typeof t.metadata === 'object' &&
-          (t.metadata as any).employee_email === metadata.employee_email &&
+          (t.metadata as Record<string, unknown>).employee_email ===
+            metadata.employee_email &&
           (t.status === BillingTransactionStatus.FAILED ||
             t.status === BillingTransactionStatus.PENDING),
       );

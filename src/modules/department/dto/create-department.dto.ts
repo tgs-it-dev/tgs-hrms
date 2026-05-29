@@ -25,6 +25,6 @@ export class CreateDepartmentDto {
   @ApiProperty({ example: 'Software & QA', required: false })
   @IsOptional()
   @IsString()
-  @Transform(({ value }) => (value === '' ? null : value))
+  @Transform(({ value }: { value: unknown }) => (value === '' ? null : value))
   description?: string | null;
 }

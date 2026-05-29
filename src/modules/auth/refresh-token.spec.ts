@@ -18,7 +18,7 @@ import { UnauthorizedException, BadRequestException } from '@nestjs/common';
 
 describe('AuthService - Refresh Token', () => {
   let service: AuthService;
-  let jwtService: JwtService;
+  let _jwtService: JwtService;
   let userRepository: any;
   let userTokenRepository: any;
 
@@ -166,7 +166,7 @@ describe('AuthService - Refresh Token', () => {
     }).compile();
 
     service = module.get<AuthService>(AuthService);
-    jwtService = module.get<JwtService>(JwtService);
+    _jwtService = module.get<JwtService>(JwtService);
     userRepository = module.get(getRepositoryToken(User));
     userTokenRepository = module.get(getRepositoryToken(UserToken));
   });

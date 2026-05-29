@@ -84,7 +84,7 @@ export class TenantController {
         message: 'List of tenants retrieved successfully.',
         ...result,
       };
-    } catch (err) {
+    } catch (_err) {
       throw new BadRequestException('Failed to fetch tenants');
     }
   }
@@ -157,7 +157,7 @@ export class TenantController {
         message: 'Tenant created successfully.',
         data: tenant,
       };
-    } catch (err) {
+    } catch (_err) {
       throw new BadRequestException('Failed to create tenant');
     }
   }
@@ -229,7 +229,7 @@ export class TenantController {
       };
     } catch (err) {
       if (err instanceof NotFoundException) throw err;
-      if (err instanceof BadRequestException) throw err; // Already deleted case
+      if (err instanceof BadRequestException) throw err;
       throw new BadRequestException('Failed to delete tenant');
     }
   }
@@ -311,7 +311,7 @@ export class TenantController {
       };
     } catch (err) {
       throw new InternalServerErrorException(
-        `Schema upgrade failed for tenant ${id}: ${(err as Error).message}`,
+        `Schema upgrade failed for tenant ${id}: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }

@@ -87,7 +87,7 @@ export class DatabaseUtil {
     queryBuilder: SelectQueryBuilder<T>,
     filters: Record<string, any>,
   ): SelectQueryBuilder<T> {
-    Object.entries(filters).forEach(([key, value]) => {
+    Object.entries(filters).forEach(([key, value]: [string, unknown]) => {
       if (value !== undefined && value !== null && value !== '') {
         if (Array.isArray(value)) {
           queryBuilder.andWhere(`${key} IN (:...${key})`, { [key]: value });
@@ -200,9 +200,9 @@ export class DatabaseUtil {
   /**
    * Get query performance stats
    */
-  static async getQueryStats<T extends ObjectLiteral>(
+  static getQueryStats<T extends ObjectLiteral>(
     queryBuilder: SelectQueryBuilder<T>,
-  ): Promise<{ sql: string; parameters: any[] }> {
+  ): { sql: string; parameters: any[] } {
     const [sql, parameters] = queryBuilder.getQueryAndParameters();
     return { sql, parameters };
   }

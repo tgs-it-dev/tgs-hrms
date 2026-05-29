@@ -26,6 +26,7 @@ import { GLOBAL_SYSTEM_TENANT_ID } from '../../common/constants/enums';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Team } from '../../entities/team.entity';
+import { AuthenticatedRequest } from '../../common/types/request.types';
 
 @ApiTags('Global Search')
 @ApiBearerAuth()
@@ -112,7 +113,7 @@ export class SearchController {
   async globalSearch(
     @Query() dto: GlobalSearchDto,
     @TenantId() userTenantId: string,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
   ): Promise<GlobalSearchResponseDto> {
     const userRole = (req.user?.role || 'user').toLowerCase();
     const isSystemAdmin = userRole === 'system-admin';

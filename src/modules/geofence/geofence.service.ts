@@ -58,7 +58,7 @@ export class GeofenceService {
           'coordinates must be an array of [latitude, longitude] pairs',
         );
       }
-      const [lat, lng] = pair;
+      const [lat, lng] = pair as [number, number];
       if (
         typeof lat !== 'number' ||
         Number.isNaN(lat) ||
@@ -122,7 +122,7 @@ export class GeofenceService {
   ): Promise<Geofence> {
     const repo = em ? em.getRepository(Geofence) : this.repo;
     const teamRepo = em ? em.getRepository(Team) : this.teamRepo;
-    const employeeRepo = em ? em.getRepository(Employee) : this.employeeRepo;
+    const _employeeRepo = em ? em.getRepository(Employee) : this.employeeRepo;
 
     // Verify team exists and belongs to tenant
     const team = await teamRepo.findOne({
@@ -422,8 +422,8 @@ export class GeofenceService {
     user_role?: string,
   ): Promise<Geofence> {
     const repo = em ? em.getRepository(Geofence) : this.repo;
-    const teamRepo = em ? em.getRepository(Team) : this.teamRepo;
-    const employeeRepo = em ? em.getRepository(Employee) : this.employeeRepo;
+    const _teamRepo = em ? em.getRepository(Team) : this.teamRepo;
+    const _employeeRepo = em ? em.getRepository(Employee) : this.employeeRepo;
 
     const geofence = await repo.findOne({
       where: { id, tenant_id },
@@ -472,7 +472,7 @@ export class GeofenceService {
   ): Promise<Geofence> {
     const repo = em ? em.getRepository(Geofence) : this.repo;
     const teamRepo = em ? em.getRepository(Team) : this.teamRepo;
-    const employeeRepo = em ? em.getRepository(Employee) : this.employeeRepo;
+    const _employeeRepo = em ? em.getRepository(Employee) : this.employeeRepo;
 
     const geofence = await repo.findOne({
       where: { id, tenant_id },
@@ -696,8 +696,8 @@ export class GeofenceService {
     user_role?: string,
   ): Promise<{ deleted: true; id: string }> {
     const repo = em ? em.getRepository(Geofence) : this.repo;
-    const teamRepo = em ? em.getRepository(Team) : this.teamRepo;
-    const employeeRepo = em ? em.getRepository(Employee) : this.employeeRepo;
+    const _teamRepo = em ? em.getRepository(Team) : this.teamRepo;
+    const _employeeRepo = em ? em.getRepository(Employee) : this.employeeRepo;
 
     const geofence = await repo.findOne({
       where: { id, tenant_id },

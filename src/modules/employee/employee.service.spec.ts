@@ -9,7 +9,6 @@ import { Role } from '../../entities/role.entity';
 import { Team } from '../../entities/team.entity';
 import { Tenant } from '../../entities/tenant.entity';
 import { CreateEmployeeDto, UpdateEmployeeDto } from './dto/employee.dto';
-import { ConflictException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SendGridService } from '../../common/utils/email/sendgrid.service';
@@ -332,7 +331,33 @@ describe('EmployeeService', () => {
         return null;
       });
 
-      mockEmployeeRepo.save.mockImplementation(async (employee) => employee);
+      mockEmployeeRepo.findOneBy.mockResolvedValue(existingEmployee);
+      mockEmployeeRepo.findOne.mockImplementation(
+        ({ where }: { where?: { id?: string } }) => {
+          if (where && where.id === existingEmployee.id) {
+            return Promise.resolve(existingEmployee);
+          }
+          return Promise.resolve(null);
+        },
+      );
+
+      mockUserRepo.findOne.mockResolvedValue(null);
+
+      mockDesignationRepo.findOneBy.mockImplementation(
+        ({ id }: { id?: string }) => {
+          if (id === 'desig-uuid-2') {
+            return Promise.resolve({
+              id: 'desig-uuid-2',
+              department: { tenant_id: tenantId },
+            });
+          }
+          return Promise.resolve(null);
+        },
+      );
+
+      mockEmployeeRepo.save.mockImplementation((employee: unknown) =>
+        Promise.resolve(employee),
+      );
     });
 
     it('should throw conflict if new email exists in same tenant', async () => {

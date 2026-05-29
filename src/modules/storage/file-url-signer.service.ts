@@ -39,7 +39,7 @@ export class FileUrlSignerService {
       if (FILE_URL_FIELD_SET.has(key) && value != null) {
         if (Array.isArray(value)) {
           out[key] = await Promise.all(
-            value.map((item) =>
+            value.map((item: unknown) =>
               typeof item === 'string'
                 ? this.storage.getSignedUrlForStoredValue(
                     item,

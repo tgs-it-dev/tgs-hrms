@@ -238,6 +238,23 @@ export class TenantSchemaProvisioningService {
     return result[0]?.exists ?? false;
   }
 
+  /**
+   * Stub — schema removal is intentionally not implemented.
+   *
+   * Dropping a tenant schema is a destructive, unrecoverable operation.
+   * Implementing it requires an explicit off-cycle process (export, audit,
+   * legal hold check) that does not belong in the application layer.
+   * This stub exists so callers can reference the method and the intent is
+   * documented, without accidental data loss being possible.
+   */
+  deprovisionTenantSchema(tenantId: string): void {
+    const schemaName = this.getSchemaName(tenantId);
+    this.logger.warn(
+      `deprovisionTenantSchema called for "${schemaName}" — ` +
+        `no-op: schema removal must be performed manually via a controlled off-cycle process.`,
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // Private helpers — one method per table, called in dependency order
   // ---------------------------------------------------------------------------

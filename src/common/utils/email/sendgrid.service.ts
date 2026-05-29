@@ -5,7 +5,7 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as sgMail from '@sendgrid/mail';
+import sgMail from '@sendgrid/mail';
 import { IEmailProvider } from './interfaces/email-provider.interface';
 import * as fs from 'fs';
 import * as path from 'path';

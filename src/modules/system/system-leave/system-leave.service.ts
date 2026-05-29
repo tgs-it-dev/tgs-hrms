@@ -72,7 +72,7 @@ export class SystemLeaveService {
         // Second priority: If no tenant match, get active employee
         if (!employeeRecord) {
           employeeRecord = employeeRecords.find(
-            (emp: Employee) => emp.status === 'active',
+            (emp: Employee) => (emp.status as string) === 'active',
           );
         }
 

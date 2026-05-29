@@ -38,20 +38,55 @@ export class RoleController {
 
   @Get()
   @Roles('admin', 'system-admin', 'hr-admin')
-  @ApiOperation({ summary: 'Get all roles' })
-  @ApiResponse({ status: 200, description: 'List of roles' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  getRoles() {
+  @Permissions('manage_roles')
+  @ApiOperation({ summary: 'Get all roles (Admin only)' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of roles retrieved successfully.',
+    schema: {
+      example: [
+        {
+          name: 'admin',
+        },
+      ],
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or missing JWT token',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Insufficient permissions',
+  })
+  async getRoles() {
     return this.roleService.findAll();
   }
 
   @Get(':id')
+  @UseGuards(RolesGuard, PermissionsGuard)
   @Roles('admin', 'system-admin', 'hr-admin')
-  @ApiOperation({ summary: 'Get role by ID' })
-  @ApiParam({ name: 'id', description: 'Role UUID' })
-  @ApiResponse({ status: 200, description: 'Role retrieved' })
-  @ApiResponse({ status: 404, description: 'Role not found' })
-  getRoleById(@Param('id') id: string) {
+  @Permissions('manage_roles')
+  @ApiOperation({ summary: 'Get role by ID (Admin only)' })
+  @ApiParam({
+    name: 'id',
+    description: 'Role UUID',
+    example: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Role retrieved successfully.',
+    schema: {
+      example: {
+        name: 'admin',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Role not found',
+  })
+  async getRoleById(@Param('id') id: string) {
     return this.roleService.findOne(id);
   }
 
