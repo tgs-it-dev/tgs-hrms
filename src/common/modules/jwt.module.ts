@@ -6,7 +6,6 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { AuthModule } from '../../modules/auth/auth.module';
 
 @Module({
   imports: [
@@ -21,8 +20,7 @@ import { AuthModule } from '../../modules/auth/auth.module';
       }),
     }),
     ConfigModule,
-    AuthModule,
   ],
-  exports: [JwtModule, ConfigModule, AuthModule],
+  exports: [JwtModule, ConfigModule],
 })
 export class SharedJwtModule {}
