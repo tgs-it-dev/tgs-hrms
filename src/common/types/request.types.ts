@@ -2,6 +2,7 @@ import { Request } from 'express';
 
 export interface AuthenticatedRequest extends Request {
   clientIp?: string;
+  gracePeriod?: boolean;
   user: {
     id: string;
     email: string;

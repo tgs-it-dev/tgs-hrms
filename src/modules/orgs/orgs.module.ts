@@ -7,11 +7,13 @@ import { User } from '../../entities/user.entity';
 import { OrgsService } from './orgs.service';
 import { OrgsController } from './orgs.controller';
 import { EmailModule } from '../../common/utils/email/email.module';
+import { SysDbModule } from '../../common/modules/sys-db.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([OrgMember, OrgInvite, Tenant, User]),
     EmailModule,
+    SysDbModule,
   ],
   controllers: [OrgsController],
   providers: [OrgsService],

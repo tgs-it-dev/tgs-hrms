@@ -48,10 +48,13 @@ import { OrgsModule } from './modules/orgs/orgs.module';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { SystemLoggingInterceptor } from './common/interceptors/system-logging.interceptor';
 import { SignedFileUrlInterceptor } from './modules/storage/signed-file-url.interceptor';
+import { GracePeriodInterceptor } from './common/interceptors/grace-period.interceptor';
 import { SystemLog } from './entities/system-log.entity';
 import { TenantIpWhitelist } from './entities/tenant-ip-whitelist.entity';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { IpWhitelistGuard } from './common/guards/ip-whitelist.guard';
+import { SubscriptionGuard } from './common/guards/subscription.guard';
+import { SysDbModule } from './common/modules/sys-db.module';
 @Module({
   imports: [
     ScheduleModule.forRoot(),
@@ -177,6 +180,7 @@ import { IpWhitelistGuard } from './common/guards/ip-whitelist.guard';
     OrgsModule,
     TenantSettingsModule,
     IpWhitelistModule,
+    SysDbModule,
   ],
   providers: [
     {
@@ -188,12 +192,20 @@ import { IpWhitelistGuard } from './common/guards/ip-whitelist.guard';
       useClass: IpWhitelistGuard,
     },
     {
+      provide: APP_GUARD,
+      useClass: SubscriptionGuard,
+    },
+    {
       provide: APP_INTERCEPTOR,
       useClass: SystemLoggingInterceptor,
     },
     {
       provide: APP_INTERCEPTOR,
       useClass: SignedFileUrlInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: GracePeriodInterceptor,
     },
   ],
 })

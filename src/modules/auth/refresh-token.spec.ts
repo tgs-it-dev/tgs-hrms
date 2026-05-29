@@ -65,6 +65,7 @@ describe('AuthService - Refresh Token', () => {
   const mockConfigService = {
     get: jest.fn().mockImplementation((key: string) => {
       if (key === 'JWT_SECRET') return 'mocked-secret';
+      if (key === 'JWT_REFRESH_SECRET') return 'mocked-refresh-secret';
       if (key === 'JWT_EXPIRES_IN') return '24h';
       return null;
     }),
@@ -183,7 +184,7 @@ describe('AuthService - Refresh Token', () => {
       expect(result).toHaveProperty('accessToken', 'new-access-token');
       expect(result).toHaveProperty('refreshToken', 'new-access-token'); // sign mock always returns same value
       expect(mockJwtService.verify).toHaveBeenCalledWith(mockRefreshToken, {
-        secret: 'mocked-secret',
+        secret: 'mocked-refresh-secret',
       });
     });
 
