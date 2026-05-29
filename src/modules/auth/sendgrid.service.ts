@@ -108,7 +108,7 @@ export class SendGridService {
     }
   }
 
-   async sendVerificationEmail(
+  async sendVerificationEmail(
     email: string,
     verificationToken: string,
     userName: string,
