@@ -2,7 +2,6 @@ import {
   Controller,
   Get,
   Patch,
-  Body,
   Param,
   Query,
   Request,

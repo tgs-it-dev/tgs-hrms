@@ -40,4 +40,24 @@ export class EmailService {
       );
     }
   }
+
+  async sendVerificationEmail(
+    email: string,
+    verificationToken: string,
+    userName: string,
+  ): Promise<void> {
+    try {
+      await this.sendGridService.sendVerificationEmail(
+        email,
+        verificationToken,
+        userName,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to send verification email to ${email}:`,
+        error,
+      );
+      // Do not re-throw — registration should still succeed even if email fails
+    }
+  }
 }

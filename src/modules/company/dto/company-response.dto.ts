@@ -59,18 +59,19 @@ export class CompanyResponseDto {
 
   @ApiProperty({
     description: 'Mobile login enabled for tenant',
-    example: true
+    example: true,
   })
   mobile_login_enabled: boolean;
 
   @ApiProperty({
     description: 'IP restriction enabled for tenant',
-    example: false
+    example: false,
   })
   ip_restriction_enabled: boolean;
 
   @ApiProperty({
-    description: 'Current client IP address — only returned for admin and system-admin roles',
+    description:
+      'Current client IP address — only returned for admin and system-admin roles',
     example: '192.168.1.100',
     nullable: true,
   })

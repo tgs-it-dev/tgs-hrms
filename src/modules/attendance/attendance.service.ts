@@ -25,6 +25,8 @@ import { NotificationType } from '../../common/constants/enums';
 import { TenantDatabaseService } from '../../common/services/tenant-database.service';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { Geofence, GeofenceStatus } from '../../entities/geofence.entity';
+import { checkPointWithinGeofence } from '../../common/utils/geofence.util';
 
 interface TeamMemberItem {
   user: {
@@ -147,7 +149,43 @@ export class AttendanceService {
 
     const now = new Date();
 
-    const nearBoundary = false;
+    let nearBoundary = false;
+
+    if (dto.type === AttendanceType.CHECK_IN) {
+      const geofenceEmployee = await employeeRepo.findOne({
+        where: { user_id: userId },
+        select: ['team_id'],
+      });
+      if (geofenceEmployee?.team_id) {
+        const geofenceRepo = em ? em.getRepository(Geofence) : null;
+        if (geofenceRepo) {
+          const activeGeofence = await geofenceRepo.findOne({
+            where: {
+              team_id: geofenceEmployee.team_id,
+              status: GeofenceStatus.ACTIVE,
+            },
+          });
+          if (activeGeofence) {
+            if (dto.latitude == null || dto.longitude == null) {
+              throw new BadRequestException(
+                'Location is required for check-in within a geofenced area.',
+              );
+            }
+            const result = checkPointWithinGeofence(
+              dto.latitude,
+              dto.longitude,
+              activeGeofence,
+            );
+            if (!result.isWithin) {
+              throw new BadRequestException(
+                'You are outside the allowed check-in area. Please move closer to your workplace.',
+              );
+            }
+            nearBoundary = result.isNearBoundary;
+          }
+        }
+      }
+    }
 
     if (dto.type === AttendanceType.CHECK_IN) {
       const activeSession = await this.getActiveSession(userId, attendanceRepo);
@@ -251,7 +289,7 @@ export class AttendanceService {
           related_entity_id: saved.id,
         });
       } catch (error) {
-        console.error('Failed to create attendance notification:', error);
+        this.logger.error('Failed to create attendance notification:', error);
       }
     }
 
@@ -612,7 +650,7 @@ export class AttendanceService {
       }
       return { items, total: items.length };
     } catch (error) {
-      console.error('Error fetching attendance with user join:', error);
+      this.logger.error('Error fetching attendance with user join:', error);
       return { items: [], total: 0 };
     }
   }
@@ -1456,7 +1494,10 @@ export class AttendanceService {
         created_at: notification.created_at,
       });
     } catch (error) {
-      console.error('Failed to create check-in approval notification:', error);
+      this.logger.error(
+        'Failed to create check-in approval notification:',
+        error,
+      );
     }
     return saved;
   }
@@ -1523,7 +1564,10 @@ export class AttendanceService {
         created_at: notification.created_at,
       });
     } catch (error) {
-      console.error('Failed to create check-in rejection notification:', error);
+      this.logger.error(
+        'Failed to create check-in rejection notification:',
+        error,
+      );
     }
     return saved;
   }
@@ -1592,7 +1636,7 @@ export class AttendanceService {
           },
         );
       } catch (error) {
-        console.error(
+        this.logger.error(
           `Failed to notify employee ${checkIn.user_id} for check-in approval:`,
           error,
         );
@@ -1665,7 +1709,7 @@ export class AttendanceService {
           },
         );
       } catch (error) {
-        console.error(
+        this.logger.error(
           `Failed to notify employee ${checkIn.user_id} for check-in rejection:`,
           error,
         );
