@@ -23,7 +23,7 @@ describe('DepartmentService', () => {
     tenant: {
       id: tenantId,
       name: 'Mock Tenant',
-    } as any,
+    } as Department['tenant'],
     designations: [],
   };
 
@@ -115,7 +115,7 @@ describe('DepartmentService', () => {
       tenant: {
         id: tenantId,
         name: 'Mock Tenant',
-      } as any,
+      } as Department['tenant'],
       designations: [],
     };
 

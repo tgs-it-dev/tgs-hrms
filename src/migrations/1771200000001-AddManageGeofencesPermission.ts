@@ -16,10 +16,10 @@ export class AddManageGeofencesPermission1771200000001
     );
 
     // 2) Get permission id
-    const perm = await queryRunner.query(
+    const perm = (await queryRunner.query(
       `SELECT id FROM permissions WHERE name = $1 LIMIT 1`,
       ['manage_geofences'],
-    );
+    )) as Array<{ id: string }>;
     if (!perm.length) return;
     const permissionId = perm[0].id;
 
@@ -33,10 +33,10 @@ export class AddManageGeofencesPermission1771200000001
     ];
 
     for (const roleName of targetRoles) {
-      const role = await queryRunner.query(
+      const role = (await queryRunner.query(
         `SELECT id FROM roles WHERE LOWER(name) = LOWER($1) LIMIT 1`,
         [roleName],
-      );
+      )) as Array<{ id: string }>;
       if (!role.length) continue;
 
       await queryRunner.query(
@@ -49,10 +49,10 @@ export class AddManageGeofencesPermission1771200000001
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    const perm = await queryRunner.query(
+    const perm = (await queryRunner.query(
       `SELECT id FROM permissions WHERE name = $1 LIMIT 1`,
       ['manage_geofences'],
-    );
+    )) as Array<{ id: string }>;
     if (!perm.length) return;
 
     const permissionId = perm[0].id;
@@ -65,10 +65,10 @@ export class AddManageGeofencesPermission1771200000001
     ];
 
     for (const roleName of targetRoles) {
-      const role = await queryRunner.query(
+      const role = (await queryRunner.query(
         `SELECT id FROM roles WHERE LOWER(name) = LOWER($1) LIMIT 1`,
         [roleName],
-      );
+      )) as Array<{ id: string }>;
       if (!role.length) continue;
 
       await queryRunner.query(

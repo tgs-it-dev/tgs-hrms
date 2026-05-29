@@ -7,13 +7,12 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RolesGuard } from 'src/common/guards/roles.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
+import { AuthenticatedRequest } from '../../common/types/request.types';
 
 @ApiTags('Reports')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
 @Controller('reports')
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
@@ -44,12 +43,12 @@ export class ReportsController {
       'Attendance summary for the selected range. Each item: employeeName, workingDays, presents, absents, informedLeaves, department, designation.',
   })
   async attendanceSummary(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Query('days') days?: string,
     @Query('page') page?: string,
   ) {
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
-    const effectiveTenantId = req.user?.tenant_id;
+    const effectiveTenantId = req.user.tenant_id;
     const daysNum = days ? parseInt(days, 10) : undefined;
     return this.reportsService.getAttendanceSummaryWithDays(
       effectiveTenantId,

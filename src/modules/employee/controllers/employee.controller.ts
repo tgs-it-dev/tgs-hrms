@@ -43,10 +43,25 @@ import { PermissionsGuard } from '../../../common/guards/permissions.guard';
 import { Response } from 'express';
 import { sendCsvResponse } from '../../../common/utils/csv.util';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
-import {
-  validateImageFile,
-  createImageFileFilter,
-} from '../../../common/utils/file-validation.util';
+import { createImageFileFilter } from '../../../common/utils/file-validation.util';
+import { AuthenticatedRequest } from '../../../common/types/request.types';
+
+interface EmployeeExportUser {
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  phone?: string;
+  tenant?: { name?: string; status?: string };
+}
+
+interface EmployeeExportItem {
+  user?: EmployeeExportUser;
+  designation?: { title?: string; department?: { name?: string } };
+  team?: { name?: string };
+  status?: string;
+  invite_status?: string;
+  created_at?: Date | string;
+}
 
 @ApiTags('Employees')
 @ApiBearerAuth()
@@ -106,7 +121,7 @@ export class EmployeeController {
       'Manager created successfully with manager role assigned (or custom role if provided)',
   })
   async createManager(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @TenantId() tenant_id: string,
     @Body() createEmployeeDto: CreateEmployeeDto,
     @UploadedFiles()
@@ -116,7 +131,7 @@ export class EmployeeController {
       cnic_back_picture?: Express.Multer.File[];
     },
   ) {
-    const createdByUserId = req.user?.id;
+    const createdByUserId = req.user.id;
     return this.service.createManager(
       tenant_id,
       createdByUserId,
@@ -222,7 +237,7 @@ export class EmployeeController {
     },
   })
   async create(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @TenantId() tenant_id: string,
     @Body() dto: CreateEmployeeDto,
     @UploadedFiles()
@@ -232,7 +247,7 @@ export class EmployeeController {
       cnic_back_picture?: Express.Multer.File[];
     },
   ) {
-    const createdByUserId = req.user?.id;
+    const createdByUserId = req.user.id;
     return this.service.create(tenant_id, createdByUserId, dto, files);
   }
 
@@ -383,7 +398,7 @@ export class EmployeeController {
   ) {
     // Fetch all pages of employees so CSV includes complete dataset (no pagination)
     let pageNumber = 1;
-    const allItems: any[] = [];
+    const allItems: EmployeeExportItem[] = [];
 
     while (true) {
       const { items, total, limit } = await this.service.findAll(
@@ -391,7 +406,7 @@ export class EmployeeController {
         query,
         pageNumber,
       );
-      allItems.push(...(items || []));
+      allItems.push(...(items as EmployeeExportItem[]));
 
       if (!items.length || allItems.length >= total) {
         break;
@@ -405,7 +420,7 @@ export class EmployeeController {
       }
     }
 
-    const rows = (allItems || []).map((e: any) => ({
+    const rows = allItems.map((e) => ({
       first_name: e.user?.first_name,
       last_name: e.user?.last_name,
       email: e.user?.email,
@@ -452,7 +467,7 @@ export class EmployeeController {
       designationId,
     });
 
-    const rows = (items || []).map((e: any) => ({
+    const rows = (items as EmployeeExportItem[]).map((e) => ({
       tenant_name: e.user?.tenant?.name,
       tenant_status: e.user?.tenant?.status,
       first_name: e.user?.first_name,

@@ -68,26 +68,26 @@ export class SeedAnnouncementAndAssetPermissions1772400000000
     }
 
     const getRoleId = async (roleName: string): Promise<string | null> => {
-      const rows = await queryRunner.query(
+      const rows = (await queryRunner.query(
         `SELECT id FROM roles WHERE LOWER(name) = LOWER($1) LIMIT 1`,
         [roleName],
-      );
+      )) as Array<{ id: string }>;
       return rows.length ? rows[0].id : null;
     };
 
     const getPermId = async (permName: string): Promise<string | null> => {
-      const rows = await queryRunner.query(
+      const rows = (await queryRunner.query(
         `SELECT id FROM permissions WHERE name = $1 LIMIT 1`,
         [permName],
-      );
+      )) as Array<{ id: string }>;
       return rows.length ? rows[0].id : null;
     };
 
     const grant = async (roleId: string, permId: string) => {
-      const existing = await queryRunner.query(
+      const existing = (await queryRunner.query(
         `SELECT id FROM role_permissions WHERE role_id = $1 AND permission_id = $2`,
         [roleId, permId],
-      );
+      )) as Array<{ id: string }>;
       if (existing.length === 0) {
         await queryRunner.query(
           `INSERT INTO role_permissions (id, role_id, permission_id) VALUES ($1, $2, $3)`,
@@ -143,18 +143,18 @@ export class SeedAnnouncementAndAssetPermissions1772400000000
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     const getRoleId = async (roleName: string): Promise<string | null> => {
-      const rows = await queryRunner.query(
+      const rows = (await queryRunner.query(
         `SELECT id FROM roles WHERE LOWER(name) = LOWER($1) LIMIT 1`,
         [roleName],
-      );
+      )) as Array<{ id: string }>;
       return rows.length ? rows[0].id : null;
     };
 
     const getPermId = async (permName: string): Promise<string | null> => {
-      const rows = await queryRunner.query(
+      const rows = (await queryRunner.query(
         `SELECT id FROM permissions WHERE name = $1 LIMIT 1`,
         [permName],
-      );
+      )) as Array<{ id: string }>;
       return rows.length ? rows[0].id : null;
     };
 

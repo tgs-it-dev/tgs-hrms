@@ -20,6 +20,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { Response } from 'express';
 import { sendCsvResponse } from '../../common/utils/csv.util';
+import { AuthenticatedRequest } from '../../common/types/request.types';
 
 @ApiTags('Leave Reports')
 @Controller('reports')
@@ -46,7 +47,7 @@ export class LeaveReportsController {
   async getLeaveSummary(
     @Query('employeeId') employeeId: string,
     @Query('year') year: string,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
   ) {
     const yearNumber = parseInt(
       year || new Date().getFullYear().toString(),
@@ -73,7 +74,7 @@ export class LeaveReportsController {
     @Query('managerId') managerId: string,
     @Query('month') month: string,
     @Query('year') year: string,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
   ) {
     const monthNumber = parseInt(month || new Date().getMonth().toString(), 10);
     const yearNumber = parseInt(
@@ -99,7 +100,7 @@ export class LeaveReportsController {
     @Query('employeeId') employeeId: string,
     @Query('year') year: string,
     @Query('month') month: string,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
   ) {
     const yearNumber = year ? parseInt(year, 10) : undefined;
     const monthNumber = month ? parseInt(month, 10) : undefined;
@@ -118,7 +119,7 @@ export class LeaveReportsController {
   async exportLeaveSummary(
     @Query('employeeId') employeeId: string,
     @Query('year') year: string,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Res() res: Response,
   ) {
     const yearNumber = parseInt(
@@ -149,7 +150,7 @@ export class LeaveReportsController {
     @Query('managerId') managerId: string,
     @Query('month') month: string,
     @Query('year') year: string,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Res() res: Response,
   ) {
     const monthNumber = parseInt(month || new Date().getMonth().toString(), 10);
@@ -209,7 +210,7 @@ export class LeaveReportsController {
     @Query('employeeId') employeeId: string,
     @Query('year') year: string,
     @Query('month') month: string,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Res() res: Response,
   ) {
     const yearNumber = year ? parseInt(year, 10) : undefined;
@@ -220,10 +221,12 @@ export class LeaveReportsController {
       yearNumber,
       monthNumber,
     );
-    const rows = (data.balances || []).map(({ leaveTypeId, ...rest }) => ({
-      year: data.year,
-      ...rest,
-    }));
+    const rows = (data.balances || []).map(
+      ({ leaveTypeId: _leaveTypeId, ...rest }) => ({
+        year: data.year,
+        ...rest,
+      }),
+    );
     return sendCsvResponse(res, 'leave-balance.csv', rows);
   }
 
@@ -340,7 +343,7 @@ export class LeaveReportsController {
     },
   })
   async getAllLeaveReports(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Query('page') page?: string,
     @Query('year') year?: string,
     @Query('employeeName') employeeName?: string,
@@ -379,7 +382,7 @@ export class LeaveReportsController {
   })
   @ApiResponse({ status: 200, description: 'CSV file download' })
   async exportAllLeaveReports(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Res() res: Response,
     @Query('year') year?: string,
     @Query('employeeName') employeeName?: string,

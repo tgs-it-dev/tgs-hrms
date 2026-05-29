@@ -17,14 +17,7 @@ import {
   Res,
 } from '@nestjs/common';
 import { Response } from 'express';
-import { AuthenticatedRequest } from '../../../common/types/request.types';
-import { UserService } from '../services/user.service';
-import { CreateUserDto, UpdateUserDto } from '../dto/user.dto';
-import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
-import { Roles } from '../../../common/decorators/roles.decorator';
-import { RolesGuard } from '../../../common/guards/roles.guard';
-import { Public } from '../../../common/decorators/public.decorator';
-import { TenantId } from '../../../common/decorators/company.deorator';
+
 import {
   ApiBearerAuth,
   ApiTags,
@@ -38,9 +31,19 @@ import {
   MaxFileSizeValidator,
   FileTypeValidator,
 } from '@nestjs/common';
+
+import { AuthenticatedRequest } from '../../../common/types/request.types';
+import { UserService } from '../services/user.service';
+import { CreateUserDto, UpdateUserDto } from '../dto/user.dto';
+import { Roles } from '../../../common/decorators/roles.decorator';
+import { RolesGuard } from '../../../common/guards/roles.guard';
+import { Public } from '../../../common/decorators/public.decorator';
+import { TenantId } from '../../../common/decorators/company.deorator';
+
 import { Permissions } from '../../../common/decorators/permissions.decorator';
 import { PermissionsGuard } from '../../../common/guards/permissions.guard';
 import { validateImageFile } from '../../../common/utils/file-validation.util';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 
 @ApiTags('Users')
 @Controller('users')
@@ -65,7 +68,7 @@ export class UserController {
 
       profilePictureData.fileStream.pipe(res);
       return;
-    } catch (error) {
+    } catch (_error) {
       return res.status(500).json({ message: 'Error serving profile picture' });
     }
   }

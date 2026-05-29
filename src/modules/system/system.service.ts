@@ -228,7 +228,7 @@ export class SystemService {
 
     // Get monthly new additions (non-cumulative) for each entity
     // Employees: New employees created per month
-    const employeeMonthlyAdditions = await this.employeeRepo
+    const employeeMonthlyAdditions = (await this.employeeRepo
       .createQueryBuilder('employee')
       .innerJoin('employee.user', 'user')
       .select("TO_CHAR(employee.created_at, 'YYYY-MM')", 'month')
@@ -237,10 +237,10 @@ export class SystemService {
       .andWhere('user.tenant_id = :tenant_id', { tenant_id })
       .groupBy('month')
       .orderBy('month', 'ASC')
-      .getRawMany();
+      .getRawMany()) as unknown as Array<{ month: string; count: string }>;
 
     // Departments: New departments created per month
-    const departmentMonthlyAdditions = await this.departmentRepo
+    const departmentMonthlyAdditions = (await this.departmentRepo
       .createQueryBuilder('department')
       .select("TO_CHAR(department.created_at, 'YYYY-MM')", 'month')
       .addSelect('COUNT(department.id)', 'count')
@@ -248,10 +248,10 @@ export class SystemService {
       .andWhere('department.tenant_id = :tenant_id', { tenant_id })
       .groupBy('month')
       .orderBy('month', 'ASC')
-      .getRawMany();
+      .getRawMany()) as unknown as Array<{ month: string; count: string }>;
 
     // Designations: New designations created per month (tenant-based)
-    const designationMonthlyAdditions = await this.designationRepo
+    const designationMonthlyAdditions = (await this.designationRepo
       .createQueryBuilder('designation')
       .innerJoin('designation.department', 'department')
       .select("TO_CHAR(designation.created_at, 'YYYY-MM')", 'month')
@@ -260,7 +260,7 @@ export class SystemService {
       .andWhere('designation.tenant_id = :tenant_id', { tenant_id })
       .groupBy('month')
       .orderBy('month', 'ASC')
-      .getRawMany();
+      .getRawMany()) as unknown as Array<{ month: string; count: string }>;
 
     // Get baseline counts (total created before the specified year)
     const baselineEmployees = await this.employeeRepo

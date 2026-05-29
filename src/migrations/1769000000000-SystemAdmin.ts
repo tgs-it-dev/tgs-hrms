@@ -10,9 +10,9 @@ export class SystemAdmin1769000000000 implements MigrationInterface {
     const GLOBAL_SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000000';
 
     // Get System-Admin role (check both "System-Admin" and "system-admin" names)
-    const systemAdminRole = await queryRunner.query(
+    const systemAdminRole = (await queryRunner.query(
       `SELECT id FROM roles WHERE name IN ('System-Admin', 'system-admin') LIMIT 1`,
-    );
+    )) as Array<{ id: string }>;
 
     if (!systemAdminRole || systemAdminRole.length === 0) {
       throw new Error(
@@ -27,10 +27,10 @@ export class SystemAdmin1769000000000 implements MigrationInterface {
     const defaultPassword = 'Nouman123'; // Change this after first login!
 
     // Check if user with this email already exists
-    const existingUser = await queryRunner.query(
+    const existingUser = (await queryRunner.query(
       `SELECT id FROM users WHERE email = $1 LIMIT 1`,
       [defaultEmail.toLowerCase()],
-    );
+    )) as Array<{ id: string }>;
 
     if (existingUser && existingUser.length > 0) {
       console.log(
@@ -40,10 +40,10 @@ export class SystemAdmin1769000000000 implements MigrationInterface {
     }
 
     // Check if system admin already exists with global tenant ID
-    const existingAdmin = await queryRunner.query(
+    const existingAdmin = (await queryRunner.query(
       `SELECT id FROM users WHERE role_id = $1 AND tenant_id = $2 LIMIT 1`,
       [roleId, GLOBAL_SYSTEM_TENANT_ID],
-    );
+    )) as Array<{ id: string }>;
 
     if (existingAdmin && existingAdmin.length > 0) {
       console.log('System admin already exists. Skipping creation.');
@@ -56,15 +56,15 @@ export class SystemAdmin1769000000000 implements MigrationInterface {
     // Create system admin user
     await queryRunner.query(
       `INSERT INTO users (
-        id, 
-        email, 
-        password, 
-        first_name, 
-        last_name, 
-        phone, 
-        role_id, 
-        tenant_id, 
-        created_at, 
+        id,
+        email,
+        password,
+        first_name,
+        last_name,
+        phone,
+        role_id,
+        tenant_id,
+        created_at,
         updated_at
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())`,
       [
@@ -91,9 +91,9 @@ export class SystemAdmin1769000000000 implements MigrationInterface {
     const GLOBAL_SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000000';
 
     // Get System-Admin role
-    const systemAdminRole = await queryRunner.query(
+    const systemAdminRole = (await queryRunner.query(
       `SELECT id FROM roles WHERE name IN ('System-Admin', 'system-admin') LIMIT 1`,
-    );
+    )) as Array<{ id: string }>;
 
     if (systemAdminRole && systemAdminRole.length > 0) {
       const roleId = systemAdminRole[0].id;

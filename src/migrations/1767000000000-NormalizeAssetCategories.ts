@@ -41,11 +41,11 @@ export class NormalizeAssetCategories1767000000000
 
     // Step 2: Create categories ONLY for GLOBAL tenant
     // Get all unique categories from all subcategories (to create global categories)
-    const allCategories = await queryRunner.query(`
-      SELECT DISTINCT category 
+    const allCategories = (await queryRunner.query(`
+      SELECT DISTINCT category
       FROM asset_subcategories
       ORDER BY category
-    `);
+    `)) as Array<{ category: string }>;
 
     // Insert categories ONLY for GLOBAL tenant
     // All tenants will reference these global categories
@@ -60,7 +60,7 @@ export class NormalizeAssetCategories1767000000000
 
     // Step 3: Add category_id to asset_subcategories and migrate data
     await queryRunner.query(`
-      ALTER TABLE "asset_subcategories" 
+      ALTER TABLE "asset_subcategories"
       ADD COLUMN "category_id" uuid
     `);
 
@@ -72,7 +72,7 @@ export class NormalizeAssetCategories1767000000000
       UPDATE asset_subcategories s
       SET category_id = c.id
       FROM asset_categories c
-      WHERE s.category = c.name 
+      WHERE s.category = c.name
       AND c.tenant_id = $1
     `,
       [GLOBAL],
@@ -115,20 +115,20 @@ export class NormalizeAssetCategories1767000000000
     `);
 
     // Get all unique categories from assets that don't exist in GLOBAL categories yet
-    const assetCategories = await queryRunner.query(
+    const assetCategories = (await queryRunner.query(
       `
       SELECT DISTINCT a.category
       FROM assets a
       WHERE a.category IS NOT NULL
       AND NOT EXISTS (
-        SELECT 1 FROM asset_categories ac 
-        WHERE ac.name = a.category 
+        SELECT 1 FROM asset_categories ac
+        WHERE ac.name = a.category
         AND ac.tenant_id = $1
       )
       ORDER BY a.category
     `,
       [GLOBAL],
-    );
+    )) as Array<{ category: string }>;
 
     // Create missing categories ONLY for GLOBAL tenant
     for (const cat of assetCategories) {
@@ -174,20 +174,20 @@ export class NormalizeAssetCategories1767000000000
     `);
 
     // Get all unique categories from asset_requests that don't exist in GLOBAL categories yet
-    const requestCategories = await queryRunner.query(
+    const requestCategories = (await queryRunner.query(
       `
       SELECT DISTINCT ar.asset_category
       FROM asset_requests ar
       WHERE ar.asset_category IS NOT NULL
       AND NOT EXISTS (
-        SELECT 1 FROM asset_categories ac 
-        WHERE ac.name = ar.asset_category 
+        SELECT 1 FROM asset_categories ac
+        WHERE ac.name = ar.asset_category
         AND ac.tenant_id = $1
       )
       ORDER BY ar.asset_category
     `,
       [GLOBAL],
-    );
+    )) as Array<{ asset_category: string }>;
 
     // Create missing categories ONLY for GLOBAL tenant
     for (const cat of requestCategories) {
@@ -213,11 +213,11 @@ export class NormalizeAssetCategories1767000000000
     );
 
     // Check if there are any remaining NULL category_id values
-    const nullCount = await queryRunner.query(`
-      SELECT COUNT(*) as count 
-      FROM asset_requests 
+    const nullCount = (await queryRunner.query(`
+      SELECT COUNT(*) as count
+      FROM asset_requests
       WHERE category_id IS NULL
-    `);
+    `)) as Array<{ count: string }>;
 
     if (parseInt(nullCount[0].count, 10) > 0) {
       // If there are still NULL values, create "Other" category for GLOBAL tenant
@@ -230,16 +230,16 @@ export class NormalizeAssetCategories1767000000000
       );
 
       // Get the "Other" category ID (GLOBAL tenant)
-      const otherCategory = await queryRunner.query(
+      const otherCategory = (await queryRunner.query(
         `SELECT id FROM asset_categories WHERE name = $1 AND tenant_id = $2`,
         ['Other', GLOBAL],
-      );
+      )) as Array<{ id: string }>;
 
       if (otherCategory.length > 0) {
         // Update NULL category_id to "Other" (GLOBAL category)
         await queryRunner.query(
-          `UPDATE asset_requests 
-           SET category_id = $1 
+          `UPDATE asset_requests
+           SET category_id = $1
            WHERE category_id IS NULL`,
           [otherCategory[0].id],
         );
@@ -695,10 +695,10 @@ export class NormalizeAssetCategories1767000000000
     // Get category IDs for GLOBAL tenant
     const categoryMap = new Map<string, string>();
     for (const category of defaultCategories) {
-      const result = await queryRunner.query(
+      const result = (await queryRunner.query(
         `SELECT id FROM asset_categories WHERE name = $1 AND tenant_id = $2`,
         [category.name, GLOBAL_TENANT_ID],
-      );
+      )) as Array<{ id: string }>;
       if (result.length > 0) {
         categoryMap.set(category.name, result[0].id);
       }

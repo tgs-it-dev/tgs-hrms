@@ -52,7 +52,7 @@ export class CreateEmployeeDto {
     description: 'Optional. Team ID to assign the employee to during creation',
   })
   @IsOptional()
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }) => {
     if (value === undefined || value === null) return undefined;
     if (typeof value === 'string') {
       const v = value.trim();
@@ -76,7 +76,7 @@ export class CreateEmployeeDto {
     description:
       'Optional. Role name to assign to the employee. If not provided, defaults to Employee role.',
   })
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }) => {
     if (value === undefined || value === null || value === '') return undefined;
     if (typeof value === 'string') {
       const v = value.trim();
@@ -101,7 +101,7 @@ export class CreateEmployeeDto {
     description:
       'Optional. Role ID to assign to the employee during invite. If not provided, defaults to Employee or Manager as before.',
   })
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }) => {
     if (value === undefined || value === null || value === '') return undefined;
     if (typeof value === 'string') {
       const v = value.trim();

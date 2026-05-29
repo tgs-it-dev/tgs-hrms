@@ -65,9 +65,10 @@ export class EditLeaveDto {
     example: 'leaveType_001',
     required: false,
   })
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }) => {
     if (value === '' || value === null || value === undefined) return undefined;
-    return String(value).trim();
+    if (typeof value !== 'string') return undefined;
+    return value.trim();
   })
   @IsUUID('4', { message: 'leaveTypeId must be a valid UUID' })
   @IsOptional()
@@ -78,12 +79,12 @@ export class EditLeaveDto {
     example: '2025-10-10',
     required: false,
   })
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }) => {
     if (value === '' || value === null || value === undefined) return undefined;
     return value;
   })
   @ValidateIf(
-    (o) =>
+    (o: { startDate?: unknown }) =>
       o.startDate !== undefined && o.startDate !== null && o.startDate !== '',
   )
   @IsDateString()
@@ -95,12 +96,13 @@ export class EditLeaveDto {
     example: '2025-10-12',
     required: false,
   })
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }) => {
     if (value === '' || value === null || value === undefined) return undefined;
     return value;
   })
   @ValidateIf(
-    (o) => o.endDate !== undefined && o.endDate !== null && o.endDate !== '',
+    (o: { endDate?: unknown }) =>
+      o.endDate !== undefined && o.endDate !== null && o.endDate !== '',
   )
   @IsDateString()
   @IsOptional()
@@ -111,7 +113,7 @@ export class EditLeaveDto {
     example: 'Family function',
     required: false,
   })
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }) => {
     if (value === '' || value === null || value === undefined) return undefined;
     return value;
   })

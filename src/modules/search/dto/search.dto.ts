@@ -25,7 +25,8 @@ export class GlobalSearchDto {
   })
   @IsOptional()
   @ValidateIf(
-    (o) => o.query !== undefined && o.query !== null && o.query !== '',
+    (o: { query?: unknown }) =>
+      o.query !== undefined && o.query !== null && o.query !== '',
   )
   @IsString()
   @MinLength(2, { message: 'Search query must be at least 2 characters long' })

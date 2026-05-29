@@ -28,7 +28,9 @@ export class CreateGeofenceDto {
   @ApiProperty({ example: 'Main building entrance area', required: false })
   @IsOptional()
   @IsString()
-  @Transform(({ value }) => (value === '' ? null : value))
+  @Transform(({ value }: { value: unknown }) =>
+    value === '' ? null : (value as string | null),
+  )
   description?: string | null;
 
   @ApiProperty({ example: 'uuid-of-team' })
@@ -51,7 +53,7 @@ export class CreateGeofenceDto {
     description: "Circle radius (meters). Required when type='circle'.",
   })
   @IsOptional()
-  @Transform(({ value }) =>
+  @Transform(({ value }: { value: unknown }) =>
     value === '' || value === null || value === undefined
       ? value
       : Number(value),
@@ -77,7 +79,7 @@ export class CreateGeofenceDto {
     required: false,
     description: 'Backward compatible center/point latitude.',
   })
-  @Transform(({ value }) =>
+  @Transform(({ value }: { value: unknown }) =>
     value === '' || value === null || value === undefined
       ? value
       : Number(value),
@@ -93,7 +95,7 @@ export class CreateGeofenceDto {
     required: false,
     description: 'Backward compatible center/point longitude.',
   })
-  @Transform(({ value }) =>
+  @Transform(({ value }: { value: unknown }) =>
     value === '' || value === null || value === undefined
       ? value
       : Number(value),
@@ -120,7 +122,7 @@ export class CreateGeofenceDto {
       'Threshold distance in meters (tolerance outside the boundary). Only used when threshold_enabled is true.',
   })
   @IsOptional()
-  @Transform(({ value }) =>
+  @Transform(({ value }: { value: unknown }) =>
     value === '' || value === null || value === undefined
       ? value
       : Number(value),
@@ -136,7 +138,9 @@ export class CreateGeofenceDto {
       'Whether threshold distance is enabled. If enabled, employees within threshold can check in and action is marked as "Near Boundary".',
   })
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Transform(
+    ({ value }: { value: unknown }) => value === 'true' || value === true,
+  )
   @IsBoolean()
   threshold_enabled?: boolean;
 }

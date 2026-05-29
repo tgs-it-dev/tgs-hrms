@@ -144,7 +144,7 @@ export class ReportsService {
     const userIds = employees.map((e) => e.user_id);
 
     // Attendance: count distinct days with at least one check-in per user within range
-    const rawAttendance = await this.attendanceRepo
+    const rawAttendance = (await this.attendanceRepo
       .createQueryBuilder('attendance')
       .select('attendance.user_id', 'user_id')
       .addSelect(
@@ -161,7 +161,7 @@ export class ReportsService {
       .addGroupBy(
         "(attendance.timestamp AT TIME ZONE 'UTC' + INTERVAL '5 hours')::date",
       )
-      .getRawMany();
+      .getRawMany()) as unknown as Array<{ user_id: string; day: string }>;
 
     const workedDaysByUser: Record<string, Set<string>> = {};
     for (const row of rawAttendance) {
@@ -328,7 +328,7 @@ export class ReportsService {
     // Helper to get summary for a given range
     const getSummary = async (startDate: Date, endDate: Date) => {
       // Attendance
-      const rawAttendance = await this.attendanceRepo
+      const rawAttendance = (await this.attendanceRepo
         .createQueryBuilder('attendance')
         .select('attendance.user_id', 'user_id')
         .addSelect(
@@ -345,7 +345,7 @@ export class ReportsService {
         .addGroupBy(
           "(attendance.timestamp AT TIME ZONE 'UTC' + INTERVAL '5 hours')::date",
         )
-        .getRawMany();
+        .getRawMany()) as unknown as Array<{ user_id: string; day: string }>;
       const workedDaysByUser: Record<string, Set<string>> = {};
       for (const row of rawAttendance) {
         const uid = row.user_id;
@@ -482,7 +482,7 @@ export class ReportsService {
     }
     const userIds = employees.map((e) => e.user_id);
     // Attendance
-    const rawAttendance = await this.attendanceRepo
+    const rawAttendance = (await this.attendanceRepo
       .createQueryBuilder('attendance')
       .select('attendance.user_id', 'user_id')
       .addSelect(
@@ -499,7 +499,7 @@ export class ReportsService {
       .addGroupBy(
         "(attendance.timestamp AT TIME ZONE 'UTC' + INTERVAL '5 hours')::date",
       )
-      .getRawMany();
+      .getRawMany()) as unknown as Array<{ user_id: string; day: string }>;
     const workedDaysByUser: Record<string, Set<string>> = {};
     for (const row of rawAttendance) {
       const uid = row.user_id;
@@ -692,7 +692,7 @@ export class ReportsService {
         user &&
         user.role &&
         user.role.name &&
-        user.role.name.toLowerCase() === UserRole.MANAGER;
+        user.role.name.toLowerCase() === (UserRole.MANAGER as string);
       const monthlyCap = isManager ? MONTHLY_CAP_MANAGER : MONTHLY_CAP_EMPLOYEE;
       // Get all approved leaves that overlap with the year
       // Check for overlap: leave overlaps with year if startDate <= endOfYear AND endDate >= startOfYear
@@ -708,7 +708,7 @@ export class ReportsService {
         .getMany();
       // Used annual
       const used: Record<string, number> = {};
-      let totalUsed = 0;
+      let _totalUsed = 0;
       for (const cat of CATEGORIES) used[cat] = 0;
       for (const leave of leaves) {
         const leaveTypeName = leave.leaveType?.name?.toLowerCase() || 'other';
@@ -717,7 +717,7 @@ export class ReportsService {
           used[leaveTypeName] !== undefined
         ) {
           used[leaveTypeName]++;
-          totalUsed++;
+          _totalUsed++;
         }
       }
       // Used this month

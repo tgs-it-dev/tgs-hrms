@@ -12,6 +12,8 @@ import { JwtUserPayloadDto } from 'src/modules/auth/dto/jwt-payload.dto';
 import { Repository } from 'typeorm';
 import { sanitizeRequestBody } from '../utils/sanitize-request-body';
 
+type AuthenticatedExpressRequest = Request & { user?: JwtUserPayloadDto };
+
 @Injectable()
 export class SystemLoggingInterceptor implements NestInterceptor {
   constructor(
@@ -19,25 +21,25 @@ export class SystemLoggingInterceptor implements NestInterceptor {
     private readonly logRepo: Repository<SystemLog>,
   ) {}
 
-  async intercept(
-    context: ExecutionContext,
-    next: CallHandler,
-  ): Promise<Observable<any>> {
-    const req: Request = context.switchToHttp().getRequest();
-    const user: JwtUserPayloadDto = (
-      req as unknown as { user: JwtUserPayloadDto }
-    ).user;
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    const req = context
+      .switchToHttp()
+      .getRequest<AuthenticatedExpressRequest>();
+    const user = req.user;
+    const routePath =
+      (req.route as { path?: string } | undefined)?.path ?? req.url;
 
-    // Sanitize body before logging
-    const sanitizedBody = sanitizeRequestBody(req.body);
+    const sanitizedBody = sanitizeRequestBody(
+      req.body as Record<string, unknown>,
+    );
 
     const log = this.logRepo.create({
-      action: `${req.method} ${req.route?.path || req.url}`,
-      entityType: this.extractEntityFromPath(req.route?.path || req.url),
-      userId: user?.id || null,
-      userRole: user?.role || null,
-      tenantId: user?.tenant_id || null,
-      route: req.route?.path || req.url,
+      action: `${req.method} ${routePath}`,
+      entityType: this.extractEntityFromPath(routePath),
+      userId: user?.id ?? null,
+      userRole: user?.role ?? null,
+      tenantId: user?.tenant_id ?? null,
+      route: routePath,
       method: req.method,
       ip: req.ip,
       meta: {
@@ -47,10 +49,8 @@ export class SystemLoggingInterceptor implements NestInterceptor {
       },
     });
 
-    // Fire-and-forget: logging shouldn't block requests
-    this.logRepo.save(log).catch((_err) => {
-      // Silently fail - logging failures shouldn't break the app
-      // Consider using a proper logger here if needed
+    this.logRepo.save(log).catch(() => {
+      // Silently fail — logging failures must not block requests
     });
 
     return next.handle();

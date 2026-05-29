@@ -279,7 +279,7 @@ export class EmployeeService implements OnModuleInit {
         where: { id },
         relations: ['user', 'designation', 'designation.department', 'team'],
       });
-    } catch (err) {
+    } catch (_err) {
       throw new BadRequestException('Failed to promote employee to manager');
     }
   }
@@ -300,7 +300,7 @@ export class EmployeeService implements OnModuleInit {
         where: { id },
         relations: ['user', 'designation', 'designation.department', 'team'],
       });
-    } catch (err) {
+    } catch (_err) {
       throw new BadRequestException('Failed to demote manager to employee');
     }
   }
@@ -775,7 +775,7 @@ export class EmployeeService implements OnModuleInit {
           } catch (checkoutError) {
             if (checkoutError instanceof BadRequestException) {
               this.logger.log(
-                `Redirecting to Stripe checkout: ${(checkoutError.getResponse() as any)?.checkoutUrl ? 'URL provided' : 'no URL'}`,
+                `Redirecting to Stripe checkout: ${(checkoutError.getResponse() as Record<string, unknown>)?.['checkoutUrl'] ? 'URL provided' : 'no URL'}`,
               );
               throw checkoutError;
             }
@@ -889,7 +889,7 @@ export class EmployeeService implements OnModuleInit {
       team_id: employeeData.team_id,
       role_id: employeeData.role_id,
       role_name: employeeData.role_name,
-      gender: employeeData.gender as any,
+      gender: employeeData.gender as UserGender | undefined,
       cnic_number: employeeData.cnic_number,
       password: employeeData.password,
     };
@@ -1113,8 +1113,8 @@ export class EmployeeService implements OnModuleInit {
             await repo.update(item.id, {
               invite_status: InviteStatus.INVITE_EXPIRED,
             });
-          } catch {
-            /* intentionally empty */
+          } catch (_e) {
+            /* silently ignore invite status update failure */
           }
         }
       }
@@ -1168,7 +1168,10 @@ export class EmployeeService implements OnModuleInit {
       employee.id,
       tenant_id,
     );
-    if (currentStatus && currentStatus !== employee.invite_status) {
+    if (
+      currentStatus &&
+      (currentStatus as InviteStatus) !== employee.invite_status
+    ) {
       employee.invite_status = currentStatus as InviteStatus;
     }
 
@@ -1555,7 +1558,7 @@ export class EmployeeService implements OnModuleInit {
       );
     } catch (error) {
       this.logger.error(
-        `Failed to send welcome email to ${email}: ${String(error?.message || error)}`,
+        `Failed to send welcome email to ${email}: ${String(error instanceof Error ? error.message : error)}`,
       );
 
       this.logger.warn(
@@ -1759,7 +1762,9 @@ export class EmployeeService implements OnModuleInit {
       return [];
     }
 
-    return results.map((entry) => ({
+    return (
+      results as Array<{ month: string; year: string; total: string }>
+    ).map((entry) => ({
       month: parseInt(entry.month),
       year: parseInt(entry.year),
       total: parseInt(entry.total),

@@ -94,7 +94,7 @@ export class DashboardService {
 
     let employeeIds: string[] = [];
 
-    if (role === UserRole.MANAGER) {
+    if (role === (UserRole.MANAGER as string)) {
       const teams = await this.teamRepo.find({
         where: { manager_id: userId },
         relations: ['teamMembers', 'teamMembers.user'],
@@ -103,7 +103,7 @@ export class DashboardService {
       employeeIds = members
         .filter((e) => e.user?.tenant_id === tenantId)
         .map((e) => e.id);
-    } else if (role === UserRole.EMPLOYEE) {
+    } else if (role === (UserRole.EMPLOYEE as string)) {
       const employee = await this.employeeRepo.findOne({
         where: { user_id: userId },
         relations: ['user'],
@@ -311,11 +311,11 @@ export class DashboardService {
       .leftJoinAndSelect('designation.department', 'department')
       .where('user.tenant_id = :tenantId', { tenantId });
 
-    if (role === UserRole.MANAGER) {
+    if (role === (UserRole.MANAGER as string)) {
       employeeQb
         .leftJoin('employee.team', 'team')
         .andWhere('team.manager_id = :managerId', { managerId: userId });
-    } else if (role === UserRole.EMPLOYEE) {
+    } else if (role === (UserRole.EMPLOYEE as string)) {
       employeeQb.andWhere('employee.user_id = :userId', { userId });
     }
 
@@ -449,7 +449,7 @@ export class DashboardService {
 
     let scopedUserIds: string[] = [];
 
-    if (role === UserRole.MANAGER) {
+    if (role === (UserRole.MANAGER as string)) {
       const teams = await this.teamRepo.find({
         where: { manager_id: userId },
         relations: ['teamMembers', 'teamMembers.user'],
@@ -458,7 +458,7 @@ export class DashboardService {
       scopedUserIds = members
         .filter((e) => e.user?.tenant_id === tenantId)
         .map((e) => e.user_id);
-    } else if (role === UserRole.EMPLOYEE) {
+    } else if (role === (UserRole.EMPLOYEE as string)) {
       scopedUserIds = [userId];
     } else {
       const users = await this.userRepo.find({

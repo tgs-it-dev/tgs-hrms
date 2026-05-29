@@ -52,7 +52,7 @@ export class RolesPermissionsService {
         'roles-permissions.json',
       );
       const configFile = readFileSync(configPath, 'utf8');
-      this.config = JSON.parse(configFile);
+      this.config = JSON.parse(configFile) as RolesPermissionsConfig;
       this.logger.log(
         'Roles and permissions configuration loaded successfully',
       );

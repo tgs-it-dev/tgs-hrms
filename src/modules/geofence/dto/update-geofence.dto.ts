@@ -32,7 +32,7 @@ export class UpdateGeofenceDto extends PartialType(CreateGeofenceDto) {
 
   @ApiProperty({ example: 24.860734, required: false })
   @IsOptional()
-  @Transform(({ value }) =>
+  @Transform(({ value }: { value: unknown }) =>
     value === '' || value === null || value === undefined
       ? value
       : Number(value),
@@ -44,7 +44,7 @@ export class UpdateGeofenceDto extends PartialType(CreateGeofenceDto) {
 
   @ApiProperty({ example: 67.001136, required: false })
   @IsOptional()
-  @Transform(({ value }) =>
+  @Transform(({ value }: { value: unknown }) =>
     value === '' || value === null || value === undefined
       ? value
       : Number(value),
@@ -65,7 +65,7 @@ export class UpdateGeofenceDto extends PartialType(CreateGeofenceDto) {
 
   @ApiProperty({ example: 150, required: false })
   @IsOptional()
-  @Transform(({ value }) =>
+  @Transform(({ value }: { value: unknown }) =>
     value === '' || value === null || value === undefined
       ? value
       : Number(value),
@@ -95,7 +95,7 @@ export class UpdateGeofenceDto extends PartialType(CreateGeofenceDto) {
       'Threshold distance in meters (tolerance outside the boundary). Only used when threshold_enabled is true.',
   })
   @IsOptional()
-  @Transform(({ value }) =>
+  @Transform(({ value }: { value: unknown }) =>
     value === '' || value === null || value === undefined
       ? value
       : Number(value),
@@ -111,7 +111,9 @@ export class UpdateGeofenceDto extends PartialType(CreateGeofenceDto) {
       'Whether threshold distance is enabled. If enabled, employees within threshold can check in and action is marked as "Near Boundary".',
   })
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Transform(
+    ({ value }: { value: unknown }) => value === 'true' || value === true,
+  )
   @IsBoolean()
   threshold_enabled?: boolean;
 }

@@ -11,10 +11,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { TenantId } from '../../common/decorators/company.deorator';
 import { DashboardAttendanceQueryDto } from './dto/dashboard-attendance-query.dto';
-
-interface AuthedRequest {
-  user: { id: string; role: string };
-}
+import { AuthenticatedRequest } from '../../common/types/request.types';
 
 @ApiTags('Dashboard')
 @ApiBearerAuth()
@@ -37,7 +34,7 @@ export class DashboardController {
     status: 200,
     description: 'KPI metrics ready for direct display',
   })
-  async getKpi(@TenantId() tenantId: string, @Req() req: AuthedRequest) {
+  async getKpi(@TenantId() tenantId: string, @Req() req: AuthenticatedRequest) {
     return this.dashboardService.getKpiMetrics({
       tenantId,
       userId: req.user.id,
@@ -69,7 +66,7 @@ export class DashboardController {
   })
   async getAttendanceSummary(
     @TenantId() tenantId: string,
-    @Req() req: AuthedRequest,
+    @Req() req: AuthenticatedRequest,
     @Query() query: DashboardAttendanceQueryDto,
   ) {
     return this.dashboardService.getAttendanceSummary({
@@ -106,7 +103,10 @@ export class DashboardController {
     summary: 'Get dashboard alerts (auto checkouts, pending approvals)',
   })
   @ApiResponse({ status: 200, description: 'Dashboard alerts' })
-  async getAlerts(@TenantId() tenantId: string, @Req() req: AuthedRequest) {
+  async getAlerts(
+    @TenantId() tenantId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
     return this.dashboardService.getAlerts({
       tenantId,
       userId: req.user.id,

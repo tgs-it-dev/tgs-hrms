@@ -14,7 +14,7 @@ export class CreateAttendanceDto {
       'Latitude for check-in/check-out location (required for CHECK_IN and CHECK_OUT)',
   })
   @IsOptional()
-  @Transform(({ value }) =>
+  @Transform(({ value }: { value: unknown }) =>
     value === '' || value === null || value === undefined
       ? value
       : Number(value),
@@ -30,7 +30,7 @@ export class CreateAttendanceDto {
       'Longitude for check-in/check-out location (required for CHECK_IN and CHECK_OUT)',
   })
   @IsOptional()
-  @Transform(({ value }) =>
+  @Transform(({ value }: { value: unknown }) =>
     value === '' || value === null || value === undefined
       ? value
       : Number(value),

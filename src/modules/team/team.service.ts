@@ -12,6 +12,7 @@ import {
   IsNull,
   EntityManager,
   In,
+  FindOptionsWhere,
 } from 'typeorm';
 import { Team } from '../../entities/team.entity';
 import { Employee } from '../../entities/employee.entity';
@@ -145,7 +146,7 @@ export class TeamService {
         take: limit,
       });
 
-      const items = (teams || []).map((t: any) => ({
+      const items = (teams || []).map((t) => ({
         id: t.id,
         name: t.name,
         description: t.description,
@@ -161,7 +162,7 @@ export class TeamService {
             }
           : undefined,
         created_at: t.created_at,
-        members: (t.teamMembers || []).map((m: any) => ({
+        members: (t.teamMembers || []).map((m) => ({
           id: m.id,
           status: m.status,
           user: m.user
@@ -863,7 +864,7 @@ export class TeamService {
       teams: any[];
     }>;
   }> {
-    const tenantWhere: any = { deleted_at: IsNull() };
+    const tenantWhere: FindOptionsWhere<Tenant> = { deleted_at: IsNull() };
     if (tenantId) {
       tenantWhere.id = tenantId;
     }
@@ -873,7 +874,7 @@ export class TeamService {
       order: { name: 'ASC' },
     });
 
-    const transformTeam = (t: any) => ({
+    const transformTeam = (t: Team) => ({
       id: t.id,
       name: t.name,
       description: t.description,
@@ -889,7 +890,7 @@ export class TeamService {
           }
         : null,
       created_at: t.created_at,
-      members: (t.teamMembers || []).map((m: any) => ({
+      members: (t.teamMembers || []).map((m) => ({
         id: m.id,
         status: m.status,
         user: m.user

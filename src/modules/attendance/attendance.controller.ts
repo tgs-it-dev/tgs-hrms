@@ -34,6 +34,43 @@ import { Response } from 'express';
 import { sendCsvResponse } from '../../common/utils/csv.util';
 import { AttendanceType } from '../../common/constants/enums';
 
+interface AttendanceEvent {
+  type: AttendanceType;
+  timestamp: Date;
+  user_id?: string;
+  date?: string;
+  approval_status?: string;
+  user?: { first_name?: string; last_name?: string };
+}
+
+interface AttendanceRecord {
+  date?: string;
+  checkIn?: Date | string | null;
+  checkOut?: Date | string | null;
+  workedHours?: number;
+}
+
+interface TeamMemberAttendance {
+  first_name?: string;
+  last_name?: string;
+  attendance?: AttendanceRecord[];
+}
+
+interface EmployeeAttendance {
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  totalDaysWorked?: number;
+  totalHoursWorked?: number;
+  attendance?: AttendanceRecord[];
+}
+
+interface TenantAttendance {
+  tenant_name?: string;
+  tenant_status?: string;
+  employees?: EmployeeAttendance[];
+}
+
 @ApiTags('Attendance')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
@@ -74,7 +111,7 @@ export class AttendanceController {
   @Roles('hr-admin', 'admin', 'system-admin', 'network-admin')
   @Permissions('manage_attendance')
   async findAllForAdmin(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
@@ -261,7 +298,7 @@ export class AttendanceController {
     },
   })
   async getTeamAttendance(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
@@ -311,15 +348,18 @@ export class AttendanceController {
     );
 
     // Group events by date and combine check-in/check-out
-    const groupedByDate: Record<string, { checkIn?: any; checkOut?: any }> = {};
-    const checkIns: any[] = [];
-    const checkOuts: any[] = [];
+    const groupedByDate: Record<
+      string,
+      { checkIn?: AttendanceEvent; checkOut?: AttendanceEvent }
+    > = {};
+    const checkIns: AttendanceEvent[] = [];
+    const checkOuts: AttendanceEvent[] = [];
 
     for (const ev of items) {
       if (ev.type === AttendanceType.CHECK_IN) {
-        checkIns.push(ev);
+        checkIns.push(ev as AttendanceEvent);
       } else if (ev.type === AttendanceType.CHECK_OUT) {
-        checkOuts.push(ev);
+        checkOuts.push(ev as AttendanceEvent);
       }
     }
 
@@ -346,7 +386,7 @@ export class AttendanceController {
     }
 
     // Convert to CSV rows
-    const rows: any[] = [];
+    const rows: Record<string, unknown>[] = [];
     for (const [date, { checkIn, checkOut }] of Object.entries(groupedByDate)) {
       let workedHours = 0;
       if (
@@ -376,7 +416,9 @@ export class AttendanceController {
 
     // Sort by date descending
     rows.sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+      (a, b) =>
+        new Date(b.date as string).getTime() -
+        new Date(a.date as string).getTime(),
     );
 
     const csvRows =
@@ -413,7 +455,7 @@ export class AttendanceController {
     description: 'Optional end date filter (ISO date string, e.g., 2024-01-31)',
   })
   async exportTeam(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Res() res: Response,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
@@ -424,9 +466,9 @@ export class AttendanceController {
       startDate,
       endDate,
     );
-    const rows = (items || []).flatMap((member: any) => {
+    const rows = (items as TeamMemberAttendance[]).flatMap((member) => {
       const attendance = member.attendance || [];
-      return attendance.map((a: any) => ({
+      return attendance.map((a) => ({
         user_name:
           `${member.first_name || ''} ${member.last_name || ''}`.trim(),
         first_name: member.first_name,
@@ -464,7 +506,7 @@ export class AttendanceController {
       'End date filter (e.g. 2026-02-28). Applied as UTC end of day.',
   })
   async exportAll(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Res() res: Response,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
@@ -495,15 +537,18 @@ export class AttendanceController {
 
     const groupedByUserAndDate: Record<
       string,
-      Record<string, { checkIn?: any; checkOut?: any }>
+      Record<string, { checkIn?: AttendanceEvent; checkOut?: AttendanceEvent }>
     > = {};
 
     // Store user info for later use
-    const userInfoMap: Record<string, any> = {};
+    const userInfoMap: Record<
+      string,
+      { first_name?: string; last_name?: string }
+    > = {};
 
-    const userGroups: Record<string, any[]> = {};
-    for (const ev of allItems) {
-      const userId = ev.user_id;
+    const userGroups: Record<string, AttendanceEvent[]> = {};
+    for (const ev of allItems as AttendanceEvent[]) {
+      const userId = ev.user_id ?? '';
       if (!userGroups[userId]) {
         userGroups[userId] = [];
       }
@@ -549,7 +594,7 @@ export class AttendanceController {
       }
     }
 
-    const rows: any[] = [];
+    const rows: Record<string, unknown>[] = [];
     for (const [userId, dateGroups] of Object.entries(groupedByUserAndDate)) {
       const user = userInfoMap[userId];
       const userName = user
@@ -587,9 +632,12 @@ export class AttendanceController {
 
     rows.sort((a, b) => {
       const dateCompare =
-        new Date(b.date).getTime() - new Date(a.date).getTime();
+        new Date(b.date as string).getTime() -
+        new Date(a.date as string).getTime();
       if (dateCompare !== 0) return dateCompare;
-      return (a.employee_name || '').localeCompare(b.employee_name || '');
+      return ((a.employee_name as string) || '').localeCompare(
+        (b.employee_name as string) || '',
+      );
     });
 
     // Headers even when no data (e.g. no records in date range)
@@ -657,9 +705,9 @@ export class AttendanceController {
       name,
     );
 
-    const rows: any[] = [];
+    const rows: Record<string, unknown>[] = [];
 
-    for (const tenant of tenants || []) {
+    for (const tenant of (tenants as TenantAttendance[]) || []) {
       for (const employee of tenant.employees || []) {
         const userName =
           `${employee.first_name || ''} ${employee.last_name || ''}`.trim();
@@ -683,13 +731,18 @@ export class AttendanceController {
     }
 
     rows.sort((a, b) => {
-      const tenantCompare = (a.tenant_name || '').localeCompare(
-        b.tenant_name || '',
+      const tenantCompare = ((a.tenant_name as string) || '').localeCompare(
+        (b.tenant_name as string) || '',
       );
       if (tenantCompare !== 0) return tenantCompare;
-      const userCompare = (a.user_name || '').localeCompare(b.user_name || '');
+      const userCompare = ((a.user_name as string) || '').localeCompare(
+        (b.user_name as string) || '',
+      );
       if (userCompare !== 0) return userCompare;
-      return new Date(b.date).getTime() - new Date(a.date).getTime();
+      return (
+        new Date(b.date as string).getTime() -
+        new Date(a.date as string).getTime()
+      );
     });
 
     const filename = tenantId
@@ -731,7 +784,7 @@ export class AttendanceController {
       },
     },
   })
-  async getTodayTeamCheckIns(@Req() req: any) {
+  async getTodayTeamCheckIns(@Req() req: AuthenticatedRequest) {
     return this.attendanceService.getTodayTeamCheckIns(
       req.user.id,
       req.user.tenant_id,
@@ -777,7 +830,7 @@ export class AttendanceController {
       },
     },
   })
-  async getTodayTeamAttendance(@Req() req: any) {
+  async getTodayTeamAttendance(@Req() req: AuthenticatedRequest) {
     const today = new Date().toISOString().split('T')[0];
     const result = await this.attendanceService.getTeamAttendance(
       req.user.id,
@@ -827,7 +880,7 @@ export class AttendanceController {
   async approveCheckIn(
     @Param('id') id: string,
     @Body() dto: ApproveCheckInDto,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
     return this.attendanceService.approveCheckIn(
       id,
@@ -864,7 +917,7 @@ export class AttendanceController {
   async disapproveCheckIn(
     @Param('id') id: string,
     @Body() dto: ApproveCheckInDto,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
     return this.attendanceService.disapproveCheckIn(
       id,
@@ -895,7 +948,7 @@ export class AttendanceController {
   })
   async approveAllCheckIns(
     @Body() dto: BulkApproveCheckInDto,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
     return this.attendanceService.approveAllCheckIns(
       req.user.id,
@@ -925,7 +978,7 @@ export class AttendanceController {
   })
   async disapproveAllCheckIns(
     @Body() dto: BulkApproveCheckInDto,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
     return this.attendanceService.disapproveAllCheckIns(
       req.user.id,

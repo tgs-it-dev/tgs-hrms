@@ -6,7 +6,7 @@ import {
   SubscribeMessage,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger, UseGuards } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 
@@ -42,7 +42,7 @@ export class NotificationGateway
     private readonly configService: ConfigService,
   ) {}
 
-  async handleConnection(client: AuthenticatedSocket) {
+  handleConnection(client: AuthenticatedSocket) {
     try {
       // Extract token from handshake auth or query
       const token =
@@ -63,7 +63,9 @@ export class NotificationGateway
       }
 
       try {
-        const payload = this.jwtService.verify(token, { secret });
+        const payload = this.jwtService.verify(token, {
+          secret,
+        }) as unknown as Record<string, unknown>;
         if (!payload.id || typeof payload.id !== 'string') {
           this.logger.warn(
             `Client ${client.id} disconnected: Token missing user ID`,
@@ -72,15 +74,16 @@ export class NotificationGateway
           return;
         }
 
-        const userId: string = payload.id;
+        const userId: string = payload['id'];
         client.userId = userId;
-        client.tenantId = payload.tenant_id;
+        client.tenantId =
+          typeof payload.tenant_id === 'string' ? payload.tenant_id : undefined;
 
         // Store client by userId for easy lookup
         this.connectedClients.set(userId, client);
 
         this.logger.log(`Client ${client.id} connected as user ${userId}`);
-      } catch (error) {
+      } catch (_error) {
         this.logger.warn(`Client ${client.id} disconnected: Invalid token`);
         client.disconnect();
       }
@@ -132,7 +135,7 @@ export class NotificationGateway
   }
 
   @SubscribeMessage('ping')
-  handlePing(client: AuthenticatedSocket) {
+  handlePing(_client: AuthenticatedSocket) {
     return { event: 'pong', data: { timestamp: new Date().toISOString() } };
   }
 }

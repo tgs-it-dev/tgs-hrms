@@ -101,16 +101,17 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     // Extract message text and preserve additional properties
     let messageText: string;
-    let additionalProps: Record<string, any> = {};
+    let additionalProps: Record<string, unknown> = {};
 
     if (typeof message === 'string') {
       messageText = message;
     } else if (typeof message === 'object' && message !== null) {
-      const msgObj = message as Record<string, any>;
-      messageText = msgObj.message || 'Internal server error';
-      // Extract all properties except 'message' to preserve additional data like checkoutUrl
-      const { message: _, ...rest } = msgObj;
-      additionalProps = rest;
+      const msgObj = message as Record<string, unknown>;
+      messageText =
+        (msgObj.message as string | undefined) || 'Internal server error';
+      additionalProps = Object.fromEntries(
+        Object.entries(msgObj).filter(([key]) => key !== 'message'),
+      );
     } else {
       messageText = 'Internal server error';
     }

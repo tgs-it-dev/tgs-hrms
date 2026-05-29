@@ -25,10 +25,10 @@ export class GrantHrAdminCoreManagePermissions1761000000000
     }
 
     // Get hr-admin role id
-    const hrAdminRole = await queryRunner.query(
+    const hrAdminRole = (await queryRunner.query(
       `SELECT id FROM roles WHERE name = $1 LIMIT 1`,
       ['hr-admin'],
-    );
+    )) as Array<{ id: string }>;
 
     if (!hrAdminRole.length) {
       // If role doesn't exist, nothing to do; keep migration safe to run
@@ -38,20 +38,20 @@ export class GrantHrAdminCoreManagePermissions1761000000000
     const roleId = hrAdminRole[0].id;
 
     for (const perm of targetPermissions) {
-      const permission = await queryRunner.query(
+      const permission = (await queryRunner.query(
         `SELECT id FROM permissions WHERE name = $1 LIMIT 1`,
         [perm.name],
-      );
+      )) as Array<{ id: string }>;
 
       if (!permission.length) continue;
 
       const permissionId = permission[0].id;
 
       // Check existing mapping
-      const existing = await queryRunner.query(
+      const existing = (await queryRunner.query(
         `SELECT id FROM role_permissions WHERE role_id = $1 AND permission_id = $2`,
         [roleId, permissionId],
-      );
+      )) as Array<{ id: string }>;
 
       if (existing.length === 0) {
         await queryRunner.query(
@@ -64,10 +64,10 @@ export class GrantHrAdminCoreManagePermissions1761000000000
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     // Revert the role-permission mappings for hr-admin only
-    const hrAdminRole = await queryRunner.query(
+    const hrAdminRole = (await queryRunner.query(
       `SELECT id FROM roles WHERE name = $1 LIMIT 1`,
       ['hr-admin'],
-    );
+    )) as Array<{ id: string }>;
 
     if (!hrAdminRole.length) {
       return;
@@ -83,10 +83,10 @@ export class GrantHrAdminCoreManagePermissions1761000000000
     ];
 
     for (const permName of targetPermissionNames) {
-      const permission = await queryRunner.query(
+      const permission = (await queryRunner.query(
         `SELECT id FROM permissions WHERE name = $1 LIMIT 1`,
         [permName],
-      );
+      )) as Array<{ id: string }>;
       if (!permission.length) continue;
 
       const permissionId = permission[0].id;

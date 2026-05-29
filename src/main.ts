@@ -6,8 +6,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { Request, Response, NextFunction } from 'express';
-// Use require() so production build works (express-basic-auth is CommonJS, no default export)
-const basicAuth = require('express-basic-auth');
+import basicAuth from 'express-basic-auth';
 
 const logger = new Logger('Bootstrap');
 
@@ -18,15 +17,11 @@ async function bootstrap() {
 
   app.use((_req: Request, res: Response, next: NextFunction) => {
     const start = Date.now();
-
-    const originalEnd = res.end.bind(res);
-    (res as any).end = (...args: any[]) => {
+    res.on('finish', () => {
       if (!res.headersSent) {
         res.setHeader('X-Response-Time', `${Date.now() - start}ms`);
       }
-      return originalEnd(...args);
-    };
-
+    });
     next();
   });
 
@@ -110,7 +105,6 @@ async function bootstrap() {
     optionsSuccessStatus: 204,
   });
 
-  // Protect Swagger with Basic Auth when SWAGGER_PASSWORD is set (e.g. on Render/live)
   const swaggerPassword = process.env.SWAGGER_PASSWORD;
   const swaggerUser = process.env.SWAGGER_USER || 'admin';
   if (swaggerPassword) {

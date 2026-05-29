@@ -4,7 +4,6 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { User } from '../../entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { Repository } from 'typeorm';
 import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Role } from '../../entities/role.entity';
@@ -18,6 +17,12 @@ import { InviteStatusService } from '../invite-status/invite-status.service';
 import { SystemSettingsService } from '../system/system-settings/system-settings.service';
 import { TenantSettingsService } from '../tenant-settings/tenant-settings.service';
 import { IpWhitelistService } from '../ip-whitelist/ip-whitelist.service';
+
+jest.mock('bcrypt', () => ({
+  ...jest.requireActual<typeof import('bcrypt')>('bcrypt'),
+  hash: jest.fn(),
+  compare: jest.fn(),
+}));
 
 const mockPassword = bcrypt.hashSync('123456', 10);
 
@@ -119,7 +124,7 @@ const mockEmailService = {
 
 describe('AuthService - Login', () => {
   let service: AuthService;
-  let userRepo: any;
+  let userRepo: ReturnType<typeof mockUserRepository>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -192,11 +197,13 @@ describe('AuthService - Login', () => {
     }).compile();
 
     service = module.get<AuthService>(AuthService);
-    userRepo = module.get<Repository<User>>(getRepositoryToken(User));
+    userRepo = module.get(getRepositoryToken(User));
   });
 
+  afterEach(() => jest.resetAllMocks());
+
   it('should validate and return access token for valid credentials', async () => {
-    jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
+    (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
     const result = await service.validateUser('admin@company.com', '123456');
 
@@ -212,7 +219,7 @@ describe('AuthService - Login', () => {
   });
 
   it('should throw error for invalid password', async () => {
-    jest.spyOn(bcrypt, 'compare').mockResolvedValue(false as never);
+    (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
     await expect(
       service.validateUser('admin@company.com', 'wrongpass'),
