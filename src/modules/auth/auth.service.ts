@@ -4,37 +4,37 @@ import {
   BadRequestException,
   ForbiddenException,
   Logger,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { User } from '../../entities/user.entity';
-import { CompanyDetails } from '../../entities/company-details.entity';
-import { UserToken } from '../../entities/user-token.entity';
-import { Repository, Not, IsNull, MoreThan } from 'typeorm';
-import { JwtService } from '@nestjs/jwt';
-import { RegisterDto } from './dto/register.dto';
-import * as bcrypt from 'bcrypt';
-import * as crypto from 'crypto';
-import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
-import { ConfigService } from '@nestjs/config';
-import { EmailService } from '../../common/utils/email';
-import { InviteStatusService } from '../invite-status/invite-status.service';
-import { Employee } from '../../entities/employee.entity';
-import { SignupSession } from '../../entities/signup-session.entity';
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { User } from "../../entities/user.entity";
+import { CompanyDetails } from "../../entities/company-details.entity";
+import { UserToken } from "../../entities/user-token.entity";
+import { Repository, Not, IsNull, MoreThan } from "typeorm";
+import { JwtService } from "@nestjs/jwt";
+import { RegisterDto } from "./dto/register.dto";
+import * as bcrypt from "bcrypt";
+import * as crypto from "crypto";
+import { ForgotPasswordDto } from "./dto/forgot-password.dto";
+import { ResetPasswordDto } from "./dto/reset-password.dto";
+import { ConfigService } from "@nestjs/config";
+import { EmailService } from "../../common/utils/email";
+import { InviteStatusService } from "../invite-status/invite-status.service";
+import { Employee } from "../../entities/employee.entity";
+import { SignupSession } from "../../entities/signup-session.entity";
 import {
   GLOBAL_SYSTEM_TENANT_ID,
   UserRole,
-} from '../../common/constants/enums';
+} from "../../common/constants/enums";
 
-import { isMobileRequest } from '../../common/utils/mobile-detection';
-import { Role } from '../../entities/role.entity';
-import { Tenant } from '../../entities/tenant.entity';
+import { isMobileRequest } from "../../common/utils/mobile-detection";
+import { Role } from "../../entities/role.entity";
+import { Tenant } from "../../entities/tenant.entity";
 import {
   TenantSettingsService,
   TenantSettingKey,
-} from '../tenant-settings/tenant-settings.service';
-import { IpWhitelistService } from '../ip-whitelist/ip-whitelist.service';
-import axios from 'axios';
+} from "../tenant-settings/tenant-settings.service";
+import { IpWhitelistService } from "../ip-whitelist/ip-whitelist.service";
+import axios from "axios";
 
 interface RefreshTokenPayload {
   sub: string;
@@ -90,11 +90,11 @@ export class AuthService {
       is_mobile: isMobile,
     };
     if (sessionId) {
-      payload['sid'] = sessionId;
+      payload["sid"] = sessionId;
     }
     return this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('JWT_SECRET'),
-      expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') ?? '24h',
+      secret: this.configService.get<string>("JWT_SECRET"),
+      expiresIn: this.configService.get<string>("JWT_EXPIRES_IN") ?? "24h",
     });
   }
 
@@ -104,10 +104,10 @@ export class AuthService {
    */
   private buildRefreshToken(userId: string, jti: string): string {
     return this.jwtService.sign(
-      { sub: userId, jti, type: 'refresh' },
+      { sub: userId, jti, type: "refresh" },
       {
-        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-        expiresIn: '7d',
+        secret: this.configService.get<string>("JWT_REFRESH_SECRET"),
+        expiresIn: "7d",
       },
     );
   }
@@ -141,7 +141,7 @@ export class AuthService {
       return false;
     }
 
-    return roleName.trim().toLowerCase() === 'system-admin';
+    return roleName.trim().toLowerCase() === "system-admin";
   }
 
   private async getUserPermissions(userId: string): Promise<string[]> {
@@ -150,7 +150,7 @@ export class AuthService {
 
       const user = await this.userRepository.findOne({
         where: { id: userId },
-        relations: ['role'],
+        relations: ["role"],
       });
 
       if (!user || !user.role) {
@@ -159,12 +159,12 @@ export class AuthService {
       }
 
       const permissions = await this.userRepository
-        .createQueryBuilder('user')
-        .leftJoin('user.role', 'role')
-        .leftJoin('role.rolePermissions', 'rp')
-        .leftJoin('rp.permission', 'permission')
-        .where('user.id = :userId', { userId: user.id })
-        .select('permission.name', 'name')
+        .createQueryBuilder("user")
+        .leftJoin("user.role", "role")
+        .leftJoin("role.rolePermissions", "rp")
+        .leftJoin("rp.permission", "permission")
+        .where("user.id = :userId", { userId: user.id })
+        .select("permission.name", "name")
         .getRawMany();
 
       const permissionNames = permissions
@@ -245,7 +245,7 @@ export class AuthService {
 
     // System-admin users always get the global system tenant ID
     const finalTenantId =
-      role?.name === 'system-admin' ? GLOBAL_SYSTEM_TENANT_ID : dto.tenant_id;
+      role?.name === "system-admin" ? GLOBAL_SYSTEM_TENANT_ID : dto.tenant_id;
 
     const existingUser = await this.userRepository.findOne({
       where: {
@@ -256,13 +256,13 @@ export class AuthService {
 
     if (existingUser) {
       throw new BadRequestException({
-        field: 'email',
-        message: 'User with this email already exists in this organization',
+        field: "email",
+        message: "User with this email already exists in this organization",
       });
     }
 
     // Validation: Only one system admin is allowed in the entire HRMS
-    if (role?.name === 'system-admin') {
+    if (role?.name === "system-admin") {
       const existingSystemAdmin = await this.userRepository.findOne({
         where: {
           role_id: dto.role_id,
@@ -272,14 +272,14 @@ export class AuthService {
 
       if (existingSystemAdmin) {
         throw new BadRequestException(
-          'Only one system admin is allowed in the entire HRMS. A system admin already exists.',
+          "Only one system admin is allowed in the entire HRMS. A system admin already exists.",
         );
       }
     }
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
-    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationToken = crypto.randomBytes(32).toString("hex");
     const verificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
     const user = this.userRepository.create({
@@ -298,7 +298,7 @@ export class AuthService {
     await this.userRepository.save(user);
 
     const frontendUrl =
-      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+      this.configService.get<string>("FRONTEND_URL") ?? "http://localhost:3000";
     const userName = `${dto.first_name} ${dto.last_name}`;
     await this.emailService.sendVerificationEmail(
       dto.email.toLowerCase(),
@@ -310,7 +310,7 @@ export class AuthService {
 
     return {
       message:
-        'User registered successfully. Please check your email to verify your account.',
+        "User registered successfully. Please check your email to verify your account.",
     };
   }
 
@@ -320,7 +320,7 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new BadRequestException('Invalid or expired verification token.');
+      throw new BadRequestException("Invalid or expired verification token.");
     }
 
     if (
@@ -328,12 +328,12 @@ export class AuthService {
       user.email_verification_expires_at < new Date()
     ) {
       throw new BadRequestException(
-        'Verification token has expired. Please request a new one.',
+        "Verification token has expired. Please request a new one.",
       );
     }
 
     if (user.email_verified) {
-      return { message: 'Email is already verified.' };
+      return { message: "Email is already verified." };
     }
 
     await this.userRepository.update(user.id, {
@@ -342,7 +342,7 @@ export class AuthService {
       email_verification_expires_at: null,
     });
 
-    return { message: 'Email verified successfully. You can now log in.' };
+    return { message: "Email verified successfully. You can now log in." };
   }
 
   async resendVerificationEmail(email: string): Promise<{ message: string }> {
@@ -354,15 +354,15 @@ export class AuthService {
       // Return generic message to avoid user enumeration
       return {
         message:
-          'If that email is registered and unverified, a new link has been sent.',
+          "If that email is registered and unverified, a new link has been sent.",
       };
     }
 
     if (user.email_verified) {
-      return { message: 'Email is already verified.' };
+      return { message: "Email is already verified." };
     }
 
-    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationToken = crypto.randomBytes(32).toString("hex");
     const verificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     await this.userRepository.update(user.id, {
@@ -371,7 +371,7 @@ export class AuthService {
     });
 
     const frontendUrl =
-      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+      this.configService.get<string>("FRONTEND_URL") ?? "http://localhost:3000";
     const userName = `${user.first_name} ${user.last_name}`;
     await this.emailService.sendVerificationEmail(
       user.email,
@@ -383,7 +383,7 @@ export class AuthService {
 
     return {
       message:
-        'If that email is registered and unverified, a new link has been sent.',
+        "If that email is registered and unverified, a new link has been sent.",
     };
   }
 
@@ -393,21 +393,21 @@ export class AuthService {
     try {
       const user = await this.userRepository.findOne({
         where: { id: userId },
-        relations: ['role'],
+        relations: ["role"],
       });
 
       if (!user) {
         this.logger.warn(
           `Token validation failed: user not found for id: ${userId}`,
         );
-        throw new UnauthorizedException('User not found or has been deleted');
+        throw new UnauthorizedException("User not found or has been deleted");
       }
 
       if (!user.role?.name) {
         this.logger.warn(
           `Token validation failed: user role missing for id: ${userId}`,
         );
-        throw new UnauthorizedException('User role not found');
+        throw new UnauthorizedException("User role not found");
       }
 
       // System-admin users always use the global system tenant ID
@@ -425,15 +425,15 @@ export class AuthService {
             `Token validation failed: tenant is deleted for user: ${userId}`,
           );
           throw new UnauthorizedException(
-            'Your organization account has been deleted. Please contact support.',
+            "Your organization account has been deleted. Please contact support.",
           );
         }
-        if (tenant.status === 'suspended') {
+        if (tenant.status === "suspended") {
           this.logger.warn(
             `Token validation failed: tenant is suspended for user: ${userId}`,
           );
           throw new UnauthorizedException(
-            'Your organization account has been suspended. Please contact support.',
+            "Your organization account has been suspended. Please contact support.",
           );
         }
       }
@@ -463,7 +463,7 @@ export class AuthService {
       this.logger.error(
         `Token validation error for user ${userId}: ${errorMessage}`,
       );
-      throw new UnauthorizedException('Token validation failed');
+      throw new UnauthorizedException("Token validation failed");
     }
   }
 
@@ -481,7 +481,7 @@ export class AuthService {
 
     const users = await this.userRepository.find({
       where: { email: normalizedEmail },
-      relations: ['role'],
+      relations: ["role"],
     });
 
     if (!users || users.length === 0) {
@@ -496,8 +496,8 @@ export class AuthService {
           `Signup session not found for email: ${normalizedEmail}`,
         );
         throw new BadRequestException({
-          field: 'email',
-          message: 'Email not found',
+          field: "email",
+          message: "Email not found",
         });
       }
 
@@ -508,19 +508,19 @@ export class AuthService {
 
       if (!isPasswordValid)
         throw new BadRequestException({
-          field: 'password',
-          message: 'Incorrect password',
+          field: "password",
+          message: "Incorrect password",
         });
 
       return {
         signupSessionId: sessionUser.id,
         resumed: false,
-        status: 'personal_completed',
-        nextStep: 'company-details',
+        status: "personal_completed",
+        nextStep: "company-details",
         companyDetailsCompleted: false,
         paymentCompleted: false,
         message:
-          'Personal details fetched successfully. Continue with company details.',
+          "Personal details fetched successfully. Continue with company details.",
       };
     }
 
@@ -539,7 +539,7 @@ export class AuthService {
         `Login blocked: account locked for email: ${normalizedEmail}, unlocks in ${retryAfterMin}m`,
       );
       throw new BadRequestException({
-        field: 'email',
+        field: "email",
         message: `Account is temporarily locked due to too many failed attempts. Try again in ${retryAfterMin} minute(s).`,
       });
     }
@@ -572,7 +572,7 @@ export class AuthService {
       );
       const remaining = MAX_ATTEMPTS - newAttempts;
       throw new BadRequestException({
-        field: 'password',
+        field: "password",
         message: shouldLock
           ? `Too many failed attempts. Account locked for ${LOCKOUT_MINUTES} minutes.`
           : `Incorrect password. ${remaining} attempt(s) remaining before lockout.`,
@@ -585,9 +585,9 @@ export class AuthService {
         `Login blocked: email not verified for email: ${normalizedEmail}`,
       );
       throw new ForbiddenException({
-        field: 'email',
+        field: "email",
         message:
-          'Please verify your email address before logging in. Check your inbox for the verification link.',
+          "Please verify your email address before logging in. Check your inbox for the verification link.",
       });
     }
 
@@ -601,7 +601,7 @@ export class AuthService {
 
     if (!user.role || !user.role.name) {
       this.logger.error(`User role missing for email: ${normalizedEmail}`);
-      throw new UnauthorizedException('User role not found');
+      throw new UnauthorizedException("User role not found");
     }
 
     // System-admin users always use the global system tenant ID
@@ -625,15 +625,15 @@ export class AuthService {
           `Login failed: tenant is deleted for email: ${normalizedEmail}`,
         );
         throw new UnauthorizedException(
-          'Your organization account has been deleted. Please contact support.',
+          "Your organization account has been deleted. Please contact support.",
         );
       }
-      if (tenant.status === 'suspended') {
+      if (tenant.status === "suspended") {
         this.logger.warn(
           `Login failed: tenant is suspended for email: ${normalizedEmail}`,
         );
         throw new UnauthorizedException(
-          'Your organization account has been suspended. Please contact support.',
+          "Your organization account has been suspended. Please contact support.",
         );
       }
 
@@ -650,7 +650,7 @@ export class AuthService {
             `Mobile login blocked for ${user.role.name} email: ${normalizedEmail} (mobile_login_enabled=false)`,
           );
           throw new ForbiddenException(
-            'Mobile app login is currently disabled for your role. Please contact your administrator.',
+            "Mobile app login is currently disabled for your role. Please contact your administrator.",
           );
         }
       }
@@ -672,7 +672,7 @@ export class AuthService {
             `Login blocked: IP ${ipAddress} not whitelisted for tenant ${tenantId}, email: ${normalizedEmail}`,
           );
           throw new ForbiddenException(
-            'Login is not allowed from your current IP address. Please contact your administrator.',
+            "Login is not allowed from your current IP address. Please contact your administrator.",
           );
         }
       }
@@ -689,7 +689,7 @@ export class AuthService {
         `Login failed: employee is deleted for email: ${normalizedEmail}`,
       );
       throw new UnauthorizedException(
-        'Your employee account has been deactivated. Please contact your administrator.',
+        "Your employee account has been deactivated. Please contact your administrator.",
       );
     }
 
@@ -766,16 +766,16 @@ export class AuthService {
     this.logger.log(`Forgot password request for email: ${emailHash}`);
 
     const user = await this.userRepository
-      .createQueryBuilder('user')
-      .leftJoinAndSelect('user.tenant', 'tenant')
-      .where('user.email = :email', { email: dto.email.toLowerCase() })
+      .createQueryBuilder("user")
+      .leftJoinAndSelect("user.tenant", "tenant")
+      .where("user.email = :email", { email: dto.email.toLowerCase() })
       .getOne();
 
     if (!user) {
       this.logger.warn(
         `Forgot password failed: user not found for email: ${emailHash}`,
       );
-      throw new BadRequestException('In Valid email address');
+      throw new BadRequestException("In Valid email address");
     }
 
     const resetToken = this.generateSecureToken();
@@ -799,12 +799,12 @@ export class AuthService {
     this.logger.log(`Password reset email sent to: ${emailHash}`);
 
     return {
-      message: 'Check your email for the password reset link.',
+      message: "Check your email for the password reset link.",
     };
   }
 
   private generateSecureToken(): string {
-    return crypto.randomBytes(32).toString('hex');
+    return crypto.randomBytes(32).toString("hex");
   }
 
   /**
@@ -812,23 +812,23 @@ export class AuthService {
    * Shows only first 3 characters and domain
    */
   private sanitizeEmailForLogging(email: string): string {
-    if (!email || !email.includes('@')) {
-      return '***';
+    if (!email || !email.includes("@")) {
+      return "***";
     }
-    const parts = email.split('@');
+    const parts = email.split("@");
     if (parts.length !== 2) {
-      return '***';
+      return "***";
     }
     const [localPart, domain] = parts;
     if (!localPart || localPart.length <= 3) {
-      return '***@' + domain;
+      return "***@" + domain;
     }
-    return localPart.substring(0, 3) + '***@' + domain;
+    return localPart.substring(0, 3) + "***@" + domain;
   }
 
   async verifyResetToken(token: string) {
     if (!token) {
-      return { valid: false, message: 'Token is required' };
+      return { valid: false, message: "Token is required" };
     }
 
     // Find all users with non-expired reset tokens and verify the token
@@ -842,11 +842,11 @@ export class AuthService {
     // Verify token against hashed tokens
     for (const user of users) {
       if (user.reset_token && (await bcrypt.compare(token, user.reset_token))) {
-        return { valid: true, message: 'Token is valid' };
+        return { valid: true, message: "Token is valid" };
       }
     }
 
-    return { valid: false, message: 'Invalid or expired reset token' };
+    return { valid: false, message: "Invalid or expired reset token" };
   }
 
   async resetPassword(dto: ResetPasswordDto) {
@@ -858,7 +858,7 @@ export class AuthService {
         reset_token: Not(IsNull()),
         reset_token_expiry: MoreThan(new Date()),
       },
-      relations: ['tenant'],
+      relations: ["tenant"],
     });
 
     const matchingUsers: User[] = [];
@@ -871,7 +871,7 @@ export class AuthService {
 
     if (matchingUsers.length === 0) {
       this.logger.warn(`Reset password failed: invalid or expired token`);
-      throw new BadRequestException('Invalid or expired reset token');
+      throw new BadRequestException("Invalid or expired reset token");
     }
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
@@ -904,25 +904,25 @@ export class AuthService {
 
     this.logger.log(`Password reset successful for user: ${emailHash}`);
 
-    return { message: 'Password reset successfully' };
+    return { message: "Password reset successfully" };
   }
 
   async refreshToken(refreshToken: string) {
     if (!refreshToken) {
-      throw new BadRequestException('Refresh token is required');
+      throw new BadRequestException("Refresh token is required");
     }
 
     try {
       const payload = this.jwtService.verify<RefreshTokenPayload>(
         refreshToken,
         {
-          secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+          secret: this.configService.get<string>("JWT_REFRESH_SECRET"),
         },
       );
 
       // Ensure this is a refresh token, not an access token being misused.
-      if (payload.type !== 'refresh' || !payload.jti) {
-        throw new UnauthorizedException('Invalid refresh token');
+      if (payload.type !== "refresh" || !payload.jti) {
+        throw new UnauthorizedException("Invalid refresh token");
       }
 
       // Look up the session — check both active and revoked rows separately
@@ -934,7 +934,7 @@ export class AuthService {
 
       if (!tokenRecord) {
         this.logger.warn(`Refresh failed: unknown token (jti=${payload.jti})`);
-        throw new UnauthorizedException('Invalid refresh token');
+        throw new UnauthorizedException("Invalid refresh token");
       }
 
       if (tokenRecord.is_revoked) {
@@ -950,7 +950,7 @@ export class AuthService {
           { is_revoked: true },
         );
         throw new UnauthorizedException(
-          'Session invalidated due to suspicious activity. Please log in again.',
+          "Session invalidated due to suspicious activity. Please log in again.",
         );
       }
 
@@ -960,17 +960,17 @@ export class AuthService {
           is_revoked: true,
         });
         throw new UnauthorizedException(
-          'Refresh token has expired. Please log in again.',
+          "Refresh token has expired. Please log in again.",
         );
       }
 
       const user = await this.userRepository.findOne({
         where: { id: payload.sub },
-        relations: ['role'],
+        relations: ["role"],
       });
 
       if (!user || !user.role?.name) {
-        throw new UnauthorizedException('User not found or has been deleted');
+        throw new UnauthorizedException("User not found or has been deleted");
       }
 
       const isSystemAdmin = this.isSystemAdminRole(user.role.name);
@@ -982,12 +982,12 @@ export class AuthService {
         });
         if (!tenant || tenant.deleted_at) {
           throw new UnauthorizedException(
-            'Your organization account has been deleted. Please contact support.',
+            "Your organization account has been deleted. Please contact support.",
           );
         }
-        if (tenant.status === 'suspended') {
+        if (tenant.status === "suspended") {
           throw new UnauthorizedException(
-            'Your organization account has been suspended. Please contact support.',
+            "Your organization account has been suspended. Please contact support.",
           );
         }
       }
@@ -997,7 +997,7 @@ export class AuthService {
       });
       if (employee?.deleted_at) {
         throw new UnauthorizedException(
-          'Your employee account has been deactivated. Please contact your administrator.',
+          "Your employee account has been deactivated. Please contact your administrator.",
         );
       }
 
@@ -1011,9 +1011,9 @@ export class AuthService {
       const newRefreshToken = this.buildRefreshToken(user.id, newJti);
 
       const isMobileClient =
-        tokenRecord.platform?.toLowerCase() === 'mobile' ||
-        tokenRecord.platform?.toLowerCase() === 'ios' ||
-        tokenRecord.platform?.toLowerCase() === 'android';
+        tokenRecord.platform?.toLowerCase() === "mobile" ||
+        tokenRecord.platform?.toLowerCase() === "ios" ||
+        tokenRecord.platform?.toLowerCase() === "android";
 
       await this.userTokenRepository.manager.transaction(async (em) => {
         await em.update(UserToken, tokenRecord.id, {
@@ -1054,13 +1054,13 @@ export class AuthService {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       this.logger.warn(`Refresh token failed: ${errorMessage}`);
-      throw new UnauthorizedException('Invalid refresh token');
+      throw new UnauthorizedException("Invalid refresh token");
     }
   }
 
   async logout(refreshToken: string) {
     if (!refreshToken) {
-      throw new BadRequestException('Refresh token is required');
+      throw new BadRequestException("Refresh token is required");
     }
 
     try {
@@ -1068,8 +1068,8 @@ export class AuthService {
       // logout even if their refresh token has already expired.
       const payload = this.jwtService.decode<RefreshTokenPayload>(refreshToken);
 
-      if (!payload?.jti || typeof payload.jti !== 'string') {
-        throw new UnauthorizedException('Invalid refresh token');
+      if (!payload?.jti || typeof payload.jti !== "string") {
+        throw new UnauthorizedException("Invalid refresh token");
       }
 
       const result = await this.userTokenRepository.update(
@@ -1086,7 +1086,7 @@ export class AuthService {
         this.logger.log(`User logged out (jti=${payload.jti})`);
       }
 
-      return { message: 'Successfully logged out' };
+      return { message: "Successfully logged out" };
     } catch (error) {
       if (
         error instanceof BadRequestException ||
@@ -1095,7 +1095,7 @@ export class AuthService {
         throw error;
       }
       this.logger.warn(`Logout failed: ${String(error)}`);
-      throw new UnauthorizedException('Invalid refresh token');
+      throw new UnauthorizedException("Invalid refresh token");
     }
   }
 
@@ -1111,7 +1111,7 @@ export class AuthService {
       `All sessions revoked for user ${userId} (count=${result.affected})`,
     );
     return {
-      message: 'Successfully logged out from all devices',
+      message: "Successfully logged out from all devices",
       revoked: result.affected ?? 0,
     };
   }
@@ -1134,35 +1134,36 @@ export class AuthService {
     let googlePayload: GoogleTokenPayload;
     try {
       const resp = await axios.get<GoogleTokenPayload>(
-        'https://oauth2.googleapis.com/tokeninfo',
+        "https://oauth2.googleapis.com/tokeninfo",
         { params: { id_token: idToken } },
       );
       googlePayload = resp.data;
     } catch {
-      throw new UnauthorizedException('Invalid Google ID token');
+      throw new UnauthorizedException("Invalid Google ID token");
     }
 
-    const email = String(googlePayload.email ?? '').toLowerCase();
+    const email = String(googlePayload.email ?? "").toLowerCase();
     if (!email) {
-      throw new UnauthorizedException('Google token is missing email');
+      throw new UnauthorizedException("Google token is missing email");
     }
 
     const users = await this.userRepository.find({
       where: { email },
-      relations: ['role'],
+      relations: ["role"],
     });
 
     if (!users.length) {
       throw new BadRequestException({
-        field: 'email',
-        message: 'No account found for this Google email. Please register first.',
+        field: "email",
+        message:
+          "No account found for this Google email. Please register first.",
       });
     }
 
     const user = users[0];
 
     if (!user.role?.name) {
-      throw new UnauthorizedException('User role not found');
+      throw new UnauthorizedException("User role not found");
     }
 
     const isSystemAdmin = this.isSystemAdminRole(user.role.name);
@@ -1174,12 +1175,12 @@ export class AuthService {
       });
       if (!tenant || tenant.deleted_at) {
         throw new UnauthorizedException(
-          'Your organization account has been deleted. Please contact support.',
+          "Your organization account has been deleted. Please contact support.",
         );
       }
-      if (tenant.status === 'suspended') {
+      if (tenant.status === "suspended") {
         throw new UnauthorizedException(
-          'Your organization account has been suspended. Please contact support.',
+          "Your organization account has been suspended. Please contact support.",
         );
       }
     }
@@ -1189,7 +1190,7 @@ export class AuthService {
     });
     if (employee?.deleted_at) {
       throw new UnauthorizedException(
-        'Your employee account has been deactivated. Please contact your administrator.',
+        "Your employee account has been deactivated. Please contact your administrator.",
       );
     }
 
@@ -1197,17 +1198,27 @@ export class AuthService {
     const companyDetails = await this.getCompanyDetails(tenantId);
 
     const jti = crypto.randomUUID();
-    await this.createUserTokenRecord(user.id, jti, platform, deviceInfo, ipAddress);
+    await this.createUserTokenRecord(
+      user.id,
+      jti,
+      platform,
+      deviceInfo,
+      ipAddress,
+    );
 
     const accessToken = this.buildAccessToken(user, tenantId, permissions, jti);
     const refreshToken = this.buildRefreshToken(user.id, jti);
 
     if (!user.first_login_time) {
-      await this.userRepository.update(user.id, { first_login_time: new Date() });
+      await this.userRepository.update(user.id, {
+        first_login_time: new Date(),
+      });
       await this.inviteStatusService.updateInviteStatusOnLogin(user.id);
     }
 
-    this.logger.log(`Google login successful for email: ${this.sanitizeEmailForLogging(email)}`);
+    this.logger.log(
+      `Google login successful for email: ${this.sanitizeEmailForLogging(email)}`,
+    );
 
     return {
       accessToken,
@@ -1223,19 +1234,19 @@ export class AuthService {
   /** List active (non-revoked, non-expired) sessions for a user. */
   async getActiveSessions(userId: string) {
     const sessions = await this.userTokenRepository
-      .createQueryBuilder('t')
-      .where('t.user_id = :userId', { userId })
-      .andWhere('t.is_revoked = false')
-      .andWhere('t.expires_at > NOW()')
+      .createQueryBuilder("t")
+      .where("t.user_id = :userId", { userId })
+      .andWhere("t.is_revoked = false")
+      .andWhere("t.expires_at > NOW()")
       .select([
-        't.id',
-        't.platform',
-        't.device_info',
-        't.ip_address',
-        't.created_at',
-        't.last_used_at',
+        "t.id",
+        "t.platform",
+        "t.device_info",
+        "t.ip_address",
+        "t.created_at",
+        "t.last_used_at",
       ])
-      .orderBy('t.created_at', 'DESC')
+      .orderBy("t.created_at", "DESC")
       .getMany();
 
     return sessions;
@@ -1250,38 +1261,38 @@ export class AuthService {
     // Verify the ID token with Google
     let googlePayload: Record<string, string>;
     try {
-      const axios = await import('axios');
+      const axios = await import("axios");
       const resp = await axios.default.get(
-        'https://oauth2.googleapis.com/tokeninfo',
+        "https://oauth2.googleapis.com/tokeninfo",
         {
           params: { id_token: idToken },
         },
       );
       googlePayload = resp.data as Record<string, string>;
     } catch {
-      throw new BadRequestException('Invalid or expired Google ID token');
+      throw new BadRequestException("Invalid or expired Google ID token");
     }
 
-    const email = String(googlePayload.email || '').toLowerCase();
+    const email = String(googlePayload.email || "").toLowerCase();
     if (!email) {
       throw new BadRequestException(
-        'Google token does not contain an email address',
+        "Google token does not contain an email address",
       );
     }
 
     const user = await this.userRepository.findOne({
       where: { email },
-      relations: ['role'],
+      relations: ["role"],
     });
 
     if (!user) {
       throw new BadRequestException(
-        'No account found for this Google email. Please complete signup first.',
+        "No account found for this Google email. Please complete signup first.",
       );
     }
 
     if (!user.role?.name) {
-      throw new BadRequestException('User account has no role assigned');
+      throw new BadRequestException("User account has no role assigned");
     }
 
     const permissions = await this.userRepository.query(
@@ -1302,14 +1313,14 @@ export class AuthService {
       permissions: perms,
     };
 
-    const secret = this.configService.get<string>('JWT_SECRET');
+    const secret = this.configService.get<string>("JWT_SECRET");
     const accessToken = this.jwtService.sign(tokenPayload, {
       secret,
-      expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '24h',
+      expiresIn: this.configService.get<string>("JWT_EXPIRES_IN") || "24h",
     });
     const refreshToken = this.jwtService.sign(tokenPayload, {
       secret,
-      expiresIn: '7d',
+      expiresIn: "7d",
     });
 
     this.logger.log(`Google login successful for ${email}`);

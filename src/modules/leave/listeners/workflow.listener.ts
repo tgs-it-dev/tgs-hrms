@@ -1,22 +1,22 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
-import { Repository, DataSource, EntityManager } from 'typeorm';
-import { OnEvent } from '@nestjs/event-emitter';
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectRepository, InjectDataSource } from "@nestjs/typeorm";
+import { Repository, DataSource, EntityManager } from "typeorm";
+import { OnEvent } from "@nestjs/event-emitter";
 
-import { Leave } from '../../../entities/leave.entity';
-import { LeaveBalance } from '../../../entities/leave-balance.entity';
-import { LeaveType } from '../../../entities/leave-type.entity';
-import { User } from '../../../entities/user.entity';
+import { Leave } from "../../../entities/leave.entity";
+import { LeaveBalance } from "../../../entities/leave-balance.entity";
+import { LeaveType } from "../../../entities/leave-type.entity";
+import { User } from "../../../entities/user.entity";
 import {
   LeaveStatus,
   WorkflowRequestType,
-} from '../../../common/constants/enums';
-import { TenantDatabaseService } from '../../../common/services/tenant-database.service';
-import { NotificationService } from '../../notification/notification.service';
-import { NotificationGateway } from '../../notification/notification.gateway';
-import { WorkflowCompletedEvent } from '../../workflow/events/workflow-completed.event';
-import { WORKFLOW_EVENTS } from '../../workflow/constants/workflow.constants';
-import { LeaveService } from '../../leave/leave.service';
+} from "../../../common/constants/enums";
+import { TenantDatabaseService } from "../../../common/services/tenant-database.service";
+import { NotificationService } from "../../notification/notification.service";
+import { NotificationGateway } from "../../notification/notification.gateway";
+import { WorkflowCompletedEvent } from "../../workflow/events/workflow-completed.event";
+import { WORKFLOW_EVENTS } from "../../workflow/constants/workflow.constants";
+import { LeaveService } from "../../leave/leave.service";
 
 @Injectable()
 export class LeaveWorkflowListener {
@@ -70,18 +70,23 @@ export class LeaveWorkflowListener {
         ),
       );
     }
-    return work(this.leaveRepo, this.leaveBalanceRepo, this.leaveTypeRepo, null);
+    return work(
+      this.leaveRepo,
+      this.leaveBalanceRepo,
+      this.leaveTypeRepo,
+      null,
+    );
   }
 
   private async getAdminUserIds(tenantId: string): Promise<string[]> {
     const users = await this.userRepo
-      .createQueryBuilder('user')
-      .innerJoin('user.role', 'role')
-      .where('user.tenant_id = :tenantId', { tenantId })
-      .andWhere('LOWER(role.name) IN (:...names)', {
-        names: ['admin', 'hr-admin', 'system-admin'],
+      .createQueryBuilder("user")
+      .innerJoin("user.role", "role")
+      .where("user.tenant_id = :tenantId", { tenantId })
+      .andWhere("LOWER(role.name) IN (:...names)", {
+        names: ["admin", "hr-admin", "system-admin"],
       })
-      .select(['user.id'])
+      .select(["user.id"])
       .getMany();
     return users.map((u) => u.id);
   }
@@ -95,21 +100,26 @@ export class LeaveWorkflowListener {
   async handleStepApproved(event: WorkflowCompletedEvent): Promise<void> {
     if (event.requestType !== (WorkflowRequestType.LEAVE as string)) return;
     if (event.finalApproverId === event.requestorId) {
-      this.logger.warn(`User ${event.finalApproverId} attempted to approve their own leave ${event.relatedEntityId} — skipping`);
+      this.logger.warn(
+        `User ${event.finalApproverId} attempted to approve their own leave ${event.relatedEntityId} — skipping`,
+      );
       return;
     }
     try {
-      await this.runInTenantContext(event.tenantId, async (leaveRepo, _balanceRepo, _leaveTypeRepo, _em) => {
-        const leave = await leaveRepo.findOne({
-          where: { id: event.relatedEntityId },
-        });
-        if (!leave) return;
+      await this.runInTenantContext(
+        event.tenantId,
+        async (leaveRepo, _balanceRepo, _leaveTypeRepo, _em) => {
+          const leave = await leaveRepo.findOne({
+            where: { id: event.relatedEntityId },
+          });
+          if (!leave) return;
 
-        leave.status = LeaveStatus.PROCESSING;
-        leave.approvedBy = event.finalApproverId!;
-        leave.approvedAt = new Date();
-        await leaveRepo.save(leave);
-      });
+          leave.status = LeaveStatus.PROCESSING;
+          leave.approvedBy = event.finalApproverId!;
+          leave.approvedAt = new Date();
+          await leaveRepo.save(leave);
+        },
+      );
 
       // Notify employee that leave is in processing
       const leavePayload = {
@@ -154,13 +164,15 @@ export class LeaveWorkflowListener {
   async handleApproved(event: WorkflowCompletedEvent): Promise<void> {
     if (event.requestType !== (WorkflowRequestType.LEAVE as string)) return;
     if (event.finalApproverId === event.requestorId) {
-      this.logger.warn(`User ${event.finalApproverId} attempted to approve their own leave ${event.relatedEntityId} — skipping`);
+      this.logger.warn(
+        `User ${event.finalApproverId} attempted to approve their own leave ${event.relatedEntityId} — skipping`,
+      );
       return;
     }
-    
+
     const isProvisioned = await this.isTenantSchemaProvisioned(event.tenantId);
     const queryRunner = this.dataSource.createQueryRunner();
-    
+
     try {
       await queryRunner.connect();
       await queryRunner.startTransaction();
@@ -182,12 +194,17 @@ export class LeaveWorkflowListener {
       }
 
       // Deduct balance BEFORE marking APPROVED so both succeed or both fail
-      await this.leaveService.deductLeaveBalance(balanceRepo, leaveTypeRepo, leave, event.tenantId);
+      await this.leaveService.deductLeaveBalance(
+        balanceRepo,
+        leaveTypeRepo,
+        leave,
+        event.tenantId,
+      );
 
       leave.status = LeaveStatus.APPROVED;
       leave.approvedBy = event.finalApproverId!;
       leave.approvedAt = new Date();
-      leave.remarks = event.finalRemarks ?? '';
+      leave.remarks = event.finalRemarks ?? "";
       await leaveRepo.save(leave);
 
       await queryRunner.commitTransaction();
@@ -228,12 +245,12 @@ export class LeaveWorkflowListener {
 
       this.notificationGateway.sendToUser(
         event.requestorId,
-        'new_notification',
+        "new_notification",
         {
           id: notification.id,
           message: notification.message,
           type: notification.type,
-          related_entity_type: 'leave',
+          related_entity_type: "leave",
           related_entity_id: event.relatedEntityId,
           created_at: notification.created_at,
         },
@@ -255,18 +272,21 @@ export class LeaveWorkflowListener {
   async handleRejected(event: WorkflowCompletedEvent): Promise<void> {
     if (event.requestType !== (WorkflowRequestType.LEAVE as string)) return;
     try {
-      await this.runInTenantContext(event.tenantId, async (leaveRepo, _balanceRepo, _leaveTypeRepo, _em) => {
-        const leave = await leaveRepo.findOne({
-          where: { id: event.relatedEntityId },
-        });
-        if (!leave) return;
+      await this.runInTenantContext(
+        event.tenantId,
+        async (leaveRepo, _balanceRepo, _leaveTypeRepo, _em) => {
+          const leave = await leaveRepo.findOne({
+            where: { id: event.relatedEntityId },
+          });
+          if (!leave) return;
 
-        leave.status = LeaveStatus.REJECTED;
-        leave.approvedBy = event.finalApproverId!;
-        leave.approvedAt = new Date();
-        leave.remarks = event.finalRemarks ?? '';
-        await leaveRepo.save(leave);
-      });
+          leave.status = LeaveStatus.REJECTED;
+          leave.approvedBy = event.finalApproverId!;
+          leave.approvedAt = new Date();
+          leave.remarks = event.finalRemarks ?? "";
+          await leaveRepo.save(leave);
+        },
+      );
 
       const employee = await this.userRepo.findOne({
         where: { id: event.requestorId },
@@ -293,12 +313,12 @@ export class LeaveWorkflowListener {
 
       this.notificationGateway.sendToUser(
         event.requestorId,
-        'new_notification',
+        "new_notification",
         {
           id: notification.id,
           message: notification.message,
           type: notification.type,
-          related_entity_type: 'leave',
+          related_entity_type: "leave",
           related_entity_id: event.relatedEntityId,
           created_at: notification.created_at,
         },
