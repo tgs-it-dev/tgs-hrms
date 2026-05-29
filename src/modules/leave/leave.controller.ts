@@ -36,18 +36,19 @@ import {
   EditLeaveDto,
   RemoveLeaveDocumentDto,
 } from './dto/update-leave.dto';
-import { RolesGuard } from 'src/common/guards/roles.guard';
-import { Roles } from 'src/common/decorators/roles.decorator';
-import { Permissions } from 'src/common/decorators/permissions.decorator';
-import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { Permissions } from '../../common/decorators/permissions.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { Response } from 'express';
-import { sendCsvResponse } from 'src/common/utils/csv.util';
+import { sendCsvResponse } from '../../common/utils/csv.util';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import {
   validateImageFile,
   createImageFileFilter,
-} from 'src/common/utils/file-validation.util';
-import { AuthenticatedRequest } from 'src/common/types/request.types';
+} from '../../common/utils/file-validation.util';
+import { AuthenticatedRequest } from '../../common/types/request.types';
 
 @ApiTags('Leaves')
 @Controller('leaves')
@@ -801,9 +802,6 @@ export class LeaveController {
         );
       }
     }
-
-    // Debug: Log the DTO to verify values are being received
-    // console.log('EditLeave DTO received:', JSON.stringify(dto, null, 2));
 
     return this.leaveService.editLeave(
       id,

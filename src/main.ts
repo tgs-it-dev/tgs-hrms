@@ -1,15 +1,19 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { ValidationPipe, BadRequestException } from '@nestjs/common';
+import { ValidationPipe, BadRequestException, Logger } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { Request, Response, NextFunction } from 'express';
 import basicAuth from 'express-basic-auth';
 
+const logger = new Logger('Bootstrap');
+
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    rawBody: true, // Required for Stripe webhook signature verification
+  });
 
   app.use((_req: Request, res: Response, next: NextFunction) => {
     const start = Date.now();
@@ -79,7 +83,7 @@ async function bootstrap() {
         callback(null, true);
       } else {
         if (process.env.NODE_ENV !== 'production') {
-          console.warn(
+          logger.warn(
             `CORS: Rejected origin: ${origin}. Allowed origins: ${allowedOrigins.join(', ')}`,
           );
         }

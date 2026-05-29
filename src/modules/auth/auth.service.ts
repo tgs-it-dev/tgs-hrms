@@ -19,12 +19,13 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ConfigService } from '@nestjs/config';
 import { EmailService } from '../../common/utils/email';
 import { InviteStatusService } from '../invite-status/invite-status.service';
-import { Employee } from 'src/entities/employee.entity';
-import { SignupSession } from 'src/entities/signup-session.entity';
+import { Employee } from '../../entities/employee.entity';
+import { SignupSession } from '../../entities/signup-session.entity';
 import {
   GLOBAL_SYSTEM_TENANT_ID,
   UserRole,
 } from '../../common/constants/enums';
+
 import { isMobileRequest } from '../../common/utils/mobile-detection';
 import { Role } from '../../entities/role.entity';
 import { Tenant } from '../../entities/tenant.entity';
@@ -278,6 +279,9 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
     const user = this.userRepository.create({
       email: dto.email.toLowerCase(),
       password: hashedPassword,
@@ -286,10 +290,101 @@ export class AuthService {
       phone: dto.phone,
       role_id: dto.role_id,
       tenant_id: finalTenantId,
+      email_verified: false,
+      email_verification_token: verificationToken,
+      email_verification_expires_at: verificationExpiry,
     });
 
     await this.userRepository.save(user);
-    return { message: 'User registered successfully' };
+
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+    const userName = `${dto.first_name} ${dto.last_name}`;
+    await this.emailService.sendVerificationEmail(
+      dto.email.toLowerCase(),
+      verificationToken,
+      userName,
+      frontendUrl,
+      user.id,
+    );
+
+    return {
+      message:
+        'User registered successfully. Please check your email to verify your account.',
+    };
+  }
+
+  async verifyEmail(token: string): Promise<{ message: string }> {
+    const user = await this.userRepository.findOne({
+      where: { email_verification_token: token },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Invalid or expired verification token.');
+    }
+
+    if (
+      !user.email_verification_expires_at ||
+      user.email_verification_expires_at < new Date()
+    ) {
+      throw new BadRequestException(
+        'Verification token has expired. Please request a new one.',
+      );
+    }
+
+    if (user.email_verified) {
+      return { message: 'Email is already verified.' };
+    }
+
+    await this.userRepository.update(user.id, {
+      email_verified: true,
+      email_verification_token: null,
+      email_verification_expires_at: null,
+    });
+
+    return { message: 'Email verified successfully. You can now log in.' };
+  }
+
+  async resendVerificationEmail(email: string): Promise<{ message: string }> {
+    const user = await this.userRepository.findOne({
+      where: { email: email.toLowerCase() },
+    });
+
+    if (!user) {
+      // Return generic message to avoid user enumeration
+      return {
+        message:
+          'If that email is registered and unverified, a new link has been sent.',
+      };
+    }
+
+    if (user.email_verified) {
+      return { message: 'Email is already verified.' };
+    }
+
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    await this.userRepository.update(user.id, {
+      email_verification_token: verificationToken,
+      email_verification_expires_at: verificationExpiry,
+    });
+
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+    const userName = `${user.first_name} ${user.last_name}`;
+    await this.emailService.sendVerificationEmail(
+      user.email,
+      verificationToken,
+      userName,
+      frontendUrl,
+      user.id,
+    );
+
+    return {
+      message:
+        'If that email is registered and unverified, a new link has been sent.',
+    };
   }
 
   async validateToken(userId: string) {
@@ -429,6 +524,26 @@ export class AuthService {
       };
     }
 
+    // ── Lockout check (before password verification to avoid timing leaks) ──
+    // Use the first matching-email user for lockout; if multiple tenants share
+    // the same email we check any one of them (single user per email per tenant,
+    // but email alone uniquely identifies the login attempt here).
+    const lockoutCandidate = users[0];
+    if (
+      lockoutCandidate.locked_until &&
+      lockoutCandidate.locked_until > new Date()
+    ) {
+      const retryAfterMs = lockoutCandidate.locked_until.getTime() - Date.now();
+      const retryAfterMin = Math.ceil(retryAfterMs / 60_000);
+      this.logger.warn(
+        `Login blocked: account locked for email: ${normalizedEmail}, unlocks in ${retryAfterMin}m`,
+      );
+      throw new BadRequestException({
+        field: 'email',
+        message: `Account is temporarily locked due to too many failed attempts. Try again in ${retryAfterMin} minute(s).`,
+      });
+    }
+
     let user: User | null = null;
     for (const u of users) {
       const isPasswordValid = await bcrypt.compare(password, u.password);
@@ -439,12 +554,48 @@ export class AuthService {
     }
 
     if (!user) {
+      // Increment failed attempts on the candidate user and lock if threshold reached
+      const MAX_ATTEMPTS = 5;
+      const LOCKOUT_MINUTES = 15;
+      const newAttempts = (lockoutCandidate.failed_login_attempts ?? 0) + 1;
+      const shouldLock = newAttempts >= MAX_ATTEMPTS;
+      await this.userRepository.update(lockoutCandidate.id, {
+        failed_login_attempts: newAttempts,
+        ...(shouldLock
+          ? {
+              locked_until: new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1_000),
+            }
+          : {}),
+      });
       this.logger.warn(
-        `Login failed: invalid password for email: ${normalizedEmail}`,
+        `Login failed: invalid password for email: ${normalizedEmail} (attempt ${newAttempts}/${MAX_ATTEMPTS})`,
       );
+      const remaining = MAX_ATTEMPTS - newAttempts;
       throw new BadRequestException({
         field: 'password',
-        message: 'Incorrect password',
+        message: shouldLock
+          ? `Too many failed attempts. Account locked for ${LOCKOUT_MINUTES} minutes.`
+          : `Incorrect password. ${remaining} attempt(s) remaining before lockout.`,
+      });
+    }
+
+    // ── Email verification check ──────────────────────────────────────────────
+    if (!user.email_verified) {
+      this.logger.warn(
+        `Login blocked: email not verified for email: ${normalizedEmail}`,
+      );
+      throw new ForbiddenException({
+        field: 'email',
+        message:
+          'Please verify your email address before logging in. Check your inbox for the verification link.',
+      });
+    }
+
+    // Successful login — reset failed attempt counter
+    if (user.failed_login_attempts > 0 || user.locked_until) {
+      await this.userRepository.update(user.id, {
+        failed_login_attempts: 0,
+        locked_until: null,
       });
     }
 
@@ -1088,5 +1239,92 @@ export class AuthService {
       .getMany();
 
     return sessions;
+  }
+
+  async googleLogin(idToken: string): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    user: Partial<User>;
+    permissions: string[];
+  }> {
+    // Verify the ID token with Google
+    let googlePayload: Record<string, string>;
+    try {
+      const axios = await import('axios');
+      const resp = await axios.default.get(
+        'https://oauth2.googleapis.com/tokeninfo',
+        {
+          params: { id_token: idToken },
+        },
+      );
+      googlePayload = resp.data as Record<string, string>;
+    } catch {
+      throw new BadRequestException('Invalid or expired Google ID token');
+    }
+
+    const email = String(googlePayload.email || '').toLowerCase();
+    if (!email) {
+      throw new BadRequestException(
+        'Google token does not contain an email address',
+      );
+    }
+
+    const user = await this.userRepository.findOne({
+      where: { email },
+      relations: ['role'],
+    });
+
+    if (!user) {
+      throw new BadRequestException(
+        'No account found for this Google email. Please complete signup first.',
+      );
+    }
+
+    if (!user.role?.name) {
+      throw new BadRequestException('User account has no role assigned');
+    }
+
+    const permissions = await this.userRepository.query(
+      `SELECT p.name FROM permissions p
+       JOIN role_permissions rp ON p.id = rp.permission_id
+       WHERE rp.role_id = $1`,
+      [user.role.id],
+    );
+    const perms: string[] = (permissions as { name: string }[]).map((r) =>
+      r.name.toLowerCase(),
+    );
+
+    const tokenPayload = {
+      email: user.email,
+      sub: user.id,
+      role: user.role.name.toLowerCase(),
+      tenant_id: user.tenant_id,
+      permissions: perms,
+    };
+
+    const secret = this.configService.get<string>('JWT_SECRET');
+    const accessToken = this.jwtService.sign(tokenPayload, {
+      secret,
+      expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') || '24h',
+    });
+    const refreshToken = this.jwtService.sign(tokenPayload, {
+      secret,
+      expiresIn: '7d',
+    });
+
+    this.logger.log(`Google login successful for ${email}`);
+
+    return {
+      accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        tenant_id: user.tenant_id,
+      },
+      permissions: perms,
+    };
   }
 }

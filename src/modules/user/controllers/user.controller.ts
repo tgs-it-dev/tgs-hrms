@@ -17,13 +17,7 @@ import {
   Res,
 } from '@nestjs/common';
 import { Response } from 'express';
-import { AuthenticatedRequest } from '../../../common/types/request.types';
-import { UserService } from '../services/user.service';
-import { CreateUserDto, UpdateUserDto } from '../dto/user.dto';
-import { Roles } from 'src/common/decorators/roles.decorator';
-import { RolesGuard } from 'src/common/guards/roles.guard';
-import { Public } from 'src/common/decorators/public.decorator';
-import { TenantId } from 'src/common/decorators/company.deorator';
+
 import {
   ApiBearerAuth,
   ApiTags,
@@ -37,9 +31,19 @@ import {
   MaxFileSizeValidator,
   FileTypeValidator,
 } from '@nestjs/common';
-import { Permissions } from 'src/common/decorators/permissions.decorator';
-import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+
+import { AuthenticatedRequest } from '../../../common/types/request.types';
+import { UserService } from '../services/user.service';
+import { CreateUserDto, UpdateUserDto } from '../dto/user.dto';
+import { Roles } from '../../../common/decorators/roles.decorator';
+import { RolesGuard } from '../../../common/guards/roles.guard';
+import { Public } from '../../../common/decorators/public.decorator';
+import { TenantId } from '../../../common/decorators/company.deorator';
+
+import { Permissions } from '../../../common/decorators/permissions.decorator';
+import { PermissionsGuard } from '../../../common/guards/permissions.guard';
 import { validateImageFile } from '../../../common/utils/file-validation.util';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 
 @ApiTags('Users')
 @Controller('users')
@@ -70,7 +74,7 @@ export class UserController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Post()
   @Roles('system-admin', 'admin')
   @Permissions('manage_users')
@@ -89,7 +93,7 @@ export class UserController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Get()
   @Roles('system-admin', 'admin', 'manager')
   @Permissions('manage_users', 'view_team_reports')
@@ -123,7 +127,7 @@ export class UserController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Get(':id')
   @Roles('system-admin', 'admin', 'manager')
   @Permissions('manage_users', 'view_team_reports')
@@ -146,7 +150,7 @@ export class UserController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Patch(':id')
   @Roles('system-admin', 'admin')
   @Permissions('manage_users')
@@ -175,7 +179,7 @@ export class UserController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(RolesGuard, PermissionsGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Delete(':id')
   @Roles('system-admin', 'admin')
   @Permissions('manage_users')
@@ -204,7 +208,7 @@ export class UserController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Post(':id/profile-picture')
   @UseInterceptors(FileInterceptor('profile_pic'))
   @ApiOperation({ summary: 'Upload or update profile picture' })
@@ -277,7 +281,7 @@ export class UserController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Put(':id/profile-picture')
   @UseInterceptors(FileInterceptor('profile_pic'))
   @ApiOperation({ summary: 'Update profile picture' })
@@ -350,7 +354,7 @@ export class UserController {
   }
 
   @ApiBearerAuth()
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Delete(':id/profile-picture')
   async removeProfilePicture(
     @Param('id') id: string,

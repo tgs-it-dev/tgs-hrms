@@ -24,14 +24,15 @@ import {
   ApproveCheckInDto,
   BulkApproveCheckInDto,
 } from './dto/approve-checkin.dto';
-import { AuthenticatedRequest } from 'src/common/types/request.types';
-import { RolesGuard } from 'src/common/guards/roles.guard';
-import { Roles } from 'src/common/decorators/roles.decorator';
-import { Permissions } from 'src/common/decorators/permissions.decorator';
-import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { AuthenticatedRequest } from '../../common/types/request.types';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { Permissions } from '../../common/decorators/permissions.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { Response } from 'express';
-import { sendCsvResponse } from 'src/common/utils/csv.util';
-import { AttendanceType } from 'src/common/constants/enums';
+import { sendCsvResponse } from '../../common/utils/csv.util';
+import { AttendanceType } from '../../common/constants/enums';
 
 interface AttendanceEvent {
   type: AttendanceType;
@@ -72,6 +73,7 @@ interface TenantAttendance {
 
 @ApiTags('Attendance')
 @ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('attendance')
 export class AttendanceController {
   constructor(private readonly attendanceService: AttendanceService) {}

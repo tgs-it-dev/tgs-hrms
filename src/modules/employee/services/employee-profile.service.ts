@@ -1,10 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Employee } from 'src/entities/employee.entity';
-import { Attendance } from 'src/entities/attendance.entity';
+import { Employee } from '../../../entities/employee.entity';
+import { Attendance } from '../../../entities/attendance.entity';
 import { AttendanceType } from '../../../common/constants/enums';
-import { Leave } from 'src/entities/leave.entity';
+import { Leave } from '../../../entities/leave.entity';
 
 @Injectable()
 export class EmployeeProfileService {
