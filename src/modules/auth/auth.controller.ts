@@ -323,7 +323,7 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Post("admin-data")
-  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @UseGuards(RolesGuard, PermissionsGuard)
   @Roles("admin", "system-admin")
   @Permissions("manage_users")
   getAdminData() {
@@ -332,7 +332,6 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Get("test-permissions")
-  @UseGuards(JwtAuthGuard)
   testPermissions(@Req() req: AuthenticatedRequest) {
     return {
       message: "Permissions test endpoint",
@@ -417,7 +416,6 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Get("validate-token")
-  @UseGuards(JwtAuthGuard)
   @ApiOperation({
     summary: "Validate current token",
     description:
@@ -434,7 +432,6 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Post("logout-all")
-  @UseGuards(JwtAuthGuard)
   @ApiOperation({
     summary: "Logout from all devices",
     description:
@@ -447,7 +444,6 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Get("sessions")
-  @UseGuards(JwtAuthGuard)
   @ApiOperation({
     summary: "List active sessions",
     description:
@@ -456,21 +452,5 @@ export class AuthController {
   @ApiResponse({ status: 200, description: "Active sessions returned" })
   async getSessions(@Req() req: AuthenticatedRequest) {
     return this.authService.getActiveSessions(req.user.id);
-  }
-
-  @Post("google-login")
-  @Public()
-  @Throttle({ short: { limit: 5, ttl: 60_000 } })
-  @ApiOperation({ summary: "Login with Google ID token" })
-  @ApiBody({
-    schema: {
-      type: "object",
-      properties: { idToken: { type: "string" } },
-      required: ["idToken"],
-    },
-  })
-  @ApiResponse({ status: 200, description: "Login successful" })
-  async googleLogin(@Body("idToken") idToken: string) {
-    return this.authService.googleLogin(idToken);
   }
 }

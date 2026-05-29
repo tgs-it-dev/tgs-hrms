@@ -1,30 +1,32 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import { LeaveService } from './leave.service';
-import { Leave } from '../../entities/leave.entity';
-import { LeaveType } from '../../entities/leave-type.entity';
-import { User } from '../../entities/user.entity';
-import { Employee } from '../../entities/employee.entity';
-import { Team } from '../../entities/team.entity';
-import { LeaveStatus } from '../../common/constants/enums';
-import { NotificationService } from '../notification/notification.service';
-import { NotificationGateway } from '../notification/notification.gateway';
-import { LeaveFileUploadService } from './services/leave-file-upload.service';
-import { S3StorageService } from '../storage/storage.service';
-import { TenantDatabaseService } from '../../common/services/tenant-database.service';
-import { WorkflowService } from '../workflow/workflow.service';
-import { TenantSettingsService } from '../tenant-settings/tenant-settings.service';
+import { Test, TestingModule } from "@nestjs/testing";
+import { getRepositoryToken } from "@nestjs/typeorm";
+import { DataSource } from "typeorm";
+import { ForbiddenException, NotFoundException } from "@nestjs/common";
+import { LeaveService } from "./leave.service";
+import { Leave } from "../../entities/leave.entity";
+import { LeaveType } from "../../entities/leave-type.entity";
+import { User } from "../../entities/user.entity";
+import { Employee } from "../../entities/employee.entity";
+import { Team } from "../../entities/team.entity";
+import { LeaveStatus } from "../../common/constants/enums";
+import { NotificationService } from "../notification/notification.service";
+import { NotificationGateway } from "../notification/notification.gateway";
+import { LeaveFileUploadService } from "./services/leave-file-upload.service";
+import { S3StorageService } from "../storage/storage.service";
+import { TenantDatabaseService } from "../../common/services/tenant-database.service";
+import { WorkflowService } from "../workflow/workflow.service";
+import { TenantSettingsService } from "../tenant-settings/tenant-settings.service";
+import { LeaveBalance } from "../../entities/leave-balance.entity";
+import { EmailService } from "../../common/utils/email";
 
 // ── Fixture helpers ──────────────────────────────────────────────────────────
 
-const TENANT_ID = 'tenant-aaa';
-const LEAVE_ID = 'leave-111';
-const EMPLOYEE_USER_ID = 'user-employee-001';
-const MANAGER_USER_ID = 'user-manager-001';
-const ADMIN_USER_ID = 'user-admin-001';
-const TEAM_ID = 'team-001';
+const TENANT_ID = "tenant-aaa";
+const LEAVE_ID = "leave-111";
+const EMPLOYEE_USER_ID = "user-employee-001";
+const MANAGER_USER_ID = "user-manager-001";
+const ADMIN_USER_ID = "user-admin-001";
+const TEAM_ID = "team-001";
 
 function makeLeave(overrides: Partial<Leave> = {}): Leave {
   return {
@@ -34,7 +36,7 @@ function makeLeave(overrides: Partial<Leave> = {}): Leave {
     status: LeaveStatus.PENDING,
     approvedBy: null,
     approvedAt: null,
-    remarks: '',
+    remarks: "",
     employee: null,
     leaveType: null,
     approver: null,
@@ -46,16 +48,16 @@ function makeUser(id: string, roleName: string): User {
   return {
     id,
     role: {
-      id: 'role-id',
+      id: "role-id",
       name: roleName,
-      description: '',
+      description: "",
       users: [],
       rolePermissions: [],
     },
-    role_id: 'role-id',
+    role_id: "role-id",
     email: `${roleName}@test.com`,
     first_name: roleName,
-    last_name: 'User',
+    last_name: "User",
   } as unknown as User;
 }
 
@@ -64,7 +66,7 @@ function makeEmployee(
   managerId: string | null = null,
 ): Employee {
   return {
-    id: 'emp-001',
+    id: "emp-001",
     user_id: userId,
     team: managerId ? ({ id: TEAM_ID, manager_id: managerId } as Team) : null,
   } as unknown as Employee;
@@ -80,6 +82,15 @@ const mockLeaveRepo = () => ({
   create: jest.fn(),
 });
 
+const mockLeaveBalanceRepo = () => ({
+  findOne: jest.fn().mockResolvedValue({
+    id: "bal-1",
+    used: 0,
+    year: new Date().getFullYear(),
+  }),
+  save: jest.fn().mockImplementation((b: unknown) => Promise.resolve(b)),
+});
+
 const mockLeaveTypeRepo = () => ({ findOne: jest.fn() });
 const mockUserRepo = () => ({ findOne: jest.fn() });
 const mockEmployeeRepo = () => ({ findOne: jest.fn() });
@@ -90,9 +101,9 @@ const mockDataSource = () => ({
 });
 
 const mockNotif = {
-  id: 'notif-1',
-  message: 'test',
-  type: 'leave',
+  id: "notif-1",
+  message: "test",
+  type: "leave",
   created_at: new Date(),
 };
 const mockNotificationService = () => ({
@@ -122,7 +133,7 @@ const mockTenantSettingsService = () => ({
 
 // ── Test suite ───────────────────────────────────────────────────────────────
 
-describe('LeaveService', () => {
+describe("LeaveService", () => {
   let service: LeaveService;
   let leaveRepo: ReturnType<typeof mockLeaveRepo>;
   let userRepo: ReturnType<typeof mockUserRepo>;
@@ -133,6 +144,10 @@ describe('LeaveService', () => {
       providers: [
         LeaveService,
         { provide: getRepositoryToken(Leave), useFactory: mockLeaveRepo },
+        {
+          provide: getRepositoryToken(LeaveBalance),
+          useFactory: mockLeaveBalanceRepo,
+        },
         {
           provide: getRepositoryToken(LeaveType),
           useFactory: mockLeaveTypeRepo,
@@ -151,6 +166,13 @@ describe('LeaveService', () => {
           provide: TenantSettingsService,
           useFactory: mockTenantSettingsService,
         },
+        {
+          provide: EmailService,
+          useValue: {
+            sendEmail: () => Promise.resolve(),
+            sendLeaveStatusEmail: () => Promise.resolve(),
+          },
+        },
       ],
     }).compile();
 
@@ -162,8 +184,8 @@ describe('LeaveService', () => {
 
   // ── approveLeave ───────────────────────────────────────────────────────────
 
-  describe('approveLeave', () => {
-    it('throws NotFoundException when leave does not exist', async () => {
+  describe("approveLeave", () => {
+    it("throws NotFoundException when leave does not exist", async () => {
       leaveRepo.findOne.mockResolvedValue(null);
 
       await expect(
@@ -171,7 +193,7 @@ describe('LeaveService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('throws ForbiddenException when leave is already APPROVED', async () => {
+    it("throws ForbiddenException when leave is already APPROVED", async () => {
       leaveRepo.findOne.mockResolvedValue(
         makeLeave({ status: LeaveStatus.APPROVED }),
       );
@@ -181,7 +203,7 @@ describe('LeaveService', () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('throws ForbiddenException when leave is REJECTED', async () => {
+    it("throws ForbiddenException when leave is REJECTED", async () => {
       leaveRepo.findOne.mockResolvedValue(
         makeLeave({ status: LeaveStatus.REJECTED }),
       );
@@ -191,7 +213,7 @@ describe('LeaveService', () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('manager approving PENDING leave moves status to PROCESSING', async () => {
+    it("manager approving PENDING leave moves status to PROCESSING", async () => {
       leaveRepo.findOne.mockResolvedValue(
         makeLeave({ status: LeaveStatus.PENDING }),
       );
@@ -202,9 +224,9 @@ describe('LeaveService', () => {
       userRepo.findOne.mockImplementation(
         ({ where }: { where: { id: string } }) => {
           if (where.id === MANAGER_USER_ID)
-            return Promise.resolve(makeUser(MANAGER_USER_ID, 'manager'));
+            return Promise.resolve(makeUser(MANAGER_USER_ID, "manager"));
           if (where.id === EMPLOYEE_USER_ID)
-            return Promise.resolve(makeUser(EMPLOYEE_USER_ID, 'employee'));
+            return Promise.resolve(makeUser(EMPLOYEE_USER_ID, "employee"));
           return Promise.resolve(null);
         },
       );
@@ -213,15 +235,15 @@ describe('LeaveService', () => {
         LEAVE_ID,
         MANAGER_USER_ID,
         TENANT_ID,
-        'Looks good',
+        "Looks good",
       );
 
       expect(result.status).toBe(LeaveStatus.PROCESSING);
       expect(result.approvedBy).toBe(MANAGER_USER_ID);
-      expect(result.remarks).toBe('Looks good');
+      expect(result.remarks).toBe("Looks good");
     });
 
-    it('admin approving PENDING leave moves status directly to APPROVED', async () => {
+    it("admin approving PENDING leave moves status directly to APPROVED", async () => {
       leaveRepo.findOne.mockResolvedValue(
         makeLeave({ status: LeaveStatus.PENDING }),
       );
@@ -231,7 +253,7 @@ describe('LeaveService', () => {
       userRepo.findOne.mockImplementation(
         ({ where }: { where: { id: string } }) => {
           if (where.id === ADMIN_USER_ID)
-            return Promise.resolve(makeUser(ADMIN_USER_ID, 'admin'));
+            return Promise.resolve(makeUser(ADMIN_USER_ID, "admin"));
           return Promise.resolve(null);
         },
       );
@@ -240,14 +262,14 @@ describe('LeaveService', () => {
         LEAVE_ID,
         ADMIN_USER_ID,
         TENANT_ID,
-        'Approved',
+        "Approved",
       );
 
       expect(result.status).toBe(LeaveStatus.APPROVED);
       expect(result.approvedBy).toBe(ADMIN_USER_ID);
     });
 
-    it('admin approving PROCESSING leave moves status to APPROVED', async () => {
+    it("admin approving PROCESSING leave moves status to APPROVED", async () => {
       leaveRepo.findOne.mockResolvedValue(
         makeLeave({ status: LeaveStatus.PROCESSING }),
       );
@@ -257,7 +279,7 @@ describe('LeaveService', () => {
       userRepo.findOne.mockImplementation(
         ({ where }: { where: { id: string } }) => {
           if (where.id === ADMIN_USER_ID)
-            return Promise.resolve(makeUser(ADMIN_USER_ID, 'admin'));
+            return Promise.resolve(makeUser(ADMIN_USER_ID, "admin"));
           return Promise.resolve(null);
         },
       );
@@ -271,67 +293,67 @@ describe('LeaveService', () => {
       expect(result.status).toBe(LeaveStatus.APPROVED);
     });
 
-    it('throws ForbiddenException when manager tries to approve a PROCESSING leave', async () => {
+    it("throws ForbiddenException when manager tries to approve a PROCESSING leave", async () => {
       leaveRepo.findOne.mockResolvedValue(
         makeLeave({ status: LeaveStatus.PROCESSING }),
       );
       employeeRepo.findOne.mockResolvedValue(
         makeEmployee(EMPLOYEE_USER_ID, MANAGER_USER_ID),
       );
-      userRepo.findOne.mockResolvedValue(makeUser(MANAGER_USER_ID, 'manager'));
+      userRepo.findOne.mockResolvedValue(makeUser(MANAGER_USER_ID, "manager"));
 
       await expect(
         service.approveLeave(LEAVE_ID, MANAGER_USER_ID, TENANT_ID),
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('throws ForbiddenException when an unrelated user tries to approve', async () => {
+    it("throws ForbiddenException when an unrelated user tries to approve", async () => {
       leaveRepo.findOne.mockResolvedValue(
         makeLeave({ status: LeaveStatus.PENDING }),
       );
       employeeRepo.findOne.mockResolvedValue(
-        makeEmployee(EMPLOYEE_USER_ID, 'some-other-manager'),
+        makeEmployee(EMPLOYEE_USER_ID, "some-other-manager"),
       );
-      userRepo.findOne.mockResolvedValue(makeUser('random-user', 'employee'));
+      userRepo.findOne.mockResolvedValue(makeUser("random-user", "employee"));
 
       await expect(
-        service.approveLeave(LEAVE_ID, 'random-user', TENANT_ID),
+        service.approveLeave(LEAVE_ID, "random-user", TENANT_ID),
       ).rejects.toThrow(ForbiddenException);
     });
   });
 
   // ── rejectLeave ────────────────────────────────────────────────────────────
 
-  describe('rejectLeave', () => {
-    it('throws NotFoundException when leave does not exist', async () => {
+  describe("rejectLeave", () => {
+    it("throws NotFoundException when leave does not exist", async () => {
       leaveRepo.findOne.mockResolvedValue(null);
 
       await expect(
-        service.rejectLeave(LEAVE_ID, ADMIN_USER_ID, TENANT_ID),
+        service.rejectLeave(LEAVE_ID, ADMIN_USER_ID, TENANT_ID, "reason"),
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('throws ForbiddenException when leave is already APPROVED', async () => {
+    it("throws ForbiddenException when leave is already APPROVED", async () => {
       leaveRepo.findOne.mockResolvedValue(
         makeLeave({ status: LeaveStatus.APPROVED }),
       );
 
       await expect(
-        service.rejectLeave(LEAVE_ID, ADMIN_USER_ID, TENANT_ID),
+        service.rejectLeave(LEAVE_ID, ADMIN_USER_ID, TENANT_ID, "reason"),
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('throws ForbiddenException when leave is CANCELLED', async () => {
+    it("throws ForbiddenException when leave is CANCELLED", async () => {
       leaveRepo.findOne.mockResolvedValue(
         makeLeave({ status: LeaveStatus.CANCELLED }),
       );
 
       await expect(
-        service.rejectLeave(LEAVE_ID, ADMIN_USER_ID, TENANT_ID),
+        service.rejectLeave(LEAVE_ID, ADMIN_USER_ID, TENANT_ID, "reason"),
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('manager can reject a PENDING leave', async () => {
+    it("manager can reject a PENDING leave", async () => {
       leaveRepo.findOne.mockResolvedValue(
         makeLeave({ status: LeaveStatus.PENDING }),
       );
@@ -341,9 +363,9 @@ describe('LeaveService', () => {
       userRepo.findOne.mockImplementation(
         ({ where }: { where: { id: string } }) => {
           if (where.id === MANAGER_USER_ID)
-            return Promise.resolve(makeUser(MANAGER_USER_ID, 'manager'));
+            return Promise.resolve(makeUser(MANAGER_USER_ID, "manager"));
           if (where.id === EMPLOYEE_USER_ID)
-            return Promise.resolve(makeUser(EMPLOYEE_USER_ID, 'employee'));
+            return Promise.resolve(makeUser(EMPLOYEE_USER_ID, "employee"));
           return Promise.resolve(null);
         },
       );
@@ -352,15 +374,15 @@ describe('LeaveService', () => {
         LEAVE_ID,
         MANAGER_USER_ID,
         TENANT_ID,
-        'Not eligible',
+        "Not eligible",
       );
 
       expect(result.status).toBe(LeaveStatus.REJECTED);
       expect(result.approvedBy).toBe(MANAGER_USER_ID);
-      expect(result.remarks).toBe('Not eligible');
+      expect(result.remarks).toBe("Not eligible");
     });
 
-    it('admin can reject a PENDING leave', async () => {
+    it("admin can reject a PENDING leave", async () => {
       leaveRepo.findOne.mockResolvedValue(
         makeLeave({ status: LeaveStatus.PENDING }),
       );
@@ -370,7 +392,7 @@ describe('LeaveService', () => {
       userRepo.findOne.mockImplementation(
         ({ where }: { where: { id: string } }) => {
           if (where.id === ADMIN_USER_ID)
-            return Promise.resolve(makeUser(ADMIN_USER_ID, 'admin'));
+            return Promise.resolve(makeUser(ADMIN_USER_ID, "admin"));
           return Promise.resolve(null);
         },
       );
@@ -379,12 +401,13 @@ describe('LeaveService', () => {
         LEAVE_ID,
         ADMIN_USER_ID,
         TENANT_ID,
+        "Rejected",
       );
 
       expect(result.status).toBe(LeaveStatus.REJECTED);
     });
 
-    it('admin can reject a PROCESSING leave', async () => {
+    it("admin can reject a PROCESSING leave", async () => {
       leaveRepo.findOne.mockResolvedValue(
         makeLeave({ status: LeaveStatus.PROCESSING }),
       );
@@ -394,7 +417,7 @@ describe('LeaveService', () => {
       userRepo.findOne.mockImplementation(
         ({ where }: { where: { id: string } }) => {
           if (where.id === ADMIN_USER_ID)
-            return Promise.resolve(makeUser(ADMIN_USER_ID, 'admin'));
+            return Promise.resolve(makeUser(ADMIN_USER_ID, "admin"));
           return Promise.resolve(null);
         },
       );
@@ -403,24 +426,24 @@ describe('LeaveService', () => {
         LEAVE_ID,
         ADMIN_USER_ID,
         TENANT_ID,
-        'Policy breach',
+        "Policy breach",
       );
 
       expect(result.status).toBe(LeaveStatus.REJECTED);
-      expect(result.remarks).toBe('Policy breach');
+      expect(result.remarks).toBe("Policy breach");
     });
 
-    it('throws ForbiddenException when unrelated user tries to reject', async () => {
+    it("throws ForbiddenException when unrelated user tries to reject", async () => {
       leaveRepo.findOne.mockResolvedValue(
         makeLeave({ status: LeaveStatus.PENDING }),
       );
       employeeRepo.findOne.mockResolvedValue(
-        makeEmployee(EMPLOYEE_USER_ID, 'other-manager'),
+        makeEmployee(EMPLOYEE_USER_ID, "other-manager"),
       );
-      userRepo.findOne.mockResolvedValue(makeUser('random-user', 'employee'));
+      userRepo.findOne.mockResolvedValue(makeUser("random-user", "employee"));
 
       await expect(
-        service.rejectLeave(LEAVE_ID, 'random-user', TENANT_ID),
+        service.rejectLeave(LEAVE_ID, "random-user", TENANT_ID, "reason"),
       ).rejects.toThrow(ForbiddenException);
     });
   });
