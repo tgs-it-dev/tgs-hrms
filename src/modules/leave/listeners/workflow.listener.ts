@@ -1,22 +1,22 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { InjectRepository, InjectDataSource } from "@nestjs/typeorm";
-import { Repository, DataSource, EntityManager } from "typeorm";
-import { OnEvent } from "@nestjs/event-emitter";
+import { Injectable, Logger } from '@nestjs/common';
+import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
+import { Repository, DataSource, EntityManager } from 'typeorm';
+import { OnEvent } from '@nestjs/event-emitter';
 
-import { Leave } from "../../../entities/leave.entity";
-import { LeaveBalance } from "../../../entities/leave-balance.entity";
-import { LeaveType } from "../../../entities/leave-type.entity";
-import { User } from "../../../entities/user.entity";
+import { Leave } from '../../../entities/leave.entity';
+import { LeaveBalance } from '../../../entities/leave-balance.entity';
+import { LeaveType } from '../../../entities/leave-type.entity';
+import { User } from '../../../entities/user.entity';
 import {
   LeaveStatus,
   WorkflowRequestType,
-} from "../../../common/constants/enums";
-import { TenantDatabaseService } from "../../../common/services/tenant-database.service";
-import { NotificationService } from "../../notification/notification.service";
-import { NotificationGateway } from "../../notification/notification.gateway";
-import { WorkflowCompletedEvent } from "../../workflow/events/workflow-completed.event";
-import { WORKFLOW_EVENTS } from "../../workflow/constants/workflow.constants";
-import { LeaveService } from "../../leave/leave.service";
+} from '../../../common/constants/enums';
+import { TenantDatabaseService } from '../../../common/services/tenant-database.service';
+import { NotificationService } from '../../notification/notification.service';
+import { NotificationGateway } from '../../notification/notification.gateway';
+import { WorkflowCompletedEvent } from '../../workflow/events/workflow-completed.event';
+import { WORKFLOW_EVENTS } from '../../workflow/constants/workflow.constants';
+import { LeaveService } from '../../leave/leave.service';
 
 @Injectable()
 export class LeaveWorkflowListener {
@@ -80,13 +80,13 @@ export class LeaveWorkflowListener {
 
   private async getAdminUserIds(tenantId: string): Promise<string[]> {
     const users = await this.userRepo
-      .createQueryBuilder("user")
-      .innerJoin("user.role", "role")
-      .where("user.tenant_id = :tenantId", { tenantId })
-      .andWhere("LOWER(role.name) IN (:...names)", {
-        names: ["admin", "hr-admin", "system-admin"],
+      .createQueryBuilder('user')
+      .innerJoin('user.role', 'role')
+      .where('user.tenant_id = :tenantId', { tenantId })
+      .andWhere('LOWER(role.name) IN (:...names)', {
+        names: ['admin', 'hr-admin', 'system-admin'],
       })
-      .select(["user.id"])
+      .select(['user.id'])
       .getMany();
     return users.map((u) => u.id);
   }
@@ -204,7 +204,7 @@ export class LeaveWorkflowListener {
       leave.status = LeaveStatus.APPROVED;
       leave.approvedBy = event.finalApproverId!;
       leave.approvedAt = new Date();
-      leave.remarks = event.finalRemarks ?? "";
+      leave.remarks = event.finalRemarks ?? '';
       await leaveRepo.save(leave);
 
       await queryRunner.commitTransaction();
@@ -245,12 +245,12 @@ export class LeaveWorkflowListener {
 
       this.notificationGateway.sendToUser(
         event.requestorId,
-        "new_notification",
+        'new_notification',
         {
           id: notification.id,
           message: notification.message,
           type: notification.type,
-          related_entity_type: "leave",
+          related_entity_type: 'leave',
           related_entity_id: event.relatedEntityId,
           created_at: notification.created_at,
         },
@@ -283,7 +283,7 @@ export class LeaveWorkflowListener {
           leave.status = LeaveStatus.REJECTED;
           leave.approvedBy = event.finalApproverId!;
           leave.approvedAt = new Date();
-          leave.remarks = event.finalRemarks ?? "";
+          leave.remarks = event.finalRemarks ?? '';
           await leaveRepo.save(leave);
         },
       );
@@ -313,12 +313,12 @@ export class LeaveWorkflowListener {
 
       this.notificationGateway.sendToUser(
         event.requestorId,
-        "new_notification",
+        'new_notification',
         {
           id: notification.id,
           message: notification.message,
           type: notification.type,
-          related_entity_type: "leave",
+          related_entity_type: 'leave',
           related_entity_id: event.relatedEntityId,
           created_at: notification.created_at,
         },

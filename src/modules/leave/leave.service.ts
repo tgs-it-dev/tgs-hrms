@@ -5,35 +5,35 @@ import {
   ConflictException,
   BadRequestException,
   Logger,
-} from "@nestjs/common";
-import { InjectRepository, InjectDataSource } from "@nestjs/typeorm";
-import { DataSource, EntityManager, In, Repository } from "typeorm";
+} from '@nestjs/common';
+import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import {
   LeaveStatus,
   NotificationType,
   NotificationAction,
   WorkflowRequestType,
-} from "../../common/constants/enums";
-import { WorkflowService } from "../workflow/workflow.service";
-import { Leave } from "src/entities/leave.entity";
-import { LeaveBalance } from "src/entities/leave-balance.entity";
-import { LeaveType } from "src/entities/leave-type.entity";
-import { CreateLeaveDto } from "./dto/create-leave.dto";
-import { CreateLeaveForEmployeeDto } from "./dto/create-leave-for-employee.dto";
-import { EditLeaveDto } from "./dto/update-leave.dto";
-import { User } from "../../entities/user.entity";
-import { Employee } from "../../entities/employee.entity";
-import { LeaveFileUploadService } from "./services/leave-file-upload.service";
-import { S3StorageService } from "../storage/storage.service";
-import { NotificationService } from "../notification/notification.service";
-import { NotificationGateway } from "../notification/notification.gateway";
-import { Team } from "../../entities/team.entity";
-import { TenantDatabaseService } from "../../common/services/tenant-database.service";
+} from '../../common/constants/enums';
+import { WorkflowService } from '../workflow/workflow.service';
+import { Leave } from 'src/entities/leave.entity';
+import { LeaveBalance } from 'src/entities/leave-balance.entity';
+import { LeaveType } from 'src/entities/leave-type.entity';
+import { CreateLeaveDto } from './dto/create-leave.dto';
+import { CreateLeaveForEmployeeDto } from './dto/create-leave-for-employee.dto';
+import { EditLeaveDto } from './dto/update-leave.dto';
+import { User } from '../../entities/user.entity';
+import { Employee } from '../../entities/employee.entity';
+import { LeaveFileUploadService } from './services/leave-file-upload.service';
+import { S3StorageService } from '../storage/storage.service';
+import { NotificationService } from '../notification/notification.service';
+import { NotificationGateway } from '../notification/notification.gateway';
+import { Team } from '../../entities/team.entity';
+import { TenantDatabaseService } from '../../common/services/tenant-database.service';
 import {
   TenantSettingsService,
   TenantSettingKey,
-} from "../tenant-settings/tenant-settings.service";
-import { EmailService } from "../../common/utils/email/email.service";
+} from '../tenant-settings/tenant-settings.service';
+import { EmailService } from '../../common/utils/email/email.service';
 
 @Injectable()
 export class LeaveService {
@@ -85,20 +85,20 @@ export class LeaveService {
   private isDirectToAdminRole(roleName: string | null | undefined): boolean {
     if (!roleName) return false;
     const r = roleName.trim().toLowerCase();
-    return r === "manager" || r === "hr-admin" || r === "network-admin";
+    return r === 'manager' || r === 'hr-admin' || r === 'network-admin';
   }
 
   private async getTenantAdminAndHrAdminUserIds(
     tenantId: string,
   ): Promise<string[]> {
     const users = await this.userRepo
-      .createQueryBuilder("user")
-      .innerJoin("user.role", "role")
-      .where("user.tenant_id = :tenantId", { tenantId })
-      .andWhere("LOWER(role.name) IN (:...names)", {
-        names: ["admin", "hr-admin", "system-admin"],
+      .createQueryBuilder('user')
+      .innerJoin('user.role', 'role')
+      .where('user.tenant_id = :tenantId', { tenantId })
+      .andWhere('LOWER(role.name) IN (:...names)', {
+        names: ['admin', 'hr-admin', 'system-admin'],
       })
-      .select(["user.id"])
+      .select(['user.id'])
       .getMany();
     return users.map((u) => u.id);
   }
@@ -106,10 +106,10 @@ export class LeaveService {
   private async isUserAdmin(userId: string): Promise<boolean> {
     const user = await this.userRepo.findOne({
       where: { id: userId },
-      relations: ["role"],
+      relations: ['role'],
     });
     const roleName = user?.role?.name?.toLowerCase();
-    return roleName === "admin" || roleName === "system-admin";
+    return roleName === 'admin' || roleName === 'system-admin';
   }
 
   /**
@@ -217,11 +217,11 @@ export class LeaveService {
     em?: EntityManager | null,
   ): Promise<Leave> {
     const leaveType = await leaveTypeRepo.findOne({
-      where: { id: dto.leaveTypeId, tenantId, status: "active" },
+      where: { id: dto.leaveTypeId, tenantId, status: 'active' },
     });
 
     if (!leaveType) {
-      throw new NotFoundException("Leave type not found");
+      throw new NotFoundException('Leave type not found');
     }
 
     const startDate = new Date(dto.startDate);
@@ -237,7 +237,7 @@ export class LeaveService {
     // Removed validation: if (startDate < today) - now allows past dates
 
     if (endDate < startDate) {
-      throw new ForbiddenException("End date cannot be before start date");
+      throw new ForbiddenException('End date cannot be before start date');
     }
 
     // Allow leave application for next year (max 1 year ahead from today)
@@ -246,24 +246,24 @@ export class LeaveService {
 
     if (startDate > maxFutureDate) {
       throw new ForbiddenException(
-        "Leave can only be applied up to 1 year in advance",
+        'Leave can only be applied up to 1 year in advance',
       );
     }
 
     const overlappingLeave = await leaveRepo
-      .createQueryBuilder("leave")
-      .where("leave.employeeId = :employeeId", { employeeId })
-      .andWhere("leave.tenantId = :tenantId", { tenantId })
-      .andWhere("leave.status IN (:...statuses)", {
+      .createQueryBuilder('leave')
+      .where('leave.employeeId = :employeeId', { employeeId })
+      .andWhere('leave.tenantId = :tenantId', { tenantId })
+      .andWhere('leave.status IN (:...statuses)', {
         statuses: [LeaveStatus.APPROVED, LeaveStatus.PROCESSING],
       })
-      .andWhere("leave.startDate <= :endDate", { endDate })
-      .andWhere("leave.endDate >= :startDate", { startDate })
+      .andWhere('leave.startDate <= :endDate', { endDate })
+      .andWhere('leave.endDate >= :startDate', { startDate })
       .getOne();
 
     if (overlappingLeave) {
       throw new ConflictException(
-        "You already have a leave request that overlaps with these dates",
+        'You already have a leave request that overlaps with these dates',
       );
     }
 
@@ -295,18 +295,18 @@ export class LeaveService {
 
     if (wfhRows.length > 0)
       throw new ForbiddenException(
-        "You already have a WFH request on these dates",
+        'You already have a WFH request on these dates',
       );
     if (overtimeRows.length > 0)
       throw new ForbiddenException(
-        "You already have an overtime request on these dates",
+        'You already have an overtime request on these dates',
       );
 
     // Calculate working days only (exclude weekends)
     const totalDays = this.calculateWorkingDays(startDate, endDate);
 
     if (totalDays <= 0) {
-      throw new ForbiddenException("Leave cannot be applied only for weekends");
+      throw new ForbiddenException('Leave cannot be applied only for weekends');
     }
 
     // NOTE:
@@ -319,7 +319,7 @@ export class LeaveService {
     // Determine initial status — used only when workflow engine is disabled
     const applicantUser = await this.userRepo.findOne({
       where: { id: employeeId },
-      relations: ["role"],
+      relations: ['role'],
     });
     const directToAdmin = this.isDirectToAdminRole(applicantUser?.role?.name);
     const workflowEnabled = await this.isWorkflowEnabled(tenantId);
@@ -356,7 +356,7 @@ export class LeaveService {
 
     const employee = await employeeRepo.findOne({
       where: { user_id: employeeId },
-      relations: ["team", "user"],
+      relations: ['team', 'user'],
     });
     const employeePayload = employee?.user
       ? {
@@ -364,9 +364,9 @@ export class LeaveService {
           first_name: employee.user.first_name,
           last_name: employee.user.last_name,
         }
-      : { id: employeeId, first_name: "", last_name: "" };
+      : { id: employeeId, first_name: '', last_name: '' };
     const payload = {
-      related_entity_type: "leave" as const,
+      related_entity_type: 'leave' as const,
       related_entity_id: savedLeave.id,
     };
     const leavePayload = { id: savedLeave.id, tenantId: savedLeave.tenantId };
@@ -401,7 +401,7 @@ export class LeaveService {
               [managerId],
             );
           for (const n of notifications) {
-            this.notificationGateway.sendToUser(n.user_id, "new_notification", {
+            this.notificationGateway.sendToUser(n.user_id, 'new_notification', {
               id: n.id,
               message: n.message,
               type: n.type,
@@ -425,19 +425,19 @@ export class LeaveService {
           const notifications = await this.notificationService.sendToUsers(
             adminUserIds,
             tenantId,
-            `Leave request from ${[employeePayload.first_name, employeePayload.last_name].filter(Boolean).join(" ").trim() || "staff"} is pending admin approval`,
+            `Leave request from ${[employeePayload.first_name, employeePayload.last_name].filter(Boolean).join(' ').trim() || 'staff'} is pending admin approval`,
             NotificationType.LEAVE,
             {
-              relatedEntityType: "leave",
+              relatedEntityType: 'leave',
               relatedEntityId: savedLeave.id,
               senderId: employeeId,
-              senderRole: "employee",
+              senderRole: 'employee',
               action: NotificationAction.APPLIED,
               isSystem: false,
             },
           );
           for (const n of notifications) {
-            this.notificationGateway.sendToUser(n.user_id, "new_notification", {
+            this.notificationGateway.sendToUser(n.user_id, 'new_notification', {
               id: n.id,
               message: n.message,
               type: n.type,
@@ -457,7 +457,7 @@ export class LeaveService {
             for (const n of notifications) {
               this.notificationGateway.sendToUser(
                 n.user_id,
-                "new_notification",
+                'new_notification',
                 {
                   id: n.id,
                   message: n.message,
@@ -496,7 +496,7 @@ export class LeaveService {
 
     if (!employeeUser) {
       throw new NotFoundException(
-        "Employee not found or does not belong to your tenant",
+        'Employee not found or does not belong to your tenant',
       );
     }
 
@@ -528,11 +528,11 @@ export class LeaveService {
     // Use the existing createLeave logic but with the specified employeeId
     // We'll reuse the validation and creation logic
     const leaveType = await leaveTypeRepo.findOne({
-      where: { id: dto.leaveTypeId, tenantId, status: "active" },
+      where: { id: dto.leaveTypeId, tenantId, status: 'active' },
     });
 
     if (!leaveType) {
-      throw new NotFoundException("Leave type not found");
+      throw new NotFoundException('Leave type not found');
     }
 
     const startDate = new Date(dto.startDate);
@@ -546,7 +546,7 @@ export class LeaveService {
     // Allow past dates - admins can apply for leave with past dates on behalf of employees
 
     if (endDate < startDate) {
-      throw new ForbiddenException("End date cannot be before start date");
+      throw new ForbiddenException('End date cannot be before start date');
     }
 
     // Allow leave application for next year (max 1 year ahead from today)
@@ -555,25 +555,25 @@ export class LeaveService {
 
     if (startDate > maxFutureDate) {
       throw new ForbiddenException(
-        "Leave can only be applied up to 1 year in advance",
+        'Leave can only be applied up to 1 year in advance',
       );
     }
 
     // Check for overlapping leaves
     const overlappingLeave = await leaveRepo
-      .createQueryBuilder("leave")
-      .where("leave.employeeId = :employeeId", { employeeId: dto.employeeId })
-      .andWhere("leave.tenantId = :tenantId", { tenantId })
-      .andWhere("leave.status IN (:...statuses)", {
+      .createQueryBuilder('leave')
+      .where('leave.employeeId = :employeeId', { employeeId: dto.employeeId })
+      .andWhere('leave.tenantId = :tenantId', { tenantId })
+      .andWhere('leave.status IN (:...statuses)', {
         statuses: [LeaveStatus.APPROVED, LeaveStatus.PROCESSING],
       })
-      .andWhere("leave.startDate <= :endDate", { endDate })
-      .andWhere("leave.endDate >= :startDate", { startDate })
+      .andWhere('leave.startDate <= :endDate', { endDate })
+      .andWhere('leave.endDate >= :startDate', { startDate })
       .getOne();
 
     if (overlappingLeave) {
       throw new ConflictException(
-        "Employee already has a leave request that overlaps with these dates",
+        'Employee already has a leave request that overlaps with these dates',
       );
     }
 
@@ -605,23 +605,23 @@ export class LeaveService {
 
     if (wfhRows.length > 0)
       throw new ForbiddenException(
-        "Employee already has a WFH request on these dates",
+        'Employee already has a WFH request on these dates',
       );
     if (overtimeRows.length > 0)
       throw new ForbiddenException(
-        "Employee already has an overtime request on these dates",
+        'Employee already has an overtime request on these dates',
       );
 
     // Calculate working days only (exclude weekends)
     const totalDays = this.calculateWorkingDays(startDate, endDate);
 
     if (totalDays <= 0) {
-      throw new ForbiddenException("Leave cannot be applied only for weekends");
+      throw new ForbiddenException('Leave cannot be applied only for weekends');
     }
 
     const employeeUser = await this.userRepo.findOne({
       where: { id: dto.employeeId },
-      relations: ["role"],
+      relations: ['role'],
     });
     const directToAdmin = this.isDirectToAdminRole(employeeUser?.role?.name);
     const workflowEnabled = await this.isWorkflowEnabled(tenantId);
@@ -658,7 +658,7 @@ export class LeaveService {
 
     const employee = await employeeRepo.findOne({
       where: { user_id: dto.employeeId },
-      relations: ["team", "user"],
+      relations: ['team', 'user'],
     });
     const employeePayload = employee?.user
       ? {
@@ -666,9 +666,9 @@ export class LeaveService {
           first_name: employee.user.first_name,
           last_name: employee.user.last_name,
         }
-      : { id: dto.employeeId, first_name: "", last_name: "" };
+      : { id: dto.employeeId, first_name: '', last_name: '' };
     const payload = {
-      related_entity_type: "leave" as const,
+      related_entity_type: 'leave' as const,
       related_entity_id: savedLeave.id,
     };
     const leavePayload = { id: savedLeave.id, tenantId: savedLeave.tenantId };
@@ -703,7 +703,7 @@ export class LeaveService {
               [employee.team.manager_id],
             );
           for (const n of notifications) {
-            this.notificationGateway.sendToUser(n.user_id, "new_notification", {
+            this.notificationGateway.sendToUser(n.user_id, 'new_notification', {
               id: n.id,
               message: n.message,
               type: n.type,
@@ -726,19 +726,19 @@ export class LeaveService {
           const notifications = await this.notificationService.sendToUsers(
             adminUserIds,
             tenantId,
-            `Leave request from ${[employeePayload.first_name, employeePayload.last_name].filter(Boolean).join(" ").trim() || "staff"} is pending admin approval`,
+            `Leave request from ${[employeePayload.first_name, employeePayload.last_name].filter(Boolean).join(' ').trim() || 'staff'} is pending admin approval`,
             NotificationType.LEAVE,
             {
-              relatedEntityType: "leave",
+              relatedEntityType: 'leave',
               relatedEntityId: savedLeave.id,
               senderId: dto.employeeId,
-              senderRole: "employee",
+              senderRole: 'employee',
               action: NotificationAction.APPLIED,
               isSystem: false,
             },
           );
           for (const n of notifications) {
-            this.notificationGateway.sendToUser(n.user_id, "new_notification", {
+            this.notificationGateway.sendToUser(n.user_id, 'new_notification', {
               id: n.id,
               message: n.message,
               type: n.type,
@@ -757,7 +757,7 @@ export class LeaveService {
               [employee.team.manager_id],
             );
           for (const n of notifications) {
-            this.notificationGateway.sendToUser(n.user_id, "new_notification", {
+            this.notificationGateway.sendToUser(n.user_id, 'new_notification', {
               id: n.id,
               message: n.message,
               type: n.type,
@@ -795,25 +795,25 @@ export class LeaveService {
       ) => {
         const leave = await leaveRepo.findOne({
           where: { id, tenantId },
-          relations: ["employee"],
+          relations: ['employee'],
         });
-        if (!leave) throw new NotFoundException("Leave not found");
+        if (!leave) throw new NotFoundException('Leave not found');
 
         if (approverId === leave.employeeId)
           throw new ForbiddenException(
-            "You cannot approve your own leave request",
+            'You cannot approve your own leave request',
           );
 
         const isPending = leave.status === LeaveStatus.PENDING;
         const isProcessing = leave.status === LeaveStatus.PROCESSING;
         if (!isPending && !isProcessing)
           throw new ForbiddenException(
-            "Only pending or processing leaves can be approved",
+            'Only pending or processing leaves can be approved',
           );
 
         const employeeRecord = await employeeRepo.findOne({
           where: { user_id: leave.employeeId },
-          relations: ["team"],
+          relations: ['team'],
         });
         const managerId = employeeRecord?.team?.manager_id ?? null;
         const isApproverManager = Boolean(
@@ -825,7 +825,7 @@ export class LeaveService {
           leave.status = LeaveStatus.PROCESSING;
           leave.approvedBy = approverId;
           leave.approvedAt = new Date();
-          leave.remarks = remarks || "";
+          leave.remarks = remarks || '';
           return leaveRepo.save(leave);
         }
 
@@ -839,17 +839,17 @@ export class LeaveService {
           leave.status = LeaveStatus.APPROVED;
           leave.approvedBy = approverId;
           leave.approvedAt = new Date();
-          leave.remarks = remarks || "";
+          leave.remarks = remarks || '';
           return leaveRepo.save(leave);
         }
 
         if (isProcessing && isApproverManager)
           throw new ForbiddenException(
-            "Leave is already in processing; pending admin approval",
+            'Leave is already in processing; pending admin approval',
           );
 
         throw new ForbiddenException(
-          "You are not authorized to approve this leave",
+          'You are not authorized to approve this leave',
         );
       },
     );
@@ -857,7 +857,7 @@ export class LeaveService {
     try {
       const employeeUser = await this.userRepo.findOne({
         where: { id: savedLeave.employeeId },
-        select: ["id", "first_name", "last_name", "email"],
+        select: ['id', 'first_name', 'last_name', 'email'],
       });
       const employeePayload = employeeUser
         ? {
@@ -865,7 +865,7 @@ export class LeaveService {
             first_name: employeeUser.first_name,
             last_name: employeeUser.last_name,
           }
-        : { id: savedLeave.employeeId, first_name: "", last_name: "" };
+        : { id: savedLeave.employeeId, first_name: '', last_name: '' };
       const employeeEmail = employeeUser?.email;
 
       if (savedLeave.status === LeaveStatus.PROCESSING) {
@@ -880,14 +880,14 @@ export class LeaveService {
         await this.notificationService.markAsReadForRelatedEntity(
           approverId,
           tenantId,
-          "leave",
+          'leave',
           savedLeave.id,
         );
         if (employeeEmail) {
           await this.emailService.sendNotificationEmail(
             employeeEmail,
-            "Leave Request Approved by Manager",
-            "Your leave request has been approved by your manager and is now pending admin final approval.",
+            'Leave Request Approved by Manager',
+            'Your leave request has been approved by your manager and is now pending admin final approval.',
             savedLeave.employeeId,
           );
         }
@@ -901,14 +901,14 @@ export class LeaveService {
         if (employeeEmail) {
           await this.emailService.sendNotificationEmail(
             employeeEmail,
-            "Leave Request Approved",
-            "Your leave request has been approved.",
+            'Leave Request Approved',
+            'Your leave request has been approved.',
             savedLeave.employeeId,
           );
         }
       }
     } catch (e) {
-      this.logger.warn("Failed to send post-approve notification", e);
+      this.logger.warn('Failed to send post-approve notification', e);
     }
 
     return savedLeave;
@@ -922,7 +922,7 @@ export class LeaveService {
   ): Promise<Leave> {
     if (!remarks?.trim())
       throw new BadRequestException(
-        "remarks is required when rejecting a leave request",
+        'remarks is required when rejecting a leave request',
       );
 
     const savedLeave = await this.runInTenantContext(
@@ -930,13 +930,13 @@ export class LeaveService {
       async (leaveRepo, _lt, employeeRepo) => {
         const leave = await leaveRepo.findOne({
           where: { id, tenantId },
-          relations: ["employee"],
+          relations: ['employee'],
         });
-        if (!leave) throw new NotFoundException("Leave not found");
+        if (!leave) throw new NotFoundException('Leave not found');
 
         if (approverId === leave.employeeId)
           throw new ForbiddenException(
-            "You cannot reject your own leave request",
+            'You cannot reject your own leave request',
           );
 
         const canReject =
@@ -944,12 +944,12 @@ export class LeaveService {
           leave.status === LeaveStatus.PROCESSING;
         if (!canReject)
           throw new ForbiddenException(
-            "Only pending or processing leaves can be rejected",
+            'Only pending or processing leaves can be rejected',
           );
 
         const employeeRecord = await employeeRepo.findOne({
           where: { user_id: leave.employeeId },
-          relations: ["team"],
+          relations: ['team'],
         });
         const managerId = employeeRecord?.team?.manager_id ?? null;
         const isApproverManager = Boolean(
@@ -969,7 +969,7 @@ export class LeaveService {
         }
 
         throw new ForbiddenException(
-          "Only the team manager (for pending leaves) or admin can reject leave requests",
+          'Only the team manager (for pending leaves) or admin can reject leave requests',
         );
       },
     );
@@ -977,7 +977,7 @@ export class LeaveService {
     try {
       const employeeUser = await this.userRepo.findOne({
         where: { id: savedLeave.employeeId },
-        select: ["id", "first_name", "last_name", "email"],
+        select: ['id', 'first_name', 'last_name', 'email'],
       });
       const employeeEmail = employeeUser?.email;
       const employeePayload = employeeUser
@@ -986,7 +986,7 @@ export class LeaveService {
             first_name: employeeUser.first_name,
             last_name: employeeUser.last_name,
           }
-        : { id: savedLeave.employeeId, first_name: "", last_name: "" };
+        : { id: savedLeave.employeeId, first_name: '', last_name: '' };
 
       const notification =
         await this.notificationService.notifyLeaveFinalDecision(
@@ -997,12 +997,12 @@ export class LeaveService {
         );
       this.notificationGateway.sendToUser(
         savedLeave.employeeId,
-        "new_notification",
+        'new_notification',
         {
           id: notification.id,
           message: notification.message,
           type: notification.type,
-          related_entity_type: "leave",
+          related_entity_type: 'leave',
           related_entity_id: savedLeave.id,
           created_at: notification.created_at,
         },
@@ -1010,13 +1010,13 @@ export class LeaveService {
       if (employeeEmail) {
         await this.emailService.sendNotificationEmail(
           employeeEmail,
-          "Leave Request Declined",
+          'Leave Request Declined',
           `Your leave request has been declined. Reason: ${remarks}`,
           savedLeave.employeeId,
         );
       }
     } catch (e) {
-      this.logger.warn("Failed to send post-rejection notification", e);
+      this.logger.warn('Failed to send post-rejection notification', e);
     }
 
     return savedLeave;
@@ -1031,11 +1031,11 @@ export class LeaveService {
     const now = new Date();
 
     const leaves = await leaveRepo
-      .createQueryBuilder("leave")
-      .where("leave.employeeId = :user_id", { user_id })
-      .andWhere("leave.status = :status", { status: LeaveStatus.APPROVED })
-      .andWhere("leave.startDate >= :start", { start: twelveMonthsAgo })
-      .andWhere("leave.startDate <= :end", { end: now })
+      .createQueryBuilder('leave')
+      .where('leave.employeeId = :user_id', { user_id })
+      .andWhere('leave.status = :status', { status: LeaveStatus.APPROVED })
+      .andWhere('leave.startDate >= :start', { start: twelveMonthsAgo })
+      .andWhere('leave.startDate <= :end', { end: now })
       .getMany();
 
     let totalDays = 0;
@@ -1066,16 +1066,16 @@ export class LeaveService {
           const skip = (page - 1) * limit;
 
           let query = leaveRepo
-            .createQueryBuilder("leave")
-            .leftJoinAndSelect("leave.leaveType", "leaveType")
-            .leftJoinAndSelect("leave.approver", "approver")
-            .leftJoinAndSelect("leave.employee", "employee");
+            .createQueryBuilder('leave')
+            .leftJoinAndSelect('leave.leaveType', 'leaveType')
+            .leftJoinAndSelect('leave.approver', 'approver')
+            .leftJoinAndSelect('leave.employee', 'employee');
           if (user_id)
-            query = query.where("leave.employeeId = :user_id", { user_id });
-          query = query.andWhere("leave.tenantId = :tenantId", { tenantId });
+            query = query.where('leave.employeeId = :user_id', { user_id });
+          query = query.andWhere('leave.tenantId = :tenantId', { tenantId });
 
           const [items, total] = await query
-            .orderBy("leave.createdAt", "DESC")
+            .orderBy('leave.createdAt', 'DESC')
             .skip(skip)
             .take(limit)
             .getManyAndCount();
@@ -1083,7 +1083,7 @@ export class LeaveService {
           const totalPages = Math.ceil(total / limit);
 
           const leaveTypes = await leaveTypeRepo.find({
-            where: { tenantId, status: "active" },
+            where: { tenantId, status: 'active' },
           });
           const totalEntitlement =
             leaveTypes.length > 0
@@ -1117,15 +1117,15 @@ export class LeaveService {
     const skip = (page - 1) * limit;
 
     let query = this.leaveRepo
-      .createQueryBuilder("leave")
-      .leftJoinAndSelect("leave.leaveType", "leaveType")
-      .leftJoinAndSelect("leave.approver", "approver")
-      .leftJoinAndSelect("leave.employee", "employee");
+      .createQueryBuilder('leave')
+      .leftJoinAndSelect('leave.leaveType', 'leaveType')
+      .leftJoinAndSelect('leave.approver', 'approver')
+      .leftJoinAndSelect('leave.employee', 'employee');
     if (user_id)
-      query = query.where("leave.employeeId = :user_id", { user_id });
+      query = query.where('leave.employeeId = :user_id', { user_id });
 
     const [items, total] = await query
-      .orderBy("leave.createdAt", "DESC")
+      .orderBy('leave.createdAt', 'DESC')
       .skip(skip)
       .take(limit)
       .getManyAndCount();
@@ -1169,17 +1169,17 @@ export class LeaveService {
       const skip = (page - 1) * limit;
 
       const queryBuilder = leaveRepo
-        .createQueryBuilder("leave")
-        .leftJoinAndSelect("leave.employee", "employee")
-        .leftJoinAndSelect("leave.leaveType", "leaveType")
-        .leftJoinAndSelect("leave.approver", "approver")
-        .where("leave.tenantId = :tenantId", { tenantId });
+        .createQueryBuilder('leave')
+        .leftJoinAndSelect('leave.employee', 'employee')
+        .leftJoinAndSelect('leave.leaveType', 'leaveType')
+        .leftJoinAndSelect('leave.approver', 'approver')
+        .where('leave.tenantId = :tenantId', { tenantId });
 
       if (status) {
-        queryBuilder.andWhere("leave.status = :status", { status });
+        queryBuilder.andWhere('leave.status = :status', { status });
       } else {
         // Admin sees only PROCESSING (awaiting their approval), APPROVED, REJECTED — not PENDING (manager-only)
-        queryBuilder.andWhere("leave.status IN (:...statuses)", {
+        queryBuilder.andWhere('leave.status IN (:...statuses)', {
           statuses: [
             LeaveStatus.PROCESSING,
             LeaveStatus.APPROVED,
@@ -1204,19 +1204,19 @@ export class LeaveService {
         const endDate = new Date(targetYear, month, 0, 23, 59, 59, 999);
 
         // Filter leaves where startDate falls within the specified month
-        queryBuilder.andWhere("leave.startDate >= :startDate", { startDate });
-        queryBuilder.andWhere("leave.startDate <= :endDate", { endDate });
+        queryBuilder.andWhere('leave.startDate >= :startDate', { startDate });
+        queryBuilder.andWhere('leave.startDate <= :endDate', { endDate });
       } else if (year) {
         // If only year is provided, filter by the entire year
         const startDate = new Date(year, 0, 1);
         const endDate = new Date(year, 11, 31, 23, 59, 59, 999);
 
-        queryBuilder.andWhere("leave.startDate >= :startDate", { startDate });
-        queryBuilder.andWhere("leave.startDate <= :endDate", { endDate });
+        queryBuilder.andWhere('leave.startDate >= :startDate', { startDate });
+        queryBuilder.andWhere('leave.startDate <= :endDate', { endDate });
       }
 
       const [items, total] = await queryBuilder
-        .orderBy("leave.createdAt", "DESC")
+        .orderBy('leave.createdAt', 'DESC')
         .skip(skip)
         .take(limit)
         .getManyAndCount();
@@ -1230,22 +1230,22 @@ export class LeaveService {
     return this.runInTenantContext(tenantId, async (leaveRepo) => {
       const leave = await leaveRepo.findOne({
         where: { id, tenantId },
-        relations: ["employee", "leaveType", "approver"],
+        relations: ['employee', 'leaveType', 'approver'],
       });
 
       if (!leave) {
-        throw new NotFoundException("Leave not found");
+        throw new NotFoundException('Leave not found');
       }
 
       if (leave.employeeId !== employeeId) {
         const user = await this.userRepo.findOne({ where: { id: employeeId } });
         if (
           !user ||
-          !["admin", "system-admin", "hr-admin", "manager"].includes(
+          !['admin', 'system-admin', 'hr-admin', 'manager'].includes(
             user.role as unknown as string,
           )
         ) {
-          throw new ForbiddenException("Access denied");
+          throw new ForbiddenException('Access denied');
         }
       }
 
@@ -1273,26 +1273,26 @@ export class LeaveService {
       async (leaveRepo, _lt, employeeRepo) => {
         const leave = await leaveRepo.findOne({
           where: { id, tenantId },
-          relations: ["employee"],
+          relations: ['employee'],
         });
-        if (!leave) throw new NotFoundException("Leave not found");
+        if (!leave) throw new NotFoundException('Leave not found');
 
         if (leave.status !== LeaveStatus.PENDING) {
           throw new ForbiddenException(
-            "Manager can only add remarks on pending leave requests",
+            'Manager can only add remarks on pending leave requests',
           );
         }
 
         const teamMember = await employeeRepo
-          .createQueryBuilder("employee")
-          .leftJoin("employee.user", "user")
-          .leftJoin("employee.team", "team")
-          .where("user.id = :employeeUserId", {
+          .createQueryBuilder('employee')
+          .leftJoin('employee.user', 'user')
+          .leftJoin('employee.team', 'team')
+          .where('user.id = :employeeUserId', {
             employeeUserId: leave.employeeId,
           })
-          .andWhere("user.tenant_id = :tenantId", { tenantId })
-          .andWhere("team.manager_id = :managerId", { managerId })
-          .andWhere("employee.team_id IS NOT NULL")
+          .andWhere('user.tenant_id = :tenantId', { tenantId })
+          .andWhere('team.manager_id = :managerId', { managerId })
+          .andWhere('employee.team_id IS NOT NULL')
           .getOne();
 
         if (!teamMember) {
@@ -1301,7 +1301,7 @@ export class LeaveService {
           );
         }
 
-        leave.managerRemarks = remarks || "";
+        leave.managerRemarks = remarks || '';
         return leaveRepo.save(leave);
       },
     );
@@ -1318,23 +1318,23 @@ export class LeaveService {
         where: tenantId ? { id, tenantId } : { id },
       });
 
-      if (!leave) throw new NotFoundException("Leave not found");
+      if (!leave) throw new NotFoundException('Leave not found');
 
       const isAdminOrHrAdmin =
         requesterRole &&
-        ["admin", "hr-admin", "system-admin"].includes(
+        ['admin', 'hr-admin', 'system-admin'].includes(
           requesterRole.toLowerCase(),
         );
 
       if (leave.employeeId !== employeeId && !isAdminOrHrAdmin) {
         throw new ForbiddenException(
-          "You can only cancel your own leave requests",
+          'You can only cancel your own leave requests',
         );
       }
 
       if (leave.status !== LeaveStatus.PENDING) {
         throw new ForbiddenException(
-          "You can only cancel pending leave requests",
+          'You can only cancel pending leave requests',
         );
       }
 
@@ -1370,18 +1370,18 @@ export class LeaveService {
     return this.runInTenantContext(tenantId, async (leaveRepo) => {
       const leave = await leaveRepo.findOne({
         where: { id: leaveId, tenantId },
-        relations: ["leaveType"],
+        relations: ['leaveType'],
       });
-      if (!leave) throw new NotFoundException("Leave not found");
+      if (!leave) throw new NotFoundException('Leave not found');
 
       const isAdminOrHrAdmin =
         requesterRole &&
-        ["admin", "hr-admin", "system-admin"].includes(
+        ['admin', 'hr-admin', 'system-admin'].includes(
           requesterRole.toLowerCase(),
         );
       if (leave.employeeId !== employeeId && !isAdminOrHrAdmin) {
         throw new ForbiddenException(
-          "You can only edit your own leave requests",
+          'You can only edit your own leave requests',
         );
       }
 
@@ -1390,14 +1390,14 @@ export class LeaveService {
         this.storage.sameObject(d, documentUrl),
       );
       if (matchedIndex === -1)
-        throw new NotFoundException("Document not found on this leave");
+        throw new NotFoundException('Document not found on this leave');
 
       leave.documents = docs.filter((_, i) => i !== matchedIndex);
       await this.leaveFileUploadService.deleteLeaveDocument(documentUrl);
       const saved = await leaveRepo.save(leave);
       const updated = await leaveRepo.findOne({
         where: { id: leaveId, tenantId },
-        relations: ["leaveType", "employee", "approver"],
+        relations: ['leaveType', 'employee', 'approver'],
       });
       return updated ?? saved;
     });
@@ -1422,27 +1422,27 @@ export class LeaveService {
       async (leaveRepo, leaveTypeRepo) => {
         const leave = await leaveRepo.findOne({
           where: { id, tenantId },
-          relations: ["leaveType"],
+          relations: ['leaveType'],
         });
-        if (!leave) throw new NotFoundException("Leave not found");
+        if (!leave) throw new NotFoundException('Leave not found');
 
         const isAdminOrHrAdmin =
           requesterRole &&
-          ["admin", "hr-admin", "system-admin"].includes(
+          ['admin', 'hr-admin', 'system-admin'].includes(
             requesterRole.toLowerCase(),
           );
         const isEmployee = leave.employeeId === employeeId;
 
         if (leave.employeeId !== employeeId && !isAdminOrHrAdmin) {
           throw new ForbiddenException(
-            "You can only edit your own leave requests",
+            'You can only edit your own leave requests',
           );
         }
 
         if (leave.status === LeaveStatus.APPROVED) {
           if (dto.leaveTypeId || dto.startDate || dto.endDate || dto.reason) {
             throw new ForbiddenException(
-              "Cannot edit leave details after approval. Only documents can be updated.",
+              'Cannot edit leave details after approval. Only documents can be updated.',
             );
           }
 
@@ -1470,7 +1470,7 @@ export class LeaveService {
             const savedLeave = await leaveRepo.save(leave);
             const updatedLeave = await leaveRepo.findOne({
               where: { id: savedLeave.id, tenantId },
-              relations: ["leaveType", "employee", "approver"],
+              relations: ['leaveType', 'employee', 'approver'],
             });
             return updatedLeave || savedLeave;
           }
@@ -1486,27 +1486,27 @@ export class LeaveService {
           const savedLeave = await leaveRepo.save(leave);
           const updatedLeave = await leaveRepo.findOne({
             where: { id: savedLeave.id, tenantId },
-            relations: ["leaveType", "employee", "approver"],
+            relations: ['leaveType', 'employee', 'approver'],
           });
           return updatedLeave || savedLeave;
         }
 
         if (isEmployee && leave.status === LeaveStatus.PROCESSING) {
           throw new ForbiddenException(
-            "You cannot edit the leave while it is awaiting admin approval",
+            'You cannot edit the leave while it is awaiting admin approval',
           );
         }
 
         if (
           dto.leaveTypeId !== undefined &&
           dto.leaveTypeId !== null &&
-          dto.leaveTypeId !== ""
+          dto.leaveTypeId !== ''
         ) {
           const newLeaveTypeId = String(dto.leaveTypeId).trim();
           const leaveType = await leaveTypeRepo.findOne({
-            where: { id: newLeaveTypeId, tenantId, status: "active" },
+            where: { id: newLeaveTypeId, tenantId, status: 'active' },
           });
-          if (!leaveType) throw new NotFoundException("Leave type not found");
+          if (!leaveType) throw new NotFoundException('Leave type not found');
           leave.leaveTypeId = newLeaveTypeId;
 
           leave.leaveType = null as any;
@@ -1526,7 +1526,7 @@ export class LeaveService {
 
           if (endDate < startDate) {
             throw new ForbiddenException(
-              "End date cannot be before start date",
+              'End date cannot be before start date',
             );
           }
 
@@ -1536,30 +1536,30 @@ export class LeaveService {
 
             if (startDate > maxFutureDate) {
               throw new ForbiddenException(
-                "Leave can only be applied up to 1 year in advance",
+                'Leave can only be applied up to 1 year in advance',
               );
             }
           }
 
           const overlappingLeave = await leaveRepo
-            .createQueryBuilder("leave")
-            .where("leave.employeeId = :employeeId", { employeeId })
-            .andWhere("leave.tenantId = :tenantId", { tenantId })
-            .andWhere("leave.id != :currentLeaveId", { currentLeaveId: id })
-            .andWhere("leave.status IN (:...statuses)", {
+            .createQueryBuilder('leave')
+            .where('leave.employeeId = :employeeId', { employeeId })
+            .andWhere('leave.tenantId = :tenantId', { tenantId })
+            .andWhere('leave.id != :currentLeaveId', { currentLeaveId: id })
+            .andWhere('leave.status IN (:...statuses)', {
               statuses: [
                 LeaveStatus.PENDING,
                 LeaveStatus.PROCESSING,
                 LeaveStatus.APPROVED,
               ],
             })
-            .andWhere("leave.startDate <= :endDate", { endDate })
-            .andWhere("leave.endDate >= :startDate", { startDate })
+            .andWhere('leave.startDate <= :endDate', { endDate })
+            .andWhere('leave.endDate >= :startDate', { startDate })
             .getOne();
 
           if (overlappingLeave) {
             throw new ForbiddenException(
-              "You already have a leave request that overlaps with these dates",
+              'You already have a leave request that overlaps with these dates',
             );
           }
 
@@ -1572,7 +1572,7 @@ export class LeaveService {
           );
           if (leave.totalDays <= 0)
             throw new ForbiddenException(
-              "Leave cannot be applied only for weekends",
+              'Leave cannot be applied only for weekends',
             );
         }
 
@@ -1603,7 +1603,7 @@ export class LeaveService {
           const savedLeave = await leaveRepo.save(leave);
           const updatedLeave = await leaveRepo.findOne({
             where: { id: savedLeave.id, tenantId },
-            relations: ["leaveType", "employee", "approver"],
+            relations: ['leaveType', 'employee', 'approver'],
           });
           return updatedLeave || savedLeave;
         }
@@ -1621,7 +1621,7 @@ export class LeaveService {
         const savedLeave = await leaveRepo.save(leave);
         const updatedLeave = await leaveRepo.findOne({
           where: { id: savedLeave.id, tenantId },
-          relations: ["leaveType", "employee", "approver"],
+          relations: ['leaveType', 'employee', 'approver'],
         });
         return updatedLeave || savedLeave;
       },
@@ -1639,10 +1639,10 @@ export class LeaveService {
 
     return this.runInTenantContext(tenantId, async (leaveRepo) => {
       const leavesCount = await leaveRepo
-        .createQueryBuilder("leave")
-        .where("leave.tenantId = :tenantId", { tenantId })
+        .createQueryBuilder('leave')
+        .where('leave.tenantId = :tenantId', { tenantId })
         .andWhere(
-          "leave.createdAt >= :startOfMonth AND leave.createdAt <= :endOfMonth",
+          'leave.createdAt >= :startOfMonth AND leave.createdAt <= :endOfMonth',
           { startOfMonth, endOfMonth },
         )
         .getCount();
@@ -1692,13 +1692,13 @@ export class LeaveService {
       tenantId,
       async (leaveRepo, _lt, employeeRepo) => {
         const teamMembersQb = employeeRepo
-          .createQueryBuilder("employee")
-          .leftJoin("employee.user", "user")
-          .leftJoin("employee.team", "team")
-          .where("user.tenant_id = :tenantId", { tenantId })
-          .andWhere("team.manager_id = :managerId", { managerId })
-          .andWhere("employee.user_id != :managerId", { managerId })
-          .andWhere("employee.team_id IS NOT NULL");
+          .createQueryBuilder('employee')
+          .leftJoin('employee.user', 'user')
+          .leftJoin('employee.team', 'team')
+          .where('user.tenant_id = :tenantId', { tenantId })
+          .andWhere('team.manager_id = :managerId', { managerId })
+          .andWhere('employee.user_id != :managerId', { managerId })
+          .andWhere('employee.team_id IS NOT NULL');
 
         if (options?.name?.trim()) {
           const namePattern = `%${options.name.trim()}%`;
@@ -1725,8 +1725,8 @@ export class LeaveService {
               LeaveStatus.REJECTED,
             ]),
           },
-          relations: ["employee", "leaveType", "approver"],
-          order: { createdAt: "DESC" },
+          relations: ['employee', 'leaveType', 'approver'],
+          order: { createdAt: 'DESC' },
           skip,
           take: limit,
         });
@@ -1764,33 +1764,33 @@ export class LeaveService {
       tenantId,
       async (leaveRepo, _lt, employeeRepo) => {
         const teamMembers = await employeeRepo
-          .createQueryBuilder("employee")
-          .leftJoinAndSelect("employee.user", "user")
-          .leftJoinAndSelect("employee.designation", "designation")
-          .leftJoinAndSelect("designation.department", "department")
-          .leftJoin("employee.team", "team")
-          .where("user.tenant_id = :tenantId", { tenantId })
-          .andWhere("team.manager_id = :managerId", { managerId })
-          .andWhere("employee.user_id != :managerId", { managerId })
+          .createQueryBuilder('employee')
+          .leftJoinAndSelect('employee.user', 'user')
+          .leftJoinAndSelect('employee.designation', 'designation')
+          .leftJoinAndSelect('designation.department', 'department')
+          .leftJoin('employee.team', 'team')
+          .where('user.tenant_id = :tenantId', { tenantId })
+          .andWhere('team.manager_id = :managerId', { managerId })
+          .andWhere('employee.user_id != :managerId', { managerId })
           .select([
-            "employee.user_id",
-            "user.first_name",
-            "user.last_name",
-            "user.email",
-            "user.profile_pic",
-            "designation.title",
-            "department.name",
+            'employee.user_id',
+            'user.first_name',
+            'user.last_name',
+            'user.email',
+            'user.profile_pic',
+            'designation.title',
+            'department.name',
           ])
           .getMany();
 
         const teamMemberUserIds = teamMembers.map((member) => member.user_id);
 
         const leaveApplications = await leaveRepo
-          .createQueryBuilder("leave")
-          .where("leave.employeeId IN (:...userIds)", {
+          .createQueryBuilder('leave')
+          .where('leave.employeeId IN (:...userIds)', {
             userIds: teamMemberUserIds,
           })
-          .andWhere("leave.status IN (:...statuses)", {
+          .andWhere('leave.status IN (:...statuses)', {
             statuses: [
               LeaveStatus.PENDING,
               LeaveStatus.PROCESSING,
@@ -1798,8 +1798,8 @@ export class LeaveService {
               LeaveStatus.REJECTED,
             ],
           })
-          .select(["leave.employeeId", "COUNT(leave.id) as totalApplications"])
-          .groupBy("leave.employeeId")
+          .select(['leave.employeeId', 'COUNT(leave.id) as totalApplications'])
+          .groupBy('leave.employeeId')
           .getRawMany<{
             leave_employeeId: string;
             totalapplications: string;
@@ -1821,8 +1821,8 @@ export class LeaveService {
             last_name: member.user.last_name,
             email: member.user.email,
             profile_pic: member.user.profile_pic || undefined,
-            designation: member.designation?.title || "N/A",
-            department: member.designation?.department?.name || "N/A",
+            designation: member.designation?.title || 'N/A',
+            department: member.designation?.department?.name || 'N/A',
             hasAppliedForLeave: leaveCount > 0,
             totalLeaveApplications: leaveCount,
           };
@@ -1854,13 +1854,13 @@ export class LeaveService {
         tenantId,
       );
       for (const l of items) {
-        const empFirstName = l.employee?.first_name || "";
-        const empLastName = l.employee?.last_name || "";
+        const empFirstName = l.employee?.first_name || '';
+        const empLastName = l.employee?.last_name || '';
         rows.push({
           first_name: empFirstName,
           last_name: empLastName,
           user_name: `${empFirstName} ${empLastName}`.trim(),
-          leave_type: l.leaveType?.name || "N/A",
+          leave_type: l.leaveType?.name || 'N/A',
           start_date: l.startDate,
           end_date: l.endDate,
           total_days: l.totalDays,
@@ -1869,9 +1869,9 @@ export class LeaveService {
           applied_date: l.createdAt,
           approved_by: l.approver?.first_name
             ? `${l.approver.first_name} ${l.approver.last_name}`.trim()
-            : "N/A",
-          approved_at: l.approvedAt || "N/A",
-          remarks: l.remarks || "N/A",
+            : 'N/A',
+          approved_at: l.approvedAt || 'N/A',
+          remarks: l.remarks || 'N/A',
         });
       }
       if (!items.length || rows.length >= total) break;
@@ -1900,11 +1900,11 @@ export class LeaveService {
         rows.push({
           id: l.id,
           user_id: l.employeeId,
-          first_name: l.employee?.first_name || "",
-          last_name: l.employee?.last_name || "",
+          first_name: l.employee?.first_name || '',
+          last_name: l.employee?.last_name || '',
           user_name:
-            `${l.employee?.first_name || ""} ${l.employee?.last_name || ""}`.trim(),
-          leave_type: l.leaveType?.name || "N/A",
+            `${l.employee?.first_name || ''} ${l.employee?.last_name || ''}`.trim(),
+          leave_type: l.leaveType?.name || 'N/A',
           start_date: l.startDate,
           end_date: l.endDate,
           total_days: l.totalDays,
@@ -1913,9 +1913,9 @@ export class LeaveService {
           applied_date: l.createdAt,
           approved_by: l.approver?.first_name
             ? `${l.approver.first_name} ${l.approver.last_name}`.trim()
-            : "N/A",
-          approved_at: l.approvedAt || "N/A",
-          remarks: l.remarks || "N/A",
+            : 'N/A',
+          approved_at: l.approvedAt || 'N/A',
+          remarks: l.remarks || 'N/A',
         });
       }
       if (!items.length || rows.length >= total) break;
@@ -1945,11 +1945,11 @@ export class LeaveService {
       );
       for (const l of items) {
         rows.push({
-          first_name: l.employee?.first_name || "",
-          last_name: l.employee?.last_name || "",
+          first_name: l.employee?.first_name || '',
+          last_name: l.employee?.last_name || '',
           user_name:
-            `${l.employee?.first_name || ""} ${l.employee?.last_name || ""}`.trim(),
-          leave_type: l.leaveType?.name || "N/A",
+            `${l.employee?.first_name || ''} ${l.employee?.last_name || ''}`.trim(),
+          leave_type: l.leaveType?.name || 'N/A',
           start_date: l.startDate,
           end_date: l.endDate,
           total_days: l.totalDays,
@@ -1958,9 +1958,9 @@ export class LeaveService {
           applied_date: l.createdAt,
           approved_by: l.approver?.first_name
             ? `${l.approver.first_name} ${l.approver.last_name}`.trim()
-            : "N/A",
-          approved_at: l.approvedAt || "N/A",
-          remarks: l.remarks || "N/A",
+            : 'N/A',
+          approved_at: l.approvedAt || 'N/A',
+          remarks: l.remarks || 'N/A',
         });
       }
       if (!items.length || rows.length >= total) break;
@@ -1981,12 +1981,12 @@ export class LeaveService {
       async (_lr, leaveTypeRepo, _er, _tr, _em, balanceRepo) => {
         const balances = await balanceRepo.find({
           where: { employeeId, tenantId, year: targetYear },
-          relations: ["leaveType"],
+          relations: ['leaveType'],
         });
 
         // For leave types that have no balance record yet, create virtual entries
         const activeTypes = await leaveTypeRepo.find({
-          where: { tenantId, status: "active" },
+          where: { tenantId, status: 'active' },
         });
         const existingTypeIds = new Set(balances.map((b) => b.leaveTypeId));
         for (const lt of activeTypes) {

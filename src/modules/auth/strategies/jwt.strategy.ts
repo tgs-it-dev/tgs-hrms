@@ -1,10 +1,10 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
-import { PassportStrategy } from "@nestjs/passport";
-import { ExtractJwt, Strategy } from "passport-jwt";
-import { ConfigService } from "@nestjs/config";
-import { InjectDataSource } from "@nestjs/typeorm";
-import { DataSource } from "typeorm";
-import { GLOBAL_SYSTEM_TENANT_ID } from "../../../common/constants/enums";
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { PassportStrategy } from '@nestjs/passport';
+import { ExtractJwt, Strategy } from 'passport-jwt';
+import { ConfigService } from '@nestjs/config';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import { GLOBAL_SYSTEM_TENANT_ID } from '../../../common/constants/enums';
 
 interface AccessTokenPayload {
   sub: string;
@@ -40,7 +40,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>("JWT_SECRET") ?? "",
+      secretOrKey: configService.get<string>('JWT_SECRET') ?? '',
     });
   }
 
@@ -90,7 +90,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
       if (!rows.length) {
         throw new UnauthorizedException(
-          "Session not found. Please log in again.",
+          'Session not found. Please log in again.',
         );
       }
 
@@ -98,12 +98,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
       if (row.session_revoked) {
         throw new UnauthorizedException(
-          "Session has been revoked. Please log in again.",
+          'Session has been revoked. Please log in again.',
         );
       }
 
       if (!row.user_exists) {
-        throw new UnauthorizedException("User account no longer exists.");
+        throw new UnauthorizedException('User account no longer exists.');
       }
 
       if (!isSystemAdmin) {
@@ -126,7 +126,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     );
 
     if (!rows.length || !rows[0].user_exists) {
-      throw new UnauthorizedException("User account no longer exists.");
+      throw new UnauthorizedException('User account no longer exists.');
     }
 
     if (!isSystemAdmin && tenantId) {
@@ -140,12 +140,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   ): void {
     if (deletedAt) {
       throw new UnauthorizedException(
-        "Your organization account has been deleted. Please contact support.",
+        'Your organization account has been deleted. Please contact support.',
       );
     }
-    if (status === "suspended") {
+    if (status === 'suspended') {
       throw new UnauthorizedException(
-        "Your organization account has been suspended. Please contact support.",
+        'Your organization account has been suspended. Please contact support.',
       );
     }
   }
