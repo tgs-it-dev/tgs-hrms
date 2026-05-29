@@ -108,6 +108,49 @@ export class SendGridService {
     }
   }
 
+  async sendVerificationEmail(
+    email: string,
+    verificationToken: string,
+    userName: string,
+  ): Promise<void> {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+    const fromEmail = this.configService.get<string>('SENDGRID_FROM');
+
+    if (!fromEmail) {
+      this.logger.warn('SENDGRID_FROM not configured. Skipping email send.');
+      return;
+    }
+
+    const verifyUrl = `${frontendUrl}/verify-email?token=${verificationToken}`;
+    const msg = {
+      to: email,
+      from: fromEmail,
+      subject: 'Verify Your Email Address',
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+          <h2>Verify Your Email Address</h2>
+          <p>Hello ${userName},</p>
+          <p>Please verify your email by clicking the button below:</p>
+          <div style="text-align:center;margin:30px 0">
+            <a href="${verifyUrl}" style="background-color:#007bff;color:white;padding:12px 24px;text-decoration:none;border-radius:4px;display:inline-block">Verify Email</a>
+          </div>
+          <p>Or copy and paste: ${verifyUrl}</p>
+          <p>This link expires in 24 hours.</p>
+        </div>
+      `,
+    };
+
+    try {
+      await sgMail.send(msg);
+      this.logger.log(`Verification email sent to ${email}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to send verification email to ${email}:`,
+        error,
+      );
+    }
+  }
+
   async sendWelcomeEmail(email: string, resetToken: string): Promise<void> {
     const frontendUrl = this.configService.get<string>('FRONTEND_URL');
     const resetUrl = `${frontendUrl}/confirm-password?token=${resetToken}`;

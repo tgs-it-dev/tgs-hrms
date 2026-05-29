@@ -18,7 +18,7 @@ import { AuthenticatedRequest } from '../../common/types/request.types';
 @UseGuards(TenantGuard, RolesGuard)
 @Controller('dashboard')
 export class DashboardController {
-  constructor(private readonly dashboardService: DashboardService) { }
+  constructor(private readonly dashboardService: DashboardService) {}
 
   @Get('kpi')
   @Roles(
@@ -103,7 +103,10 @@ export class DashboardController {
     summary: 'Get dashboard alerts (auto checkouts, pending approvals)',
   })
   @ApiResponse({ status: 200, description: 'Dashboard alerts' })
-  async getAlerts(@TenantId() tenantId: string, @Req() req: AuthenticatedRequest) {
+  async getAlerts(
+    @TenantId() tenantId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
     return this.dashboardService.getAlerts({
       tenantId,
       userId: req.user.id,

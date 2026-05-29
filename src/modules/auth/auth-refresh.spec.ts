@@ -4,7 +4,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { User } from '../../entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { Repository } from 'typeorm';
+
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Role } from '../../entities/role.entity';
@@ -110,6 +110,7 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
   let service: AuthService;
   let userRepo: any;
   let jwtService: JwtService;
+  let _userTokenRepo: any;
   let updateSpy: jest.SpyInstance;
 
   beforeEach(async () => {
@@ -222,7 +223,8 @@ describe('AuthService - Forgot/Reset/Refresh/Logout', () => {
     service = module.get<AuthService>(AuthService);
     userRepo = module.get(getRepositoryToken(User));
     jwtService = module.get<JwtService>(JwtService);
-    userTokenRepo = module.get(getRepositoryToken(UserToken));
+    _userTokenRepo = module.get(getRepositoryToken(UserToken));
+    updateSpy = jest.spyOn(userRepo, 'update');
   });
 
   describe('forgotPassword', () => {

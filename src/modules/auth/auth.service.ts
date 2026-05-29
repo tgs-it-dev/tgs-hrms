@@ -3,7 +3,6 @@ import {
   UnauthorizedException,
   BadRequestException,
   ForbiddenException,
-  NotFoundException,
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -26,7 +25,7 @@ import {
   GLOBAL_SYSTEM_TENANT_ID,
   UserRole,
 } from '../../common/constants/enums';
-import { SystemSettingsService } from '../system/system-settings/system-settings.service';
+
 import { isMobileRequest } from '../../common/utils/mobile-detection';
 import { Role } from '../../entities/role.entity';
 import { Tenant } from '../../entities/tenant.entity';

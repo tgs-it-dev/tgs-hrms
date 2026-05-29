@@ -77,9 +77,7 @@ export class NotificationGateway
         const userId: string = payload['id'];
         client.userId = userId;
         client.tenantId =
-          typeof payload.tenant_id === 'string'
-            ? payload.tenant_id
-            : undefined;
+          typeof payload.tenant_id === 'string' ? payload.tenant_id : undefined;
 
         // Store client by userId for easy lookup
         this.connectedClients.set(userId, client);

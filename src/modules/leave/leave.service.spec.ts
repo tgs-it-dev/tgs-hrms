@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken, InjectDataSource } from '@nestjs/typeorm';
-import { getDataSourceToken } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { LeaveService } from './leave.service';
 import { Leave } from '../../entities/leave.entity';

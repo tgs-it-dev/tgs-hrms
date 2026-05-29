@@ -8,7 +8,6 @@ import {
   Body,
   Query,
   Req,
-  UseGuards,
   ParseUUIDPipe,
   UseInterceptors,
   UploadedFiles,
