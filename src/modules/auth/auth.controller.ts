@@ -51,7 +51,10 @@ export class AuthController {
     status: 400,
     description: 'User already exists',
     schema: {
-      example: { field: 'email', message: 'User with this email already exists' },
+      example: {
+        field: 'email',
+        message: 'User with this email already exists',
+      },
     },
   })
   async register(@Body() dto: RegisterDto) {
@@ -61,7 +64,9 @@ export class AuthController {
   @Post('verify-email')
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Verify email address using the token sent on registration' })
+  @ApiOperation({
+    summary: 'Verify email address using the token sent on registration',
+  })
   @ApiBody({ type: VerifyEmailDto })
   @ApiResponse({ status: 200, description: 'Email verified successfully' })
   @ApiResponse({ status: 400, description: 'Invalid or expired token' })
@@ -74,7 +79,10 @@ export class AuthController {
   @Throttle({ default: { limit: 3, ttl: 300_000 } })
   @ApiOperation({ summary: 'Resend email verification link' })
   @ApiBody({ schema: { example: { email: 'user@example.com' } } })
-  @ApiResponse({ status: 200, description: 'Verification email resent if applicable' })
+  @ApiResponse({
+    status: 200,
+    description: 'Verification email resent if applicable',
+  })
   async resendVerification(@Body('email') email: string) {
     return this.authService.resendVerificationEmail(email);
   }
@@ -101,13 +109,21 @@ export class AuthController {
         },
         permissions: ['manage_users', 'view_reports'],
         employee: null,
-        company: { id: 'company-id', company_name: 'Company Name', domain: 'company.com', is_paid: false },
+        company: {
+          id: 'company-id',
+          company_name: 'Company Name',
+          domain: 'company.com',
+          is_paid: false,
+        },
         requiresPayment: true,
         session_id: 'signup-session-id',
       },
     },
   })
-  @ApiResponse({ status: 400, description: 'Email not found or invalid password' })
+  @ApiResponse({
+    status: 400,
+    description: 'Email not found or invalid password',
+  })
   async login(@Body() body: LoginDto, @Req() req: AuthenticatedRequest) {
     const ipAddress =
       (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ??
@@ -132,7 +148,8 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 900_000 } })
   @ApiOperation({
     summary: 'Login with Google',
-    description: 'Authenticate using a Google ID token from the client-side Google Sign-In SDK.',
+    description:
+      'Authenticate using a Google ID token from the client-side Google Sign-In SDK.',
   })
   @ApiBody({ type: GoogleLoginDto })
   @ApiResponse({
@@ -145,13 +162,24 @@ export class AuthController {
       },
     },
   })
-  @ApiResponse({ status: 401, description: 'Invalid Google ID token or no matching account' })
-  async googleLogin(@Body() dto: GoogleLoginDto, @Req() req: AuthenticatedRequest) {
+  @ApiResponse({
+    status: 401,
+    description: 'Invalid Google ID token or no matching account',
+  })
+  async googleLogin(
+    @Body() dto: GoogleLoginDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
     const ipAddress =
       (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ??
       req.socket?.remoteAddress ??
       null;
-    return this.authService.googleLogin(dto.idToken, undefined, undefined, ipAddress ?? undefined);
+    return this.authService.googleLogin(
+      dto.idToken,
+      undefined,
+      undefined,
+      ipAddress ?? undefined,
+    );
   }
 
   @Post('forgot-password')
@@ -160,7 +188,8 @@ export class AuthController {
   @ApiBody({ type: ForgotPasswordDto })
   @ApiOperation({
     summary: 'Request password reset',
-    description: 'Sends a password reset link to the provided email address. The link will expire in 1 hour.',
+    description:
+      'Sends a password reset link to the provided email address. The link will expire in 1 hour.',
   })
   @ApiResponse({ status: 200, description: 'Password reset email sent' })
   @ApiResponse({ status: 400, description: 'Invalid email format' })
@@ -186,7 +215,8 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 300_000 } })
   @ApiOperation({
     summary: 'Reset password using token',
-    description: 'Resets the user password using a valid reset token received via email.',
+    description:
+      'Resets the user password using a valid reset token received via email.',
   })
   @ApiBody({ type: ResetPasswordDto })
   @ApiResponse({ status: 200, description: 'Password reset successful' })
@@ -204,7 +234,8 @@ export class AuthController {
   @ApiBody({ type: RefreshTokenDto })
   @ApiResponse({
     status: 200,
-    description: 'Tokens rotated — store BOTH tokens; the old refresh token is now revoked.',
+    description:
+      'Tokens rotated — store BOTH tokens; the old refresh token is now revoked.',
     schema: {
       example: {
         accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
@@ -243,7 +274,10 @@ export class AuthController {
 
   @Post('logout')
   @Public()
-  @ApiOperation({ summary: 'Logout user', description: 'Invalidate the refresh token to log out the user' })
+  @ApiOperation({
+    summary: 'Logout user',
+    description: 'Invalidate the refresh token to log out the user',
+  })
   @ApiBody({ type: LogoutDto })
   @ApiResponse({ status: 200, description: 'User logged out successfully' })
   @ApiResponse({ status: 400, description: 'Refresh token missing or invalid' })
@@ -255,10 +289,14 @@ export class AuthController {
   @Get('validate-token')
   @ApiOperation({
     summary: 'Validate current token',
-    description: 'Validates if the current JWT token is still valid and user exists',
+    description:
+      'Validates if the current JWT token is still valid and user exists',
   })
   @ApiResponse({ status: 200, description: 'Token is valid' })
-  @ApiResponse({ status: 401, description: 'Token is invalid or user not found' })
+  @ApiResponse({
+    status: 401,
+    description: 'Token is invalid or user not found',
+  })
   async validateToken(@Req() req: AuthenticatedRequest) {
     return this.authService.validateToken(req.user.id);
   }
@@ -267,7 +305,8 @@ export class AuthController {
   @Post('logout-all')
   @ApiOperation({
     summary: 'Logout from all devices',
-    description: 'Revokes all active refresh token sessions for the authenticated user.',
+    description:
+      'Revokes all active refresh token sessions for the authenticated user.',
   })
   @ApiResponse({ status: 200, description: 'All sessions revoked' })
   async logoutAll(@Req() req: AuthenticatedRequest) {
@@ -278,7 +317,8 @@ export class AuthController {
   @Get('sessions')
   @ApiOperation({
     summary: 'List active sessions',
-    description: 'Returns all active (non-revoked, non-expired) login sessions for the current user.',
+    description:
+      'Returns all active (non-revoked, non-expired) login sessions for the current user.',
   })
   @ApiResponse({ status: 200, description: 'Active sessions returned' })
   async getSessions(@Req() req: AuthenticatedRequest) {
