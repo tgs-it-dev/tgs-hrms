@@ -20,7 +20,14 @@ import { EmailModule } from '../../common/utils/email/email.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Leave, LeaveBalance, LeaveType, User, Employee, Team]),
+    TypeOrmModule.forFeature([
+      Leave,
+      LeaveBalance,
+      LeaveType,
+      User,
+      Employee,
+      Team,
+    ]),
     SharedJwtModule,
     NotificationModule,
     TenantModule,

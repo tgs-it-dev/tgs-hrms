@@ -46,7 +46,9 @@ export class RejectLeaveDto {
     example: 'Insufficient coverage',
   })
   @IsString()
-  @IsNotEmpty({ message: 'reviewer_note is required when declining a leave request' })
+  @IsNotEmpty({
+    message: 'reviewer_note is required when declining a leave request',
+  })
   remarks: string;
 }
 
