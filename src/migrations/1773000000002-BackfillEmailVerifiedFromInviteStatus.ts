@@ -4,23 +4,31 @@ export class BackfillEmailVerifiedFromInviteStatus1773000000002
   implements MigrationInterface
 {
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // Fetch all tenants that have a provisioned schema
-    const tenants: { id: string }[] = await queryRunner.query(
-      `SELECT id FROM public.tenants WHERE schema_provisioned = TRUE`,
-    );
+    const tenants: { id: string; schema_provisioned: boolean }[] =
+      await queryRunner.query(
+        `SELECT id, schema_provisioned FROM public.tenants`,
+      );
 
     for (const tenant of tenants) {
-      const schemaName = `tenant_${tenant.id.replace(/-/g, '')}`;
+      let joinedRows: { user_id: string }[];
 
-      // Collect user_ids of employees with invite_status = 'Joined' in this tenant schema
-      const joinedRows: { user_id: string }[] = await queryRunner.query(
-        `SELECT user_id FROM "${schemaName}".employees WHERE invite_status = 'Joined'`,
-      );
+      if (tenant.schema_provisioned) {
+        const schemaName = `tenant_${tenant.id.replace(/-/g, '')}`;
+        joinedRows = await queryRunner.query(
+          `SELECT user_id FROM "${schemaName}".employees WHERE invite_status = 'Joined'`,
+        );
+      } else {
+        joinedRows = await queryRunner.query(
+          `SELECT e.user_id FROM public.employees e
+             INNER JOIN public.users u ON u.id = e.user_id
+           WHERE e.invite_status = 'Joined'
+             AND u.tenant_id = $1`,
+          [tenant.id],
+        );
+      }
 
       if (joinedRows.length > 0) {
         const joinedUserIds = joinedRows.map((r) => r.user_id);
-
-        // Mark those users as email_verified = true
         await queryRunner.query(
           `UPDATE public.users
              SET email_verified = TRUE
@@ -29,8 +37,6 @@ export class BackfillEmailVerifiedFromInviteStatus1773000000002
         );
       }
     }
-
-    // All remaining users whose email_verified is still FALSE stay FALSE (already the default)
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
