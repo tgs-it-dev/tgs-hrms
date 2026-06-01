@@ -272,46 +272,6 @@ export class AuthController {
     };
   }
 
-  @Post('google')
-  @Public()
-  @UseGuards(LoginThrottlerGuard)
-  @Throttle({ default: { limit: 5, ttl: 900_000 } })
-  @ApiOperation({
-    summary: 'Login with Google',
-    description:
-      'Authenticate using a Google ID token obtained from the client-side Google Sign-In SDK.',
-  })
-  @ApiBody({ type: GoogleLoginDto })
-  @ApiResponse({
-    status: 200,
-    description: 'Login successful',
-    schema: {
-      example: {
-        accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-        refreshToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-      },
-    },
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Invalid Google ID token or no matching account',
-  })
-  async googleLogin(
-    @Body() dto: GoogleLoginDto,
-    @Req() req: AuthenticatedRequest,
-  ) {
-    const ipAddress =
-      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ??
-      req.socket?.remoteAddress ??
-      null;
-    return this.authService.googleLogin(
-      dto.idToken,
-      undefined,
-      undefined,
-      ipAddress ?? undefined,
-    );
-  }
-
   @Post('logout')
   @Public()
   @ApiOperation({
