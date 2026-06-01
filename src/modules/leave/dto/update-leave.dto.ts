@@ -4,6 +4,7 @@ import {
   IsString,
   IsUUID,
   IsDateString,
+  IsNotEmpty,
   ValidateIf,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
@@ -41,12 +42,14 @@ export class ApproveLeaveDto {
 
 export class RejectLeaveDto {
   @ApiProperty({
-    description: 'Remarks for rejection',
+    description: 'Reason for rejection (required)',
     example: 'Insufficient coverage',
   })
   @IsString()
-  @IsOptional()
-  remarks?: string;
+  @IsNotEmpty({
+    message: 'reviewer_note is required when declining a leave request',
+  })
+  remarks: string;
 }
 
 export class ManagerRemarksDto {

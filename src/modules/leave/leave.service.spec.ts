@@ -16,6 +16,8 @@ import { S3StorageService } from '../storage/storage.service';
 import { TenantDatabaseService } from '../../common/services/tenant-database.service';
 import { WorkflowService } from '../workflow/workflow.service';
 import { TenantSettingsService } from '../tenant-settings/tenant-settings.service';
+import { LeaveBalance } from '../../entities/leave-balance.entity';
+import { EmailService } from '../../common/utils/email';
 
 // ── Fixture helpers ──────────────────────────────────────────────────────────
 
@@ -80,6 +82,15 @@ const mockLeaveRepo = () => ({
   create: jest.fn(),
 });
 
+const mockLeaveBalanceRepo = () => ({
+  findOne: jest.fn().mockResolvedValue({
+    id: 'bal-1',
+    used: 0,
+    year: new Date().getFullYear(),
+  }),
+  save: jest.fn().mockImplementation((b: unknown) => Promise.resolve(b)),
+});
+
 const mockLeaveTypeRepo = () => ({ findOne: jest.fn() });
 const mockUserRepo = () => ({ findOne: jest.fn() });
 const mockEmployeeRepo = () => ({ findOne: jest.fn() });
@@ -134,6 +145,10 @@ describe('LeaveService', () => {
         LeaveService,
         { provide: getRepositoryToken(Leave), useFactory: mockLeaveRepo },
         {
+          provide: getRepositoryToken(LeaveBalance),
+          useFactory: mockLeaveBalanceRepo,
+        },
+        {
           provide: getRepositoryToken(LeaveType),
           useFactory: mockLeaveTypeRepo,
         },
@@ -150,6 +165,13 @@ describe('LeaveService', () => {
         {
           provide: TenantSettingsService,
           useFactory: mockTenantSettingsService,
+        },
+        {
+          provide: EmailService,
+          useValue: {
+            sendEmail: () => Promise.resolve(),
+            sendLeaveStatusEmail: () => Promise.resolve(),
+          },
         },
       ],
     }).compile();
@@ -307,7 +329,7 @@ describe('LeaveService', () => {
       leaveRepo.findOne.mockResolvedValue(null);
 
       await expect(
-        service.rejectLeave(LEAVE_ID, ADMIN_USER_ID, TENANT_ID),
+        service.rejectLeave(LEAVE_ID, ADMIN_USER_ID, TENANT_ID, 'reason'),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -317,7 +339,7 @@ describe('LeaveService', () => {
       );
 
       await expect(
-        service.rejectLeave(LEAVE_ID, ADMIN_USER_ID, TENANT_ID),
+        service.rejectLeave(LEAVE_ID, ADMIN_USER_ID, TENANT_ID, 'reason'),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -327,7 +349,7 @@ describe('LeaveService', () => {
       );
 
       await expect(
-        service.rejectLeave(LEAVE_ID, ADMIN_USER_ID, TENANT_ID),
+        service.rejectLeave(LEAVE_ID, ADMIN_USER_ID, TENANT_ID, 'reason'),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -379,6 +401,7 @@ describe('LeaveService', () => {
         LEAVE_ID,
         ADMIN_USER_ID,
         TENANT_ID,
+        'Rejected',
       );
 
       expect(result.status).toBe(LeaveStatus.REJECTED);
@@ -420,7 +443,7 @@ describe('LeaveService', () => {
       userRepo.findOne.mockResolvedValue(makeUser('random-user', 'employee'));
 
       await expect(
-        service.rejectLeave(LEAVE_ID, 'random-user', TENANT_ID),
+        service.rejectLeave(LEAVE_ID, 'random-user', TENANT_ID, 'reason'),
       ).rejects.toThrow(ForbiddenException);
     });
   });

@@ -26,8 +26,8 @@ export default tseslint.config(
   },
   {
     rules: {
-      // Formatting — enforced strictly (auto-fixable via prettier)
-      'prettier/prettier': ['error', { singleQuote: true }],
+      // Formatting — enforced strictly (auto-fixable via prettier); options live in .prettierrc
+      'prettier/prettier': 'error',
       // avoidEscape: allow double quotes when string contains single quotes (aligns with prettier)
       'quotes': ['error', 'single', { avoidEscape: true, allowTemplateLiterals: true }],
 
