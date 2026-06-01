@@ -2,6 +2,8 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  ConflictException,
+  BadRequestException,
   Logger,
 } from '@nestjs/common';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
@@ -13,8 +15,9 @@ import {
   WorkflowRequestType,
 } from '../../common/constants/enums';
 import { WorkflowService } from '../workflow/workflow.service';
-import { Leave } from '../../entities/leave.entity';
-import { LeaveType } from '../../entities/leave-type.entity';
+import { Leave } from 'src/entities/leave.entity';
+import { LeaveBalance } from 'src/entities/leave-balance.entity';
+import { LeaveType } from 'src/entities/leave-type.entity';
 import { CreateLeaveDto } from './dto/create-leave.dto';
 import { CreateLeaveForEmployeeDto } from './dto/create-leave-for-employee.dto';
 import { EditLeaveDto } from './dto/update-leave.dto';
@@ -30,12 +33,15 @@ import {
   TenantSettingsService,
   TenantSettingKey,
 } from '../tenant-settings/tenant-settings.service';
+import { EmailService } from '../../common/utils/email/email.service';
 
 @Injectable()
 export class LeaveService {
   constructor(
     @InjectRepository(Leave)
     private leaveRepo: Repository<Leave>,
+    @InjectRepository(LeaveBalance)
+    private readonly leaveBalanceRepo: Repository<LeaveBalance>,
     @InjectRepository(User)
     private userRepo: Repository<User>,
     @InjectRepository(Employee)
@@ -53,6 +59,7 @@ export class LeaveService {
     private readonly dataSource: DataSource,
     private readonly workflowService: WorkflowService,
     private readonly tenantSettings: TenantSettingsService,
+    private readonly emailService: EmailService,
   ) {}
 
   private readonly logger = new Logger(LeaveService.name);
@@ -118,6 +125,7 @@ export class LeaveService {
       employeeRepo: Repository<Employee>,
       teamRepo: Repository<Team>,
       em: EntityManager | null,
+      balanceRepo: Repository<LeaveBalance>,
     ) => Promise<T>,
   ): Promise<T> {
     const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
@@ -129,6 +137,7 @@ export class LeaveService {
           em.getRepository(Employee),
           em.getRepository(Team),
           em,
+          em.getRepository(LeaveBalance),
         ),
       );
     }
@@ -138,7 +147,40 @@ export class LeaveService {
       this.employeeRepo,
       this.teamRepo,
       null,
+      this.leaveBalanceRepo,
     );
+  }
+
+  public async deductLeaveBalance(
+    balanceRepo: Repository<LeaveBalance>,
+    leaveTypeRepo: Repository<LeaveType>,
+    leave: Leave,
+    tenantId: string,
+  ): Promise<void> {
+    const year = new Date(leave.startDate).getFullYear();
+    let balance = await balanceRepo.findOne({
+      where: {
+        employeeId: leave.employeeId,
+        leaveTypeId: leave.leaveTypeId,
+        year,
+        tenantId,
+      },
+    });
+    if (!balance) {
+      const leaveType = await leaveTypeRepo.findOne({
+        where: { id: leave.leaveTypeId, tenantId },
+      });
+      balance = balanceRepo.create({
+        employeeId: leave.employeeId,
+        leaveTypeId: leave.leaveTypeId,
+        year,
+        allocated: leaveType?.maxDaysPerYear ?? 0,
+        used: 0,
+        tenantId,
+      });
+    }
+    balance.used += leave.totalDays;
+    await balanceRepo.save(balance);
   }
 
   async createLeave(
@@ -213,18 +255,14 @@ export class LeaveService {
       .where('leave.employeeId = :employeeId', { employeeId })
       .andWhere('leave.tenantId = :tenantId', { tenantId })
       .andWhere('leave.status IN (:...statuses)', {
-        statuses: [
-          LeaveStatus.PENDING,
-          LeaveStatus.PROCESSING,
-          LeaveStatus.APPROVED,
-        ],
+        statuses: [LeaveStatus.APPROVED, LeaveStatus.PROCESSING],
       })
       .andWhere('leave.startDate <= :endDate', { endDate })
       .andWhere('leave.endDate >= :startDate', { startDate })
       .getOne();
 
     if (overlappingLeave) {
-      throw new ForbiddenException(
+      throw new ConflictException(
         'You already have a leave request that overlaps with these dates',
       );
     }
@@ -527,18 +565,14 @@ export class LeaveService {
       .where('leave.employeeId = :employeeId', { employeeId: dto.employeeId })
       .andWhere('leave.tenantId = :tenantId', { tenantId })
       .andWhere('leave.status IN (:...statuses)', {
-        statuses: [
-          LeaveStatus.PENDING,
-          LeaveStatus.PROCESSING,
-          LeaveStatus.APPROVED,
-        ],
+        statuses: [LeaveStatus.APPROVED, LeaveStatus.PROCESSING],
       })
       .andWhere('leave.startDate <= :endDate', { endDate })
       .andWhere('leave.endDate >= :startDate', { startDate })
       .getOne();
 
     if (overlappingLeave) {
-      throw new ForbiddenException(
+      throw new ConflictException(
         'Employee already has a leave request that overlaps with these dates',
       );
     }
@@ -749,14 +783,26 @@ export class LeaveService {
     tenantId: string,
     remarks?: string,
   ): Promise<Leave> {
-    return this.runInTenantContext(
+    const savedLeave = await this.runInTenantContext(
       tenantId,
-      async (leaveRepo, _leaveTypeRepo, employeeRepo) => {
+      async (
+        leaveRepo,
+        leaveTypeRepo,
+        employeeRepo,
+        _teamRepo,
+        _em,
+        balanceRepo,
+      ) => {
         const leave = await leaveRepo.findOne({
           where: { id, tenantId },
           relations: ['employee'],
         });
         if (!leave) throw new NotFoundException('Leave not found');
+
+        if (approverId === leave.employeeId)
+          throw new ForbiddenException(
+            'You cannot approve your own leave request',
+          );
 
         const isPending = leave.status === LeaveStatus.PENDING;
         const isProcessing = leave.status === LeaveStatus.PROCESSING;
@@ -780,78 +826,92 @@ export class LeaveService {
           leave.approvedBy = approverId;
           leave.approvedAt = new Date();
           leave.remarks = remarks || '';
-          const saved = await leaveRepo.save(leave);
-          try {
-            const employeeUser = await this.userRepo.findOne({
-              where: { id: leave.employeeId },
-              select: ['id', 'first_name', 'last_name'],
-            });
-            const employeePayload = employeeUser
-              ? {
-                  id: employeeUser.id,
-                  first_name: employeeUser.first_name,
-                  last_name: employeeUser.last_name,
-                }
-              : { id: leave.employeeId, first_name: '', last_name: '' };
-            const allAdminIds =
-              await this.getTenantAdminAndHrAdminUserIds(tenantId);
-            await this.notificationService.notifyLeaveProcessing(
-              { id: saved.id, tenantId: saved.tenantId },
-              approverId,
-              employeePayload,
-              allAdminIds.filter((uid) => uid !== approverId),
-            );
-            await this.notificationService.markAsReadForRelatedEntity(
-              approverId,
-              tenantId,
-              'leave',
-              saved.id,
-            );
-          } catch (e) {
-            this.logger.warn('Failed to send leave processing notification', e);
-          }
-          return saved;
+          return leaveRepo.save(leave);
         }
 
         if ((isPending || isProcessing) && isApproverAdmin) {
+          await this.deductLeaveBalance(
+            balanceRepo,
+            leaveTypeRepo,
+            leave,
+            tenantId,
+          );
           leave.status = LeaveStatus.APPROVED;
           leave.approvedBy = approverId;
           leave.approvedAt = new Date();
           leave.remarks = remarks || '';
-          const saved = await leaveRepo.save(leave);
-          try {
-            const employeeUser = await this.userRepo.findOne({
-              where: { id: leave.employeeId },
-              select: ['id', 'first_name', 'last_name'],
-            });
-            const employeePayload = employeeUser
-              ? {
-                  id: employeeUser.id,
-                  first_name: employeeUser.first_name,
-                  last_name: employeeUser.last_name,
-                }
-              : { id: leave.employeeId, first_name: '', last_name: '' };
-            await this.notificationService.notifyLeaveFinalDecision(
-              { id: saved.id, tenantId: saved.tenantId },
-              approverId,
-              employeePayload,
-              true,
-            );
-          } catch (e) {
-            this.logger.warn('Failed to send leave approval notification', e);
-          }
-          return saved;
+          return leaveRepo.save(leave);
         }
 
         if (isProcessing && isApproverManager)
           throw new ForbiddenException(
             'Leave is already in processing; pending admin approval',
           );
+
         throw new ForbiddenException(
           'You are not authorized to approve this leave',
         );
       },
     );
+
+    try {
+      const employeeUser = await this.userRepo.findOne({
+        where: { id: savedLeave.employeeId },
+        select: ['id', 'first_name', 'last_name', 'email'],
+      });
+      const employeePayload = employeeUser
+        ? {
+            id: employeeUser.id,
+            first_name: employeeUser.first_name,
+            last_name: employeeUser.last_name,
+          }
+        : { id: savedLeave.employeeId, first_name: '', last_name: '' };
+      const employeeEmail = employeeUser?.email;
+
+      if (savedLeave.status === LeaveStatus.PROCESSING) {
+        const allAdminIds =
+          await this.getTenantAdminAndHrAdminUserIds(tenantId);
+        await this.notificationService.notifyLeaveProcessing(
+          { id: savedLeave.id, tenantId: savedLeave.tenantId },
+          approverId,
+          employeePayload,
+          allAdminIds.filter((uid) => uid !== approverId),
+        );
+        await this.notificationService.markAsReadForRelatedEntity(
+          approverId,
+          tenantId,
+          'leave',
+          savedLeave.id,
+        );
+        if (employeeEmail) {
+          await this.emailService.sendNotificationEmail(
+            employeeEmail,
+            'Leave Request Approved by Manager',
+            'Your leave request has been approved by your manager and is now pending admin final approval.',
+            savedLeave.employeeId,
+          );
+        }
+      } else if (savedLeave.status === LeaveStatus.APPROVED) {
+        await this.notificationService.notifyLeaveFinalDecision(
+          { id: savedLeave.id, tenantId: savedLeave.tenantId },
+          approverId,
+          employeePayload,
+          true,
+        );
+        if (employeeEmail) {
+          await this.emailService.sendNotificationEmail(
+            employeeEmail,
+            'Leave Request Approved',
+            'Your leave request has been approved.',
+            savedLeave.employeeId,
+          );
+        }
+      }
+    } catch (e) {
+      this.logger.warn('Failed to send post-approve notification', e);
+    }
+
+    return savedLeave;
   }
 
   async rejectLeave(
@@ -860,7 +920,12 @@ export class LeaveService {
     tenantId: string,
     remarks?: string,
   ): Promise<Leave> {
-    return this.runInTenantContext(
+    if (!remarks?.trim())
+      throw new BadRequestException(
+        'remarks is required when rejecting a leave request',
+      );
+
+    const savedLeave = await this.runInTenantContext(
       tenantId,
       async (leaveRepo, _lt, employeeRepo) => {
         const leave = await leaveRepo.findOne({
@@ -868,6 +933,11 @@ export class LeaveService {
           relations: ['employee'],
         });
         if (!leave) throw new NotFoundException('Leave not found');
+
+        if (approverId === leave.employeeId)
+          throw new ForbiddenException(
+            'You cannot reject your own leave request',
+          );
 
         const canReject =
           leave.status === LeaveStatus.PENDING ||
@@ -887,89 +957,15 @@ export class LeaveService {
         );
         const isApproverAdmin = await this.isUserAdmin(approverId);
 
-        if (leave.status === LeaveStatus.PENDING && isApproverManager) {
+        if (
+          (leave.status === LeaveStatus.PENDING && isApproverManager) ||
+          (isApproverAdmin && canReject)
+        ) {
           leave.status = LeaveStatus.REJECTED;
           leave.approvedBy = approverId;
           leave.approvedAt = new Date();
-          leave.remarks = remarks || '';
-          const saved = await leaveRepo.save(leave);
-          try {
-            const notification = await this.notificationService.create(
-              leave.employeeId,
-              tenantId,
-              'Your leave request was rejected by your manager',
-              NotificationType.LEAVE,
-              {
-                relatedEntityType: 'leave',
-                relatedEntityId: saved.id,
-                senderId: approverId,
-                senderRole: 'manager',
-                action: NotificationAction.REJECTED,
-                isSystem: false,
-              },
-            );
-            this.notificationGateway.sendToUser(
-              leave.employeeId,
-              'new_notification',
-              {
-                id: notification.id,
-                message: notification.message,
-                type: notification.type,
-                related_entity_type: 'leave',
-                related_entity_id: saved.id,
-                created_at: notification.created_at,
-              },
-            );
-          } catch (e) {
-            this.logger.warn(
-              'Failed to send manager rejection notification',
-              e,
-            );
-          }
-          return saved;
-        }
-
-        if (isApproverAdmin) {
-          leave.status = LeaveStatus.REJECTED;
-          leave.approvedBy = approverId;
-          leave.approvedAt = new Date();
-          leave.remarks = remarks || '';
-          const saved = await leaveRepo.save(leave);
-          try {
-            const employeeUser = await this.userRepo.findOne({
-              where: { id: leave.employeeId },
-              select: ['id', 'first_name', 'last_name'],
-            });
-            const employeePayload = employeeUser
-              ? {
-                  id: employeeUser.id,
-                  first_name: employeeUser.first_name,
-                  last_name: employeeUser.last_name,
-                }
-              : { id: leave.employeeId, first_name: '', last_name: '' };
-            const notification =
-              await this.notificationService.notifyLeaveFinalDecision(
-                { id: saved.id, tenantId: saved.tenantId },
-                approverId,
-                employeePayload,
-                false,
-              );
-            this.notificationGateway.sendToUser(
-              leave.employeeId,
-              'new_notification',
-              {
-                id: notification.id,
-                message: notification.message,
-                type: notification.type,
-                related_entity_type: 'leave',
-                related_entity_id: saved.id,
-                created_at: notification.created_at,
-              },
-            );
-          } catch (e) {
-            this.logger.warn('Failed to send leave rejection notification', e);
-          }
-          return saved;
+          leave.remarks = remarks.trim();
+          return leaveRepo.save(leave);
         }
 
         throw new ForbiddenException(
@@ -977,6 +973,53 @@ export class LeaveService {
         );
       },
     );
+
+    try {
+      const employeeUser = await this.userRepo.findOne({
+        where: { id: savedLeave.employeeId },
+        select: ['id', 'first_name', 'last_name', 'email'],
+      });
+      const employeeEmail = employeeUser?.email;
+      const employeePayload = employeeUser
+        ? {
+            id: employeeUser.id,
+            first_name: employeeUser.first_name,
+            last_name: employeeUser.last_name,
+          }
+        : { id: savedLeave.employeeId, first_name: '', last_name: '' };
+
+      const notification =
+        await this.notificationService.notifyLeaveFinalDecision(
+          { id: savedLeave.id, tenantId: savedLeave.tenantId },
+          approverId,
+          employeePayload,
+          false,
+        );
+      this.notificationGateway.sendToUser(
+        savedLeave.employeeId,
+        'new_notification',
+        {
+          id: notification.id,
+          message: notification.message,
+          type: notification.type,
+          related_entity_type: 'leave',
+          related_entity_id: savedLeave.id,
+          created_at: notification.created_at,
+        },
+      );
+      if (employeeEmail) {
+        await this.emailService.sendNotificationEmail(
+          employeeEmail,
+          'Leave Request Declined',
+          `Your leave request has been declined. Reason: ${remarks}`,
+          savedLeave.employeeId,
+        );
+      }
+    } catch (e) {
+      this.logger.warn('Failed to send post-rejection notification', e);
+    }
+
+    return savedLeave;
   }
 
   async getLeavesTakenInLast12Months(
@@ -1925,5 +1968,44 @@ export class LeaveService {
       if (limit && items.length < limit) break;
     }
     return rows;
+  }
+
+  async getMyBalances(
+    employeeId: string,
+    tenantId: string,
+    year?: number,
+  ): Promise<LeaveBalance[]> {
+    const targetYear = year ?? new Date().getFullYear();
+    return this.runInTenantContext(
+      tenantId,
+      async (_lr, leaveTypeRepo, _er, _tr, _em, balanceRepo) => {
+        const balances = await balanceRepo.find({
+          where: { employeeId, tenantId, year: targetYear },
+          relations: ['leaveType'],
+        });
+
+        // For leave types that have no balance record yet, create virtual entries
+        const activeTypes = await leaveTypeRepo.find({
+          where: { tenantId, status: 'active' },
+        });
+        const existingTypeIds = new Set(balances.map((b) => b.leaveTypeId));
+        for (const lt of activeTypes) {
+          if (!existingTypeIds.has(lt.id)) {
+            const virtual = balanceRepo.create({
+              employeeId,
+              tenantId,
+              leaveTypeId: lt.id,
+              year: targetYear,
+              allocated: lt.maxDaysPerYear,
+              used: 0,
+            });
+            virtual.leaveType = lt;
+            balances.push(virtual);
+          }
+        }
+
+        return balances;
+      },
+    );
   }
 }
