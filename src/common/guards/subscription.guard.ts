@@ -4,13 +4,13 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
-} from "@nestjs/common";
-import { Reflector } from "@nestjs/core";
-import { SysDbService } from "../services/sys-db.service";
-import { SubscriptionStatus } from "../constants/enums";
-import { GLOBAL_SYSTEM_TENANT_ID } from "../constants/enums";
-import { IS_PUBLIC_KEY } from "../decorators/public.decorator";
-import { AuthenticatedRequest } from "../types/request.types";
+} from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { SysDbService } from '../services/sys-db.service';
+import { SubscriptionStatus } from '../constants/enums';
+import { GLOBAL_SYSTEM_TENANT_ID } from '../constants/enums';
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { AuthenticatedRequest } from '../types/request.types';
 
 const TRIAL_DURATION_DAYS = 14;
 
@@ -53,7 +53,7 @@ export class SubscriptionGuard implements CanActivate {
 
     if (!rows.length) {
       throw new HttpException(
-        { code: "SUBSCRIPTION_INACTIVE", upgradeUrl: "/settings/billing" },
+        { code: 'SUBSCRIPTION_INACTIVE', upgradeUrl: '/settings/billing' },
         HttpStatus.PAYMENT_REQUIRED,
       );
     }
@@ -88,7 +88,7 @@ export class SubscriptionGuard implements CanActivate {
         // No explicit trial_ends_at — fall back to created_at-based check.
         // Guard against misconfigured rows: deny to be safe.
         throw new HttpException(
-          { code: "SUBSCRIPTION_INACTIVE", upgradeUrl: "/settings/billing" },
+          { code: 'SUBSCRIPTION_INACTIVE', upgradeUrl: '/settings/billing' },
           HttpStatus.PAYMENT_REQUIRED,
         );
       }
@@ -101,7 +101,7 @@ export class SubscriptionGuard implements CanActivate {
         }
         // Grace window expired — treat as cancelled.
         throw new HttpException(
-          { code: "SUBSCRIPTION_INACTIVE", upgradeUrl: "/settings/billing" },
+          { code: 'SUBSCRIPTION_INACTIVE', upgradeUrl: '/settings/billing' },
           HttpStatus.PAYMENT_REQUIRED,
         );
       }
@@ -109,13 +109,13 @@ export class SubscriptionGuard implements CanActivate {
       case SubscriptionStatus.CANCELLED:
       case SubscriptionStatus.EXPIRED:
         throw new HttpException(
-          { code: "SUBSCRIPTION_INACTIVE", upgradeUrl: "/settings/billing" },
+          { code: 'SUBSCRIPTION_INACTIVE', upgradeUrl: '/settings/billing' },
           HttpStatus.PAYMENT_REQUIRED,
         );
 
       default:
         throw new HttpException(
-          { code: "SUBSCRIPTION_INACTIVE", upgradeUrl: "/settings/billing" },
+          { code: 'SUBSCRIPTION_INACTIVE', upgradeUrl: '/settings/billing' },
           HttpStatus.PAYMENT_REQUIRED,
         );
     }
