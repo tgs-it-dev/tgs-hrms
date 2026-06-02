@@ -9,6 +9,7 @@ import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Role } from '../../entities/role.entity';
 import { Tenant } from '../../entities/tenant.entity';
+import { SubscriptionStatus } from '../../common/constants/enums';
 import { Employee } from '../../entities/employee.entity';
 import { CompanyDetails } from '../../entities/company-details.entity';
 import { SignupSession } from '../../entities/signup-session.entity';
@@ -37,6 +38,10 @@ const mockTenant: Tenant = {
   id: '11111111-1111-1111-1111-111111111111',
   name: 'Test Company',
   status: 'active',
+  subscription_status: SubscriptionStatus.ACTIVE,
+  trial_ends_at: null,
+  grace_period_ends_at: null,
+  seat_limit: null,
   schema_provisioned: false,
   workflow_enabled: false,
   created_at: new Date(),

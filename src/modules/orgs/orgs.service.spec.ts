@@ -18,6 +18,7 @@ import {
   GLOBAL_SYSTEM_TENANT_ID,
 } from '../../common/constants/enums';
 import { EmailService } from '../../common/utils/email/email.service';
+import { SysDbService } from '../../common/services/sys-db.service';
 
 // ─── Fixed UUIDs ──────────────────────────────────────────────────────────────
 const ORG_ID = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
@@ -118,6 +119,10 @@ const mockEmailService = {
   sendInvitationEmail: jest.fn().mockResolvedValue(undefined),
 };
 
+const mockSysDbService = {
+  sysQuery: jest.fn().mockResolvedValue([{ member_count: '0' }]),
+};
+
 // ─── Suite ────────────────────────────────────────────────────────────────────
 describe('OrgsService', () => {
   let service: OrgsService;
@@ -146,6 +151,7 @@ describe('OrgsService', () => {
         },
         { provide: getRepositoryToken(User), useValue: mockUserRepository },
         { provide: EmailService, useValue: mockEmailService },
+        { provide: SysDbService, useValue: mockSysDbService },
       ],
     }).compile();
 

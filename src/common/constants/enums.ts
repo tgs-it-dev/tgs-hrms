@@ -160,13 +160,13 @@ export enum SalaryStatus {
 // }
 
 // Subscription Enums
-// export enum SubscriptionStatus {
-//   ACTIVE = 'active',
-//   INACTIVE = 'inactive',
-//   CANCELLED = 'cancelled',
-//   EXPIRED = 'expired',
-//   TRIAL = 'trial',
-// }
+export enum SubscriptionStatus {
+  ACTIVE = 'active',
+  TRIAL = 'trial',
+  GRACE_PERIOD = 'grace_period',
+  CANCELLED = 'cancelled',
+  EXPIRED = 'expired',
+}
 
 // export enum PaymentStatus {
 //   PENDING = 'pending',

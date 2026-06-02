@@ -5,6 +5,8 @@ import {
   GoneException,
   BadRequestException,
   ConflictException,
+  HttpException,
+  HttpStatus,
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -17,6 +19,7 @@ import { User } from '../../entities/user.entity';
 import { OrgMemberRole } from '../../common/constants/enums';
 import { GLOBAL_SYSTEM_TENANT_ID } from '../../common/constants/enums';
 import { EmailService } from '../../common/utils/email/email.service';
+import { SysDbService } from '../../common/services/sys-db.service';
 import { CreateInviteDto } from './dto/create-invite.dto';
 
 /** How long (ms) an invite token remains valid. */
@@ -36,6 +39,7 @@ export class OrgsService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly emailService: EmailService,
+    private readonly sysDb: SysDbService,
   ) {}
 
   // ─── Org-access guard ──────────────────────────────────────────────────────
@@ -174,13 +178,15 @@ export class OrgsService {
   ): Promise<{ inviteId: string; expiresAt: Date }> {
     const org = await this.tenantRepository
       .createQueryBuilder('t')
-      .select(['t.id', 't.name'])
+      .select(['t.id', 't.name', 't.seat_limit'])
       .where('t.id = :orgId', { orgId })
       .getOne();
 
     if (!org) {
       throw new NotFoundException('Organisation not found.');
     }
+
+    await this.enforceSeatLimit(orgId, org);
 
     const inviteeEmail = dto.email.toLowerCase();
 
@@ -234,6 +240,36 @@ export class OrgsService {
       });
 
     return { inviteId: saved.id, expiresAt };
+  }
+
+  // ─── Seat-limit enforcement ────────────────────────────────────────────────
+
+  /**
+   * Throws 402 when the org has reached its plan seat cap.
+   * No-op when seat_limit is null (unlimited plan).
+   */
+  private async enforceSeatLimit(
+    orgId: string,
+    org: Pick<Tenant, 'id' | 'name' | 'seat_limit'>,
+  ): Promise<void> {
+    if (org.seat_limit === null || org.seat_limit === undefined) return;
+
+    const rows = await this.sysDb.sysQuery<{ member_count: string }>(
+      `SELECT COUNT(*) AS member_count FROM org_members WHERE org_id = $1`,
+      [orgId],
+    );
+
+    const currentCount = parseInt(rows[0]?.member_count ?? '0', 10);
+    if (currentCount >= org.seat_limit) {
+      throw new HttpException(
+        {
+          code: 'SEAT_LIMIT_REACHED',
+          message: `Your plan allows a maximum of ${org.seat_limit} members. Upgrade to invite more.`,
+          upgradeUrl: '/settings/billing',
+        },
+        HttpStatus.PAYMENT_REQUIRED,
+      );
+    }
   }
 
   /**

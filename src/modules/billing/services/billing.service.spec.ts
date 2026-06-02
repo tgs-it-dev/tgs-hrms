@@ -10,6 +10,7 @@ import {
 } from '../../../entities/billing-transaction.entity';
 import { CompanyDetails } from '../../../entities/company-details.entity';
 import { Tenant } from '../../../entities/tenant.entity';
+import { SubscriptionStatus } from '../../../common/constants/enums';
 import { TenantDatabaseService } from '../../../common/services/tenant-database.service';
 import { EmployeeService } from '../../employee/services/employee.service';
 
@@ -39,6 +40,10 @@ const mockTenantUnprovisioned: Tenant = {
   id: TENANT_ID,
   name: 'Test Corp',
   status: 'active',
+  subscription_status: SubscriptionStatus.ACTIVE,
+  trial_ends_at: null,
+  grace_period_ends_at: null,
+  seat_limit: null,
   schema_provisioned: false,
   workflow_enabled: false,
   created_at: new Date(),
