@@ -361,6 +361,24 @@ export enum AnnouncementStatus {
   CANCELLED = 'cancelled',
 }
 
+// Notification Email Enums
+export enum NotificationEmailType {
+  LEAVE_REQUEST = 'leave_request',
+  LEAVE_STATUS_UPDATE = 'leave_status_update',
+  FLEX_REQUEST = 'flex_request',
+  FLEX_STATUS_UPDATE = 'flex_status_update',
+  OVERTIME_REQUEST = 'overtime_request',
+  OVERTIME_STATUS_UPDATE = 'overtime_status_update',
+  WORKFLOW_STEP_PROCESSING = 'workflow_step_processing',
+  WORKFLOW_PENDING_APPROVAL = 'workflow_pending_approval',
+  LATE_ARRIVAL_ALERT = 'late_arrival_alert',
+}
+
+export enum NotificationLogStatus {
+  SENT = 'sent',
+  FAILED = 'failed',
+}
+
 // Workflow Enums
 export enum WorkflowRequestType {
   LEAVE = 'leave',

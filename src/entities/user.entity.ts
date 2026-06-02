@@ -93,4 +93,7 @@ export class User extends BaseEntity {
 
   @Column({ type: 'timestamptz', nullable: true })
   locked_until: Date | null;
+
+  @Column({ type: 'boolean', default: true })
+  email_notifications_enabled: boolean;
 }

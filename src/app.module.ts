@@ -45,6 +45,7 @@ import { WorkflowModule } from './modules/workflow/workflow.module';
 import { WfhModule } from './modules/wfh/wfh.module';
 import { OvertimeModule } from './modules/overtime/overtime.module';
 import { OrgsModule } from './modules/orgs/orgs.module';
+import { NotificationsEmailModule } from './modules/notifications-email/notifications-email.module';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { SystemLoggingInterceptor } from './common/interceptors/system-logging.interceptor';
 import { SignedFileUrlInterceptor } from './modules/storage/signed-file-url.interceptor';
@@ -178,6 +179,7 @@ import { SysDbModule } from './common/modules/sys-db.module';
     WfhModule,
     OvertimeModule,
     OrgsModule,
+    NotificationsEmailModule,
     TenantSettingsModule,
     IpWhitelistModule,
     SysDbModule,

@@ -17,6 +17,7 @@ import { WorkflowModule } from '../workflow/workflow.module';
 import { LeaveWorkflowListener } from './listeners/workflow.listener';
 import { TenantSettingsModule } from '../tenant-settings/tenant-settings.module';
 import { EmailModule } from '../../common/utils/email/email.module';
+import { NotificationsEmailModule } from '../notifications-email/notifications-email.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { EmailModule } from '../../common/utils/email/email.module';
     WorkflowModule,
     TenantSettingsModule,
     EmailModule,
+    NotificationsEmailModule,
   ],
   providers: [LeaveService, LeaveFileUploadService, LeaveWorkflowListener],
   controllers: [LeaveController, LeaveBalancesController],

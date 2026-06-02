@@ -124,6 +124,7 @@ export class TenantSchemaProvisioningService {
       await this.createWorkflowStepsTable(queryRunner, schemaName);
       await this.createWfhRequestsTable(queryRunner, schemaName);
       await this.createOvertimeRequestsTable(queryRunner, schemaName);
+      await this.createNotificationsLogTable(queryRunner, schemaName);
       await this.seedDefaultWorkflowConfigs(queryRunner, schemaName, tenantId);
 
       // Copy platform-wide GLOBAL departments/designations so new tenants can
@@ -198,6 +199,7 @@ export class TenantSchemaProvisioningService {
       await this.createWorkflowStepsTable(queryRunner, schemaName);
       await this.createWfhRequestsTable(queryRunner, schemaName);
       await this.createOvertimeRequestsTable(queryRunner, schemaName);
+      await this.createNotificationsLogTable(queryRunner, schemaName);
       await this.seedDefaultWorkflowConfigs(queryRunner, schemaName, tenantId);
 
       // Migrate any existing public-schema rows for this tenant into the new
@@ -1597,6 +1599,43 @@ export class TenantSchemaProvisioningService {
         ON "${schemaName}"."overtime_requests" ("tenant_id", "status")
     `);
     this.logger.debug(`Table "${schemaName}".overtime_requests ensured`);
+  }
+
+  private async createNotificationsLogTable(
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
+    schemaName: string,
+  ): Promise<void> {
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."notifications_log" (
+        id                UUID         NOT NULL DEFAULT gen_random_uuid(),
+        tenant_id         UUID,
+        recipient_user_id UUID,
+        recipient_email   VARCHAR(320) NOT NULL,
+        type              VARCHAR(64)  NOT NULL,
+        status            VARCHAR(16)  NOT NULL,
+        error_message     TEXT,
+        metadata          JSONB,
+        sent_at           TIMESTAMPTZ  NOT NULL DEFAULT now(),
+        CONSTRAINT "pk_${schemaName}_notif_log" PRIMARY KEY (id)
+      )
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_nlog_tenant"
+        ON "${schemaName}"."notifications_log" (tenant_id)
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_nlog_recipient"
+        ON "${schemaName}"."notifications_log" (recipient_user_id)
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_nlog_type"
+        ON "${schemaName}"."notifications_log" (type)
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_nlog_status"
+        ON "${schemaName}"."notifications_log" (status)
+    `);
+    this.logger.debug(`Table "${schemaName}".notifications_log ensured`);
   }
 
   private async seedDefaultWorkflowConfigs(
