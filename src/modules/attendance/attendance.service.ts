@@ -660,6 +660,12 @@ export class AttendanceService {
       const qb = repo
         .createQueryBuilder("attendance")
         .leftJoinAndSelect("attendance.user", "user")
+        .leftJoinAndSelect(
+          "user.employees",
+          "employee",
+          "employee.deleted_at IS NULL",
+        )
+        .leftJoinAndSelect("employee.team", "team")
         .where("user.tenant_id = :tenantId", { tenantId });
       if (start) qb.andWhere("attendance.timestamp >= :start", { start });
       if (end) qb.andWhere("attendance.timestamp <= :end", { end });

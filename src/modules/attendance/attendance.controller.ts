@@ -418,7 +418,8 @@ export class AttendanceController {
       
       // Store user info
       if (ev.user && !userInfoMap[userId]) {
-        userInfoMap[userId] = ev.user;
+        const teamName = ev.user.employees?.[0]?.team?.name ?? '';
+        userInfoMap[userId] = { ...ev.user, team_name: teamName };
       }
     }
     
@@ -466,6 +467,7 @@ export class AttendanceController {
         rows.push({
           date: date,
           employee_name: userName,
+          team_name: userInfoMap[userId]?.team_name ?? '',
           check_in: checkIn?.timestamp || '',
           check_out: (checkOut && checkIn && new Date(checkOut.timestamp) > new Date(checkIn.timestamp))
             ? checkOut.timestamp
@@ -484,7 +486,7 @@ export class AttendanceController {
     });
 
     // Headers even when no data (e.g. no records in date range)
-    const csvRows = rows.length > 0 ? rows : [{ date: '', employee_name: '', check_in: '', check_out: '', worked_hours: '', status: '' }];
+    const csvRows = rows.length > 0 ? rows : [{ date: '', employee_name: '', team_name: '', check_in: '', check_out: '', worked_hours: '', status: '' }];
     return sendCsvResponse(res, 'attendance-all.csv', csvRows);
   }
 
