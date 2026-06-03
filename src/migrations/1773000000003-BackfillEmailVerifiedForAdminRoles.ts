@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-const ADMIN_ROLE_NAMES = ['admin', 'system-admin', 'network-admin', 'hr-admin'];
+const ADMIN_ROLE_NAMES = ['Admin', 'System-Admin', 'network-admin', 'hr-admin'];
 
 export class BackfillEmailVerifiedForAdminRoles1773000000003
   implements MigrationInterface
