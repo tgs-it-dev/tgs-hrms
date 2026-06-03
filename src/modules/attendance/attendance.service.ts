@@ -8,6 +8,7 @@ import {
 import {
   AttendanceType,
   CheckInApprovalStatus,
+  EmployeeStatus,
   UserRole,
 } from "../../common/constants/enums";
 import { InjectRepository } from "@nestjs/typeorm";
@@ -1770,61 +1771,65 @@ export class AttendanceService {
     team: string;
     total_present_days: number;
   }>> {
-    const buildQuery = (repo: Repository<Attendance>) => {
-      const qb = repo
-        .createQueryBuilder('attendance')
-        .select("(\"user\".first_name || ' ' || \"user\".last_name)", 'employee_name')
-        .addSelect('department.name', 'department')
-        .addSelect('team.name', 'team')
-        // Convert stored UTC timestamp to local date using the requested timezone
-        // so a 00:30 PKT check-in (19:30 UTC prev day) is counted on the correct local date
-        .addSelect(`COUNT(DISTINCT DATE(attendance.timestamp AT TIME ZONE :tz))`, 'total_present_days')
-        .innerJoin('attendance.user', 'user')
-        .leftJoin('user.employees', 'employee', 'employee.deleted_at IS NULL')
-        .leftJoin('employee.designation', 'designation')
-        .leftJoin('designation.department', 'department')
-        .leftJoin('employee.team', 'team')
-        .where('attendance.type = :type', { type: AttendanceType.CHECK_IN })
-        .setParameter('tz', timezone);
+    // $1 = timezone, $2 = attendance type, $3 = employee status
+    // Date/type filters go in the LEFT JOIN ON clause so employees with 0
+    // check-ins in the range still appear — moving them to WHERE would silently
+    // turn the LEFT JOIN into an INNER JOIN and drop those employees.
+    const params: unknown[] = [timezone, AttendanceType.CHECK_IN, EmployeeStatus.ACTIVE];
+    let idx = 4;
 
-      if (tenantId) {
-        qb.andWhere('user.tenant_id = :tenantId', { tenantId });
-      }
-      // Filter bounds are also evaluated in the local timezone so the full
-      // local day is included (e.g. Jan 1 00:00 PKT = Dec 31 19:00 UTC)
-      if (startDate) {
-        qb.andWhere("(attendance.timestamp AT TIME ZONE :tz)::date >= :startDate", { startDate });
-      }
-      if (endDate) {
-        qb.andWhere("(attendance.timestamp AT TIME ZONE :tz)::date <= :endDate", { endDate });
-      }
+    let dateOnClause = '';
+    if (startDate) {
+      dateOnClause += ` AND (a.timestamp AT TIME ZONE $1)::date >= $${idx++}`;
+      params.push(startDate);
+    }
+    if (endDate) {
+      dateOnClause += ` AND (a.timestamp AT TIME ZONE $1)::date <= $${idx++}`;
+      params.push(endDate);
+    }
 
-      return qb
-        .groupBy('"user".id')
-        .addGroupBy('"user".first_name')
-        .addGroupBy('"user".last_name')
-        .addGroupBy('department.name')
-        .addGroupBy('team.name')
-        .orderBy("(\"user\".first_name || ' ' || \"user\".last_name)", 'ASC')
-        .getRawMany<{
-          employee_name: string;
-          department: string | null;
-          team: string | null;
-          total_present_days: string;
-        }>();
-    };
+    let tenantClause = '';
+    if (tenantId) {
+      tenantClause = `WHERE u.tenant_id = $${idx++}`;
+      params.push(tenantId);
+    }
 
-    let rows: Awaited<ReturnType<typeof buildQuery>>;
+    const sql = `
+      SELECT
+        u.first_name || ' ' || u.last_name            AS employee_name,
+        d.name                                         AS department,
+        t.name                                         AS team,
+        COUNT(DISTINCT DATE(a.timestamp AT TIME ZONE $1)) AS total_present_days
+      FROM users u
+      INNER JOIN employees e   ON e.user_id = u.id AND e.deleted_at IS NULL AND e.status = $3
+      LEFT  JOIN designations des ON des.id = e.designation_id
+      LEFT  JOIN departments  d   ON d.id = des.department_id
+      LEFT  JOIN teams        t   ON t.id = e.team_id
+      LEFT  JOIN attendance   a   ON a.user_id = u.id AND a.type = $2${dateOnClause}
+      ${tenantClause}
+      GROUP BY u.id, u.first_name, u.last_name, d.name, t.name
+      ORDER BY (u.first_name || ' ' || u.last_name) ASC
+    `;
+
+    const runQuery = (runner: { query: (sql: string, params: unknown[]) => Promise<any[]> }) =>
+      runner.query(sql, params);
+
+    let rows: Array<{
+      employee_name: string;
+      department: string | null;
+      team: string | null;
+      total_present_days: string;
+    }>;
 
     if (tenantId) {
       const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
       rows = isProvisioned
         ? await this.tenantDbService.withTenantSchemaReadOnly(tenantId, (em) =>
-            buildQuery(em.getRepository(Attendance)),
+            runQuery(em),
           )
-        : await buildQuery(this.attendanceRepo);
+        : await runQuery(this.dataSource);
     } else {
-      rows = await buildQuery(this.attendanceRepo);
+      rows = await runQuery(this.dataSource);
     }
 
     return rows.map((row) => ({
