@@ -29,6 +29,7 @@ import {
 import { FilesInterceptor } from '@nestjs/platform-express';
 
 import { WfhService } from './wfh.service';
+import { WorkflowService } from '../workflow/workflow.service';
 import { CreateWfhDto } from './dto/create-wfh.dto';
 import { UpdateWfhDto } from './dto/update-wfh.dto';
 import { RemoveAttachmentDto } from '../../common/dto/remove-attachment.dto';
@@ -62,7 +63,10 @@ const PAGINATED_WFH_EXAMPLE = {
 @ApiBearerAuth()
 @Controller('wfh')
 export class WfhController {
-  constructor(private readonly wfhService: WfhService) {}
+  constructor(
+    private readonly wfhService: WfhService,
+    private readonly workflowService: WorkflowService,
+  ) {}
 
   @Post()
   @ApiConsumes('multipart/form-data')
@@ -151,16 +155,73 @@ export class WfhController {
     );
   }
 
+  @Get('team-schedule')
+  @Roles('admin', 'hr-admin', 'system-admin', 'network-admin', 'manager')
+  @ApiOperation({
+    summary: 'Team availability schedule for a given ISO week',
+    description:
+      'Returns all approved WFH and overtime requests for the week. ' +
+      'Managers see their own team only; admins see the full tenant.',
+  })
+  @ApiQuery({
+    name: 'week',
+    required: true,
+    example: '2025-W22',
+    description: 'ISO 8601 week notation, e.g. "2025-W22"',
+  })
+  @ApiOkResponse({
+    description: 'Approved WFH and overtime entries for the week',
+    schema: {
+      example: {
+        week: '2025-W22',
+        monday: '2025-05-26',
+        sunday: '2025-06-01',
+        wfh: [],
+        overtime: [],
+      },
+    },
+  })
+  async getTeamSchedule(
+    @Request() req: AuthenticatedRequest,
+    @Query('week') week: string,
+  ) {
+    return this.workflowService.getTeamSchedule(
+      req.user.id,
+      req.user.tenant_id,
+      week,
+    );
+  }
+
   @Get()
   @Roles('admin', 'hr-admin', 'system-admin', 'network-admin', 'manager')
   @ApiOperation({
     summary: 'List all WFH requests across the tenant (admin/manager)',
+    description:
+      'Managers see only their team. Admins see the full tenant. ' +
+      'Filter by status, date range, or a specific user_id.',
   })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
   @ApiQuery({ name: 'status', enum: WfhStatus, required: false })
+  @ApiQuery({
+    name: 'start_date',
+    required: false,
+    example: '2026-05-01',
+    description: 'Return requests whose end_date >= this date',
+  })
+  @ApiQuery({
+    name: 'end_date',
+    required: false,
+    example: '2026-05-31',
+    description: 'Return requests whose start_date <= this date',
+  })
+  @ApiQuery({
+    name: 'user_id',
+    required: false,
+    description: 'Filter by a specific employee UUID (admin/hr-admin only)',
+  })
   @ApiOkResponse({
-    description: 'Paginated list of all WFH requests with employee info',
+    description: 'Paginated list of WFH requests with employee info',
     schema: { example: PAGINATED_WFH_EXAMPLE },
   })
   async getAllRequests(
@@ -168,12 +229,20 @@ export class WfhController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('status') status?: WfhStatus,
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+    @Query('user_id') userId?: string,
   ) {
     return this.wfhService.getAllWfhRequests(
       req.user.tenant_id,
+      req.user.id,
+      req.user.role,
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 20,
       status,
+      startDate,
+      endDate,
+      userId,
     );
   }
 

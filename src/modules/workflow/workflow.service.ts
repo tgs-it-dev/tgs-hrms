@@ -12,6 +12,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { WorkflowConfig } from '../../entities/workflow-config.entity';
 import { WorkflowRequest } from '../../entities/workflow-request.entity';
 import { WorkflowStep } from '../../entities/workflow-step.entity';
+import { FlexRequestAudit } from '../../entities/flex-request-audit.entity';
 import {
   WorkflowRequestType,
   WorkflowRequestStatus,
@@ -84,6 +85,8 @@ export class WorkflowService {
     private readonly requestRepo: Repository<WorkflowRequest>,
     @InjectRepository(WorkflowStep)
     private readonly stepRepo: Repository<WorkflowStep>,
+    @InjectRepository(FlexRequestAudit)
+    private readonly auditRepo: Repository<FlexRequestAudit>,
     private readonly eventEmitter: EventEmitter2,
     private readonly tenantDbService: TenantDatabaseService,
     @InjectDataSource()
@@ -410,6 +413,13 @@ export class WorkflowService {
           );
         }
 
+        // Prevent self-approval
+        if (actorId === workflowRequest.requestor_id) {
+          throw new ForbiddenException(
+            'You cannot approve or decline your own request',
+          );
+        }
+
         // Validate that the actor has the correct role for this step
         if (
           currentStep.approver_role.toLowerCase() !== actorRole.toLowerCase()
@@ -440,9 +450,19 @@ export class WorkflowService {
           remarks ?? null,
         );
 
+        const previousStatus = workflowRequest.status;
+
         if (action === StepAction.REJECTED) {
           workflowRequest.status = WorkflowRequestStatus.REJECTED;
           await requestRepo.save(workflowRequest);
+          await this.writeAudit(
+            workflowRequest.id,
+            tenantId,
+            actorId,
+            previousStatus,
+            WorkflowRequestStatus.REJECTED,
+            remarks ?? null,
+          );
           this.eventEmitter.emit(WORKFLOW_EVENTS.REQUEST_REJECTED, event);
           this.logger.log(
             `Workflow ${workflowRequestId} rejected at step ${currentStep.step_order}`,
@@ -454,12 +474,28 @@ export class WorkflowService {
           if (isLastStep) {
             workflowRequest.status = WorkflowRequestStatus.APPROVED;
             await requestRepo.save(workflowRequest);
+            await this.writeAudit(
+              workflowRequest.id,
+              tenantId,
+              actorId,
+              previousStatus,
+              WorkflowRequestStatus.APPROVED,
+              remarks ?? null,
+            );
             this.eventEmitter.emit(WORKFLOW_EVENTS.REQUEST_APPROVED, event);
             this.logger.log(`Workflow ${workflowRequestId} fully approved`);
           } else {
             workflowRequest.current_step_order += 1;
             workflowRequest.status = WorkflowRequestStatus.IN_REVIEW;
             await requestRepo.save(workflowRequest);
+            await this.writeAudit(
+              workflowRequest.id,
+              tenantId,
+              actorId,
+              previousStatus,
+              WorkflowRequestStatus.IN_REVIEW,
+              remarks ?? null,
+            );
 
             const stepApprovedEvent = new WorkflowCompletedEvent(
               workflowRequest.id,
@@ -515,8 +551,17 @@ export class WorkflowService {
           return; // Terminal — cannot cancel
         }
 
+        const prevStatus = workflowRequest.status;
         workflowRequest.status = WorkflowRequestStatus.CANCELLED;
         await requestRepo.save(workflowRequest);
+        await this.writeAudit(
+          workflowRequest.id,
+          tenantId,
+          actorId,
+          prevStatus,
+          WorkflowRequestStatus.CANCELLED,
+          null,
+        );
 
         const event = new WorkflowCompletedEvent(
           workflowRequest.id,
@@ -1010,5 +1055,131 @@ export class WorkflowService {
       wfh_workflow_enabled: wfh,
       overtime_workflow_enabled: overtime,
     };
+  }
+
+  // ── Team schedule ─────────────────────────────────────────────────────────
+
+  async getTeamSchedule(
+    managerId: string,
+    tenantId: string,
+    week: string,
+  ): Promise<{
+    week: string;
+    monday: string;
+    sunday: string;
+    wfh: Record<string, unknown>[];
+    overtime: Record<string, unknown>[];
+  }> {
+    const { monday, sunday } = this.parseISOWeek(week);
+    const mondayStr = monday.toISOString().slice(0, 10);
+    const sundayStr = sunday.toISOString().slice(0, 10);
+
+    const teamMemberRows = await this.dataSource.query<{ user_id: string }[]>(
+      `SELECT e.user_id
+         FROM employees e
+         JOIN teams t ON e.team_id = t.id
+        WHERE t.manager_id = $1 AND e.tenant_id = $2`,
+      [managerId, tenantId],
+    );
+
+    if (teamMemberRows.length === 0) {
+      return {
+        week,
+        monday: mondayStr,
+        sunday: sundayStr,
+        wfh: [],
+        overtime: [],
+      };
+    }
+
+    const memberIds = teamMemberRows.map((r) => r.user_id);
+
+    const [wfhRows, overtimeRows] = await Promise.all([
+      this.dataSource.query<Record<string, unknown>[]>(
+        `SELECT w.id, w.employee_id, w.start_date, w.end_date, w.reason, w.status,
+                u.first_name, u.last_name
+           FROM wfh_requests w
+           JOIN public.users u ON u.id = w.employee_id
+          WHERE w.tenant_id = $1
+            AND w.status = 'approved'
+            AND w.employee_id = ANY($2::uuid[])
+            AND w.start_date <= $3
+            AND w.end_date   >= $4`,
+        [tenantId, memberIds, sundayStr, mondayStr],
+      ),
+      this.dataSource.query<Record<string, unknown>[]>(
+        `SELECT o.id, o.employee_id, o.start_date, o.end_date, o.hours, o.reason, o.status,
+                u.first_name, u.last_name
+           FROM overtime_requests o
+           JOIN public.users u ON u.id = o.employee_id
+          WHERE o.tenant_id = $1
+            AND o.status = 'approved'
+            AND o.employee_id = ANY($2::uuid[])
+            AND o.start_date <= $3
+            AND o.end_date   >= $4`,
+        [tenantId, memberIds, sundayStr, mondayStr],
+      ),
+    ]);
+
+    return {
+      week,
+      monday: mondayStr,
+      sunday: sundayStr,
+      wfh: wfhRows,
+      overtime: overtimeRows,
+    };
+  }
+
+  private parseISOWeek(week: string): { monday: Date; sunday: Date } {
+    const match = /^(\d{4})-W(\d{1,2})$/.exec(week);
+    if (!match) {
+      throw new BadRequestException(
+        'Invalid week format. Use ISO 8601 week notation, e.g. "2025-W22"',
+      );
+    }
+    const year = parseInt(match[1], 10);
+    const weekNum = parseInt(match[2], 10);
+    if (weekNum < 1 || weekNum > 53) {
+      throw new BadRequestException('Week number must be between 1 and 53');
+    }
+
+    // Jan 4 is always in ISO week 1
+    const jan4 = new Date(Date.UTC(year, 0, 4));
+    const dayOfWeek = jan4.getUTCDay() || 7; // treat Sunday (0) as 7
+    const monday = new Date(jan4);
+    monday.setUTCDate(jan4.getUTCDate() - (dayOfWeek - 1) + (weekNum - 1) * 7);
+
+    const sunday = new Date(monday);
+    sunday.setUTCDate(monday.getUTCDate() + 6);
+
+    return { monday, sunday };
+  }
+
+  // ── Audit ─────────────────────────────────────────────────────────────────
+
+  private async writeAudit(
+    workflowRequestId: string,
+    tenantId: string,
+    actorId: string,
+    fromStatus: string,
+    toStatus: string,
+    note: string | null,
+  ): Promise<void> {
+    try {
+      await this.auditRepo.save(
+        this.auditRepo.create({
+          workflow_request_id: workflowRequestId,
+          tenant_id: tenantId,
+          actor_id: actorId,
+          from_status: fromStatus,
+          to_status: toStatus,
+          note,
+        }),
+      );
+    } catch (err: unknown) {
+      this.logger.error(
+        `Failed to write audit for workflow ${workflowRequestId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 }

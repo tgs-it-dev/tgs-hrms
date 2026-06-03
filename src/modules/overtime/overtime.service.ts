@@ -104,8 +104,15 @@ export class OvertimeService {
     const workflowEnabled = await this.isWorkflowEnabled(tenantId);
     if (!workflowEnabled) {
       throw new BadRequestException(
-        'Overtime requests require the workflow engine to be enabled. Ask your admin to enable it.',
+        'This request type is not enabled for your org',
       );
+    }
+
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const requestedStart = new Date(dto.start_date);
+    if (requestedStart < today) {
+      throw new BadRequestException('Request date cannot be in the past');
     }
 
     const hasHours = dto.hours !== undefined;
@@ -341,26 +348,57 @@ export class OvertimeService {
 
   async getAllOvertimeRequests(
     tenantId: string,
+    actorId: string,
+    actorRole: string,
     page = 1,
     limit = 20,
     status?: OvertimeStatus,
+    startDate?: string,
+    endDate?: string,
+    userId?: string,
   ): Promise<{
     items: Overtime[];
     total: number;
     page: number;
     limit: number;
   }> {
-    return this.runInTenantContext(tenantId, async (repo) => {
-      const where: Record<string, unknown> = { tenant_id: tenantId };
-      if (status) where.status = status;
+    const isManager = actorRole === 'manager';
 
-      const [items, total] = await repo.findAndCount({
-        where,
-        relations: ['employee'],
-        order: { created_at: 'DESC' },
-        skip: (page - 1) * limit,
-        take: limit,
-      });
+    let teamMemberIds: string[] | null = null;
+    if (isManager) {
+      const rows = await this.dataSource.query<{ user_id: string }[]>(
+        `SELECT e.user_id
+           FROM employees e
+           JOIN teams t ON e.team_id = t.id
+          WHERE t.manager_id = $1 AND e.tenant_id = $2`,
+        [actorId, tenantId],
+      );
+      teamMemberIds = rows.map((r) => r.user_id);
+      if (teamMemberIds.length === 0) {
+        return { items: [], total: 0, page, limit };
+      }
+    }
+
+    return this.runInTenantContext(tenantId, async (repo) => {
+      const qb = repo
+        .createQueryBuilder('o')
+        .leftJoinAndSelect('o.employee', 'employee')
+        .where('o.tenant_id = :tenantId', { tenantId })
+        .orderBy('o.created_at', 'DESC')
+        .skip((page - 1) * limit)
+        .take(limit);
+
+      if (status) qb.andWhere('o.status = :status', { status });
+      if (startDate) qb.andWhere('o.end_date >= :startDate', { startDate });
+      if (endDate) qb.andWhere('o.start_date <= :endDate', { endDate });
+
+      if (userId) {
+        qb.andWhere('o.employee_id = :userId', { userId });
+      } else if (teamMemberIds) {
+        qb.andWhere('o.employee_id IN (:...teamMemberIds)', { teamMemberIds });
+      }
+
+      const [items, total] = await qb.getManyAndCount();
       return { items, total, page, limit };
     });
   }
