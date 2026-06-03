@@ -34,6 +34,7 @@ import {
   TenantSettingKey,
 } from '../tenant-settings/tenant-settings.service';
 import { EmailService } from '../../common/utils/email/email.service';
+import { NotificationsEmailService } from '../notifications-email/notifications-email.service';
 
 @Injectable()
 export class LeaveService {
@@ -60,6 +61,7 @@ export class LeaveService {
     private readonly workflowService: WorkflowService,
     private readonly tenantSettings: TenantSettingsService,
     private readonly emailService: EmailService,
+    private readonly notificationsEmailService: NotificationsEmailService,
   ) {}
 
   private readonly logger = new Logger(LeaveService.name);
@@ -409,6 +411,18 @@ export class LeaveService {
               created_at: n.created_at,
             });
           }
+          this.notificationsEmailService.sendLeaveRequestNotification(
+            managerId,
+            employeeId,
+            {
+              id: savedLeave.id,
+              tenantId,
+              startDate: savedLeave.startDate,
+              endDate: savedLeave.endDate,
+              totalDays: savedLeave.totalDays,
+              reason: savedLeave.reason,
+            },
+          );
         }
       } catch (error) {
         this.logger.warn(
@@ -467,6 +481,18 @@ export class LeaveService {
                 },
               );
             }
+            this.notificationsEmailService.sendLeaveRequestNotification(
+              managerId,
+              employeeId,
+              {
+                id: savedLeave.id,
+                tenantId,
+                startDate: savedLeave.startDate,
+                endDate: savedLeave.endDate,
+                totalDays: savedLeave.totalDays,
+                reason: savedLeave.reason,
+              },
+            );
           }
         }
       } catch (error) {
@@ -711,6 +737,18 @@ export class LeaveService {
               created_at: n.created_at,
             });
           }
+          this.notificationsEmailService.sendLeaveRequestNotification(
+            employee.team.manager_id,
+            dto.employeeId,
+            {
+              id: savedLeave.id,
+              tenantId,
+              startDate: savedLeave.startDate,
+              endDate: savedLeave.endDate,
+              totalDays: savedLeave.totalDays,
+              reason: savedLeave.reason,
+            },
+          );
         }
       } catch (error) {
         this.logger.warn(
@@ -765,6 +803,18 @@ export class LeaveService {
               created_at: n.created_at,
             });
           }
+          this.notificationsEmailService.sendLeaveRequestNotification(
+            employee.team.manager_id,
+            dto.employeeId,
+            {
+              id: savedLeave.id,
+              tenantId,
+              startDate: savedLeave.startDate,
+              endDate: savedLeave.endDate,
+              totalDays: savedLeave.totalDays,
+              reason: savedLeave.reason,
+            },
+          );
         }
       } catch (error) {
         this.logger.warn(
