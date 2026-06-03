@@ -10,7 +10,7 @@ import {
   NotificationLogStatus,
 } from '../common/constants/enums';
 
-@Index(['tenant_id'])
+@Index(['tenant_id', 'sent_at'])
 @Index(['recipient_user_id'])
 @Index(['type'])
 @Index(['status'])
@@ -28,7 +28,7 @@ export class NotificationLog {
   @Column({ type: 'varchar', length: 320 })
   recipient_email: string;
 
-  @Column({ type: 'varchar', length: 32 })
+  @Column({ type: 'varchar', length: 64 })
   type: NotificationEmailType;
 
   @Column({ type: 'varchar', length: 16 })

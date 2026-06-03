@@ -53,6 +53,8 @@ interface StepRow {
   step_order: number;
 }
 
+const APPROVER_FANOUT_LIMIT = 20;
+
 @Injectable()
 export class NotificationsEmailListener {
   private readonly logger = new Logger(NotificationsEmailListener.name);
@@ -77,7 +79,7 @@ export class NotificationsEmailListener {
         context,
       );
 
-      // Find the next pending step in the tenant schema and notify every eligible approver
+      // Find the next pending step in the tenant schema
       const nextStep = await this.tenantDbService.withTenantSchema(
         event.tenantId,
         async (em) => {
@@ -94,19 +96,30 @@ export class NotificationsEmailListener {
         },
       );
 
-      if (nextStep) {
-        const approvers = await this.getUsersByRole(
-          nextStep.approver_role,
-          event.tenantId,
+      if (!nextStep) return;
+
+      const approvers = await this.getUsersByRole(
+        nextStep.approver_role,
+        event.tenantId,
+      );
+      if (!approvers.length) return;
+
+      // Pre-fetch employee once to avoid N+1 inside sendPendingApprovalToApprover
+      const employee = await this.userRepo.findOne({
+        where: { id: event.requestorId },
+      });
+      if (!employee) {
+        this.logger.warn(`Requestor not found: ${event.requestorId}`);
+        return;
+      }
+
+      for (const approver of approvers) {
+        this.notificationsEmailService.sendPendingApprovalToApprover(
+          approver,
+          employee,
+          context,
+          nextStep.step_label,
         );
-        for (const approver of approvers) {
-          this.notificationsEmailService.sendPendingApprovalToApprover(
-            approver.id,
-            event.requestorId,
-            context,
-            nextStep.step_label,
-          );
-        }
       }
     } catch (err: unknown) {
       this.logger.error(
@@ -263,18 +276,22 @@ export class NotificationsEmailListener {
     });
   }
 
-  /** Returns all users in the tenant whose role name matches approverRole (case-insensitive). */
+  /**
+   * Returns opted-in users in the tenant whose role matches approverRole.
+   * Capped at APPROVER_FANOUT_LIMIT to prevent unbounded fan-out.
+   */
   private async getUsersByRole(
     approverRole: string,
     tenantId: string,
   ): Promise<User[]> {
-    return this.userRepo
+    const results = await this.userRepo
       .createQueryBuilder('user')
       .innerJoin('user.role', 'role')
       .where('user.tenant_id = :tenantId', { tenantId })
       .andWhere('LOWER(role.name) = :role', {
         role: approverRole.toLowerCase(),
       })
+      .andWhere('user.email_notifications_enabled = true')
       .select([
         'user.id',
         'user.email',
@@ -283,6 +300,15 @@ export class NotificationsEmailListener {
         'user.tenant_id',
         'user.email_notifications_enabled',
       ])
+      .limit(APPROVER_FANOUT_LIMIT)
       .getMany();
+
+    if (results.length === APPROVER_FANOUT_LIMIT) {
+      this.logger.warn(
+        `Approver fan-out capped at ${APPROVER_FANOUT_LIMIT} for role="${approverRole}" tenant=${tenantId}`,
+      );
+    }
+
+    return results;
   }
 }

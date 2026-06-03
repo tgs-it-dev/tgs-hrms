@@ -116,6 +116,7 @@ export class TenantSchemaProvisioningService {
       await this.createAttendanceTable(queryRunner, schemaName);
       await this.createLeaveTypesTable(queryRunner, schemaName);
       await this.createLeavesTable(queryRunner, schemaName);
+      await this.createLeaveBalancesTable(queryRunner, schemaName);
       await this.createAnnouncementsTable(queryRunner, schemaName);
       await this.createGeofencesTable(queryRunner, schemaName);
       await this.createNotificationsTable(queryRunner, schemaName);
@@ -185,6 +186,7 @@ export class TenantSchemaProvisioningService {
       await this.createAttendanceTable(queryRunner, schemaName);
       await this.createLeaveTypesTable(queryRunner, schemaName);
       await this.createLeavesTable(queryRunner, schemaName);
+      await this.createLeaveBalancesTable(queryRunner, schemaName);
       await this.createAnnouncementsTable(queryRunner, schemaName);
       await this.createGeofencesTable(queryRunner, schemaName);
       await this.createNotificationsTable(queryRunner, schemaName);
@@ -657,6 +659,55 @@ export class TenantSchemaProvisioningService {
          ON "${schemaName}"."leaves" ("status")`,
     );
     this.logger.debug(`Table "${schemaName}".leaves ensured`);
+  }
+
+  /**
+   * leave_balances
+   *   FK: "employeeId"  → public.users
+   *   FK: "leaveTypeId" → <tenant schema>.leave_types
+   *   FK: "tenantId"    → public.tenants
+   *
+   * Suffix budget used: _lb_emp (7), _lb_lt (6), _lb_tn (6)
+   */
+  private async createLeaveBalancesTable(
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
+    schemaName: string,
+  ): Promise<void> {
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."leave_balances" (
+        "id"           UUID    NOT NULL DEFAULT gen_random_uuid(),
+        "employeeId"   UUID    NOT NULL,
+        "leaveTypeId"  UUID    NOT NULL,
+        "year"         INTEGER NOT NULL,
+        "allocated"    INTEGER NOT NULL DEFAULT 0,
+        "used"         INTEGER NOT NULL DEFAULT 0,
+        "tenantId"     UUID    NOT NULL,
+        "createdAt"    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        "updatedAt"    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        CONSTRAINT "pk_${schemaName}_lb" PRIMARY KEY ("id"),
+        CONSTRAINT "uq_${schemaName}_lb_emp_lt_yr_tn"
+          UNIQUE ("employeeId", "leaveTypeId", "year", "tenantId"),
+        CONSTRAINT "fk_${schemaName}_lb_emp"
+          FOREIGN KEY ("employeeId") REFERENCES "public"."users" ("id") ON DELETE CASCADE,
+        CONSTRAINT "fk_${schemaName}_lb_lt"
+          FOREIGN KEY ("leaveTypeId") REFERENCES "${schemaName}"."leave_types" ("id") ON DELETE CASCADE,
+        CONSTRAINT "fk_${schemaName}_lb_tn"
+          FOREIGN KEY ("tenantId") REFERENCES "public"."tenants" ("id") ON DELETE CASCADE
+      )
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_lb_emp"
+        ON "${schemaName}"."leave_balances" ("employeeId")
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_lb_lt"
+        ON "${schemaName}"."leave_balances" ("leaveTypeId")
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_lb_tn_yr"
+        ON "${schemaName}"."leave_balances" ("tenantId", "year")
+    `);
+    this.logger.debug(`Table "${schemaName}".leave_balances ensured`);
   }
 
   /**

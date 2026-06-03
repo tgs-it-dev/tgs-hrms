@@ -371,7 +371,6 @@ export enum NotificationEmailType {
   OVERTIME_STATUS_UPDATE = 'overtime_status_update',
   WORKFLOW_STEP_PROCESSING = 'workflow_step_processing',
   WORKFLOW_PENDING_APPROVAL = 'workflow_pending_approval',
-  LATE_ARRIVAL_ALERT = 'late_arrival_alert',
 }
 
 export enum NotificationLogStatus {

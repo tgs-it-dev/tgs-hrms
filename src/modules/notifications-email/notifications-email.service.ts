@@ -11,11 +11,15 @@ import {
   LeaveStatus,
   WfhStatus,
   OvertimeStatus,
+  WorkflowRequestType,
 } from '../../common/constants/enums';
 
 // ─── Context types ─────────────────────────────────────────────────────────────
 
-export type WorkflowRequestCategory = 'leave' | 'wfh' | 'overtime';
+export type WorkflowRequestCategory =
+  | WorkflowRequestType.LEAVE
+  | WorkflowRequestType.WFH
+  | WorkflowRequestType.OVERTIME;
 
 /** Unified context used by the centralized workflow event listener. */
 export interface WorkflowEmailContext {
@@ -90,6 +94,7 @@ export class NotificationsEmailService {
           managerId,
           employeeId,
         );
+        if (!manager.email_notifications_enabled) return null;
         await this.emailService.sendEmail(
           manager.email,
           `[${this.orgName()}] New Leave Request from ${employee.first_name} ${employee.last_name}`,
@@ -148,6 +153,7 @@ export class NotificationsEmailService {
         managerId,
         employeeId,
       );
+      if (!manager.email_notifications_enabled) return null;
       await this.emailService.sendEmail(
         manager.email,
         `[${this.orgName()}] New WFH Request from ${employee.first_name} ${employee.last_name}`,
@@ -208,6 +214,7 @@ export class NotificationsEmailService {
           managerId,
           employeeId,
         );
+        if (!manager.email_notifications_enabled) return null;
         await this.emailService.sendEmail(
           manager.email,
           `[${this.orgName()}] New Overtime Request from ${employee.first_name} ${employee.last_name}`,
@@ -256,7 +263,6 @@ export class NotificationsEmailService {
 
   // ─── Generic workflow-step emails ─────────────────────────────────────────
 
-  /** Employee email on STEP_APPROVED — their request moves to the next reviewer. */
   sendStepApprovedToEmployee(
     employeeId: string,
     context: WorkflowEmailContext,
@@ -283,10 +289,13 @@ export class NotificationsEmailService {
     );
   }
 
-  /** Next-approver email on STEP_APPROVED — their turn to act. */
+  /**
+   * Approver and employee are pre-fetched by the listener (eliminates N+1).
+   * Approvers are already filtered by email_notifications_enabled via getUsersByRole.
+   */
   sendPendingApprovalToApprover(
-    approverId: string,
-    employeeId: string,
+    approver: User,
+    employee: User,
     context: WorkflowEmailContext,
     stepLabel: string,
   ): void {
@@ -294,10 +303,6 @@ export class NotificationsEmailService {
       NotificationEmailType.WORKFLOW_PENDING_APPROVAL,
       context.tenantId,
       async () => {
-        const [approver, employee] = await this.resolveUsers(
-          approverId,
-          employeeId,
-        );
         await this.emailService.sendEmail(
           approver.email,
           `[${this.orgName()}] ${stepLabel} Required — ${employee.first_name} ${employee.last_name}'s ${this.labelFor(context.requestType)} Request`,
@@ -310,43 +315,9 @@ export class NotificationsEmailService {
             this.requestUrl(context.id),
           ),
           undefined,
-          approverId,
+          approver.id,
         );
-        return { recipientEmail: approver.email, recipientUserId: approverId };
-      },
-    );
-  }
-
-  // ─── Attendance ───────────────────────────────────────────────────────────
-
-  /** Only fires when manager.email_notifications_enabled is true (default: true). */
-  sendLateArrivalAlert(
-    managerId: string,
-    employeeId: string,
-    lateByMins: number,
-  ): void {
-    this.runWithManagerCheck(
-      managerId,
-      NotificationEmailType.LATE_ARRIVAL_ALERT,
-      async (manager) => {
-        const employee = await this.getUser(employeeId);
-        await this.emailService.sendEmail(
-          manager.email,
-          `[${this.orgName()}] Late Arrival: ${employee.first_name} ${employee.last_name}`,
-          this.buildLateArrivalHtml(
-            this.orgName(),
-            manager,
-            employee,
-            lateByMins,
-          ),
-          undefined,
-          managerId,
-        );
-        return {
-          recipientEmail: manager.email,
-          recipientUserId: managerId,
-          tenantId: manager.tenant_id,
-        };
+        return { recipientEmail: approver.email, recipientUserId: approver.id };
       },
     );
   }
@@ -356,19 +327,23 @@ export class NotificationsEmailService {
   private run(
     type: NotificationEmailType,
     tenantId: string,
-    fn: () => Promise<{ recipientEmail: string; recipientUserId: string }>,
+    fn: () => Promise<{
+      recipientEmail: string;
+      recipientUserId: string;
+    } | null>,
   ): void {
     Promise.resolve()
       .then(fn)
-      .then(({ recipientEmail, recipientUserId }) =>
-        this.saveLog({
+      .then((result) => {
+        if (!result) return; // null = deliberately skipped (opt-out, etc.)
+        return this.saveLog({
           type,
           status: NotificationLogStatus.SENT,
           tenant_id: tenantId,
-          recipient_email: recipientEmail,
-          recipient_user_id: recipientUserId,
-        }),
-      )
+          recipient_email: result.recipientEmail,
+          recipient_user_id: result.recipientUserId,
+        });
+      })
       .catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err);
         this.logger.error(`Notification email failed type=${type}: ${msg}`);
@@ -383,53 +358,9 @@ export class NotificationsEmailService {
       });
   }
 
-  private runWithManagerCheck(
-    managerId: string,
-    type: NotificationEmailType,
-    fn: (manager: User) => Promise<{
-      recipientEmail: string;
-      recipientUserId: string;
-      tenantId: string;
-    }>,
-  ): void {
-    Promise.resolve()
-      .then(async () => {
-        const manager = await this.getUser(managerId);
-        if (!manager.email_notifications_enabled) {
-          this.logger.debug(
-            `Skipping ${type} — manager ${managerId} has notifications disabled`,
-          );
-          return null;
-        }
-        return fn(manager);
-      })
-      .then((result) => {
-        if (!result) return;
-        return this.saveLog({
-          type,
-          status: NotificationLogStatus.SENT,
-          tenant_id: result.tenantId,
-          recipient_email: result.recipientEmail,
-          recipient_user_id: result.recipientUserId,
-        });
-      })
-      .catch((err: unknown) => {
-        const msg = err instanceof Error ? err.message : String(err);
-        this.logger.error(`Notification email failed type=${type}: ${msg}`);
-        this.saveLog({
-          type,
-          status: NotificationLogStatus.FAILED,
-          tenant_id: null,
-          recipient_email: '',
-          recipient_user_id: managerId,
-          error_message: msg,
-        }).catch(() => {});
-      });
-  }
-
   // ─── DB helpers ───────────────────────────────────────────────────────────
 
-  private async getUser(userId: string): Promise<User> {
+  async getUser(userId: string): Promise<User> {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) throw new Error(`User not found: ${userId}`);
     return user;
@@ -440,7 +371,7 @@ export class NotificationsEmailService {
     return [a, b];
   }
 
-  private async saveLog(data: Partial<NotificationLog>): Promise<void> {
+  async saveLog(data: Partial<NotificationLog>): Promise<void> {
     await this.logRepo.save(this.logRepo.create(data));
   }
 
@@ -460,9 +391,9 @@ export class NotificationsEmailService {
 
   private labelFor(type: WorkflowRequestCategory): string {
     const labels: Record<WorkflowRequestCategory, string> = {
-      leave: 'Leave',
-      wfh: 'WFH',
-      overtime: 'Overtime',
+      [WorkflowRequestType.LEAVE]: 'Leave',
+      [WorkflowRequestType.WFH]: 'WFH',
+      [WorkflowRequestType.OVERTIME]: 'Overtime',
     };
     return labels[type];
   }
@@ -483,8 +414,8 @@ export class NotificationsEmailService {
       orgName,
       `
       <h2 style="color:#1a1a2e;margin:0 0 16px">New Leave Request</h2>
-      <p>Hi ${manager.first_name},</p>
-      <p><strong>${employee.first_name} ${employee.last_name}</strong> has submitted a leave request that requires your attention.</p>
+      <p>Hi ${this.esc(manager.first_name)},</p>
+      <p><strong>${this.esc(employee.first_name)} ${this.esc(employee.last_name)}</strong> has submitted a leave request that requires your attention.</p>
       <table style="width:100%;border-collapse:collapse;margin:20px 0">
         <tr><td style="${this.tdL()}">Type</td><td style="${this.tdV()}">${this.esc(leaveTypeName)}</td></tr>
         <tr><td style="${this.tdL()}">From</td><td style="${this.tdV()}">${this.fmtDate(request.startDate)}</td></tr>
@@ -513,7 +444,7 @@ export class NotificationsEmailService {
       orgName,
       `
       <h2 style="color:#1a1a2e;margin:0 0 16px">Leave Request ${label}</h2>
-      <p>Hi ${employee.first_name},</p>
+      <p>Hi ${this.esc(employee.first_name)},</p>
       <p>Your leave request has been <strong style="color:${approved ? '#22c55e' : '#ef4444'}">${label}</strong>.</p>
       <table style="width:100%;border-collapse:collapse;margin:20px 0">
         <tr><td style="${this.tdL()}">Type</td><td style="${this.tdV()}">${this.esc(leaveTypeName)}</td></tr>
@@ -537,8 +468,8 @@ export class NotificationsEmailService {
       orgName,
       `
       <h2 style="color:#1a1a2e;margin:0 0 16px">New WFH Request</h2>
-      <p>Hi ${manager.first_name},</p>
-      <p><strong>${employee.first_name} ${employee.last_name}</strong> has submitted a Work-From-Home request that requires your attention.</p>
+      <p>Hi ${this.esc(manager.first_name)},</p>
+      <p><strong>${this.esc(employee.first_name)} ${this.esc(employee.last_name)}</strong> has submitted a Work-From-Home request that requires your attention.</p>
       <table style="width:100%;border-collapse:collapse;margin:20px 0">
         <tr><td style="${this.tdL()}">From</td><td style="${this.tdV()}">${this.fmtDate(request.startDate)}</td></tr>
         <tr><td style="${this.tdL()}">To</td><td style="${this.tdV()}">${this.fmtDate(request.endDate)}</td></tr>
@@ -562,7 +493,7 @@ export class NotificationsEmailService {
       orgName,
       `
       <h2 style="color:#1a1a2e;margin:0 0 16px">WFH Request ${label}</h2>
-      <p>Hi ${employee.first_name},</p>
+      <p>Hi ${this.esc(employee.first_name)},</p>
       <p>Your Work-From-Home request has been <strong style="color:${approved ? '#22c55e' : '#ef4444'}">${label}</strong>.</p>
       <table style="width:100%;border-collapse:collapse;margin:20px 0">
         <tr><td style="${this.tdL()}">From</td><td style="${this.tdV()}">${this.fmtDate(request.startDate)}</td></tr>
@@ -585,8 +516,8 @@ export class NotificationsEmailService {
       orgName,
       `
       <h2 style="color:#1a1a2e;margin:0 0 16px">New Overtime Request</h2>
-      <p>Hi ${manager.first_name},</p>
-      <p><strong>${employee.first_name} ${employee.last_name}</strong> has submitted an overtime request that requires your attention.</p>
+      <p>Hi ${this.esc(manager.first_name)},</p>
+      <p><strong>${this.esc(employee.first_name)} ${this.esc(employee.last_name)}</strong> has submitted an overtime request that requires your attention.</p>
       <table style="width:100%;border-collapse:collapse;margin:20px 0">
         <tr><td style="${this.tdL()}">From</td><td style="${this.tdV()}">${this.fmtDate(request.startDate)}</td></tr>
         <tr><td style="${this.tdL()}">To</td><td style="${this.tdV()}">${this.fmtDate(request.endDate)}</td></tr>
@@ -612,7 +543,7 @@ export class NotificationsEmailService {
       orgName,
       `
       <h2 style="color:#1a1a2e;margin:0 0 16px">Overtime Request ${label}</h2>
-      <p>Hi ${employee.first_name},</p>
+      <p>Hi ${this.esc(employee.first_name)},</p>
       <p>Your overtime request has been <strong style="color:${approved ? '#22c55e' : '#ef4444'}">${label}</strong>.</p>
       <table style="width:100%;border-collapse:collapse;margin:20px 0">
         <tr><td style="${this.tdL()}">From</td><td style="${this.tdV()}">${this.fmtDate(request.startDate)}</td></tr>
@@ -635,7 +566,7 @@ export class NotificationsEmailService {
       orgName,
       `
       <h2 style="color:#1a1a2e;margin:0 0 16px">${typeLabel} Request in Review</h2>
-      <p>Hi ${employee.first_name},</p>
+      <p>Hi ${this.esc(employee.first_name)},</p>
       <p>Your <strong>${typeLabel}</strong> request has been approved at one stage and is now moving to the next reviewer.</p>
       <table style="width:100%;border-collapse:collapse;margin:20px 0">
         <tr><td style="${this.tdL()}">From</td><td style="${this.tdV()}">${this.fmtDate(ctx.startDate)}</td></tr>
@@ -661,8 +592,8 @@ export class NotificationsEmailService {
       orgName,
       `
       <h2 style="color:#1a1a2e;margin:0 0 16px">${stepLabel} Required</h2>
-      <p>Hi ${approver.first_name},</p>
-      <p>A <strong>${typeLabel}</strong> request from <strong>${employee.first_name} ${employee.last_name}</strong> is awaiting your approval.</p>
+      <p>Hi ${this.esc(approver.first_name)},</p>
+      <p>A <strong>${typeLabel}</strong> request from <strong>${this.esc(employee.first_name)} ${this.esc(employee.last_name)}</strong> is awaiting your approval.</p>
       <table style="width:100%;border-collapse:collapse;margin:20px 0">
         <tr><td style="${this.tdL()}">From</td><td style="${this.tdV()}">${this.fmtDate(ctx.startDate)}</td></tr>
         <tr><td style="${this.tdL()}">To</td><td style="${this.tdV()}">${this.fmtDate(ctx.endDate)}</td></tr>
@@ -671,27 +602,6 @@ export class NotificationsEmailService {
         ${ctx.reason ? `<tr><td style="${this.tdL()}">Reason</td><td style="${this.tdV()}">${this.esc(ctx.reason)}</td></tr>` : ''}
       </table>
       ${this.btn(url, 'Review Request')}
-    `,
-    );
-  }
-
-  private buildLateArrivalHtml(
-    orgName: string,
-    manager: User,
-    employee: User,
-    lateByMins: number,
-  ): string {
-    return this.wrapLayout(
-      orgName,
-      `
-      <h2 style="color:#1a1a2e;margin:0 0 16px">Late Arrival Alert</h2>
-      <p>Hi ${manager.first_name},</p>
-      <p>
-        <strong>${employee.first_name} ${employee.last_name}</strong> checked in
-        <strong>${lateByMins} minute${lateByMins !== 1 ? 's' : ''}</strong> late today
-        (${new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}).
-      </p>
-      <p style="color:#6b7280;font-size:13px">This is an automated alert. Review attendance records in the portal if you believe this is incorrect.</p>
     `,
     );
   }
