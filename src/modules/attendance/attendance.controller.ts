@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Patch, Body, Query, UseGuards, Req, Res, Param } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Query, Headers, UseGuards, Req, Res, Param } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiQuery, ApiParam } from '@nestjs/swagger';
 import { AttendanceService } from './attendance.service';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
@@ -569,6 +569,51 @@ export class AttendanceController {
 
     const filename = tenantId ? `attendance-tenant-${tenantId}.csv` : 'attendance-all-tenants.csv';
     return sendCsvResponse(res, filename, rows);
+  }
+
+  @Get('export/present-days')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('hr-admin', 'admin', 'system-admin', 'network-admin')
+  @Permissions('manage_attendance')
+  @ApiOperation({
+    summary: 'Download total present days per employee as CSV',
+    description:
+      'Returns a CSV with each employee\'s total present days (distinct dates with a check-in) within the given date range. ' +
+      'Admins see their own tenant. System-admin can optionally filter by tenantId to see a specific tenant or omit it for all tenants.',
+  })
+  @ApiQuery({ name: 'startDate', required: false, type: String, description: 'Start date (e.g. 2026-01-01)' })
+  @ApiQuery({ name: 'endDate', required: false, type: String, description: 'End date (e.g. 2026-01-31)' })
+  @ApiQuery({ name: 'tenantId', required: false, type: String, description: 'Tenant ID filter (system-admin only)' })
+  @ApiQuery({ name: 'timezone', required: false, type: String, description: 'IANA timezone for date grouping (e.g. Asia/Karachi). Falls back to X-Timezone header, then UTC.' })
+  async exportPresentDays(
+    @Req() req: any,
+    @Res() res: Response,
+    @Headers('x-timezone') tzHeader?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('tenantId') tenantId?: string,
+    @Query('timezone') timezone?: string,
+  ) {
+    const isSystemAdmin = req.user.role === 'system-admin';
+    const resolvedTenantId = isSystemAdmin ? tenantId : req.user.tenant_id;
+    const resolvedTimezone = timezone || tzHeader || 'UTC';
+
+    const rows = await this.attendanceService.getPresentDaysSummary(
+      resolvedTenantId,
+      startDate,
+      endDate,
+      resolvedTimezone,
+    );
+
+    const csvRows = rows.length > 0
+      ? rows
+      : [{ employee_name: '', department: '', team: '', total_present_days: '' }];
+
+    const filename = resolvedTenantId
+      ? `present-days-${resolvedTenantId}.csv`
+      : 'present-days-all-tenants.csv';
+
+    return sendCsvResponse(res, filename, csvRows);
   }
 
   @Get('team/today')

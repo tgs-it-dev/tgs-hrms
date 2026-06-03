@@ -1758,4 +1758,80 @@ export class AttendanceService {
 
     return Math.round(totalHours * 100) / 100;
   }
+
+  async getPresentDaysSummary(
+    tenantId: string | undefined,
+    startDate?: string,
+    endDate?: string,
+    timezone: string = 'UTC',
+  ): Promise<Array<{
+    employee_name: string;
+    department: string;
+    team: string;
+    total_present_days: number;
+  }>> {
+    const buildQuery = (repo: Repository<Attendance>) => {
+      const qb = repo
+        .createQueryBuilder('attendance')
+        .select("(\"user\".first_name || ' ' || \"user\".last_name)", 'employee_name')
+        .addSelect('department.name', 'department')
+        .addSelect('team.name', 'team')
+        // Convert stored UTC timestamp to local date using the requested timezone
+        // so a 00:30 PKT check-in (19:30 UTC prev day) is counted on the correct local date
+        .addSelect(`COUNT(DISTINCT DATE(attendance.timestamp AT TIME ZONE :tz))`, 'total_present_days')
+        .innerJoin('attendance.user', 'user')
+        .leftJoin('user.employees', 'employee', 'employee.deleted_at IS NULL')
+        .leftJoin('employee.designation', 'designation')
+        .leftJoin('designation.department', 'department')
+        .leftJoin('employee.team', 'team')
+        .where('attendance.type = :type', { type: AttendanceType.CHECK_IN })
+        .setParameter('tz', timezone);
+
+      if (tenantId) {
+        qb.andWhere('user.tenant_id = :tenantId', { tenantId });
+      }
+      // Filter bounds are also evaluated in the local timezone so the full
+      // local day is included (e.g. Jan 1 00:00 PKT = Dec 31 19:00 UTC)
+      if (startDate) {
+        qb.andWhere("(attendance.timestamp AT TIME ZONE :tz)::date >= :startDate", { startDate });
+      }
+      if (endDate) {
+        qb.andWhere("(attendance.timestamp AT TIME ZONE :tz)::date <= :endDate", { endDate });
+      }
+
+      return qb
+        .groupBy('"user".id')
+        .addGroupBy('"user".first_name')
+        .addGroupBy('"user".last_name')
+        .addGroupBy('department.name')
+        .addGroupBy('team.name')
+        .orderBy("(\"user\".first_name || ' ' || \"user\".last_name)", 'ASC')
+        .getRawMany<{
+          employee_name: string;
+          department: string | null;
+          team: string | null;
+          total_present_days: string;
+        }>();
+    };
+
+    let rows: Awaited<ReturnType<typeof buildQuery>>;
+
+    if (tenantId) {
+      const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
+      rows = isProvisioned
+        ? await this.tenantDbService.withTenantSchemaReadOnly(tenantId, (em) =>
+            buildQuery(em.getRepository(Attendance)),
+          )
+        : await buildQuery(this.attendanceRepo);
+    } else {
+      rows = await buildQuery(this.attendanceRepo);
+    }
+
+    return rows.map((row) => ({
+      employee_name: row.employee_name ?? '',
+      department: row.department ?? '',
+      team: row.team ?? '',
+      total_present_days: parseInt(row.total_present_days, 10) || 0,
+    }));
+  }
 }
