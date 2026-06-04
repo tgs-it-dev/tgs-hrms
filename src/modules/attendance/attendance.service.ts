@@ -1788,9 +1788,10 @@ export class AttendanceService {
       params.push(endDate);
     }
 
-    let tenantClause = '';
+    // Always exclude soft-deleted users; optionally scope to a tenant
+    let whereClause = `WHERE u.deleted_at IS NULL`;
     if (tenantId) {
-      tenantClause = `WHERE u.tenant_id = $${idx++}`;
+      whereClause += ` AND u.tenant_id = $${idx++}`;
       params.push(tenantId);
     }
 
@@ -1801,12 +1802,16 @@ export class AttendanceService {
         t.name                                         AS team,
         COUNT(DISTINCT DATE(a.timestamp AT TIME ZONE $1)) AS total_present_days
       FROM users u
+      -- status = ACTIVE reflects the employee's current state, not their state
+      -- during the queried period. Employees deactivated after the range ends
+      -- will be excluded. This is intentional: the report represents the current
+      -- workforce. If historical reporting is needed, remove the status filter.
       INNER JOIN employees e   ON e.user_id = u.id AND e.deleted_at IS NULL AND e.status = $3
       LEFT  JOIN designations des ON des.id = e.designation_id
       LEFT  JOIN departments  d   ON d.id = des.department_id
       LEFT  JOIN teams        t   ON t.id = e.team_id
       LEFT  JOIN attendance   a   ON a.user_id = u.id AND a.type = $2${dateOnClause}
-      ${tenantClause}
+      ${whereClause}
       GROUP BY u.id, u.first_name, u.last_name, d.name, t.name
       ORDER BY (u.first_name || ' ' || u.last_name) ASC
     `;

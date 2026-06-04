@@ -1,5 +1,5 @@
-import { Controller, Post, Get, Patch, Body, Query, Headers, UseGuards, Req, Res, Param } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiQuery, ApiParam } from '@nestjs/swagger';
+import { Controller, Post, Get, Patch, Body, Query, Headers, UseGuards, Req, Res, Param, BadRequestException } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiQuery, ApiParam, ApiHeader } from '@nestjs/swagger';
 import { AttendanceService } from './attendance.service';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { ApproveCheckInDto, BulkApproveCheckInDto } from './dto/approve-checkin.dto';
@@ -10,7 +10,10 @@ import { Permissions } from 'src/common/decorators/permissions.decorator';
 import { PermissionsGuard } from 'src/common/guards/permissions.guard';
 import { Response } from 'express';
 import { sendCsvResponse } from 'src/common/utils/csv.util';
-import { AttendanceType } from 'src/common/constants/enums';
+import { AttendanceType, UserRole } from 'src/common/constants/enums';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const IANA_TZ_REGEX = /^[A-Za-z_]+(?:\/[A-Za-z_]+)*$/;
 
 @ApiTags('Attendance')
 @ApiBearerAuth()
@@ -579,14 +582,15 @@ export class AttendanceController {
     summary: 'Download total present days per employee as CSV',
     description:
       'Returns a CSV with each employee\'s total present days (distinct dates with a check-in) within the given date range. ' +
-      'Admins see their own tenant. System-admin can optionally filter by tenantId to see a specific tenant or omit it for all tenants.',
+      'Admins see their own tenant. System-admin must supply tenantId to scope the export to a specific tenant.',
   })
-  @ApiQuery({ name: 'startDate', required: false, type: String, description: 'Start date (e.g. 2026-01-01)' })
-  @ApiQuery({ name: 'endDate', required: false, type: String, description: 'End date (e.g. 2026-01-31)' })
-  @ApiQuery({ name: 'tenantId', required: false, type: String, description: 'Tenant ID filter (system-admin only)' })
+  @ApiHeader({ name: 'X-Timezone', required: false, description: 'IANA timezone (e.g. Asia/Karachi). Overridden by the `timezone` query param if both are provided.' })
+  @ApiQuery({ name: 'startDate', required: false, type: String, description: 'Start date (e.g. 2026-05-01)' })
+  @ApiQuery({ name: 'endDate', required: false, type: String, description: 'End date (e.g. 2026-05-31)' })
+  @ApiQuery({ name: 'tenantId', required: false, type: String, description: 'Tenant UUID (required for system-admin)' })
   @ApiQuery({ name: 'timezone', required: false, type: String, description: 'IANA timezone for date grouping (e.g. Asia/Karachi). Falls back to X-Timezone header, then UTC.' })
   async exportPresentDays(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Res() res: Response,
     @Headers('x-timezone') tzHeader?: string,
     @Query('startDate') startDate?: string,
@@ -594,9 +598,18 @@ export class AttendanceController {
     @Query('tenantId') tenantId?: string,
     @Query('timezone') timezone?: string,
   ) {
-    const isSystemAdmin = req.user.role === 'system-admin';
+    const isSystemAdmin = req.user.role === UserRole.SYSTEM_ADMIN;
+
+    if (isSystemAdmin && !tenantId) {
+      throw new BadRequestException('tenantId is required for system-admin exports');
+    }
+
+    if (tenantId && !UUID_REGEX.test(tenantId)) {
+      throw new BadRequestException('tenantId must be a valid UUID');
+    }
+
     const resolvedTenantId = isSystemAdmin ? tenantId : req.user.tenant_id;
-    const resolvedTimezone = timezone || tzHeader || 'UTC';
+    const resolvedTimezone = [timezone, tzHeader].find(tz => tz && IANA_TZ_REGEX.test(tz)) ?? 'UTC';
 
     const rows = await this.attendanceService.getPresentDaysSummary(
       resolvedTenantId,
@@ -605,15 +618,11 @@ export class AttendanceController {
       resolvedTimezone,
     );
 
-    const csvRows = rows.length > 0
-      ? rows
-      : [{ employee_name: '', department: '', team: '', total_present_days: '' }];
-
     const filename = resolvedTenantId
       ? `present-days-${resolvedTenantId}.csv`
       : 'present-days-all-tenants.csv';
 
-    return sendCsvResponse(res, filename, csvRows);
+    return sendCsvResponse(res, filename, rows);
   }
 
   @Get('team/today')
