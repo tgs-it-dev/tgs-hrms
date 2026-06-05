@@ -8,6 +8,7 @@ import {
 import {
   AttendanceType,
   CheckInApprovalStatus,
+  EmployeeStatus,
   UserRole,
 } from '../../common/constants/enums';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -669,6 +670,12 @@ export class AttendanceService {
       const qb = repo
         .createQueryBuilder('attendance')
         .leftJoinAndSelect('attendance.user', 'user')
+        .leftJoinAndSelect(
+          'user.employees',
+          'employee',
+          'employee.deleted_at IS NULL',
+        )
+        .leftJoinAndSelect('employee.team', 'team')
         .where('user.tenant_id = :tenantId', { tenantId });
       if (start) qb.andWhere('attendance.timestamp >= :start', { start });
       if (end) qb.andWhere('attendance.timestamp <= :end', { end });
@@ -1773,5 +1780,97 @@ export class AttendanceService {
     }
 
     return Math.round(totalHours * 100) / 100;
+  }
+
+  async getPresentDaysSummary(
+    tenantId: string | undefined,
+    startDate?: string,
+    endDate?: string,
+    timezone: string = 'UTC',
+  ): Promise<
+    Array<{
+      employee_name: string;
+      department: string;
+      team: string;
+      total_present_days: number;
+    }>
+  > {
+    // $1 = timezone, $2 = attendance type, $3 = employee status
+    // Date/type filters go in the LEFT JOIN ON clause so employees with 0
+    // check-ins in the range still appear — moving them to WHERE would silently
+    // turn the LEFT JOIN into an INNER JOIN and drop those employees.
+    const params: unknown[] = [
+      timezone,
+      AttendanceType.CHECK_IN,
+      EmployeeStatus.ACTIVE,
+    ];
+    let idx = 4;
+
+    let dateOnClause = '';
+    if (startDate) {
+      dateOnClause += ` AND (a.timestamp AT TIME ZONE $1)::date >= $${idx++}`;
+      params.push(startDate);
+    }
+    if (endDate) {
+      dateOnClause += ` AND (a.timestamp AT TIME ZONE $1)::date <= $${idx++}`;
+      params.push(endDate);
+    }
+
+    // Always exclude soft-deleted users; optionally scope to a tenant
+    let whereClause = `WHERE u.deleted_at IS NULL`;
+    if (tenantId) {
+      whereClause += ` AND u.tenant_id = $${idx++}`;
+      params.push(tenantId);
+    }
+
+    const sql = `
+      SELECT
+        u.first_name || ' ' || u.last_name            AS employee_name,
+        d.name                                         AS department,
+        t.name                                         AS team,
+        COUNT(DISTINCT DATE(a.timestamp AT TIME ZONE $1)) AS total_present_days
+      FROM users u
+      -- status = ACTIVE reflects the employee's current state, not their state
+      -- during the queried period. Employees deactivated after the range ends
+      -- will be excluded. This is intentional: the report represents the current
+      -- workforce. If historical reporting is needed, remove the status filter.
+      INNER JOIN employees e   ON e.user_id = u.id AND e.deleted_at IS NULL AND e.status = $3
+      LEFT  JOIN designations des ON des.id = e.designation_id
+      LEFT  JOIN departments  d   ON d.id = des.department_id
+      LEFT  JOIN teams        t   ON t.id = e.team_id
+      LEFT  JOIN attendance   a   ON a.user_id = u.id AND a.type = $2${dateOnClause}
+      ${whereClause}
+      GROUP BY u.id, u.first_name, u.last_name, d.name, t.name
+      ORDER BY (u.first_name || ' ' || u.last_name) ASC
+    `;
+
+    const runQuery = (runner: {
+      query: (sql: string, params: unknown[]) => Promise<any[]>;
+    }) => runner.query(sql, params);
+
+    let rows: Array<{
+      employee_name: string;
+      department: string | null;
+      team: string | null;
+      total_present_days: string;
+    }>;
+
+    if (tenantId) {
+      const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
+      rows = isProvisioned
+        ? await this.tenantDbService.withTenantSchemaReadOnly(tenantId, (em) =>
+            runQuery(em),
+          )
+        : await runQuery(this.dataSource);
+    } else {
+      rows = await runQuery(this.dataSource);
+    }
+
+    return rows.map((row) => ({
+      employee_name: row.employee_name ?? '',
+      department: row.department ?? '',
+      team: row.team ?? '',
+      total_present_days: parseInt(row.total_present_days, 10) || 0,
+    }));
   }
 }

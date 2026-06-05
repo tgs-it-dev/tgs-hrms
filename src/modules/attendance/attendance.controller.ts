@@ -5,10 +5,12 @@ import {
   Patch,
   Body,
   Query,
+  Headers,
   UseGuards,
   Req,
   Res,
   Param,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -17,6 +19,7 @@ import {
   ApiResponse,
   ApiQuery,
   ApiParam,
+  ApiHeader,
 } from '@nestjs/swagger';
 import { AttendanceService } from './attendance.service';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
@@ -31,8 +34,12 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { Response } from 'express';
-import { sendCsvResponse } from '../../common/utils/csv.util';
-import { AttendanceType } from '../../common/constants/enums';
+import { sendCsvResponse } from 'src/common/utils/csv.util';
+import { AttendanceType, UserRole } from 'src/common/constants/enums';
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const IANA_TZ_REGEX = /^[A-Za-z_]+(?:\/[A-Za-z_]+)*$/;
 
 interface AttendanceEvent {
   type: AttendanceType;
@@ -40,7 +47,17 @@ interface AttendanceEvent {
   user_id?: string;
   date?: string;
   approval_status?: string;
-  user?: { first_name?: string; last_name?: string };
+  user?: {
+    first_name?: string;
+    last_name?: string;
+    employees: AttendanceEmployee[];
+  };
+}
+
+interface AttendanceEmployee {
+  first_name?: string;
+  last_name?: string;
+  team?: { name?: string };
 }
 
 interface AttendanceRecord {
@@ -543,7 +560,7 @@ export class AttendanceController {
     // Store user info for later use
     const userInfoMap: Record<
       string,
-      { first_name?: string; last_name?: string }
+      { first_name?: string; last_name?: string; team_name?: string }
     > = {};
 
     const userGroups: Record<string, AttendanceEvent[]> = {};
@@ -556,7 +573,8 @@ export class AttendanceController {
 
       // Store user info
       if (ev.user && !userInfoMap[userId]) {
-        userInfoMap[userId] = ev.user;
+        const teamName = ev.user.employees?.[0]?.team?.name ?? '';
+        userInfoMap[userId] = { ...ev.user, team_name: teamName };
       }
     }
 
@@ -617,6 +635,7 @@ export class AttendanceController {
         rows.push({
           date: date,
           employee_name: userName,
+          team_name: userInfoMap[userId]?.team_name ?? '',
           check_in: checkIn?.timestamp || '',
           check_out:
             checkOut &&
@@ -648,6 +667,7 @@ export class AttendanceController {
             {
               date: '',
               employee_name: '',
+              team_name: '',
               check_in: '',
               check_out: '',
               worked_hours: '',
@@ -748,6 +768,86 @@ export class AttendanceController {
     const filename = tenantId
       ? `attendance-tenant-${tenantId}.csv`
       : 'attendance-all-tenants.csv';
+    return sendCsvResponse(res, filename, rows);
+  }
+
+  @Get('export/present-days')
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('hr-admin', 'admin', 'system-admin', 'network-admin')
+  @Permissions('manage_attendance')
+  @ApiOperation({
+    summary: 'Download total present days per employee as CSV',
+    description:
+      "Returns a CSV with each employee's total present days (distinct dates with a check-in) within the given date range. " +
+      'Admins see their own tenant. System-admin must supply tenantId to scope the export to a specific tenant.',
+  })
+  @ApiHeader({
+    name: 'X-Timezone',
+    required: false,
+    description:
+      'IANA timezone (e.g. Asia/Karachi). Overridden by the `timezone` query param if both are provided.',
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    type: String,
+    description: 'Start date (e.g. 2026-05-01)',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    type: String,
+    description: 'End date (e.g. 2026-05-31)',
+  })
+  @ApiQuery({
+    name: 'tenantId',
+    required: false,
+    type: String,
+    description: 'Tenant UUID (required for system-admin)',
+  })
+  @ApiQuery({
+    name: 'timezone',
+    required: false,
+    type: String,
+    description:
+      'IANA timezone for date grouping (e.g. Asia/Karachi). Falls back to X-Timezone header, then UTC.',
+  })
+  async exportPresentDays(
+    @Req() req: AuthenticatedRequest,
+    @Res() res: Response,
+    @Headers('x-timezone') tzHeader?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('tenantId') tenantId?: string,
+    @Query('timezone') timezone?: string,
+  ) {
+    const isSystemAdmin = req.user.role === UserRole.SYSTEM_ADMIN;
+
+    if (isSystemAdmin && !tenantId) {
+      throw new BadRequestException(
+        'tenantId is required for system-admin exports',
+      );
+    }
+
+    if (tenantId && !UUID_REGEX.test(tenantId)) {
+      throw new BadRequestException('tenantId must be a valid UUID');
+    }
+
+    const resolvedTenantId = isSystemAdmin ? tenantId : req.user.tenant_id;
+    const resolvedTimezone =
+      [timezone, tzHeader].find((tz) => tz && IANA_TZ_REGEX.test(tz)) ?? 'UTC';
+
+    const rows = await this.attendanceService.getPresentDaysSummary(
+      resolvedTenantId,
+      startDate,
+      endDate,
+      resolvedTimezone,
+    );
+
+    const filename = resolvedTenantId
+      ? `present-days-${resolvedTenantId}.csv`
+      : 'present-days-all-tenants.csv';
+
     return sendCsvResponse(res, filename, rows);
   }
 
