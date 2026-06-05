@@ -36,10 +36,16 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { Response } from 'express';
 import { sendCsvResponse } from 'src/common/utils/csv.util';
 import { AttendanceType, UserRole } from 'src/common/constants/enums';
+import { toLocalDateString } from '../../common/utils/date.util';
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const IANA_TZ_REGEX = /^[A-Za-z_]+(?:\/[A-Za-z_]+)*$/;
+
+/** Returns the first valid IANA timezone from the provided candidates, falling back to 'UTC'. */
+function resolveTimezone(...candidates: (string | undefined)[]): string {
+  return candidates.find((tz) => tz && IANA_TZ_REGEX.test(tz)) ?? 'UTC';
+}
 
 interface AttendanceEvent {
   type: AttendanceType;
@@ -119,23 +125,59 @@ export class AttendanceController {
   @ApiOperation({
     summary: 'Get daily summaries (latest check-in/out) for a user',
   })
-  findAll(@Query('userId') userId?: string) {
-    return this.attendanceService.findAll(userId);
+  @ApiHeader({
+    name: 'X-Timezone',
+    required: false,
+    description:
+      'IANA timezone (e.g. Asia/Karachi). Overridden by the `timezone` query param if both are provided.',
+  })
+  @ApiQuery({
+    name: 'timezone',
+    required: false,
+    type: String,
+    description:
+      'IANA timezone for date grouping. Falls back to X-Timezone header, then UTC.',
+  })
+  findAll(
+    @Headers('x-timezone') tzHeader?: string,
+    @Query('userId') userId?: string,
+    @Query('timezone') timezone?: string,
+  ) {
+    return this.attendanceService.findAll(
+      userId,
+      resolveTimezone(timezone, tzHeader),
+    );
   }
 
   @Get('all')
   @UseGuards(RolesGuard, PermissionsGuard)
   @Roles('hr-admin', 'admin', 'system-admin', 'network-admin')
   @Permissions('manage_attendance')
+  @ApiHeader({
+    name: 'X-Timezone',
+    required: false,
+    description:
+      'IANA timezone (e.g. Asia/Karachi). Overridden by the `timezone` query param if both are provided.',
+  })
+  @ApiQuery({
+    name: 'timezone',
+    required: false,
+    type: String,
+    description:
+      'IANA timezone for date grouping. Falls back to X-Timezone header, then UTC.',
+  })
   async findAllForAdmin(
     @Req() req: AuthenticatedRequest,
+    @Headers('x-timezone') tzHeader?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('timezone') timezone?: string,
   ) {
     return this.attendanceService.getAllAttendance(
       req.user.tenant_id,
       startDate,
       endDate,
+      resolveTimezone(timezone, tzHeader),
     );
   }
 
@@ -167,6 +209,19 @@ export class AttendanceController {
     required: false,
     type: String,
     description: 'Optional end date filter (ISO date string, e.g., 2024-01-31)',
+  })
+  @ApiHeader({
+    name: 'X-Timezone',
+    required: false,
+    description:
+      'IANA timezone (e.g. Asia/Karachi). Overridden by the `timezone` query param if both are provided.',
+  })
+  @ApiQuery({
+    name: 'timezone',
+    required: false,
+    type: String,
+    description:
+      'IANA timezone for date grouping. Falls back to X-Timezone header, then UTC.',
   })
   @ApiResponse({
     status: 200,
@@ -206,14 +261,18 @@ export class AttendanceController {
     },
   })
   async getAttendanceByTenant(
+    @Headers('x-timezone') tzHeader?: string,
     @Query('tenantId') tenantId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('timezone') timezone?: string,
   ) {
     return this.attendanceService.getAttendanceByTenant(
       tenantId,
       startDate,
       endDate,
+      undefined,
+      resolveTimezone(timezone, tzHeader),
     );
   }
   @Get('events')
@@ -243,22 +302,40 @@ export class AttendanceController {
     required: false,
     description: 'End date filter (ISO date string)',
   })
+  @ApiHeader({
+    name: 'X-Timezone',
+    required: false,
+    description:
+      'IANA timezone (e.g. Asia/Karachi). Overridden by the `timezone` query param if both are provided.',
+  })
+  @ApiQuery({
+    name: 'timezone',
+    required: false,
+    type: String,
+    description:
+      'IANA timezone for date grouping. Falls back to X-Timezone header, then UTC.',
+  })
   @ApiResponse({
     status: 200,
     description: 'Returns attendance events for the specified user',
   })
   async events(
     @Req() req: AuthenticatedRequest,
+    @Headers('x-timezone') tzHeader?: string,
     @Query('userId') userId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('timezone') timezone?: string,
   ) {
-    // For system-admin, allow them to query any userId
-    // For other roles, default to their own userId if not provided
     const userRole = req.user?.role;
     const id =
       userId || (userRole === 'system-admin' ? undefined : req.user.id);
-    return this.attendanceService.findEvents(id, startDate, endDate);
+    return this.attendanceService.findEvents(
+      id,
+      startDate,
+      endDate,
+      resolveTimezone(timezone, tzHeader),
+    );
   }
 
   @Get('today')
@@ -314,16 +391,32 @@ export class AttendanceController {
       },
     },
   })
+  @ApiHeader({
+    name: 'X-Timezone',
+    required: false,
+    description:
+      'IANA timezone (e.g. Asia/Karachi). Overridden by the `timezone` query param if both are provided.',
+  })
+  @ApiQuery({
+    name: 'timezone',
+    required: false,
+    type: String,
+    description:
+      'IANA timezone for date grouping. Falls back to X-Timezone header, then UTC.',
+  })
   async getTeamAttendance(
     @Req() req: AuthenticatedRequest,
+    @Headers('x-timezone') tzHeader?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('timezone') timezone?: string,
   ) {
     return this.attendanceService.getTeamAttendance(
       req.user.id,
       req.user.tenant_id,
       startDate,
       endDate,
+      resolveTimezone(timezone, tzHeader),
     );
   }
 
@@ -346,12 +439,28 @@ export class AttendanceController {
     type: String,
     description: 'Optional end date filter (ISO date string, e.g., 2024-01-31)',
   })
+  @ApiHeader({
+    name: 'X-Timezone',
+    required: false,
+    description:
+      'IANA timezone (e.g. Asia/Karachi). Overridden by the `timezone` query param if both are provided.',
+  })
+  @ApiQuery({
+    name: 'timezone',
+    required: false,
+    type: String,
+    description:
+      'IANA timezone for date grouping. Falls back to X-Timezone header, then UTC.',
+  })
   async exportSelf(
     @Req() req: AuthenticatedRequest,
     @Res() res: Response,
+    @Headers('x-timezone') tzHeader?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('timezone') timezone?: string,
   ) {
+    const tz = resolveTimezone(timezone, tzHeader);
     const userId = req.user.id;
     let userName =
       `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim();
@@ -362,6 +471,7 @@ export class AttendanceController {
       userId,
       startDate,
       endDate,
+      tz,
     );
 
     // Group events by date and combine check-in/check-out
@@ -382,7 +492,9 @@ export class AttendanceController {
 
     // Match check-ins with check-outs
     for (const checkIn of checkIns) {
-      const date = checkIn.timestamp.toISOString().split('T')[0];
+      const date = tz
+        ? toLocalDateString(checkIn.timestamp, tz)
+        : checkIn.timestamp.toISOString().split('T')[0];
       const matchingCheckOut = checkOuts.find(
         (checkout) => checkout.timestamp > checkIn.timestamp,
       );
@@ -471,17 +583,34 @@ export class AttendanceController {
     type: String,
     description: 'Optional end date filter (ISO date string, e.g., 2024-01-31)',
   })
+  @ApiHeader({
+    name: 'X-Timezone',
+    required: false,
+    description:
+      'IANA timezone (e.g. Asia/Karachi). Overridden by the `timezone` query param if both are provided.',
+  })
+  @ApiQuery({
+    name: 'timezone',
+    required: false,
+    type: String,
+    description:
+      'IANA timezone for date grouping. Falls back to X-Timezone header, then UTC.',
+  })
   async exportTeam(
     @Req() req: AuthenticatedRequest,
     @Res() res: Response,
+    @Headers('x-timezone') tzHeader?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('timezone') timezone?: string,
   ) {
+    const tz = resolveTimezone(timezone, tzHeader);
     const { items } = await this.attendanceService.getTeamAttendance(
       req.user.id,
       req.user.tenant_id,
       startDate,
       endDate,
+      tz,
     );
     const rows = (items as TeamMemberAttendance[]).flatMap((member) => {
       const attendance = member.attendance || [];
@@ -522,12 +651,28 @@ export class AttendanceController {
     description:
       'End date filter (e.g. 2026-02-28). Applied as UTC end of day.',
   })
+  @ApiHeader({
+    name: 'X-Timezone',
+    required: false,
+    description:
+      'IANA timezone (e.g. Asia/Karachi). Overridden by the `timezone` query param if both are provided.',
+  })
+  @ApiQuery({
+    name: 'timezone',
+    required: false,
+    type: String,
+    description:
+      'IANA timezone for date grouping. Falls back to X-Timezone header, then UTC.',
+  })
   async exportAll(
     @Req() req: AuthenticatedRequest,
     @Res() res: Response,
+    @Headers('x-timezone') tzHeader?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('timezone') timezone?: string,
   ) {
+    const tz = resolveTimezone(timezone, tzHeader);
     // Fetch all records in batches to ensure we get everything
     const allItems: any[] = [];
     const batchSize = 1000;
@@ -541,6 +686,7 @@ export class AttendanceController {
         endDate,
         skip,
         batchSize,
+        tz,
       );
 
       if (batch.length > 0) {
@@ -591,7 +737,9 @@ export class AttendanceController {
       }
 
       for (const checkIn of checkIns) {
-        const date = checkIn.timestamp.toISOString().split('T')[0];
+        const date = tz
+          ? toLocalDateString(checkIn.timestamp, tz)
+          : checkIn.timestamp.toISOString().split('T')[0];
         const matchingCheckOut = checkOuts.find(
           (checkout) => checkout.timestamp > checkIn.timestamp,
         );
@@ -711,18 +859,34 @@ export class AttendanceController {
     description:
       'Optional employee name filter (partial match on first/last name)',
   })
+  @ApiHeader({
+    name: 'X-Timezone',
+    required: false,
+    description:
+      'IANA timezone (e.g. Asia/Karachi). Overridden by the `timezone` query param if both are provided.',
+  })
+  @ApiQuery({
+    name: 'timezone',
+    required: false,
+    type: String,
+    description:
+      'IANA timezone for date grouping. Falls back to X-Timezone header, then UTC.',
+  })
   async exportSystem(
     @Res() res: Response,
+    @Headers('x-timezone') tzHeader?: string,
     @Query('tenantId') tenantId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('name') name?: string,
+    @Query('timezone') timezone?: string,
   ) {
     const { tenants } = await this.attendanceService.getAttendanceByTenant(
       tenantId,
       startDate,
       endDate,
       name,
+      resolveTimezone(timezone, tzHeader),
     );
 
     const rows: Record<string, unknown>[] = [];
@@ -930,13 +1094,34 @@ export class AttendanceController {
       },
     },
   })
-  async getTodayTeamAttendance(@Req() req: AuthenticatedRequest) {
-    const today = new Date().toISOString().split('T')[0];
+  @ApiHeader({
+    name: 'X-Timezone',
+    required: false,
+    description:
+      'IANA timezone (e.g. Asia/Karachi). Overridden by the `timezone` query param if both are provided.',
+  })
+  @ApiQuery({
+    name: 'timezone',
+    required: false,
+    type: String,
+    description:
+      'IANA timezone for date grouping. Falls back to X-Timezone header, then UTC.',
+  })
+  async getTodayTeamAttendance(
+    @Req() req: AuthenticatedRequest,
+    @Headers('x-timezone') tzHeader?: string,
+    @Query('timezone') timezone?: string,
+  ) {
+    const tz = resolveTimezone(timezone, tzHeader);
+    const today = tz
+      ? toLocalDateString(new Date(), tz)
+      : new Date().toISOString().split('T')[0];
     const result = await this.attendanceService.getTeamAttendance(
       req.user.id,
       req.user.tenant_id,
       today,
       today,
+      tz,
     );
 
     // Filter to only include team members who have marked attendance today (at least check-in)
