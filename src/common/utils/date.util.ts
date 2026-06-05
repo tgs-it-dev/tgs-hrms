@@ -3,7 +3,7 @@
  * Positive = timezone is behind UTC (e.g., UTC-7 returns +25200000).
  * Negative = timezone is ahead of UTC (e.g., UTC+5 returns -18000000).
  */
-export function getUtcOffsetMs(date: Date, timezone: string): number {
+function getUtcOffsetMs(date: Date, timezone: string): number {
   const fmt = new Intl.DateTimeFormat('en-US', {
     timeZone: timezone,
     year: 'numeric',
