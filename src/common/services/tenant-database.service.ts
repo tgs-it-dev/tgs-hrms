@@ -1,6 +1,10 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { InjectDataSource } from "@nestjs/typeorm";
-import { DataSource, EntityManager } from "typeorm";
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource, EntityManager } from 'typeorm';
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const SCHEMA_NAME_REGEX = /^tenant_[0-9a-f]{32}$/;
 
 /**
  * Provides a safe, connection-pool-friendly way to execute queries against
@@ -40,10 +44,23 @@ export class TenantDatabaseService {
 
   /**
    * Returns the PostgreSQL schema name for the given tenant UUID.
-   * Matches the convention used by TenantSchemaProvisioningService.
+   * Throws BadRequestException if tenantId is not a valid UUID — prevents
+   * arbitrary strings from reaching the SET LOCAL search_path SQL statement.
    */
   getSchemaName(tenantId: string): string {
-    return `tenant_${tenantId.replace(/-/g, "")}`;
+    if (!UUID_REGEX.test(tenantId)) {
+      throw new BadRequestException(
+        `Invalid tenant ID: must be a valid UUID, got "${tenantId}"`,
+      );
+    }
+    const schemaName = `tenant_${tenantId.replace(/-/g, '')}`;
+    // Sanity-check the produced name matches the expected pattern before use.
+    if (!SCHEMA_NAME_REGEX.test(schemaName)) {
+      throw new BadRequestException(
+        `Derived schema name "${schemaName}" does not match expected pattern`,
+      );
+    }
+    return schemaName;
   }
 
   /**

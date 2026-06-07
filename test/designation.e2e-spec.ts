@@ -1,10 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { makeBearerToken } from './utils/auth-helper';
-import * as dotenv from 'dotenv';
+import dotenv from 'dotenv';
 dotenv.config({ path: '.env.test' });
 
 const adminToken = makeBearerToken('admin'); // Bearer <jwt…>
@@ -98,7 +98,11 @@ describe('DesignationController (e2e)', () => {
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
       // should contain at least one record created earlier
-      expect(res.body.some((d: { departmentId: string }) => d.departmentId === departmentId)).toBe(true);
+      expect(
+        res.body.some(
+          (d: { departmentId: string }) => d.departmentId === departmentId,
+        ),
+      ).toBe(true);
     });
   });
 

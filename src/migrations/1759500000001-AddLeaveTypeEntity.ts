@@ -1,8 +1,7 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
-import { v4 as uuidv4 } from "uuid";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class AddLeaveTypeEntity1759500000001 implements MigrationInterface {
-  name = 'AddLeaveTypeEntity1759500000001'
+  name = 'AddLeaveTypeEntity1759500000001';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Create leave_types table
@@ -24,14 +23,14 @@ export class AddLeaveTypeEntity1759500000001 implements MigrationInterface {
 
     // Add foreign key constraints
     await queryRunner.query(`
-      ALTER TABLE "leave_types" 
-      ADD CONSTRAINT "FK_leave_types_tenant" 
+      ALTER TABLE "leave_types"
+      ADD CONSTRAINT "FK_leave_types_tenant"
       FOREIGN KEY ("tenantId") REFERENCES "tenants"("id") ON DELETE CASCADE
     `);
 
     await queryRunner.query(`
-      ALTER TABLE "leave_types" 
-      ADD CONSTRAINT "FK_leave_types_creator" 
+      ALTER TABLE "leave_types"
+      ADD CONSTRAINT "FK_leave_types_creator"
       FOREIGN KEY ("createdBy") REFERENCES "users"("id") ON DELETE CASCADE
     `);
 

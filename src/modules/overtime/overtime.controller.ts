@@ -8,11 +8,9 @@ import {
   Body,
   Query,
   Req,
-  UseGuards,
   ParseUUIDPipe,
   UseInterceptors,
   UploadedFiles,
-  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -35,7 +33,6 @@ import { CreateOvertimeDto } from './dto/create-overtime.dto';
 import { UpdateOvertimeDto } from './dto/update-overtime.dto';
 import { RemoveAttachmentDto } from '../../common/dto/remove-attachment.dto';
 import { OvertimeStatus } from '../../common/constants/enums';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthenticatedRequest } from '../../common/types/request.types';
 import { createImageFileFilter } from '../../common/utils/file-validation.util';
@@ -173,7 +170,6 @@ Providing both \`hours\` and \`end_date\`, or neither, will return a 400 error.`
   }
 
   @Get()
-  @UseGuards(RolesGuard)
   @Roles('admin', 'hr-admin', 'system-admin', 'network-admin', 'manager')
   @ApiOperation({
     summary: 'List all overtime requests across the tenant (admin/manager)',

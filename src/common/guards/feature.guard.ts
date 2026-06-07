@@ -5,8 +5,8 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { FEATURE_KEY } from 'src/common/decorators/feature.decorator';
-import { SystemSettingsService } from 'src/modules/system/system-settings/system-settings.service';
+import { FEATURE_KEY } from '../decorators/feature.decorator';
+import { SystemSettingsService } from '../../modules/system/system-settings/system-settings.service';
 
 @Injectable()
 export class FeatureGuard implements CanActivate {

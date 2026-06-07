@@ -1,14 +1,11 @@
-import { Injectable } from "@nestjs/common";
-import * as fs from "fs";
-import * as path from "path";
+import { Injectable } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class FileUploadService {
-  async uploadProfilePicture(
-    file: Express.Multer.File,
-    userId: string,
-  ): Promise<string> {
-    const uploadDir = path.join(process.cwd(), "public", "profile-pictures");
+  uploadProfilePicture(file: Express.Multer.File, userId: string): string {
+    const uploadDir = path.join(process.cwd(), 'public', 'profile-pictures');
 
     // Create directory if it doesn't exist
     if (!fs.existsSync(uploadDir)) {
@@ -27,16 +24,16 @@ export class FileUploadService {
     return `/profile-pictures/${fileName}`;
   }
 
-  async deleteProfilePicture(profilePicUrl: string): Promise<void> {
+  deleteProfilePicture(profilePicUrl: string): void {
     if (!profilePicUrl) return;
 
-    const fileName = profilePicUrl.split("/").pop();
+    const fileName = profilePicUrl.split('/').pop();
     if (!fileName) return;
 
     const filePath = path.join(
       process.cwd(),
-      "public",
-      "profile-pictures",
+      'public',
+      'profile-pictures',
       fileName,
     );
 

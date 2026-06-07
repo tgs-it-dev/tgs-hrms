@@ -1,6 +1,13 @@
 // Global System Tenant ID - Used for system-admin users across the entire HRMS
 export const GLOBAL_SYSTEM_TENANT_ID = '00000000-0000-0000-0000-000000000000';
 
+// Org membership roles — mirrored as a native PostgreSQL ENUM (see migration 1773000000003)
+export enum OrgMemberRole {
+  OWNER = 'owner',
+  ADMIN = 'admin',
+  MEMBER = 'member',
+}
+
 // User and Role Enums
 export enum UserRole {
   ADMIN = 'admin',
@@ -153,13 +160,13 @@ export enum SalaryStatus {
 // }
 
 // Subscription Enums
-// export enum SubscriptionStatus {
-//   ACTIVE = 'active',
-//   INACTIVE = 'inactive',
-//   CANCELLED = 'cancelled',
-//   EXPIRED = 'expired',
-//   TRIAL = 'trial',
-// }
+export enum SubscriptionStatus {
+  ACTIVE = 'active',
+  TRIAL = 'trial',
+  GRACE_PERIOD = 'grace_period',
+  CANCELLED = 'cancelled',
+  EXPIRED = 'expired',
+}
 
 // export enum PaymentStatus {
 //   PENDING = 'pending',
@@ -352,6 +359,23 @@ export enum AnnouncementStatus {
   SCHEDULED = 'scheduled',
   SENT = 'sent',
   CANCELLED = 'cancelled',
+}
+
+// Notification Email Enums
+export enum NotificationEmailType {
+  LEAVE_REQUEST = 'leave_request',
+  LEAVE_STATUS_UPDATE = 'leave_status_update',
+  FLEX_REQUEST = 'flex_request',
+  FLEX_STATUS_UPDATE = 'flex_status_update',
+  OVERTIME_REQUEST = 'overtime_request',
+  OVERTIME_STATUS_UPDATE = 'overtime_status_update',
+  WORKFLOW_STEP_PROCESSING = 'workflow_step_processing',
+  WORKFLOW_PENDING_APPROVAL = 'workflow_pending_approval',
+}
+
+export enum NotificationLogStatus {
+  SENT = 'sent',
+  FAILED = 'failed',
 }
 
 // Workflow Enums

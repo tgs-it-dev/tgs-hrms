@@ -1,10 +1,10 @@
-import { IsOptional, IsString, IsUUID } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsString } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class ApproveCheckInDto {
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Optional remarks for the approval/rejection',
-    example: 'Approved - Checked in on time'
+    example: 'Approved - Checked in on time',
   })
   @IsOptional()
   @IsString()
@@ -12,9 +12,9 @@ export class ApproveCheckInDto {
 }
 
 export class BulkApproveCheckInDto {
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Optional remarks for bulk approval',
-    example: 'All check-ins approved'
+    example: 'All check-ins approved',
   })
   @IsOptional()
   @IsString()

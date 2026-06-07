@@ -1,6 +1,8 @@
 import { Request } from 'express';
 
 export interface AuthenticatedRequest extends Request {
+  clientIp?: string;
+  gracePeriod?: boolean;
   user: {
     id: string;
     email: string;
@@ -9,6 +11,6 @@ export interface AuthenticatedRequest extends Request {
     role: string;
     tenant_id: string;
     permissions: string[];
+    is_mobile?: boolean;
   };
 }
-

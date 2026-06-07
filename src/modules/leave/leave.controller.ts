@@ -3,7 +3,6 @@ import {
   Get,
   Post,
   Patch,
-  Put,
   Delete,
   Param,
   Body,
@@ -36,19 +35,22 @@ import {
   EditLeaveDto,
   RemoveLeaveDocumentDto,
 } from './dto/update-leave.dto';
-import { RolesGuard } from 'src/common/guards/roles.guard';
-import { Roles } from 'src/common/decorators/roles.decorator';
-import { Permissions } from 'src/common/decorators/permissions.decorator';
-import { PermissionsGuard } from 'src/common/guards/permissions.guard';
+
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { Permissions } from '../../common/decorators/permissions.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { Response } from 'express';
-import { sendCsvResponse } from 'src/common/utils/csv.util';
+import { sendCsvResponse } from '../../common/utils/csv.util';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { validateImageFile, createImageFileFilter } from 'src/common/utils/file-validation.util';
-import { AuthenticatedRequest } from 'src/common/types/request.types';
+import {
+  validateImageFile,
+  createImageFileFilter,
+} from '../../common/utils/file-validation.util';
+import { AuthenticatedRequest } from '../../common/types/request.types';
 
 @ApiTags('Leaves')
 @Controller('leaves')
-
 export class LeaveController {
   constructor(private readonly leaveService: LeaveService) {}
 
@@ -358,7 +360,8 @@ export class LeaveController {
   }
 
   @Get()
-
+  @UseGuards(RolesGuard, PermissionsGuard)
+  @Roles('admin', 'system-admin', 'hr-admin', 'manager', 'employee')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all leaves for logged-in employee' })
   @ApiResponse({ status: 200, description: 'Returns leave requests' })
@@ -539,48 +542,6 @@ export class LeaveController {
     );
   }
 
-  @Put(':id/approve')
-  @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin', 'manager')
-  @Permissions('approve_leaves', 'manage_leaves')
-  @ApiBearerAuth()
-  @ApiOperation({
-    summary: 'Approve a leave request — PUT alias (legacy path)',
-  })
-  @ApiResponse({ status: 200, description: 'Leave approved successfully' })
-  async approveLeavePut(
-    @Param('id') id: string,
-    @Body() dto: ApproveLeaveDto,
-    @Request() req: AuthenticatedRequest,
-  ) {
-    return this.leaveService.approveLeave(
-      id,
-      req.user.id,
-      req.user.tenant_id,
-      dto.remarks,
-    );
-  }
-
-  @Put(':id/reject')
-  @UseGuards(RolesGuard, PermissionsGuard)
-  @Roles('admin', 'system-admin', 'manager')
-  @Permissions('approve_leaves', 'manage_leaves')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Reject a leave request — PUT alias (legacy path)' })
-  @ApiResponse({ status: 200, description: 'Leave rejected successfully' })
-  async rejectLeavePut(
-    @Param('id') id: string,
-    @Body() dto: RejectLeaveDto,
-    @Request() req: AuthenticatedRequest,
-  ) {
-    return this.leaveService.rejectLeave(
-      id,
-      req.user.id,
-      req.user.tenant_id,
-      dto.remarks,
-    );
-  }
-
   @Patch(':id/manager-remarks')
   @UseGuards(RolesGuard, PermissionsGuard)
   @Roles('manager')
@@ -655,7 +616,6 @@ export class LeaveController {
   }
 
   @Patch(':id/cancel')
-
   @ApiBearerAuth()
   @ApiOperation({
     summary:
@@ -802,9 +762,6 @@ export class LeaveController {
       }
     }
 
-    // Debug: Log the DTO to verify values are being received
-    // console.log('EditLeave DTO received:', JSON.stringify(dto, null, 2));
-
     return this.leaveService.editLeave(
       id,
       req.user.id,
@@ -855,7 +812,10 @@ export class LeaveController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Download your leave requests as CSV' })
   async exportSelf(@Request() req: AuthenticatedRequest, @Res() res: Response) {
-    const rows = await this.leaveService.getLeavesForExport(req.user.id, req.user.tenant_id);
+    const rows = await this.leaveService.getLeavesForExport(
+      req.user.id,
+      req.user.tenant_id,
+    );
     return sendCsvResponse(res, 'leaves-self.csv', rows);
   }
 

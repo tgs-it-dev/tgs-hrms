@@ -9,7 +9,11 @@ import { SharedJwtModule } from '../../common/modules/jwt.module';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Tenant]), SharedJwtModule],
-  providers: [TenantService, TenantSchemaProvisioningService, TenantDatabaseService],
+  providers: [
+    TenantService,
+    TenantSchemaProvisioningService,
+    TenantDatabaseService,
+  ],
   controllers: [TenantController],
   exports: [TenantSchemaProvisioningService, TenantDatabaseService],
 })

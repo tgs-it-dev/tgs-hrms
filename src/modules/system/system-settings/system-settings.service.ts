@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { SystemSetting } from 'src/entities/system-setting.entity';
+import { SystemSetting } from '../../../entities/system-setting.entity';
 
 @Injectable()
 export class SystemSettingsService implements OnModuleInit {

@@ -1,28 +1,27 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { ValidationPipe, BadRequestException } from '@nestjs/common';
+import { ValidationPipe, BadRequestException, Logger } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { Request, Response, NextFunction } from 'express';
-// Use require() so production build works (express-basic-auth is CommonJS, no default export)
-const basicAuth = require('express-basic-auth');
+import basicAuth from 'express-basic-auth';
+
+const logger = new Logger('Bootstrap');
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    rawBody: true, // Required for Stripe webhook signature verification
+  });
 
   app.use((_req: Request, res: Response, next: NextFunction) => {
     const start = Date.now();
-
-    const originalEnd = res.end.bind(res);
-    (res as any).end = (...args: any[]) => {
+    res.on('finish', () => {
       if (!res.headersSent) {
         res.setHeader('X-Response-Time', `${Date.now() - start}ms`);
       }
-      return originalEnd(...args);
-    };
-
+    });
     next();
   });
 
@@ -84,7 +83,7 @@ async function bootstrap() {
         callback(null, true);
       } else {
         if (process.env.NODE_ENV !== 'production') {
-          console.warn(
+          logger.warn(
             `CORS: Rejected origin: ${origin}. Allowed origins: ${allowedOrigins.join(', ')}`,
           );
         }
@@ -106,7 +105,6 @@ async function bootstrap() {
     optionsSuccessStatus: 204,
   });
 
-  // Protect Swagger with Basic Auth when SWAGGER_PASSWORD is set (e.g. on Render/live)
   const swaggerPassword = process.env.SWAGGER_PASSWORD;
   const swaggerUser = process.env.SWAGGER_USER || 'admin';
   if (swaggerPassword) {
@@ -142,4 +140,4 @@ async function bootstrap() {
   const port = parseInt(process.env.PORT || '3001', 10);
   await app.listen(port, '0.0.0.0');
 }
-bootstrap();
+void bootstrap();

@@ -13,13 +13,13 @@ export class SubscriptionService {
   constructor(
     @InjectRepository(SubscriptionPlan)
     private readonly subscriptionPlanRepo: Repository<SubscriptionPlan>,
-    private readonly configService: ConfigService
+    private readonly configService: ConfigService,
   ) {
     const stripeKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (stripeKey) this.stripe = new Stripe(stripeKey);
     else
       this.logger.warn(
-        'STRIPE_SECRET_KEY not configured; prices endpoint will return mocked values.'
+        'STRIPE_SECRET_KEY not configured; prices endpoint will return mocked values.',
       );
   }
 
@@ -31,20 +31,17 @@ export class SubscriptionService {
     return this.subscriptionPlanRepo.findOne({ where: { id } });
   }
 
-  
   async getStripePricesByPriceIds(priceIds: string[]): Promise<any[]> {
     if (!this.stripe) {
-      
       return priceIds.map((priceId, index) => ({
         priceId,
         currency: 'usd',
-        unit_amount: [900, 1900, 3000][index] || 1000, 
+        unit_amount: [900, 1900, 3000][index] || 1000,
         interval: 'month',
       }));
     }
 
     try {
-    
       const prices = await Promise.all(
         priceIds.map(async (priceId) => {
           const price = await this.stripe!.prices.retrieve(priceId);
@@ -54,7 +51,7 @@ export class SubscriptionService {
             unit_amount: price.unit_amount || 0,
             interval: price.recurring?.interval || 'month',
           };
-        })
+        }),
       );
       return prices;
     } catch (error) {

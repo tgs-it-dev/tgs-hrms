@@ -14,7 +14,14 @@ import {
   Logger,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiBody,
+} from '@nestjs/swagger';
 import { Response } from 'express';
 import { Res, Param } from '@nestjs/common';
 import { CompanyService } from './company.service';
@@ -25,6 +32,8 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { validateImageFile } from '../../common/utils/file-validation.util';
+import { AuthenticatedRequest } from '../../common/types/request.types';
+import { UserRole } from '../../common/constants/enums';
 
 @ApiTags('Company')
 @Controller('company')
@@ -43,9 +52,17 @@ export class CompanyController {
     type: CompanyResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Company details not found' })
-  async getCompanyDetails(@Request() req: any): Promise<CompanyResponseDto> {
-    this.logger.log(`Getting company details for tenant: ${req.user.tenant_id}`);
-    return this.companyService.getCompanyDetails(req.user.tenant_id);
+  async getCompanyDetails(
+    @Request() req: AuthenticatedRequest,
+  ): Promise<CompanyResponseDto> {
+    this.logger.log(
+      `Getting company details for tenant: ${req.user.tenant_id}`,
+    );
+    const adminRoles: string[] = [UserRole.ADMIN, UserRole.SYSTEM_ADMIN];
+    const clientIp = adminRoles.includes(req.user.role)
+      ? (req.clientIp ?? req.ip ?? '0.0.0.0')
+      : null;
+    return this.companyService.getCompanyDetails(req.user.tenant_id, clientIp);
   }
 
   @Get('logo/:tenantId')
@@ -74,7 +91,7 @@ export class CompanyController {
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
       result.fileStream.pipe(res);
       return;
-    } catch (e) {
+    } catch (_e) {
       return res.status(500).json({ message: 'Error serving company logo' });
     }
   }
@@ -88,17 +105,24 @@ export class CompanyController {
     description: 'Company details updated successfully',
     type: CompanyResponseDto,
   })
-  @ApiResponse({ status: 403, description: 'Forbidden - Admin access required' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Admin access required',
+  })
   @ApiResponse({ status: 404, description: 'Company details not found' })
   async updateCompanyDetails(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Body() updateDto: UpdateCompanyDto,
   ): Promise<CompanyResponseDto> {
-    this.logger.log(`Updating company details for tenant: ${req.user.tenant_id}, user: ${req.user.sub}`);
+    this.logger.log(
+      `Updating company details for tenant: ${req.user.tenant_id}, user: ${req.user.id}`,
+    );
+    const clientIp = req.clientIp ?? req.ip ?? '0.0.0.0'; // PUT is admin-only so IP is always present
     return this.companyService.updateCompanyDetails(
       req.user.tenant_id,
       req.user.role,
       updateDto,
+      clientIp,
     );
   }
 
@@ -116,7 +140,8 @@ export class CompanyController {
         logo: {
           type: 'string',
           format: 'binary',
-          description: 'Logo file - only JPG, JPEG, PNG, GIF or WebP allowed (max 5MB). JFIF and other formats are not accepted.',
+          description:
+            'Logo file - only JPG, JPEG, PNG, GIF or WebP allowed (max 5MB). JFIF and other formats are not accepted.',
         },
       },
     },
@@ -126,11 +151,14 @@ export class CompanyController {
     description: 'Company logo updated successfully',
     type: CompanyResponseDto,
   })
-  @ApiResponse({ status: 403, description: 'Forbidden - Admin access required' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Admin access required',
+  })
   @ApiResponse({ status: 404, description: 'Company details not found' })
   @ApiResponse({ status: 400, description: 'Invalid file type or size' })
   async updateCompanyLogo(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @UploadedFile(
       new ParseFilePipe({
         validators: [
@@ -144,11 +172,15 @@ export class CompanyController {
     file: Express.Multer.File,
   ): Promise<CompanyResponseDto> {
     validateImageFile(file);
-    this.logger.log(`Updating company logo for tenant: ${req.user.tenant_id}, user: ${req.user.sub}`);
+    this.logger.log(
+      `Updating company logo for tenant: ${req.user.tenant_id}, user: ${req.user.id}`,
+    );
+    const clientIp = req.clientIp ?? req.ip ?? '0.0.0.0'; // POST logo is admin-only so IP is always present
     return this.companyService.updateCompanyLogo(
       req.user.tenant_id,
       req.user.role,
       file,
+      clientIp,
     );
   }
 }

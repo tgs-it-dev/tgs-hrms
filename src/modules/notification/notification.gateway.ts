@@ -6,7 +6,7 @@ import {
   SubscribeMessage,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger, UseGuards } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 
@@ -17,7 +17,9 @@ interface AuthenticatedSocket extends Socket {
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.CORS_ORIGINS?.split(',').map(origin => origin.trim()) || [
+    origin: process.env.CORS_ORIGINS?.split(',').map((origin) =>
+      origin.trim(),
+    ) || [
       'http://localhost:5173',
       'http://localhost:3000',
       'http://localhost:3001',
@@ -26,7 +28,9 @@ interface AuthenticatedSocket extends Socket {
   },
   namespace: '/notifications',
 })
-export class NotificationGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class NotificationGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server: Server;
 
@@ -38,10 +42,11 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
     private readonly configService: ConfigService,
   ) {}
 
-  async handleConnection(client: AuthenticatedSocket) {
+  handleConnection(client: AuthenticatedSocket) {
     try {
       // Extract token from handshake auth or query
-      const token = client.handshake.auth?.token || client.handshake.query?.token;
+      const token =
+        client.handshake.auth?.token || client.handshake.query?.token;
 
       if (!token || typeof token !== 'string') {
         this.logger.warn(`Client ${client.id} disconnected: No token provided`);
@@ -58,27 +63,35 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
       }
 
       try {
-        const payload = this.jwtService.verify(token, { secret });
+        const payload = this.jwtService.verify(token, {
+          secret,
+        }) as unknown as Record<string, unknown>;
         if (!payload.id || typeof payload.id !== 'string') {
-          this.logger.warn(`Client ${client.id} disconnected: Token missing user ID`);
+          this.logger.warn(
+            `Client ${client.id} disconnected: Token missing user ID`,
+          );
           client.disconnect();
           return;
         }
-        
-        const userId: string = payload.id;
+
+        const userId: string = payload['id'];
         client.userId = userId;
-        client.tenantId = payload.tenant_id;
+        client.tenantId =
+          typeof payload.tenant_id === 'string' ? payload.tenant_id : undefined;
 
         // Store client by userId for easy lookup
         this.connectedClients.set(userId, client);
 
         this.logger.log(`Client ${client.id} connected as user ${userId}`);
-      } catch (error) {
+      } catch (_error) {
         this.logger.warn(`Client ${client.id} disconnected: Invalid token`);
         client.disconnect();
       }
     } catch (error) {
-      this.logger.error(`Error handling connection for client ${client.id}:`, error);
+      this.logger.error(
+        `Error handling connection for client ${client.id}:`,
+        error,
+      );
       client.disconnect();
     }
   }
@@ -86,7 +99,9 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
   handleDisconnect(client: AuthenticatedSocket) {
     if (client.userId) {
       this.connectedClients.delete(client.userId);
-      this.logger.log(`Client ${client.id} disconnected (user ${client.userId})`);
+      this.logger.log(
+        `Client ${client.id} disconnected (user ${client.userId})`,
+      );
     } else {
       this.logger.log(`Client ${client.id} disconnected`);
     }
@@ -120,7 +135,7 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
   }
 
   @SubscribeMessage('ping')
-  handlePing(client: AuthenticatedSocket) {
+  handlePing(_client: AuthenticatedSocket) {
     return { event: 'pong', data: { timestamp: new Date().toISOString() } };
   }
 }

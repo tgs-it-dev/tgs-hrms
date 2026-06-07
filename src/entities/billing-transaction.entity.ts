@@ -64,4 +64,3 @@ export class BillingTransaction {
   @UpdateDateColumn()
   updated_at: Date;
 }
-

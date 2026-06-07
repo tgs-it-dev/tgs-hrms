@@ -116,6 +116,7 @@ export class TenantSchemaProvisioningService {
       await this.createAttendanceTable(queryRunner, schemaName);
       await this.createLeaveTypesTable(queryRunner, schemaName);
       await this.createLeavesTable(queryRunner, schemaName);
+      await this.createLeaveBalancesTable(queryRunner, schemaName);
       await this.createAnnouncementsTable(queryRunner, schemaName);
       await this.createGeofencesTable(queryRunner, schemaName);
       await this.createNotificationsTable(queryRunner, schemaName);
@@ -124,6 +125,7 @@ export class TenantSchemaProvisioningService {
       await this.createWorkflowStepsTable(queryRunner, schemaName);
       await this.createWfhRequestsTable(queryRunner, schemaName);
       await this.createOvertimeRequestsTable(queryRunner, schemaName);
+      await this.createNotificationsLogTable(queryRunner, schemaName);
       await this.seedDefaultWorkflowConfigs(queryRunner, schemaName, tenantId);
 
       // Copy platform-wide GLOBAL departments/designations so new tenants can
@@ -184,6 +186,7 @@ export class TenantSchemaProvisioningService {
       await this.createAttendanceTable(queryRunner, schemaName);
       await this.createLeaveTypesTable(queryRunner, schemaName);
       await this.createLeavesTable(queryRunner, schemaName);
+      await this.createLeaveBalancesTable(queryRunner, schemaName);
       await this.createAnnouncementsTable(queryRunner, schemaName);
       await this.createGeofencesTable(queryRunner, schemaName);
       await this.createNotificationsTable(queryRunner, schemaName);
@@ -198,6 +201,7 @@ export class TenantSchemaProvisioningService {
       await this.createWorkflowStepsTable(queryRunner, schemaName);
       await this.createWfhRequestsTable(queryRunner, schemaName);
       await this.createOvertimeRequestsTable(queryRunner, schemaName);
+      await this.createNotificationsLogTable(queryRunner, schemaName);
       await this.seedDefaultWorkflowConfigs(queryRunner, schemaName, tenantId);
 
       // Migrate any existing public-schema rows for this tenant into the new
@@ -236,6 +240,23 @@ export class TenantSchemaProvisioningService {
       [schemaName],
     );
     return result[0]?.exists ?? false;
+  }
+
+  /**
+   * Stub — schema removal is intentionally not implemented.
+   *
+   * Dropping a tenant schema is a destructive, unrecoverable operation.
+   * Implementing it requires an explicit off-cycle process (export, audit,
+   * legal hold check) that does not belong in the application layer.
+   * This stub exists so callers can reference the method and the intent is
+   * documented, without accidental data loss being possible.
+   */
+  deprovisionTenantSchema(tenantId: string): void {
+    const schemaName = this.getSchemaName(tenantId);
+    this.logger.warn(
+      `deprovisionTenantSchema called for "${schemaName}" — ` +
+        `no-op: schema removal must be performed manually via a controlled off-cycle process.`,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -638,6 +659,55 @@ export class TenantSchemaProvisioningService {
          ON "${schemaName}"."leaves" ("status")`,
     );
     this.logger.debug(`Table "${schemaName}".leaves ensured`);
+  }
+
+  /**
+   * leave_balances
+   *   FK: "employeeId"  → public.users
+   *   FK: "leaveTypeId" → <tenant schema>.leave_types
+   *   FK: "tenantId"    → public.tenants
+   *
+   * Suffix budget used: _lb_emp (7), _lb_lt (6), _lb_tn (6)
+   */
+  private async createLeaveBalancesTable(
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
+    schemaName: string,
+  ): Promise<void> {
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."leave_balances" (
+        "id"           UUID    NOT NULL DEFAULT gen_random_uuid(),
+        "employeeId"   UUID    NOT NULL,
+        "leaveTypeId"  UUID    NOT NULL,
+        "year"         INTEGER NOT NULL,
+        "allocated"    INTEGER NOT NULL DEFAULT 0,
+        "used"         INTEGER NOT NULL DEFAULT 0,
+        "tenantId"     UUID    NOT NULL,
+        "createdAt"    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        "updatedAt"    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        CONSTRAINT "pk_${schemaName}_lb" PRIMARY KEY ("id"),
+        CONSTRAINT "uq_${schemaName}_lb_emp_lt_yr_tn"
+          UNIQUE ("employeeId", "leaveTypeId", "year", "tenantId"),
+        CONSTRAINT "fk_${schemaName}_lb_emp"
+          FOREIGN KEY ("employeeId") REFERENCES "public"."users" ("id") ON DELETE CASCADE,
+        CONSTRAINT "fk_${schemaName}_lb_lt"
+          FOREIGN KEY ("leaveTypeId") REFERENCES "${schemaName}"."leave_types" ("id") ON DELETE CASCADE,
+        CONSTRAINT "fk_${schemaName}_lb_tn"
+          FOREIGN KEY ("tenantId") REFERENCES "public"."tenants" ("id") ON DELETE CASCADE
+      )
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_lb_emp"
+        ON "${schemaName}"."leave_balances" ("employeeId")
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_lb_lt"
+        ON "${schemaName}"."leave_balances" ("leaveTypeId")
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_lb_tn_yr"
+        ON "${schemaName}"."leave_balances" ("tenantId", "year")
+    `);
+    this.logger.debug(`Table "${schemaName}".leave_balances ensured`);
   }
 
   /**
@@ -1580,6 +1650,43 @@ export class TenantSchemaProvisioningService {
         ON "${schemaName}"."overtime_requests" ("tenant_id", "status")
     `);
     this.logger.debug(`Table "${schemaName}".overtime_requests ensured`);
+  }
+
+  private async createNotificationsLogTable(
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
+    schemaName: string,
+  ): Promise<void> {
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."notifications_log" (
+        id                UUID         NOT NULL DEFAULT gen_random_uuid(),
+        tenant_id         UUID,
+        recipient_user_id UUID,
+        recipient_email   VARCHAR(320) NOT NULL,
+        type              VARCHAR(64)  NOT NULL,
+        status            VARCHAR(16)  NOT NULL,
+        error_message     TEXT,
+        metadata          JSONB,
+        sent_at           TIMESTAMPTZ  NOT NULL DEFAULT now(),
+        CONSTRAINT "pk_${schemaName}_notif_log" PRIMARY KEY (id)
+      )
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_nlog_tenant"
+        ON "${schemaName}"."notifications_log" (tenant_id)
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_nlog_recipient"
+        ON "${schemaName}"."notifications_log" (recipient_user_id)
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_nlog_type"
+        ON "${schemaName}"."notifications_log" (type)
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_nlog_status"
+        ON "${schemaName}"."notifications_log" (status)
+    `);
+    this.logger.debug(`Table "${schemaName}".notifications_log ensured`);
   }
 
   private async seedDefaultWorkflowConfigs(

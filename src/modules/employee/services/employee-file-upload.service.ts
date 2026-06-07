@@ -1,12 +1,12 @@
-import { Injectable } from "@nestjs/common";
-import * as fs from "fs";
-import * as path from "path";
-import { validateImageFile } from "../../../common/utils/file-validation.util";
-import { S3StorageService } from "../../storage/storage.service";
+import { Injectable } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
+import { validateImageFile } from '../../../common/utils/file-validation.util';
+import { S3StorageService } from '../../storage/storage.service';
 
-const PREFIX_PROFILE = "profile-pictures";
-const PREFIX_CNIC = "cnic-pictures";
-const PREFIX_CNIC_BACK = "cnic-back-pictures";
+const PREFIX_PROFILE = 'profile-pictures';
+const PREFIX_CNIC = 'cnic-pictures';
+const PREFIX_CNIC_BACK = 'cnic-back-pictures';
 
 @Injectable()
 export class EmployeeFileUploadService {
@@ -38,7 +38,7 @@ export class EmployeeFileUploadService {
 
     const uploadDir = path.join(
       process.cwd(),
-      "public",
+      'public',
       PREFIX_PROFILE,
       userId,
     );
@@ -62,7 +62,7 @@ export class EmployeeFileUploadService {
       return result.url;
     }
 
-    const uploadDir = path.join(process.cwd(), "public", PREFIX_CNIC, userId);
+    const uploadDir = path.join(process.cwd(), 'public', PREFIX_CNIC, userId);
     if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
     fs.writeFileSync(path.join(uploadDir, fileName), file.buffer);
     return `/${PREFIX_CNIC}/${userId}/${fileName}`;
@@ -85,7 +85,7 @@ export class EmployeeFileUploadService {
 
     const uploadDir = path.join(
       process.cwd(),
-      "public",
+      'public',
       PREFIX_CNIC_BACK,
       userId,
     );
@@ -95,10 +95,10 @@ export class EmployeeFileUploadService {
   }
 
   private localPathFromStoredUrl(prefix: string, storedUrl: string): string {
-    const relative = storedUrl.replace(/^\/+/, "").split("?")[0];
-    if (!relative || !relative.startsWith(prefix + "/"))
-      return path.join(process.cwd(), "public", prefix, relative || "");
-    return path.join(process.cwd(), "public", relative);
+    const relative = storedUrl.replace(/^\/+/, '').split('?')[0];
+    if (!relative || !relative.startsWith(prefix + '/'))
+      return path.join(process.cwd(), 'public', prefix, relative || '');
+    return path.join(process.cwd(), 'public', relative);
   }
 
   async deleteProfilePicture(profilePicUrl: string): Promise<void> {
@@ -144,8 +144,8 @@ export class EmployeeFileUploadService {
   ): void {
     const tempDir = path.join(
       process.cwd(),
-      "public",
-      "temp-employee-docs",
+      'public',
+      'temp-employee-docs',
       checkoutSessionId,
     );
     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
@@ -180,8 +180,8 @@ export class EmployeeFileUploadService {
   ): Promise<{ profilePic?: string; cnicPic?: string; cnicBackPic?: string }> {
     const tempDir = path.join(
       process.cwd(),
-      "public",
-      "temp-employee-docs",
+      'public',
+      'temp-employee-docs',
       checkoutSessionId,
     );
     if (!fs.existsSync(tempDir)) return {};
@@ -194,7 +194,7 @@ export class EmployeeFileUploadService {
 
     const profileFile = fs
       .readdirSync(tempDir)
-      .find((f) => f.startsWith("profile"));
+      .find((f) => f.startsWith('profile'));
     if (profileFile) {
       const src = path.join(tempDir, profileFile);
       const ext = path.extname(profileFile);
@@ -211,7 +211,7 @@ export class EmployeeFileUploadService {
       } else {
         const destDir = path.join(
           process.cwd(),
-          "public",
+          'public',
           PREFIX_PROFILE,
           userId,
         );
@@ -223,7 +223,7 @@ export class EmployeeFileUploadService {
 
     const cnicFile = fs
       .readdirSync(tempDir)
-      .find((f) => f.startsWith("cnic") && !f.startsWith("cnic_back"));
+      .find((f) => f.startsWith('cnic') && !f.startsWith('cnic_back'));
     if (cnicFile) {
       const src = path.join(tempDir, cnicFile);
       const ext = path.extname(cnicFile);
@@ -238,7 +238,7 @@ export class EmployeeFileUploadService {
         );
         result.cnicPic = uploadResult.url;
       } else {
-        const destDir = path.join(process.cwd(), "public", PREFIX_CNIC, userId);
+        const destDir = path.join(process.cwd(), 'public', PREFIX_CNIC, userId);
         if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
         fs.renameSync(src, path.join(destDir, unique));
         result.cnicPic = `/${PREFIX_CNIC}/${userId}/${unique}`;
@@ -247,7 +247,7 @@ export class EmployeeFileUploadService {
 
     const cnicBackFile = fs
       .readdirSync(tempDir)
-      .find((f) => f.startsWith("cnic_back"));
+      .find((f) => f.startsWith('cnic_back'));
     if (cnicBackFile) {
       const src = path.join(tempDir, cnicBackFile);
       const ext = path.extname(cnicBackFile);
@@ -264,7 +264,7 @@ export class EmployeeFileUploadService {
       } else {
         const destDir = path.join(
           process.cwd(),
-          "public",
+          'public',
           PREFIX_CNIC_BACK,
           userId,
         );
@@ -281,8 +281,8 @@ export class EmployeeFileUploadService {
   deleteTempForCheckout(checkoutSessionId: string): void {
     const tempDir = path.join(
       process.cwd(),
-      "public",
-      "temp-employee-docs",
+      'public',
+      'temp-employee-docs',
       checkoutSessionId,
     );
     if (fs.existsSync(tempDir))

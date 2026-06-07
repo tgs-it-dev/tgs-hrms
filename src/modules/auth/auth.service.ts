@@ -19,13 +19,22 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ConfigService } from '@nestjs/config';
 import { EmailService } from '../../common/utils/email';
 import { InviteStatusService } from '../invite-status/invite-status.service';
-import { Employee } from 'src/entities/employee.entity';
-import { SignupSession } from 'src/entities/signup-session.entity';
-import { GLOBAL_SYSTEM_TENANT_ID } from '../../common/constants/enums';
+import { Employee } from '../../entities/employee.entity';
+import { SignupSession } from '../../entities/signup-session.entity';
+import {
+  GLOBAL_SYSTEM_TENANT_ID,
+  UserRole,
+} from '../../common/constants/enums';
+
 import { isMobileRequest } from '../../common/utils/mobile-detection';
 import { Role } from '../../entities/role.entity';
 import { Tenant } from '../../entities/tenant.entity';
-import { TenantSettingsService, TenantSettingKey } from '../tenant-settings/tenant-settings.service';
+import {
+  TenantSettingsService,
+  TenantSettingKey,
+} from '../tenant-settings/tenant-settings.service';
+import { IpWhitelistService } from '../ip-whitelist/ip-whitelist.service';
+import axios from 'axios';
 
 interface RefreshTokenPayload {
   sub: string;
@@ -58,6 +67,7 @@ export class AuthService {
     private emailService: EmailService,
     private inviteStatusService: InviteStatusService,
     private tenantSettings: TenantSettingsService,
+    private ipWhitelistService: IpWhitelistService,
   ) {}
 
   // ── Token helpers ──────────────────────────────────────────────────────────
@@ -67,6 +77,7 @@ export class AuthService {
     tenantId: string,
     permissions: string[],
     sessionId?: string,
+    isMobile: boolean = false,
   ): string {
     const payload: Record<string, unknown> = {
       email: user.email,
@@ -76,6 +87,7 @@ export class AuthService {
       permissions,
       first_name: user.first_name,
       last_name: user.last_name,
+      is_mobile: isMobile,
     };
     if (sessionId) {
       payload['sid'] = sessionId;
@@ -94,7 +106,7 @@ export class AuthService {
     return this.jwtService.sign(
       { sub: userId, jti, type: 'refresh' },
       {
-        secret: this.configService.get<string>('JWT_SECRET'),
+        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
         expiresIn: '7d',
       },
     );
@@ -267,6 +279,9 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
     const user = this.userRepository.create({
       email: dto.email.toLowerCase(),
       password: hashedPassword,
@@ -275,10 +290,101 @@ export class AuthService {
       phone: dto.phone,
       role_id: dto.role_id,
       tenant_id: finalTenantId,
+      email_verified: false,
+      email_verification_token: verificationToken,
+      email_verification_expires_at: verificationExpiry,
     });
 
     await this.userRepository.save(user);
-    return { message: 'User registered successfully' };
+
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+    const userName = `${dto.first_name} ${dto.last_name}`;
+    await this.emailService.sendVerificationEmail(
+      dto.email.toLowerCase(),
+      verificationToken,
+      userName,
+      frontendUrl,
+      user.id,
+    );
+
+    return {
+      message:
+        'User registered successfully. Please check your email to verify your account.',
+    };
+  }
+
+  async verifyEmail(token: string): Promise<{ message: string }> {
+    const user = await this.userRepository.findOne({
+      where: { email_verification_token: token },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Invalid or expired verification token.');
+    }
+
+    if (
+      !user.email_verification_expires_at ||
+      user.email_verification_expires_at < new Date()
+    ) {
+      throw new BadRequestException(
+        'Verification token has expired. Please request a new one.',
+      );
+    }
+
+    if (user.email_verified) {
+      return { message: 'Email is already verified.' };
+    }
+
+    await this.userRepository.update(user.id, {
+      email_verified: true,
+      email_verification_token: null,
+      email_verification_expires_at: null,
+    });
+
+    return { message: 'Email verified successfully. You can now log in.' };
+  }
+
+  async resendVerificationEmail(email: string): Promise<{ message: string }> {
+    const user = await this.userRepository.findOne({
+      where: { email: email.toLowerCase() },
+    });
+
+    if (!user) {
+      // Return generic message to avoid user enumeration
+      return {
+        message:
+          'If that email is registered and unverified, a new link has been sent.',
+      };
+    }
+
+    if (user.email_verified) {
+      return { message: 'Email is already verified.' };
+    }
+
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    await this.userRepository.update(user.id, {
+      email_verification_token: verificationToken,
+      email_verification_expires_at: verificationExpiry,
+    });
+
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+    const userName = `${user.first_name} ${user.last_name}`;
+    await this.emailService.sendVerificationEmail(
+      user.email,
+      verificationToken,
+      userName,
+      frontendUrl,
+      user.id,
+    );
+
+    return {
+      message:
+        'If that email is registered and unverified, a new link has been sent.',
+    };
   }
 
   async validateToken(userId: string) {
@@ -418,6 +524,26 @@ export class AuthService {
       };
     }
 
+    // ── Lockout check (before password verification to avoid timing leaks) ──
+    // Use the first matching-email user for lockout; if multiple tenants share
+    // the same email we check any one of them (single user per email per tenant,
+    // but email alone uniquely identifies the login attempt here).
+    const lockoutCandidate = users[0];
+    if (
+      lockoutCandidate.locked_until &&
+      lockoutCandidate.locked_until > new Date()
+    ) {
+      const retryAfterMs = lockoutCandidate.locked_until.getTime() - Date.now();
+      const retryAfterMin = Math.ceil(retryAfterMs / 60_000);
+      this.logger.warn(
+        `Login blocked: account locked for email: ${normalizedEmail}, unlocks in ${retryAfterMin}m`,
+      );
+      throw new BadRequestException({
+        field: 'email',
+        message: `Account is temporarily locked due to too many failed attempts. Try again in ${retryAfterMin} minute(s).`,
+      });
+    }
+
     let user: User | null = null;
     for (const u of users) {
       const isPasswordValid = await bcrypt.compare(password, u.password);
@@ -428,12 +554,48 @@ export class AuthService {
     }
 
     if (!user) {
+      // Increment failed attempts on the candidate user and lock if threshold reached
+      const MAX_ATTEMPTS = 5;
+      const LOCKOUT_MINUTES = 15;
+      const newAttempts = (lockoutCandidate.failed_login_attempts ?? 0) + 1;
+      const shouldLock = newAttempts >= MAX_ATTEMPTS;
+      await this.userRepository.update(lockoutCandidate.id, {
+        failed_login_attempts: newAttempts,
+        ...(shouldLock
+          ? {
+              locked_until: new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1_000),
+            }
+          : {}),
+      });
       this.logger.warn(
-        `Login failed: invalid password for email: ${normalizedEmail}`,
+        `Login failed: invalid password for email: ${normalizedEmail} (attempt ${newAttempts}/${MAX_ATTEMPTS})`,
       );
+      const remaining = MAX_ATTEMPTS - newAttempts;
       throw new BadRequestException({
         field: 'password',
-        message: 'Incorrect password',
+        message: shouldLock
+          ? `Too many failed attempts. Account locked for ${LOCKOUT_MINUTES} minutes.`
+          : `Incorrect password. ${remaining} attempt(s) remaining before lockout.`,
+      });
+    }
+
+    // ── Email verification check ──────────────────────────────────────────────
+    if (!user.email_verified) {
+      this.logger.warn(
+        `Login blocked: email not verified for email: ${normalizedEmail}`,
+      );
+      throw new ForbiddenException({
+        field: 'email',
+        message:
+          'Please verify your email address before logging in. Check your inbox for the verification link.',
+      });
+    }
+
+    // Successful login — reset failed attempt counter
+    if (user.failed_login_attempts > 0 || user.locked_until) {
+      await this.userRepository.update(user.id, {
+        failed_login_attempts: 0,
+        locked_until: null,
       });
     }
 
@@ -445,6 +607,12 @@ export class AuthService {
     // System-admin users always use the global system tenant ID
     const isSystemAdmin = this.isSystemAdminRole(user.role.name);
     const tenantId = isSystemAdmin ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
+
+    const isMobileClient = isMobileRequest({
+      platform,
+      userAgent,
+      appPlatform,
+    });
 
     // Check tenant status and per-tenant flags (system-admins are exempt)
     if (!isSystemAdmin && tenantId) {
@@ -468,20 +636,45 @@ export class AuthService {
           'Your organization account has been suspended. Please contact support.',
         );
       }
+
       const mobileLoginEnabled = await this.tenantSettings.getBoolean(
         tenantId,
         TenantSettingKey.MOBILE_LOGIN_ENABLED,
       );
-      if (
-        !mobileLoginEnabled &&
-        isMobileRequest({ platform, userAgent, appPlatform })
-      ) {
-        this.logger.warn(
-          `Mobile login blocked for email: ${normalizedEmail} (platform=${platform}, appPlatform=${appPlatform})`,
+
+      if (isMobileClient && !mobileLoginEnabled) {
+        const exemptRoles: string[] = [UserRole.ADMIN, UserRole.SYSTEM_ADMIN];
+        const isExempt = exemptRoles.includes(user.role.name.toLowerCase());
+        if (!isExempt) {
+          this.logger.warn(
+            `Mobile login blocked for ${user.role.name} email: ${normalizedEmail} (mobile_login_enabled=false)`,
+          );
+          throw new ForbiddenException(
+            'Mobile app login is currently disabled for your role. Please contact your administrator.',
+          );
+        }
+      }
+
+      const ipRestrictionExempt: string[] = [
+        UserRole.ADMIN,
+        UserRole.SYSTEM_ADMIN,
+      ];
+      const isIpExempt = ipRestrictionExempt.includes(
+        user.role.name.toLowerCase(),
+      );
+      if (!isIpExempt && ipAddress) {
+        const isWhitelisted = await this.ipWhitelistService.isIpWhitelisted(
+          tenantId,
+          ipAddress,
         );
-        throw new ForbiddenException(
-          'Mobile app login is currently disabled. Please contact your administrator.',
-        );
+        if (!isWhitelisted) {
+          this.logger.warn(
+            `Login blocked: IP ${ipAddress} not whitelisted for tenant ${tenantId}, email: ${normalizedEmail}`,
+          );
+          throw new ForbiddenException(
+            'Login is not allowed from your current IP address. Please contact your administrator.',
+          );
+        }
       }
     }
 
@@ -522,7 +715,13 @@ export class AuthService {
       ipAddress,
     );
 
-    const accessToken = this.buildAccessToken(user, tenantId, permissions, jti);
+    const accessToken = this.buildAccessToken(
+      user,
+      tenantId,
+      permissions,
+      jti,
+      isMobileClient,
+    );
 
     if (!user.first_login_time) {
       this.logger.log(`First login recorded for user: ${normalizedEmail}`);
@@ -717,7 +916,7 @@ export class AuthService {
       const payload = this.jwtService.verify<RefreshTokenPayload>(
         refreshToken,
         {
-          secret: this.configService.get<string>('JWT_SECRET'),
+          secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
         },
       );
 
@@ -811,6 +1010,11 @@ export class AuthService {
       const newJti = crypto.randomUUID();
       const newRefreshToken = this.buildRefreshToken(user.id, newJti);
 
+      const isMobileClient =
+        tokenRecord.platform?.toLowerCase() === 'mobile' ||
+        tokenRecord.platform?.toLowerCase() === 'ios' ||
+        tokenRecord.platform?.toLowerCase() === 'android';
+
       await this.userTokenRepository.manager.transaction(async (em) => {
         await em.update(UserToken, tokenRecord.id, {
           is_revoked: true,
@@ -833,6 +1037,7 @@ export class AuthService {
         tenantId,
         permissions,
         newJti,
+        isMobileClient,
       );
 
       this.logger.log(
@@ -908,6 +1113,121 @@ export class AuthService {
     return {
       message: 'Successfully logged out from all devices',
       revoked: result.affected ?? 0,
+    };
+  }
+
+  async googleLogin(
+    idToken: string,
+    platform?: string,
+    deviceInfo?: string,
+    ipAddress?: string,
+  ) {
+    interface GoogleTokenPayload {
+      email?: string;
+      given_name?: string;
+      family_name?: string;
+      name?: string;
+      sub?: string;
+      email_verified?: string;
+    }
+
+    let googlePayload: GoogleTokenPayload;
+    try {
+      const resp = await axios.get<GoogleTokenPayload>(
+        'https://oauth2.googleapis.com/tokeninfo',
+        { params: { id_token: idToken } },
+      );
+      googlePayload = resp.data;
+    } catch {
+      throw new UnauthorizedException('Invalid Google ID token');
+    }
+
+    const email = String(googlePayload.email ?? '').toLowerCase();
+    if (!email) {
+      throw new UnauthorizedException('Google token is missing email');
+    }
+
+    const users = await this.userRepository.find({
+      where: { email },
+      relations: ['role'],
+    });
+
+    if (!users.length) {
+      throw new BadRequestException({
+        field: 'email',
+        message:
+          'No account found for this Google email. Please register first.',
+      });
+    }
+
+    const user = users[0];
+
+    if (!user.role?.name) {
+      throw new UnauthorizedException('User role not found');
+    }
+
+    const isSystemAdmin = this.isSystemAdminRole(user.role.name);
+    const tenantId = isSystemAdmin ? GLOBAL_SYSTEM_TENANT_ID : user.tenant_id;
+
+    if (!isSystemAdmin && tenantId) {
+      const tenant = await this.tenantRepository.findOne({
+        where: { id: tenantId },
+      });
+      if (!tenant || tenant.deleted_at) {
+        throw new UnauthorizedException(
+          'Your organization account has been deleted. Please contact support.',
+        );
+      }
+      if (tenant.status === 'suspended') {
+        throw new UnauthorizedException(
+          'Your organization account has been suspended. Please contact support.',
+        );
+      }
+    }
+
+    const employee = await this.employeeRepository.findOne({
+      where: { user_id: user.id },
+    });
+    if (employee?.deleted_at) {
+      throw new UnauthorizedException(
+        'Your employee account has been deactivated. Please contact your administrator.',
+      );
+    }
+
+    const permissions = await this.getUserPermissions(user.id);
+    const companyDetails = await this.getCompanyDetails(tenantId);
+
+    const jti = crypto.randomUUID();
+    await this.createUserTokenRecord(
+      user.id,
+      jti,
+      platform,
+      deviceInfo,
+      ipAddress,
+    );
+
+    const accessToken = this.buildAccessToken(user, tenantId, permissions, jti);
+    const refreshToken = this.buildRefreshToken(user.id, jti);
+
+    if (!user.first_login_time) {
+      await this.userRepository.update(user.id, {
+        first_login_time: new Date(),
+      });
+      await this.inviteStatusService.updateInviteStatusOnLogin(user.id);
+    }
+
+    this.logger.log(
+      `Google login successful for email: ${this.sanitizeEmailForLogging(email)}`,
+    );
+
+    return {
+      accessToken,
+      refreshToken,
+      user,
+      permissions,
+      employee,
+      company: companyDetails,
+      requiresPayment: companyDetails ? !companyDetails.is_paid : false,
     };
   }
 

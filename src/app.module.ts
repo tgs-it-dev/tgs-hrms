@@ -1,6 +1,7 @@
 import { Module, Logger, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
+import { IpExtractionMiddleware } from './common/middleware/ip-extraction.middleware';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { typeOrmConfig } from './config/typeorm.config';
 import { ThrottlerModule } from '@nestjs/throttler';
@@ -32,19 +33,29 @@ import { SubscriptionModule } from './modules/subscription/subscription.module';
 import { CompanyModule } from './modules/company/company.module';
 import { SystemModule } from './modules/system/system.module';
 import { SearchModule } from './modules/search/search.module';
+import { TenantSettingsModule } from './modules/tenant-settings/tenant-settings.module';
+import { IpWhitelistModule } from './modules/ip-whitelist/ip-whitelist.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { GeofenceModule } from './modules/geofence/geofence.module';
+import { InviteStatusModule } from './modules/invite-status/invite-status.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { AnnouncementModule } from './modules/announcement/announcement.module';
 import { WorkflowModule } from './modules/workflow/workflow.module';
 import { WfhModule } from './modules/wfh/wfh.module';
 import { OvertimeModule } from './modules/overtime/overtime.module';
+import { OrgsModule } from './modules/orgs/orgs.module';
+import { NotificationsEmailModule } from './modules/notifications-email/notifications-email.module';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { SystemLoggingInterceptor } from './common/interceptors/system-logging.interceptor';
 import { SignedFileUrlInterceptor } from './modules/storage/signed-file-url.interceptor';
+import { GracePeriodInterceptor } from './common/interceptors/grace-period.interceptor';
 import { SystemLog } from './entities/system-log.entity';
+import { TenantIpWhitelist } from './entities/tenant-ip-whitelist.entity';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { IpWhitelistGuard } from './common/guards/ip-whitelist.guard';
+import { SubscriptionGuard } from './common/guards/subscription.guard';
+import { SysDbModule } from './common/modules/sys-db.module';
 @Module({
   imports: [
     ScheduleModule.forRoot(),
@@ -58,7 +69,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
       useFactory: typeOrmConfig,
       inject: [ConfigService],
     }),
-    TypeOrmModule.forFeature([SystemLog]),
+    TypeOrmModule.forFeature([SystemLog, TenantIpWhitelist]),
 
     ThrottlerModule.forRoot({
       throttlers: [
@@ -161,16 +172,30 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     BillingModule,
     DashboardModule,
     GeofenceModule,
+    InviteStatusModule,
     NotificationModule,
     AnnouncementModule,
     WorkflowModule,
     WfhModule,
     OvertimeModule,
+    OrgsModule,
+    NotificationsEmailModule,
+    TenantSettingsModule,
+    IpWhitelistModule,
+    SysDbModule,
   ],
   providers: [
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: IpWhitelistGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: SubscriptionGuard,
     },
     {
       provide: APP_INTERCEPTOR,
@@ -180,10 +205,16 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
       provide: APP_INTERCEPTOR,
       useClass: SignedFileUrlInterceptor,
     },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: GracePeriodInterceptor,
+    },
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(CorrelationIdMiddleware).forRoutes('*');
+    consumer
+      .apply(IpExtractionMiddleware, CorrelationIdMiddleware)
+      .forRoutes('*');
   }
 }

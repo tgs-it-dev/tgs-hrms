@@ -1,7 +1,7 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class CreateAssetsTable1760100000000 implements MigrationInterface {
-  name = 'CreateAssetsTable1760100000000'
+  name = 'CreateAssetsTable1760100000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
@@ -38,11 +38,15 @@ export class CreateAssetsTable1760100000000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "assets" DROP CONSTRAINT "FK_assets_tenant"`);
-    await queryRunner.query(`ALTER TABLE "assets" DROP CONSTRAINT "FK_assets_assigned_to_user"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "public"."IDX_assets_tenant"`);
+    await queryRunner.query(
+      `ALTER TABLE "assets" DROP CONSTRAINT "FK_assets_tenant"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "assets" DROP CONSTRAINT "FK_assets_assigned_to_user"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "public"."IDX_assets_tenant"`,
+    );
     await queryRunner.query(`DROP TABLE "assets"`);
   }
 }
-
-
