@@ -10,6 +10,7 @@ import {
   Request,
   ParseUUIDPipe,
   ParseIntPipe,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -606,6 +607,54 @@ export class WorkflowController {
       req.user.tenant_id,
       requestType,
       stepOrder,
+    );
+  }
+
+  // ── Team schedule ─────────────────────────────────────────────────────────
+
+  @Get('team-schedule')
+  @Roles('admin', 'hr-admin', 'system-admin', 'network-admin', 'manager')
+  @ApiOperation({
+    summary: 'Team availability schedule for a given ISO week',
+    description:
+      'Returns all approved WFH and overtime entries for the week. ' +
+      'Managers are scoped to their own team; admins see the full tenant.',
+  })
+  @ApiQuery({
+    name: 'week',
+    required: true,
+    example: '2025-W22',
+    description: 'ISO 8601 week notation, e.g. "2025-W22"',
+  })
+  @ApiOkResponse({
+    description: 'Approved WFH and overtime entries for the week',
+    schema: {
+      example: {
+        week: '2025-W22',
+        monday: '2025-05-26',
+        sunday: '2025-06-01',
+        wfh: [],
+        overtime: [],
+      },
+    },
+  })
+  @ApiBadRequestResponse({
+    description: 'Missing or malformed week param (e.g. "2025-W22" required)',
+  })
+  async getTeamSchedule(
+    @Request() req: AuthenticatedRequest,
+    @Query('week') week?: string,
+  ) {
+    if (!week) {
+      throw new BadRequestException(
+        'week query param is required (e.g. "2026-W22")',
+      );
+    }
+    return this.workflowService.getTeamSchedule(
+      req.user.id,
+      req.user.role,
+      req.user.tenant_id,
+      week,
     );
   }
 

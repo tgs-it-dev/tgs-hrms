@@ -173,12 +173,32 @@ Providing both \`hours\` and \`end_date\`, or neither, will return a 400 error.`
   @Roles('admin', 'hr-admin', 'system-admin', 'network-admin', 'manager')
   @ApiOperation({
     summary: 'List all overtime requests across the tenant (admin/manager)',
+    description:
+      'Managers see only their team. Admins see the full tenant. ' +
+      'Filter by status, date range, or a specific user_id.',
   })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
   @ApiQuery({ name: 'status', enum: OvertimeStatus, required: false })
+  @ApiQuery({
+    name: 'start_date',
+    required: false,
+    example: '2026-05-01',
+    description: 'Return requests whose end_date >= this date',
+  })
+  @ApiQuery({
+    name: 'end_date',
+    required: false,
+    example: '2026-05-31',
+    description: 'Return requests whose start_date <= this date',
+  })
+  @ApiQuery({
+    name: 'user_id',
+    required: false,
+    description: 'Filter by a specific employee UUID (admin/hr-admin only)',
+  })
   @ApiOkResponse({
-    description: 'Paginated list of all overtime requests with employee info',
+    description: 'Paginated list of overtime requests with employee info',
     schema: { example: PAGINATED_OVERTIME_EXAMPLE },
   })
   async getAllRequests(
@@ -186,12 +206,20 @@ Providing both \`hours\` and \`end_date\`, or neither, will return a 400 error.`
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('status') status?: OvertimeStatus,
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+    @Query('user_id') userId?: string,
   ) {
     return this.overtimeService.getAllOvertimeRequests(
       req.user.tenant_id,
+      req.user.id,
+      req.user.role,
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 20,
       status,
+      startDate,
+      endDate,
+      userId,
     );
   }
 
