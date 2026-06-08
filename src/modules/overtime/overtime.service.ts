@@ -376,7 +376,7 @@ export class OvertimeService {
     page: number;
     limit: number;
   }> {
-    const isManager = actorRole === 'manager';
+    const isManager = actorRole === UserRole.MANAGER;
 
     return this.runInTenantContext(tenantId, async (repo, em) => {
       const runQuery = <T>(sql: string, params: unknown[]) =>
@@ -410,6 +410,11 @@ export class OvertimeService {
       if (endDate) qb.andWhere('o.start_date <= :endDate', { endDate });
 
       if (userId) {
+        if (teamMemberIds && !teamMemberIds.includes(userId)) {
+          throw new ForbiddenException(
+            'You can only filter by employees within your own team',
+          );
+        }
         qb.andWhere('o.employee_id = :userId', { userId });
       } else if (teamMemberIds) {
         qb.andWhere('o.employee_id IN (:...teamMemberIds)', { teamMemberIds });

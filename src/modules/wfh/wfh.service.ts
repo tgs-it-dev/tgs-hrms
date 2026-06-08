@@ -304,7 +304,7 @@ export class WfhService {
     endDate?: string,
     userId?: string,
   ): Promise<{ items: Wfh[]; total: number; page: number; limit: number }> {
-    const isManager = actorRole === 'manager';
+    const isManager = actorRole === UserRole.MANAGER;
 
     return this.runInTenantContext(tenantId, async (wfhRepo, em) => {
       const runQuery = <T>(sql: string, params: unknown[]) =>
@@ -338,6 +338,11 @@ export class WfhService {
       if (endDate) qb.andWhere('w.start_date <= :endDate', { endDate });
 
       if (userId) {
+        if (teamMemberIds && !teamMemberIds.includes(userId)) {
+          throw new ForbiddenException(
+            'You can only filter by employees within your own team',
+          );
+        }
         qb.andWhere('w.employee_id = :userId', { userId });
       } else if (teamMemberIds) {
         qb.andWhere('w.employee_id IN (:...teamMemberIds)', { teamMemberIds });

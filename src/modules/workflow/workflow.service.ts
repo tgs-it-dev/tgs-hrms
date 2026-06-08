@@ -17,6 +17,7 @@ import {
   WorkflowRequestType,
   WorkflowRequestStatus,
   WorkflowStepStatus,
+  UserRole,
 } from '../../common/constants/enums';
 import {
   TenantSettingsService,
@@ -382,7 +383,7 @@ export class WorkflowService {
   ): Promise<WorkflowRequest> {
     return this.runInTenantContext(
       tenantId,
-      async (_configRepo, requestRepo, stepRepo) => {
+      async (_configRepo, requestRepo, stepRepo, em) => {
         const workflowRequest = await requestRepo.findOne({
           where: { id: workflowRequestId, tenant_id: tenantId },
           relations: ['steps'],
@@ -456,6 +457,7 @@ export class WorkflowService {
           workflowRequest.status = WorkflowRequestStatus.REJECTED;
           await requestRepo.save(workflowRequest);
           await this.writeAudit(
+            em,
             workflowRequest.id,
             tenantId,
             actorId,
@@ -475,6 +477,7 @@ export class WorkflowService {
             workflowRequest.status = WorkflowRequestStatus.APPROVED;
             await requestRepo.save(workflowRequest);
             await this.writeAudit(
+              em,
               workflowRequest.id,
               tenantId,
               actorId,
@@ -489,6 +492,7 @@ export class WorkflowService {
             workflowRequest.status = WorkflowRequestStatus.IN_REVIEW;
             await requestRepo.save(workflowRequest);
             await this.writeAudit(
+              em,
               workflowRequest.id,
               tenantId,
               actorId,
@@ -537,7 +541,7 @@ export class WorkflowService {
   ): Promise<void> {
     return this.runInTenantContext(
       tenantId,
-      async (_configRepo, requestRepo) => {
+      async (_configRepo, requestRepo, _stepRepo, em) => {
         const workflowRequest = await requestRepo.findOne({
           where: { id: workflowRequestId, tenant_id: tenantId },
         });
@@ -555,6 +559,7 @@ export class WorkflowService {
         workflowRequest.status = WorkflowRequestStatus.CANCELLED;
         await requestRepo.save(workflowRequest);
         await this.writeAudit(
+          em,
           workflowRequest.id,
           tenantId,
           actorId,
@@ -1074,7 +1079,6 @@ export class WorkflowService {
     const { monday, sunday } = this.parseISOWeek(week);
     const mondayStr = monday.toISOString().slice(0, 10);
     const sundayStr = sunday.toISOString().slice(0, 10);
-    const isManager = actorRole === 'manager';
 
     return this.runInTenantContext(
       tenantId,
@@ -1082,8 +1086,9 @@ export class WorkflowService {
         const runQuery = <T>(sql: string, params: unknown[]) =>
           em ? em.query<T>(sql, params) : this.dataSource.query<T>(sql, params);
 
+        // Managers are scoped to their team; other privileged roles see all
         let memberIds: string[] | null = null;
-        if (isManager) {
+        if (actorRole === UserRole.MANAGER) {
           const rows = await runQuery<{ user_id: string }[]>(
             `SELECT e.user_id
                FROM employees e
@@ -1103,54 +1108,36 @@ export class WorkflowService {
           }
         }
 
-        const wfhSql = memberIds
-          ? `SELECT w.id, w.employee_id, w.start_date, w.end_date, w.reason, w.status,
-                    u.first_name, u.last_name
-               FROM wfh_requests w
-               JOIN public.users u ON u.id = w.employee_id
-              WHERE w.tenant_id = $1
-                AND w.status = 'approved'
-                AND w.employee_id = ANY($2::uuid[])
-                AND w.start_date <= $3
-                AND w.end_date   >= $4`
-          : `SELECT w.id, w.employee_id, w.start_date, w.end_date, w.reason, w.status,
-                    u.first_name, u.last_name
-               FROM wfh_requests w
-               JOIN public.users u ON u.id = w.employee_id
-              WHERE w.tenant_id = $1
-                AND w.status = 'approved'
-                AND w.start_date <= $2
-                AND w.end_date   >= $3`;
+        // Single query per table: pass memberIds as null for admins (no filter),
+        // or as the team array for managers. PostgreSQL treats $2::uuid[] IS NULL
+        // as true when null is passed, bypassing the ANY() filter entirely.
+        const wfhSql = `
+          SELECT w.id, w.employee_id, w.start_date, w.end_date, w.reason, w.status,
+                 u.first_name, u.last_name
+            FROM wfh_requests w
+            JOIN public.users u ON u.id = w.employee_id
+           WHERE w.tenant_id = $1
+             AND w.status = 'approved'
+             AND ($2::uuid[] IS NULL OR w.employee_id = ANY($2::uuid[]))
+             AND w.start_date <= $3
+             AND w.end_date   >= $4`;
 
-        const overtimeSql = memberIds
-          ? `SELECT o.id, o.employee_id, o.start_date, o.end_date, o.hours, o.reason, o.status,
-                    u.first_name, u.last_name
-               FROM overtime_requests o
-               JOIN public.users u ON u.id = o.employee_id
-              WHERE o.tenant_id = $1
-                AND o.status = 'approved'
-                AND o.employee_id = ANY($2::uuid[])
-                AND o.start_date <= $3
-                AND o.end_date   >= $4`
-          : `SELECT o.id, o.employee_id, o.start_date, o.end_date, o.hours, o.reason, o.status,
-                    u.first_name, u.last_name
-               FROM overtime_requests o
-               JOIN public.users u ON u.id = o.employee_id
-              WHERE o.tenant_id = $1
-                AND o.status = 'approved'
-                AND o.start_date <= $2
-                AND o.end_date   >= $3`;
+        const overtimeSql = `
+          SELECT o.id, o.employee_id, o.start_date, o.end_date, o.hours, o.reason, o.status,
+                 u.first_name, u.last_name
+            FROM overtime_requests o
+            JOIN public.users u ON u.id = o.employee_id
+           WHERE o.tenant_id = $1
+             AND o.status = 'approved'
+             AND ($2::uuid[] IS NULL OR o.employee_id = ANY($2::uuid[]))
+             AND o.start_date <= $3
+             AND o.end_date   >= $4`;
 
-        const wfhParams = memberIds
-          ? [tenantId, memberIds, sundayStr, mondayStr]
-          : [tenantId, sundayStr, mondayStr];
-        const overtimeParams = memberIds
-          ? [tenantId, memberIds, sundayStr, mondayStr]
-          : [tenantId, sundayStr, mondayStr];
+        const params = [tenantId, memberIds, sundayStr, mondayStr];
 
         const [wfhRows, overtimeRows] = await Promise.all([
-          runQuery<Record<string, unknown>[]>(wfhSql, wfhParams),
-          runQuery<Record<string, unknown>[]>(overtimeSql, overtimeParams),
+          runQuery<Record<string, unknown>[]>(wfhSql, params),
+          runQuery<Record<string, unknown>[]>(overtimeSql, params),
         ]);
 
         return {
@@ -1173,8 +1160,11 @@ export class WorkflowService {
     }
     const year = parseInt(match[1], 10);
     const weekNum = parseInt(match[2], 10);
-    if (weekNum < 1 || weekNum > 53) {
-      throw new BadRequestException('Week number must be between 1 and 53');
+    const maxWeek = this.isoWeeksInYear(year);
+    if (weekNum < 1 || weekNum > maxWeek) {
+      throw new BadRequestException(
+        `Year ${year} has ${maxWeek} ISO weeks. Week ${weekNum} is invalid.`,
+      );
     }
 
     // Jan 4 is always in ISO week 1
@@ -1189,9 +1179,27 @@ export class WorkflowService {
     return { monday, sunday };
   }
 
+  private isoWeeksInYear(year: number): number {
+    // Dec 28 is always in the last ISO week of the year — compute its week number
+    const dec28 = new Date(Date.UTC(year, 11, 28));
+    const jan4 = new Date(Date.UTC(year, 0, 4));
+    const dec28Day = dec28.getUTCDay() || 7;
+    const jan4Day = jan4.getUTCDay() || 7;
+    const dec28Monday = new Date(dec28);
+    dec28Monday.setUTCDate(dec28.getUTCDate() - (dec28Day - 1));
+    const jan4Monday = new Date(jan4);
+    jan4Monday.setUTCDate(jan4.getUTCDate() - (jan4Day - 1));
+    return (
+      Math.round(
+        (dec28Monday.getTime() - jan4Monday.getTime()) / (7 * 86_400_000),
+      ) + 1
+    );
+  }
+
   // ── Audit ─────────────────────────────────────────────────────────────────
 
   private async writeAudit(
+    em: EntityManager | null,
     workflowRequestId: string,
     tenantId: string,
     actorId: string,
@@ -1199,9 +1207,10 @@ export class WorkflowService {
     toStatus: string,
     note: string | null,
   ): Promise<void> {
+    const repo = em ? em.getRepository(FlexRequestAudit) : this.auditRepo;
     try {
-      await this.auditRepo.save(
-        this.auditRepo.create({
+      await repo.save(
+        repo.create({
           workflow_request_id: workflowRequestId,
           tenant_id: tenantId,
           actor_id: actorId,
