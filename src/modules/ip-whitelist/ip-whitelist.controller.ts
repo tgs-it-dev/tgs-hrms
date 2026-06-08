@@ -32,11 +32,8 @@ import {
 } from './dto/ip-whitelist-response.dto';
 import { AuthenticatedRequest } from 'src/common/types/request.types';
 import { BypassIpWhitelist } from '../../common/decorators/bypass-ip-whitelist.decorator';
-
-function normalizeControllerIp(ip: string): string {
-  const match = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(ip);
-  return match ? match[1] : ip;
-}
+import { normalizeIp } from '../../common/utils/ip.util';
+import { ParseIpPipe } from '../../common/pipes/parse-ip.pipe';
 
 @ApiTags('IP Whitelist')
 @Controller('ip-whitelist')
@@ -65,8 +62,7 @@ export class IpWhitelistController {
     description: 'Unauthorized — bearer token missing or invalid.',
   })
   getMyIp(@Request() req: AuthenticatedRequest): CurrentIpResponseDto {
-    const raw = req.clientIp ?? req.ip ?? '0.0.0.0';
-    const ip_address = normalizeControllerIp(raw);
+    const ip_address = normalizeIp(req.clientIp ?? req.ip ?? '0.0.0.0');
     this.logger.log(
       `IP detection requested by tenant: ${req.user.tenant_id}, ip: ${ip_address}`,
     );
@@ -182,7 +178,7 @@ export class IpWhitelistController {
   @ApiOperation({
     summary: 'Add an IP address to the whitelist',
     description:
-      'Adds a single IPv4 or IPv6 address to the tenant whitelist. If the IP is already whitelisted, the existing entry is returned without error. Changes take effect immediately — no restart required.',
+      'Adds a single IPv4 or IPv6 address to the tenant whitelist. If the IP is already whitelisted, a conflict error is returned. Changes take effect immediately — no restart required.',
   })
   @ApiBody({ type: AddIpDto })
   @ApiResponse({
@@ -223,7 +219,7 @@ export class IpWhitelistController {
   @ApiOperation({
     summary: 'Remove an IP address from the whitelist',
     description:
-      'Removes the specified IP address from the tenant whitelist. If IP restriction is currently enabled and this is the last whitelisted IP, all subsequent requests from that IP will be blocked. The removal takes effect immediately.',
+      'Removes the specified IP address from the tenant whitelist. Returns 404 if the IP was not found. The removal takes effect immediately.',
   })
   @ApiParam({
     name: 'ipAddress',
@@ -236,6 +232,10 @@ export class IpWhitelistController {
     type: RemoveIpResponseDto,
   })
   @ApiResponse({
+    status: 400,
+    description: 'Bad request — invalid IP address format.',
+  })
+  @ApiResponse({
     status: 401,
     description: 'Unauthorized — bearer token missing or invalid.',
   })
@@ -243,9 +243,13 @@ export class IpWhitelistController {
     status: 403,
     description: 'Forbidden — requires admin or system-admin role.',
   })
+  @ApiResponse({
+    status: 404,
+    description: 'Not found — IP address is not in the whitelist.',
+  })
   async removeIp(
     @Request() req: AuthenticatedRequest,
-    @Param('ipAddress') ipAddress: string,
+    @Param('ipAddress', ParseIpPipe) ipAddress: string,
   ) {
     this.logger.log(
       `Removing IP ${ipAddress} from whitelist for tenant: ${req.user.tenant_id}`,

@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, Logger } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TenantIpWhitelist } from '../../entities/tenant-ip-whitelist.entity';
@@ -7,18 +12,13 @@ import {
   TenantSettingKey,
 } from '../tenant-settings/tenant-settings.service';
 import { PaginationResponse } from '../../common/interfaces/pagination.interface';
+import { normalizeIp } from '../../common/utils/ip.util';
 
 const CACHE_TTL_MS = 30_000;
 
 interface CacheEntry {
   ips: Set<string>;
   cachedAt: number;
-}
-
-function normalizeIp(ip: string): string {
-  const ipv4Mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i;
-  const match = ipv4Mapped.exec(ip);
-  return match ? match[1] : ip;
 }
 
 @Injectable()
@@ -33,15 +33,10 @@ export class IpWhitelistService {
   ) {}
 
   async isIpRestrictionEnabled(tenantId: string): Promise<boolean> {
-    try {
-      const setting = await this.tenantSettings.get(
-        tenantId,
-        TenantSettingKey.IP_RESTRICTION_ENABLED,
-      );
-      return setting === 'true';
-    } catch {
-      return false;
-    }
+    return this.tenantSettings.getBoolean(
+      tenantId,
+      TenantSettingKey.IP_RESTRICTION_ENABLED,
+    );
   }
 
   async enableIpRestriction(tenantId: string): Promise<void> {
@@ -98,10 +93,17 @@ export class IpWhitelistService {
     ipAddress: string,
   ): Promise<{ deleted: true; ip_address: string }> {
     const normalized = normalizeIp(ipAddress);
-    await this.repo.delete({
+    const result = await this.repo.delete({
       tenant_id: tenantId,
       ip_address: normalized,
     });
+
+    if (!result.affected) {
+      throw new NotFoundException(
+        `IP address ${normalized} is not in the whitelist`,
+      );
+    }
+
     this.invalidate(tenantId);
     this.logger.log(
       `IP ${normalized} removed from whitelist for tenant ${tenantId}`,
