@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, Logger } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TenantIpWhitelist } from '../../entities/tenant-ip-whitelist.entity';
@@ -7,11 +12,19 @@ import {
   TenantSettingKey,
 } from '../tenant-settings/tenant-settings.service';
 import { PaginationResponse } from '../../common/interfaces/pagination.interface';
+import { normalizeIp } from '../../common/utils/ip.util';
+
+const CACHE_TTL_MS = 30_000;
+
+interface CacheEntry {
+  ips: Set<string>;
+  cachedAt: number;
+}
 
 @Injectable()
 export class IpWhitelistService {
   private readonly logger = new Logger(IpWhitelistService.name);
-  private readonly cache = new Map<string, Set<string>>();
+  private readonly cache = new Map<string, CacheEntry>();
 
   constructor(
     @InjectRepository(TenantIpWhitelist)
@@ -20,15 +33,10 @@ export class IpWhitelistService {
   ) {}
 
   async isIpRestrictionEnabled(tenantId: string): Promise<boolean> {
-    try {
-      const setting = await this.tenantSettings.get(
-        tenantId,
-        TenantSettingKey.IP_RESTRICTION_ENABLED,
-      );
-      return setting === 'true';
-    } catch {
-      return false;
-    }
+    return this.tenantSettings.getBoolean(
+      tenantId,
+      TenantSettingKey.IP_RESTRICTION_ENABLED,
+    );
   }
 
   async enableIpRestriction(tenantId: string): Promise<void> {
@@ -54,26 +62,28 @@ export class IpWhitelistService {
     ipAddress: string,
     description?: string,
   ): Promise<TenantIpWhitelist> {
+    const normalized = normalizeIp(ipAddress);
+
     const existing = await this.repo.findOne({
-      where: { tenant_id: tenantId, ip_address: ipAddress },
+      where: { tenant_id: tenantId, ip_address: normalized },
     });
 
     if (existing) {
       throw new ConflictException(
-        `IP address ${ipAddress} is already whitelisted`,
+        `IP address ${normalized} is already whitelisted`,
       );
     }
 
     const whitelist = this.repo.create({
       tenant_id: tenantId,
-      ip_address: ipAddress,
+      ip_address: normalized,
       description: description || null,
     });
 
     const saved = await this.repo.save(whitelist);
     this.invalidate(tenantId);
     this.logger.log(
-      `IP ${ipAddress} added to whitelist for tenant ${tenantId}`,
+      `IP ${normalized} added to whitelist for tenant ${tenantId}`,
     );
     return saved;
   }
@@ -82,15 +92,23 @@ export class IpWhitelistService {
     tenantId: string,
     ipAddress: string,
   ): Promise<{ deleted: true; ip_address: string }> {
-    await this.repo.delete({
+    const normalized = normalizeIp(ipAddress);
+    const result = await this.repo.delete({
       tenant_id: tenantId,
-      ip_address: ipAddress,
+      ip_address: normalized,
     });
+
+    if (!result.affected) {
+      throw new NotFoundException(
+        `IP address ${normalized} is not in the whitelist`,
+      );
+    }
+
     this.invalidate(tenantId);
     this.logger.log(
-      `IP ${ipAddress} removed from whitelist for tenant ${tenantId}`,
+      `IP ${normalized} removed from whitelist for tenant ${tenantId}`,
     );
-    return { deleted: true, ip_address: ipAddress };
+    return { deleted: true, ip_address: normalized };
   }
 
   async getWhitelistedIps(
@@ -114,8 +132,9 @@ export class IpWhitelistService {
       return true;
     }
 
+    const normalized = normalizeIp(ipAddress);
     const whitelistedIps = await this.loadTenant(tenantId);
-    return whitelistedIps.has(ipAddress);
+    return whitelistedIps.has(normalized);
   }
 
   invalidate(tenantId: string): void {
@@ -123,8 +142,9 @@ export class IpWhitelistService {
   }
 
   private async loadTenant(tenantId: string): Promise<Set<string>> {
-    if (this.cache.has(tenantId)) {
-      return this.cache.get(tenantId)!;
+    const entry = this.cache.get(tenantId);
+    if (entry && Date.now() - entry.cachedAt < CACHE_TTL_MS) {
+      return entry.ips;
     }
 
     const ips = await this.repo.find({
@@ -132,8 +152,8 @@ export class IpWhitelistService {
       select: ['ip_address'],
     });
 
-    const ipSet = new Set(ips.map((row) => row.ip_address));
-    this.cache.set(tenantId, ipSet);
+    const ipSet = new Set(ips.map((row) => normalizeIp(row.ip_address)));
+    this.cache.set(tenantId, { ips: ipSet, cachedAt: Date.now() });
     return ipSet;
   }
 }

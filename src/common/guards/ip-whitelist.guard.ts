@@ -6,10 +6,17 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import type { Request } from 'express';
 import { IpWhitelistService } from '../../modules/ip-whitelist/ip-whitelist.service';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { BYPASS_IP_WHITELIST_KEY } from '../decorators/bypass-ip-whitelist.decorator';
 import { UserRole } from '../constants/enums';
+import { AuthenticatedRequest } from '../types/request.types';
+
+const ADMIN_ROLES: ReadonlySet<string> = new Set([
+  UserRole.ADMIN,
+  UserRole.SYSTEM_ADMIN,
+  UserRole.NETWORK_ADMIN,
+]);
 
 @Injectable()
 export class IpWhitelistGuard implements CanActivate {
@@ -30,23 +37,33 @@ export class IpWhitelistGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest();
-    const clientIp = request.clientIp || request.ip || '0.0.0.0';
+    const bypass = this.reflector.getAllAndOverride<boolean>(
+      BYPASS_IP_WHITELIST_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+
+    if (bypass) {
+      return true;
+    }
+
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const tenantId = request.user?.tenant_id;
-    const userRole = request.user?.role as string | undefined;
+    const userRole = request.user?.role;
 
     if (!tenantId) {
       this.logger.debug('No tenant_id in request, skipping IP whitelist check');
       return true;
     }
 
-    const adminRoles: string[] = [UserRole.ADMIN, UserRole.SYSTEM_ADMIN];
-    if (userRole && adminRoles.includes(userRole)) {
+    if (userRole && ADMIN_ROLES.has(userRole)) {
       this.logger.debug(
         `IP check skipped for ${userRole} (tenant: ${tenantId})`,
       );
       return true;
     }
+
+    // The service owns IP normalization — pass raw clientIp here.
+    const clientIp = request.clientIp ?? request.ip ?? '0.0.0.0';
 
     const isWhitelisted = await this.ipWhitelistService.isIpWhitelisted(
       tenantId,
