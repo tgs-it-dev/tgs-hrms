@@ -125,6 +125,7 @@ export class TenantSchemaProvisioningService {
       await this.createWorkflowStepsTable(queryRunner, schemaName);
       await this.createWfhRequestsTable(queryRunner, schemaName);
       await this.createOvertimeRequestsTable(queryRunner, schemaName);
+      await this.createFlexRequestAuditTable(queryRunner, schemaName);
       await this.createNotificationsLogTable(queryRunner, schemaName);
       await this.seedDefaultWorkflowConfigs(queryRunner, schemaName, tenantId);
 
@@ -201,6 +202,7 @@ export class TenantSchemaProvisioningService {
       await this.createWorkflowStepsTable(queryRunner, schemaName);
       await this.createWfhRequestsTable(queryRunner, schemaName);
       await this.createOvertimeRequestsTable(queryRunner, schemaName);
+      await this.createFlexRequestAuditTable(queryRunner, schemaName);
       await this.createNotificationsLogTable(queryRunner, schemaName);
       await this.seedDefaultWorkflowConfigs(queryRunner, schemaName, tenantId);
 
@@ -1650,6 +1652,34 @@ export class TenantSchemaProvisioningService {
         ON "${schemaName}"."overtime_requests" ("tenant_id", "status")
     `);
     this.logger.debug(`Table "${schemaName}".overtime_requests ensured`);
+  }
+
+  private async createFlexRequestAuditTable(
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
+    schemaName: string,
+  ): Promise<void> {
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."flex_request_audit" (
+        id                  UUID        NOT NULL DEFAULT gen_random_uuid(),
+        workflow_request_id UUID        NOT NULL,
+        tenant_id           UUID        NOT NULL,
+        actor_id            UUID        NOT NULL,
+        from_status         VARCHAR(32) NOT NULL,
+        to_status           VARCHAR(32) NOT NULL,
+        note                TEXT,
+        created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT "pk_${schemaName}_flex_audit" PRIMARY KEY (id)
+      )
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_flex_audit_wfr"
+        ON "${schemaName}"."flex_request_audit" (workflow_request_id)
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "idx_${schemaName}_flex_audit_tenant_actor"
+        ON "${schemaName}"."flex_request_audit" (tenant_id, actor_id)
+    `);
+    this.logger.debug(`Table "${schemaName}".flex_request_audit ensured`);
   }
 
   private async createNotificationsLogTable(

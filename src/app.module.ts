@@ -51,7 +51,6 @@ import { SystemLoggingInterceptor } from './common/interceptors/system-logging.i
 import { SignedFileUrlInterceptor } from './modules/storage/signed-file-url.interceptor';
 import { GracePeriodInterceptor } from './common/interceptors/grace-period.interceptor';
 import { SystemLog } from './entities/system-log.entity';
-import { TenantIpWhitelist } from './entities/tenant-ip-whitelist.entity';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { IpWhitelistGuard } from './common/guards/ip-whitelist.guard';
 import { SubscriptionGuard } from './common/guards/subscription.guard';
@@ -69,7 +68,7 @@ import { SysDbModule } from './common/modules/sys-db.module';
       useFactory: typeOrmConfig,
       inject: [ConfigService],
     }),
-    TypeOrmModule.forFeature([SystemLog, TenantIpWhitelist]),
+    TypeOrmModule.forFeature([SystemLog]),
 
     ThrottlerModule.forRoot({
       throttlers: [

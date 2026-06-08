@@ -92,11 +92,18 @@ export class WfhService {
     const workflowEnabled = await this.isWorkflowEnabled(tenantId);
     if (!workflowEnabled) {
       throw new BadRequestException(
-        'WFH requests require the workflow engine to be enabled. Ask your admin to enable it.',
+        'This request type is not enabled for your org',
       );
     }
 
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
     const startDate = new Date(dto.start_date);
+
+    if (startDate < today) {
+      throw new BadRequestException('Request date cannot be in the past');
+    }
+
     const endDate = new Date(dto.end_date);
 
     if (endDate < startDate) {
@@ -288,21 +295,60 @@ export class WfhService {
 
   async getAllWfhRequests(
     tenantId: string,
+    actorId: string,
+    actorRole: string,
     page = 1,
     limit = 20,
     status?: WfhStatus,
+    startDate?: string,
+    endDate?: string,
+    userId?: string,
   ): Promise<{ items: Wfh[]; total: number; page: number; limit: number }> {
-    return this.runInTenantContext(tenantId, async (wfhRepo) => {
-      const where: Record<string, unknown> = { tenant_id: tenantId };
-      if (status) where.status = status;
+    const isManager = actorRole === UserRole.MANAGER;
 
-      const [items, total] = await wfhRepo.findAndCount({
-        where,
-        relations: ['employee'],
-        order: { created_at: 'DESC' },
-        skip: (page - 1) * limit,
-        take: limit,
-      });
+    return this.runInTenantContext(tenantId, async (wfhRepo, em) => {
+      const runQuery = <T>(sql: string, params: unknown[]) =>
+        em ? em.query<T>(sql, params) : this.dataSource.query<T>(sql, params);
+
+      let teamMemberIds: string[] | null = null;
+      if (isManager) {
+        const rows = await runQuery<{ user_id: string }[]>(
+          `SELECT e.user_id
+             FROM employees e
+             JOIN teams t ON e.team_id = t.id
+            WHERE t.manager_id = $1 AND e.tenant_id = $2`,
+          [actorId, tenantId],
+        );
+        teamMemberIds = rows.map((r) => r.user_id);
+        if (teamMemberIds.length === 0) {
+          return { items: [], total: 0, page, limit };
+        }
+      }
+
+      const qb = wfhRepo
+        .createQueryBuilder('w')
+        .leftJoinAndSelect('w.employee', 'employee')
+        .where('w.tenant_id = :tenantId', { tenantId })
+        .orderBy('w.created_at', 'DESC')
+        .skip((page - 1) * limit)
+        .take(limit);
+
+      if (status) qb.andWhere('w.status = :status', { status });
+      if (startDate) qb.andWhere('w.end_date >= :startDate', { startDate });
+      if (endDate) qb.andWhere('w.start_date <= :endDate', { endDate });
+
+      if (userId) {
+        if (teamMemberIds && !teamMemberIds.includes(userId)) {
+          throw new ForbiddenException(
+            'You can only filter by employees within your own team',
+          );
+        }
+        qb.andWhere('w.employee_id = :userId', { userId });
+      } else if (teamMemberIds) {
+        qb.andWhere('w.employee_id IN (:...teamMemberIds)', { teamMemberIds });
+      }
+
+      const [items, total] = await qb.getManyAndCount();
       return { items, total, page, limit };
     });
   }
