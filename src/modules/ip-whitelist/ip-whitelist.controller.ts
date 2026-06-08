@@ -31,6 +31,12 @@ import {
   CurrentIpResponseDto,
 } from './dto/ip-whitelist-response.dto';
 import { AuthenticatedRequest } from 'src/common/types/request.types';
+import { BypassIpWhitelist } from '../../common/decorators/bypass-ip-whitelist.decorator';
+
+function normalizeControllerIp(ip: string): string {
+  const match = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(ip);
+  return match ? match[1] : ip;
+}
 
 @ApiTags('IP Whitelist')
 @Controller('ip-whitelist')
@@ -42,6 +48,7 @@ export class IpWhitelistController {
   constructor(private readonly ipWhitelistService: IpWhitelistService) {}
 
   @Get('my-ip')
+  @BypassIpWhitelist()
   @Roles('admin', 'system-admin', 'hr-admin', 'manager', 'employee')
   @ApiOperation({
     summary: 'Get current request IP address',
@@ -58,7 +65,8 @@ export class IpWhitelistController {
     description: 'Unauthorized — bearer token missing or invalid.',
   })
   getMyIp(@Request() req: AuthenticatedRequest): CurrentIpResponseDto {
-    const ip_address = req.clientIp ?? req.ip ?? '0.0.0.0';
+    const raw = req.clientIp ?? req.ip ?? '0.0.0.0';
+    const ip_address = normalizeControllerIp(raw);
     this.logger.log(
       `IP detection requested by tenant: ${req.user.tenant_id}, ip: ${ip_address}`,
     );

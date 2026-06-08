@@ -8,10 +8,23 @@ import {
 } from '../tenant-settings/tenant-settings.service';
 import { PaginationResponse } from '../../common/interfaces/pagination.interface';
 
+const CACHE_TTL_MS = 30_000;
+
+interface CacheEntry {
+  ips: Set<string>;
+  cachedAt: number;
+}
+
+function normalizeIp(ip: string): string {
+  const ipv4Mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i;
+  const match = ipv4Mapped.exec(ip);
+  return match ? match[1] : ip;
+}
+
 @Injectable()
 export class IpWhitelistService {
   private readonly logger = new Logger(IpWhitelistService.name);
-  private readonly cache = new Map<string, Set<string>>();
+  private readonly cache = new Map<string, CacheEntry>();
 
   constructor(
     @InjectRepository(TenantIpWhitelist)
@@ -54,26 +67,28 @@ export class IpWhitelistService {
     ipAddress: string,
     description?: string,
   ): Promise<TenantIpWhitelist> {
+    const normalized = normalizeIp(ipAddress);
+
     const existing = await this.repo.findOne({
-      where: { tenant_id: tenantId, ip_address: ipAddress },
+      where: { tenant_id: tenantId, ip_address: normalized },
     });
 
     if (existing) {
       throw new ConflictException(
-        `IP address ${ipAddress} is already whitelisted`,
+        `IP address ${normalized} is already whitelisted`,
       );
     }
 
     const whitelist = this.repo.create({
       tenant_id: tenantId,
-      ip_address: ipAddress,
+      ip_address: normalized,
       description: description || null,
     });
 
     const saved = await this.repo.save(whitelist);
     this.invalidate(tenantId);
     this.logger.log(
-      `IP ${ipAddress} added to whitelist for tenant ${tenantId}`,
+      `IP ${normalized} added to whitelist for tenant ${tenantId}`,
     );
     return saved;
   }
@@ -82,15 +97,16 @@ export class IpWhitelistService {
     tenantId: string,
     ipAddress: string,
   ): Promise<{ deleted: true; ip_address: string }> {
+    const normalized = normalizeIp(ipAddress);
     await this.repo.delete({
       tenant_id: tenantId,
-      ip_address: ipAddress,
+      ip_address: normalized,
     });
     this.invalidate(tenantId);
     this.logger.log(
-      `IP ${ipAddress} removed from whitelist for tenant ${tenantId}`,
+      `IP ${normalized} removed from whitelist for tenant ${tenantId}`,
     );
-    return { deleted: true, ip_address: ipAddress };
+    return { deleted: true, ip_address: normalized };
   }
 
   async getWhitelistedIps(
@@ -114,8 +130,9 @@ export class IpWhitelistService {
       return true;
     }
 
+    const normalized = normalizeIp(ipAddress);
     const whitelistedIps = await this.loadTenant(tenantId);
-    return whitelistedIps.has(ipAddress);
+    return whitelistedIps.has(normalized);
   }
 
   invalidate(tenantId: string): void {
@@ -123,8 +140,9 @@ export class IpWhitelistService {
   }
 
   private async loadTenant(tenantId: string): Promise<Set<string>> {
-    if (this.cache.has(tenantId)) {
-      return this.cache.get(tenantId)!;
+    const entry = this.cache.get(tenantId);
+    if (entry && Date.now() - entry.cachedAt < CACHE_TTL_MS) {
+      return entry.ips;
     }
 
     const ips = await this.repo.find({
@@ -132,8 +150,8 @@ export class IpWhitelistService {
       select: ['ip_address'],
     });
 
-    const ipSet = new Set(ips.map((row) => row.ip_address));
-    this.cache.set(tenantId, ipSet);
+    const ipSet = new Set(ips.map((row) => normalizeIp(row.ip_address)));
+    this.cache.set(tenantId, { ips: ipSet, cachedAt: Date.now() });
     return ipSet;
   }
 }

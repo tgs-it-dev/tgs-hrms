@@ -15,6 +15,9 @@ async function bootstrap() {
     rawBody: true, // Required for Stripe webhook signature verification
   });
 
+  // Trust the first proxy hop so req.ip reflects the real client IP behind Nginx/ALB/Render
+  app.set('trust proxy', 1);
+
   app.use((_req: Request, res: Response, next: NextFunction) => {
     const start = Date.now();
     res.on('finish', () => {

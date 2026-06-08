@@ -9,6 +9,7 @@ import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { IpWhitelistService } from '../../modules/ip-whitelist/ip-whitelist.service';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { BYPASS_IP_WHITELIST_KEY } from '../decorators/bypass-ip-whitelist.decorator';
 import { UserRole } from '../constants/enums';
 
 @Injectable()
@@ -30,10 +31,27 @@ export class IpWhitelistGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest();
-    const clientIp = request.clientIp || request.ip || '0.0.0.0';
-    const tenantId = request.user?.tenant_id;
-    const userRole = request.user?.role as string | undefined;
+    const bypass = this.reflector.getAllAndOverride<boolean>(
+      BYPASS_IP_WHITELIST_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+
+    if (bypass) {
+      return true;
+    }
+
+    const request = context.switchToHttp().getRequest<Request>();
+    const rawIp =
+      (request as Request & { clientIp?: string }).clientIp ||
+      request.ip ||
+      '0.0.0.0';
+    const clientIp = normalizeIp(rawIp);
+    const tenantId = (
+      request as Request & { user?: { tenant_id?: string; role?: string } }
+    ).user?.tenant_id;
+    const userRole = (
+      request as Request & { user?: { tenant_id?: string; role?: string } }
+    ).user?.role;
 
     if (!tenantId) {
       this.logger.debug('No tenant_id in request, skipping IP whitelist check');
@@ -62,4 +80,11 @@ export class IpWhitelistGuard implements CanActivate {
 
     return true;
   }
+}
+
+function normalizeIp(ip: string): string {
+  // Strip IPv6-mapped IPv4 prefix (::ffff:192.168.1.1 → 192.168.1.1)
+  const ipv4Mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i;
+  const match = ipv4Mapped.exec(ip);
+  return match ? match[1] : ip;
 }
