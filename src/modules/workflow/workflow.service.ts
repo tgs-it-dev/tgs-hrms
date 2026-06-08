@@ -1060,7 +1060,8 @@ export class WorkflowService {
   // ── Team schedule ─────────────────────────────────────────────────────────
 
   async getTeamSchedule(
-    managerId: string,
+    actorId: string,
+    actorRole: string,
     tenantId: string,
     week: string,
   ): Promise<{
@@ -1073,61 +1074,94 @@ export class WorkflowService {
     const { monday, sunday } = this.parseISOWeek(week);
     const mondayStr = monday.toISOString().slice(0, 10);
     const sundayStr = sunday.toISOString().slice(0, 10);
+    const isManager = actorRole === 'manager';
 
-    const teamMemberRows = await this.dataSource.query<{ user_id: string }[]>(
-      `SELECT e.user_id
-         FROM employees e
-         JOIN teams t ON e.team_id = t.id
-        WHERE t.manager_id = $1 AND e.tenant_id = $2`,
-      [managerId, tenantId],
+    return this.runInTenantContext(
+      tenantId,
+      async (_configRepo, _requestRepo, _stepRepo, em) => {
+        const runQuery = <T>(sql: string, params: unknown[]) =>
+          em ? em.query<T>(sql, params) : this.dataSource.query<T>(sql, params);
+
+        let memberIds: string[] | null = null;
+        if (isManager) {
+          const rows = await runQuery<{ user_id: string }[]>(
+            `SELECT e.user_id
+               FROM employees e
+               JOIN teams t ON e.team_id = t.id
+              WHERE t.manager_id = $1 AND e.tenant_id = $2`,
+            [actorId, tenantId],
+          );
+          memberIds = rows.map((r) => r.user_id);
+          if (memberIds.length === 0) {
+            return {
+              week,
+              monday: mondayStr,
+              sunday: sundayStr,
+              wfh: [],
+              overtime: [],
+            };
+          }
+        }
+
+        const wfhSql = memberIds
+          ? `SELECT w.id, w.employee_id, w.start_date, w.end_date, w.reason, w.status,
+                    u.first_name, u.last_name
+               FROM wfh_requests w
+               JOIN public.users u ON u.id = w.employee_id
+              WHERE w.tenant_id = $1
+                AND w.status = 'approved'
+                AND w.employee_id = ANY($2::uuid[])
+                AND w.start_date <= $3
+                AND w.end_date   >= $4`
+          : `SELECT w.id, w.employee_id, w.start_date, w.end_date, w.reason, w.status,
+                    u.first_name, u.last_name
+               FROM wfh_requests w
+               JOIN public.users u ON u.id = w.employee_id
+              WHERE w.tenant_id = $1
+                AND w.status = 'approved'
+                AND w.start_date <= $2
+                AND w.end_date   >= $3`;
+
+        const overtimeSql = memberIds
+          ? `SELECT o.id, o.employee_id, o.start_date, o.end_date, o.hours, o.reason, o.status,
+                    u.first_name, u.last_name
+               FROM overtime_requests o
+               JOIN public.users u ON u.id = o.employee_id
+              WHERE o.tenant_id = $1
+                AND o.status = 'approved'
+                AND o.employee_id = ANY($2::uuid[])
+                AND o.start_date <= $3
+                AND o.end_date   >= $4`
+          : `SELECT o.id, o.employee_id, o.start_date, o.end_date, o.hours, o.reason, o.status,
+                    u.first_name, u.last_name
+               FROM overtime_requests o
+               JOIN public.users u ON u.id = o.employee_id
+              WHERE o.tenant_id = $1
+                AND o.status = 'approved'
+                AND o.start_date <= $2
+                AND o.end_date   >= $3`;
+
+        const wfhParams = memberIds
+          ? [tenantId, memberIds, sundayStr, mondayStr]
+          : [tenantId, sundayStr, mondayStr];
+        const overtimeParams = memberIds
+          ? [tenantId, memberIds, sundayStr, mondayStr]
+          : [tenantId, sundayStr, mondayStr];
+
+        const [wfhRows, overtimeRows] = await Promise.all([
+          runQuery<Record<string, unknown>[]>(wfhSql, wfhParams),
+          runQuery<Record<string, unknown>[]>(overtimeSql, overtimeParams),
+        ]);
+
+        return {
+          week,
+          monday: mondayStr,
+          sunday: sundayStr,
+          wfh: wfhRows,
+          overtime: overtimeRows,
+        };
+      },
     );
-
-    if (teamMemberRows.length === 0) {
-      return {
-        week,
-        monday: mondayStr,
-        sunday: sundayStr,
-        wfh: [],
-        overtime: [],
-      };
-    }
-
-    const memberIds = teamMemberRows.map((r) => r.user_id);
-
-    const [wfhRows, overtimeRows] = await Promise.all([
-      this.dataSource.query<Record<string, unknown>[]>(
-        `SELECT w.id, w.employee_id, w.start_date, w.end_date, w.reason, w.status,
-                u.first_name, u.last_name
-           FROM wfh_requests w
-           JOIN public.users u ON u.id = w.employee_id
-          WHERE w.tenant_id = $1
-            AND w.status = 'approved'
-            AND w.employee_id = ANY($2::uuid[])
-            AND w.start_date <= $3
-            AND w.end_date   >= $4`,
-        [tenantId, memberIds, sundayStr, mondayStr],
-      ),
-      this.dataSource.query<Record<string, unknown>[]>(
-        `SELECT o.id, o.employee_id, o.start_date, o.end_date, o.hours, o.reason, o.status,
-                u.first_name, u.last_name
-           FROM overtime_requests o
-           JOIN public.users u ON u.id = o.employee_id
-          WHERE o.tenant_id = $1
-            AND o.status = 'approved'
-            AND o.employee_id = ANY($2::uuid[])
-            AND o.start_date <= $3
-            AND o.end_date   >= $4`,
-        [tenantId, memberIds, sundayStr, mondayStr],
-      ),
-    ]);
-
-    return {
-      week,
-      monday: mondayStr,
-      sunday: sundayStr,
-      wfh: wfhRows,
-      overtime: overtimeRows,
-    };
   }
 
   private parseISOWeek(week: string): { monday: Date; sunday: Date } {

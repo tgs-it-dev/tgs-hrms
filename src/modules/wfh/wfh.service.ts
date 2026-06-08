@@ -306,22 +306,25 @@ export class WfhService {
   ): Promise<{ items: Wfh[]; total: number; page: number; limit: number }> {
     const isManager = actorRole === 'manager';
 
-    let teamMemberIds: string[] | null = null;
-    if (isManager) {
-      const rows = await this.dataSource.query<{ user_id: string }[]>(
-        `SELECT e.user_id
-           FROM employees e
-           JOIN teams t ON e.team_id = t.id
-          WHERE t.manager_id = $1 AND e.tenant_id = $2`,
-        [actorId, tenantId],
-      );
-      teamMemberIds = rows.map((r) => r.user_id);
-      if (teamMemberIds.length === 0) {
-        return { items: [], total: 0, page, limit };
-      }
-    }
+    return this.runInTenantContext(tenantId, async (wfhRepo, em) => {
+      const runQuery = <T>(sql: string, params: unknown[]) =>
+        em ? em.query<T>(sql, params) : this.dataSource.query<T>(sql, params);
 
-    return this.runInTenantContext(tenantId, async (wfhRepo) => {
+      let teamMemberIds: string[] | null = null;
+      if (isManager) {
+        const rows = await runQuery<{ user_id: string }[]>(
+          `SELECT e.user_id
+             FROM employees e
+             JOIN teams t ON e.team_id = t.id
+            WHERE t.manager_id = $1 AND e.tenant_id = $2`,
+          [actorId, tenantId],
+        );
+        teamMemberIds = rows.map((r) => r.user_id);
+        if (teamMemberIds.length === 0) {
+          return { items: [], total: 0, page, limit };
+        }
+      }
+
       const qb = wfhRepo
         .createQueryBuilder('w')
         .leftJoinAndSelect('w.employee', 'employee')

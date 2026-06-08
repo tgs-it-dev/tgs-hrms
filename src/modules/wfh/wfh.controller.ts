@@ -187,6 +187,7 @@ export class WfhController {
   ) {
     return this.workflowService.getTeamSchedule(
       req.user.id,
+      req.user.role,
       req.user.tenant_id,
       week,
     );
