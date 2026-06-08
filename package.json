@@ -26,7 +26,7 @@
     "db:clean": "ts-node -r tsconfig-paths/register scripts/clean-database.ts",
     "seed": "ts-node -r tsconfig-paths/register seed-database.ts",
     "seed:role-permissions": "ts-node -r tsconfig-paths/register src/common/seeders/seed-missing-role-permissions.ts",
-    "prepare": "husky"
+    "prepare": "husky || true"
   },
   "lint-staged": {
     "*.ts": [
