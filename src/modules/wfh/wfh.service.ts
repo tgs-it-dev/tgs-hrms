@@ -28,6 +28,7 @@ import {
   TenantSettingsService,
   TenantSettingKey,
 } from '../tenant-settings/tenant-settings.service';
+import { NotificationsEmailService } from '../notifications-email/notifications-email.service';
 
 @Injectable()
 export class WfhService {
@@ -44,6 +45,7 @@ export class WfhService {
     private readonly tenantDbService: TenantDatabaseService,
     private readonly fileUploadService: DocumentUploadService,
     private readonly tenantSettings: TenantSettingsService,
+    private readonly notificationsEmailService: NotificationsEmailService,
     @InjectDataSource()
     private readonly dataSource: DataSource,
   ) {}
@@ -251,6 +253,17 @@ export class WfhService {
             related_entity_id: savedWfh.id,
             created_at: notification.created_at,
           });
+          this.notificationsEmailService.sendFlexRequestNotification(
+            managerId,
+            employeeId,
+            {
+              id: savedWfh.id,
+              tenantId,
+              startDate: savedWfh.start_date,
+              endDate: savedWfh.end_date,
+              reason: savedWfh.reason,
+            },
+          );
         }
       } catch (err: unknown) {
         this.logger.warn(

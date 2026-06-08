@@ -8,6 +8,7 @@ import {
 import {
   AttendanceType,
   CheckInApprovalStatus,
+  EmployeeStatus,
   UserRole,
 } from '../../common/constants/enums';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -27,6 +28,11 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { Geofence, GeofenceStatus } from '../../entities/geofence.entity';
 import { checkPointWithinGeofence } from '../../common/utils/geofence.util';
+import {
+  isValidTimezone,
+  toLocalDateString,
+  toTzAwareDateBound,
+} from '../../common/utils/date.util';
 
 interface TeamMemberItem {
   user: {
@@ -93,18 +99,27 @@ export class AttendanceService {
     return result[0]?.tenant_id ?? null;
   }
 
+  private resolveLocalTimezone(timezone?: string): string | undefined {
+    return timezone && isValidTimezone(timezone) ? timezone : undefined;
+  }
+
   private parseDateRange(
     startDate?: string,
     endDate?: string,
+    timezone?: string,
   ): { start?: Date; end?: Date } {
+    const tz = this.resolveLocalTimezone(timezone);
+
     const parseStart = (date: string): Date => {
       if (date.includes('T')) return new Date(date);
+      if (tz) return toTzAwareDateBound(date, tz, false);
       const [y, m, d] = date.split('-').map(Number);
       return new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
     };
 
     const parseEnd = (date: string): Date => {
       if (date.includes('T')) return new Date(date);
+      if (tz) return toTzAwareDateBound(date, tz, true);
       const [y, m, d] = date.split('-').map(Number);
       return new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
     };
@@ -334,7 +349,8 @@ export class AttendanceService {
     return matchingCheckOut ? null : latestCheckIn;
   }
 
-  async findAll(userId?: string) {
+  async findAll(userId?: string, timezone?: string) {
+    const tz = this.resolveLocalTimezone(timezone);
     let tenantId: string | null = null;
     if (userId) {
       tenantId = await this.getTenantIdForUser(userId);
@@ -377,14 +393,16 @@ export class AttendanceService {
       }
     }
     for (const checkIn of checkIns) {
-      const startDate = checkIn.timestamp.toISOString().split('T')[0] || '';
+      const checkInDate = tz
+        ? toLocalDateString(checkIn.timestamp, tz)
+        : checkIn.timestamp.toISOString().split('T')[0] || '';
       const matchingCheckOut = checkOuts.find(
         (checkout) => checkout.timestamp > checkIn.timestamp,
       );
       sessions.push({
         checkIn,
         checkOut: matchingCheckOut,
-        startDate,
+        startDate: checkInDate,
       });
       if (matchingCheckOut) {
         const index = checkOuts.indexOf(matchingCheckOut);
@@ -606,16 +624,24 @@ export class AttendanceService {
   private normalizeDateBounds(
     startDate?: string,
     endDate?: string,
+    timezone?: string,
   ): { start?: Date; end?: Date } {
+    const tz = this.resolveLocalTimezone(timezone);
     const out: { start?: Date; end?: Date } = {};
-    if (startDate)
-      out.start = startDate.includes('T')
-        ? new Date(startDate)
-        : new Date(startDate + 'T00:00:00.000Z');
-    if (endDate)
-      out.end = endDate.includes('T')
-        ? new Date(endDate)
-        : new Date(endDate + 'T23:59:59.999Z');
+    const toStart = (d: string): Date =>
+      d.includes('T')
+        ? new Date(d)
+        : tz
+          ? toTzAwareDateBound(d, tz, false)
+          : new Date(d + 'T00:00:00.000Z');
+    const toEnd = (d: string): Date =>
+      d.includes('T')
+        ? new Date(d)
+        : tz
+          ? toTzAwareDateBound(d, tz, true)
+          : new Date(d + 'T23:59:59.999Z');
+    if (startDate) out.start = toStart(startDate);
+    if (endDate) out.end = toEnd(endDate);
     return out;
   }
 
@@ -623,9 +649,10 @@ export class AttendanceService {
     tenantId: string,
     startDate?: string,
     endDate?: string,
+    timezone?: string,
   ) {
     const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
-    const { start, end } = this.parseDateRange(startDate, endDate);
+    const { start, end } = this.parseDateRange(startDate, endDate, timezone);
 
     const buildQuery = (repo: Repository<Attendance>) => {
       const qb = repo
@@ -661,14 +688,25 @@ export class AttendanceService {
     endDate?: string,
     skip: number = 0,
     take: number = 1000,
+    timezone?: string,
   ) {
     const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
-    const { start, end } = this.normalizeDateBounds(startDate, endDate);
+    const { start, end } = this.normalizeDateBounds(
+      startDate,
+      endDate,
+      timezone,
+    );
 
     const buildQuery = (repo: Repository<Attendance>) => {
       const qb = repo
         .createQueryBuilder('attendance')
         .leftJoinAndSelect('attendance.user', 'user')
+        .leftJoinAndSelect(
+          'user.employees',
+          'employee',
+          'employee.deleted_at IS NULL',
+        )
+        .leftJoinAndSelect('employee.team', 'team')
         .where('user.tenant_id = :tenantId', { tenantId });
       if (start) qb.andWhere('attendance.timestamp >= :start', { start });
       if (end) qb.andWhere('attendance.timestamp <= :end', { end });
@@ -697,7 +735,12 @@ export class AttendanceService {
     return `${user.first_name || ''} ${user.last_name || ''}`.trim();
   }
 
-  async findEvents(userId?: string, startDate?: string, endDate?: string) {
+  async findEvents(
+    userId?: string,
+    startDate?: string,
+    endDate?: string,
+    timezone?: string,
+  ) {
     let tenantId: string | null = null;
     if (userId) {
       tenantId = await this.getTenantIdForUser(userId);
@@ -706,7 +749,11 @@ export class AttendanceService {
       ? await this.isTenantSchemaProvisioned(tenantId)
       : false;
 
-    const { start, end } = this.normalizeDateBounds(startDate, endDate);
+    const { start, end } = this.normalizeDateBounds(
+      startDate,
+      endDate,
+      timezone,
+    );
 
     const buildQuery = (repo: Repository<Attendance>) => {
       const qb = repo
@@ -737,6 +784,7 @@ export class AttendanceService {
     tenantId: string,
     startDate?: string,
     endDate?: string,
+    timezone?: string,
   ): Promise<{
     items: Array<{
       user_id: string;
@@ -794,22 +842,20 @@ export class AttendanceService {
 
     const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
 
+    const tz = this.resolveLocalTimezone(timezone);
+    const { start: tsStart, end: tsEnd } = this.normalizeDateBounds(
+      startDate,
+      endDate,
+      tz,
+    );
+
     const fetchAttendance = (repo: Repository<Attendance>) => {
       const q = repo
         .createQueryBuilder('attendance')
         .where('attendance.user_id IN (:...userIds)', { userIds });
-      if (startDate) {
-        q.andWhere('attendance.timestamp >= :start', {
-          start: startDate.includes('T')
-            ? new Date(startDate)
-            : new Date(startDate + 'T00:00:00.000Z'),
-        });
-      }
-      if (endDate) {
-        q.andWhere('attendance.timestamp <= :end', {
-          end: new Date(endDate + 'T23:59:59.999Z'),
-        });
-      }
+      if (tsStart)
+        q.andWhere('attendance.timestamp >= :start', { start: tsStart });
+      if (tsEnd) q.andWhere('attendance.timestamp <= :end', { end: tsEnd });
       return q.orderBy('attendance.timestamp', 'ASC').getMany();
     };
 
@@ -848,14 +894,16 @@ export class AttendanceService {
         startDate: string;
       }> = [];
       for (const checkIn of checkIns) {
-        const startDate = checkIn.timestamp.toISOString().split('T')[0] || '';
+        const checkInDate = tz
+          ? toLocalDateString(checkIn.timestamp, tz)
+          : checkIn.timestamp.toISOString().split('T')[0] || '';
         const matchingCheckOut = checkOuts.find(
           (checkout) => checkout.timestamp > checkIn.timestamp,
         );
         sessions.push({
           checkIn,
           checkOut: matchingCheckOut,
-          startDate,
+          startDate: checkInDate,
         });
         if (matchingCheckOut) {
           const index = checkOuts.indexOf(matchingCheckOut);
@@ -964,6 +1012,7 @@ export class AttendanceService {
     startDate?: string,
     endDate?: string,
     name?: string,
+    timezone?: string,
   ): Promise<{
     tenants: Array<{
       tenant_id: string;
@@ -1002,20 +1051,21 @@ export class AttendanceService {
     }
 
     // Apply date filters
-    if (startDate) {
-      const start = startDate.includes('T')
-        ? new Date(startDate)
-        : new Date(startDate + 'T00:00:00.000Z');
+    const tz = this.resolveLocalTimezone(timezone);
+    const { start: tsStart, end: tsEnd } = this.normalizeDateBounds(
+      startDate,
+      endDate,
+      tz,
+    );
+    if (tsStart) {
       if (tenantId) {
-        qb.andWhere('attendance.timestamp >= :start', { start });
+        qb.andWhere('attendance.timestamp >= :start', { start: tsStart });
       } else {
-        qb.where('attendance.timestamp >= :start', { start });
+        qb.where('attendance.timestamp >= :start', { start: tsStart });
       }
     }
-    if (endDate) {
-      qb.andWhere('attendance.timestamp <= :end', {
-        end: new Date(endDate + 'T23:59:59.999Z'),
-      });
+    if (tsEnd) {
+      qb.andWhere('attendance.timestamp <= :end', { end: tsEnd });
     }
 
     // Filter by employee name (partial match on first_name, last_name, or full name)
@@ -1116,14 +1166,16 @@ export class AttendanceService {
         const remainingCheckOuts = [...checkOuts];
 
         for (const checkIn of checkIns) {
-          const startDate = checkIn.timestamp.toISOString().split('T')[0] || '';
+          const checkInDate = tz
+            ? toLocalDateString(checkIn.timestamp, tz)
+            : checkIn.timestamp.toISOString().split('T')[0] || '';
           const matchingCheckOut = remainingCheckOuts.find(
             (checkout) => checkout.timestamp > checkIn.timestamp,
           );
           sessions.push({
             checkIn,
             checkOut: matchingCheckOut,
-            startDate,
+            startDate: checkInDate,
           });
           if (matchingCheckOut) {
             const index = remainingCheckOuts.indexOf(matchingCheckOut);
@@ -1773,5 +1825,97 @@ export class AttendanceService {
     }
 
     return Math.round(totalHours * 100) / 100;
+  }
+
+  async getPresentDaysSummary(
+    tenantId: string | undefined,
+    startDate?: string,
+    endDate?: string,
+    timezone: string = 'UTC',
+  ): Promise<
+    Array<{
+      employee_name: string;
+      department: string;
+      team: string;
+      total_present_days: number;
+    }>
+  > {
+    // $1 = timezone, $2 = attendance type, $3 = employee status
+    // Date/type filters go in the LEFT JOIN ON clause so employees with 0
+    // check-ins in the range still appear — moving them to WHERE would silently
+    // turn the LEFT JOIN into an INNER JOIN and drop those employees.
+    const params: unknown[] = [
+      timezone,
+      AttendanceType.CHECK_IN,
+      EmployeeStatus.ACTIVE,
+    ];
+    let idx = 4;
+
+    let dateOnClause = '';
+    if (startDate) {
+      dateOnClause += ` AND (a.timestamp AT TIME ZONE $1)::date >= $${idx++}`;
+      params.push(startDate);
+    }
+    if (endDate) {
+      dateOnClause += ` AND (a.timestamp AT TIME ZONE $1)::date <= $${idx++}`;
+      params.push(endDate);
+    }
+
+    // Always exclude soft-deleted users; optionally scope to a tenant
+    let whereClause = `WHERE u.deleted_at IS NULL`;
+    if (tenantId) {
+      whereClause += ` AND u.tenant_id = $${idx++}`;
+      params.push(tenantId);
+    }
+
+    const sql = `
+      SELECT
+        u.first_name || ' ' || u.last_name            AS employee_name,
+        d.name                                         AS department,
+        t.name                                         AS team,
+        COUNT(DISTINCT DATE(a.timestamp AT TIME ZONE $1)) AS total_present_days
+      FROM users u
+      -- status = ACTIVE reflects the employee's current state, not their state
+      -- during the queried period. Employees deactivated after the range ends
+      -- will be excluded. This is intentional: the report represents the current
+      -- workforce. If historical reporting is needed, remove the status filter.
+      INNER JOIN employees e   ON e.user_id = u.id AND e.deleted_at IS NULL AND e.status = $3
+      LEFT  JOIN designations des ON des.id = e.designation_id
+      LEFT  JOIN departments  d   ON d.id = des.department_id
+      LEFT  JOIN teams        t   ON t.id = e.team_id
+      LEFT  JOIN attendance   a   ON a.user_id = u.id AND a.type = $2${dateOnClause}
+      ${whereClause}
+      GROUP BY u.id, u.first_name, u.last_name, d.name, t.name
+      ORDER BY (u.first_name || ' ' || u.last_name) ASC
+    `;
+
+    const runQuery = (runner: {
+      query: (sql: string, params: unknown[]) => Promise<any[]>;
+    }) => runner.query(sql, params);
+
+    let rows: Array<{
+      employee_name: string;
+      department: string | null;
+      team: string | null;
+      total_present_days: string;
+    }>;
+
+    if (tenantId) {
+      const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
+      rows = isProvisioned
+        ? await this.tenantDbService.withTenantSchemaReadOnly(tenantId, (em) =>
+            runQuery(em),
+          )
+        : await runQuery(this.dataSource);
+    } else {
+      rows = await runQuery(this.dataSource);
+    }
+
+    return rows.map((row) => ({
+      employee_name: row.employee_name ?? '',
+      department: row.department ?? '',
+      team: row.team ?? '',
+      total_present_days: parseInt(row.total_present_days, 10) || 0,
+    }));
   }
 }

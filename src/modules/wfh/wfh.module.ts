@@ -11,6 +11,7 @@ import { TenantModule } from '../tenant/tenant.module';
 import { NotificationModule } from '../notification/notification.module';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
 import { TenantSettingsModule } from '../tenant-settings/tenant-settings.module';
+import { NotificationsEmailModule } from '../notifications-email/notifications-email.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { TenantSettingsModule } from '../tenant-settings/tenant-settings.module'
     NotificationModule,
     WorkflowModule,
     TenantSettingsModule,
+    NotificationsEmailModule,
   ],
   providers: [WfhService, WfhWorkflowListener],
   controllers: [WfhController],

@@ -18,6 +18,7 @@ import { WorkflowService } from '../workflow/workflow.service';
 import { TenantSettingsService } from '../tenant-settings/tenant-settings.service';
 import { LeaveBalance } from '../../entities/leave-balance.entity';
 import { EmailService } from '../../common/utils/email';
+import { NotificationsEmailService } from '../notifications-email/notifications-email.service';
 
 // ── Fixture helpers ──────────────────────────────────────────────────────────
 
@@ -171,6 +172,15 @@ describe('LeaveService', () => {
           useValue: {
             sendEmail: () => Promise.resolve(),
             sendLeaveStatusEmail: () => Promise.resolve(),
+          },
+        },
+        {
+          provide: NotificationsEmailService,
+          useValue: {
+            sendLeaveRequestNotification: () => undefined,
+            sendLeaveStatusUpdate: () => undefined,
+            sendStepApprovedToEmployee: () => undefined,
+            sendPendingApprovalToApprover: () => undefined,
           },
         },
       ],

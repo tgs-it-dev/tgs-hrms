@@ -126,7 +126,13 @@ describe('EmployeeService', () => {
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         {
           provide: SendGridService,
-          useValue: { sendEmail: jest.fn().mockResolvedValue(undefined) },
+          useValue: {
+            sendEmail: jest.fn().mockResolvedValue(undefined),
+            sendWelcomeEmail: jest.fn().mockResolvedValue(undefined),
+            sendNewTeamMemberAnnouncementEmail: jest
+              .fn()
+              .mockResolvedValue(undefined),
+          },
         },
         {
           provide: InviteStatusService,

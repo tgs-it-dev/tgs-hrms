@@ -28,6 +28,7 @@ import {
   TenantSettingsService,
   TenantSettingKey,
 } from '../tenant-settings/tenant-settings.service';
+import { NotificationsEmailService } from '../notifications-email/notifications-email.service';
 
 @Injectable()
 export class OvertimeService {
@@ -44,6 +45,7 @@ export class OvertimeService {
     private readonly tenantDbService: TenantDatabaseService,
     private readonly fileUploadService: DocumentUploadService,
     private readonly tenantSettings: TenantSettingsService,
+    private readonly notificationsEmailService: NotificationsEmailService,
     @InjectDataSource()
     private readonly dataSource: DataSource,
   ) {}
@@ -312,6 +314,18 @@ export class OvertimeService {
             related_entity_id: saved.id,
             created_at: notification.created_at,
           });
+          this.notificationsEmailService.sendOvertimeRequestNotification(
+            managerId,
+            employeeId,
+            {
+              id: saved.id,
+              tenantId,
+              startDate: startLabel,
+              endDate: endLabel,
+              hours,
+              reason: saved.reason,
+            },
+          );
         }
       } catch (err: unknown) {
         this.logger.warn(

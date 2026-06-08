@@ -82,6 +82,7 @@ const mockUser: User = {
   email_verification_expires_at: null,
   failed_login_attempts: 0,
   locked_until: null,
+  email_notifications_enabled: true,
 };
 
 const mockUserRepository = () => ({
