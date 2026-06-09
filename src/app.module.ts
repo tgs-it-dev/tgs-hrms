@@ -36,6 +36,7 @@ import { SearchModule } from './modules/search/search.module';
 import { TenantSettingsModule } from './modules/tenant-settings/tenant-settings.module';
 import { IpWhitelistModule } from './modules/ip-whitelist/ip-whitelist.module';
 import { BillingModule } from './modules/billing/billing.module';
+import { PaypalModule } from './modules/paypal/paypal.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { GeofenceModule } from './modules/geofence/geofence.module';
 import { InviteStatusModule } from './modules/invite-status/invite-status.module';
@@ -169,6 +170,7 @@ import { SysDbModule } from './common/modules/sys-db.module';
     SystemModule,
     SearchModule,
     BillingModule,
+    PaypalModule,
     DashboardModule,
     GeofenceModule,
     InviteStatusModule,

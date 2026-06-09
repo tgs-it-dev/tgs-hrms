@@ -11,6 +11,7 @@ import {
 } from 'typeorm';
 import { SignupSession } from './signup-session.entity';
 import { Tenant } from './tenant.entity';
+import { SubscriptionPlan } from './subscription-plan.entity';
 
 @Index(['domain'], { unique: true })
 @Entity('company_details')
@@ -38,6 +39,19 @@ export class CompanyDetails {
 
   @Column({ type: 'varchar', nullable: true })
   stripe_payment_intent_id: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  paypal_subscription_id: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  paypal_payer_id: string | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  active_plan_id: string | null;
+
+  @ManyToOne(() => SubscriptionPlan, { nullable: true, eager: false })
+  @JoinColumn({ name: 'active_plan_id' })
+  activePlan: SubscriptionPlan | null;
 
   @Column({ type: 'varchar', nullable: true })
   logo_url: string | null;

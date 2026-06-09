@@ -17,6 +17,9 @@ export class SubscriptionPlan {
   @Column({ type: 'varchar', length: 200 })
   stripePriceId: string;
 
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  paypalPlanId: string | null;
+
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
