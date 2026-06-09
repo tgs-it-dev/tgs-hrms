@@ -62,7 +62,7 @@ describe('CalendarController', () => {
     it('calls service with the provided tenantId when system-admin', () => {
       const req = makeReq(UserRole.SYSTEM_ADMIN);
 
-      controller.getCalendar(
+      void controller.getCalendar(
         req,
         { ...baseQuery, tenantId: OTHER_TENANT_ID },
         undefined,
@@ -84,7 +84,7 @@ describe('CalendarController', () => {
     it('uses the token tenant_id for non-admin users', () => {
       const req = makeReq(UserRole.EMPLOYEE);
 
-      controller.getCalendar(req, baseQuery, undefined);
+      void controller.getCalendar(req, baseQuery, undefined);
 
       expect(calendarService.getTeamCalendar).toHaveBeenCalledWith(
         TENANT_ID,
@@ -98,7 +98,7 @@ describe('CalendarController', () => {
     it('ignores a tenantId query param sent by a non-admin user', () => {
       const req = makeReq(UserRole.EMPLOYEE);
 
-      controller.getCalendar(
+      void controller.getCalendar(
         req,
         { ...baseQuery, tenantId: OTHER_TENANT_ID },
         undefined,
@@ -117,7 +117,7 @@ describe('CalendarController', () => {
     it('passes teamId through to the service', () => {
       const req = makeReq(UserRole.MANAGER);
 
-      controller.getCalendar(
+      void controller.getCalendar(
         req,
         { ...baseQuery, teamId: 'team-xyz' },
         undefined,
@@ -139,7 +139,7 @@ describe('CalendarController', () => {
     it('passes query-param timezone to resolveTimezone', () => {
       const req = makeReq(UserRole.EMPLOYEE);
 
-      controller.getCalendar(
+      void controller.getCalendar(
         req,
         { ...baseQuery, timezone: 'Asia/Karachi' },
         undefined,
@@ -154,7 +154,7 @@ describe('CalendarController', () => {
     it('passes X-Timezone header to resolveTimezone as fallback', () => {
       const req = makeReq(UserRole.EMPLOYEE);
 
-      controller.getCalendar(req, baseQuery, 'America/New_York');
+      void controller.getCalendar(req, baseQuery, 'America/New_York');
 
       expect(calendarService.resolveTimezone).toHaveBeenCalledWith(
         undefined,
@@ -166,7 +166,7 @@ describe('CalendarController', () => {
       calendarService.resolveTimezone.mockReturnValue('Asia/Karachi');
       const req = makeReq(UserRole.EMPLOYEE);
 
-      controller.getCalendar(
+      void controller.getCalendar(
         req,
         { ...baseQuery, timezone: 'Asia/Karachi' },
         undefined,
