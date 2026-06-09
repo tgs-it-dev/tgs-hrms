@@ -19,6 +19,7 @@ import { TenantSettingsService } from '../tenant-settings/tenant-settings.servic
 import { LeaveBalance } from '../../entities/leave-balance.entity';
 import { EmailService } from '../../common/utils/email';
 import { NotificationsEmailService } from '../notifications-email/notifications-email.service';
+import { CalendarCacheService } from '../calendar/calendar-cache.service';
 
 // ── Fixture helpers ──────────────────────────────────────────────────────────
 
@@ -182,6 +183,10 @@ describe('LeaveService', () => {
             sendStepApprovedToEmployee: () => undefined,
             sendPendingApprovalToApprover: () => undefined,
           },
+        },
+        {
+          provide: CalendarCacheService,
+          useValue: { invalidate: () => undefined },
         },
       ],
     }).compile();
