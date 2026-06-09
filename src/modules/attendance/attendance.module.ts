@@ -12,6 +12,7 @@ import { NotificationModule } from '../notification/notification.module';
 import { Team } from '../../entities/team.entity';
 import { User } from '../../entities/user.entity';
 import { TenantModule } from '../tenant/tenant.module';
+import { CalendarModule } from '../calendar/calendar.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { TenantModule } from '../tenant/tenant.module';
     TeamModule,
     NotificationModule,
     TenantModule,
+    CalendarModule,
   ],
   controllers: [AttendanceController],
   providers: [AttendanceService],
