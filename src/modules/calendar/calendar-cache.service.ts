@@ -4,6 +4,13 @@ type CacheEntry<T> = { value: T; expiresAt: number };
 
 const TTL_MS = 60_000;
 
+// NOTE: Invalidation here is intentionally broad — any write to leaves, WFH, or
+// attendance for a tenant clears ALL cached calendar results for that tenant
+// (all team/timezone variants). This trades some redundant DB re-fetches for
+// simplicity. Under high write volume the burst of simultaneous cache misses
+// after an invalidation ("cache stampede") is bounded by the number of active
+// users querying the calendar within the 60 s TTL window, which is acceptable
+// for typical HRMS usage patterns.
 @Injectable()
 export class CalendarCacheService {
   private readonly store = new Map<string, CacheEntry<unknown>>();

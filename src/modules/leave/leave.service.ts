@@ -1416,7 +1416,9 @@ export class LeaveService {
           doCancel(em.getRepository(Leave)),
         )
       : doCancel(this.leaveRepo));
-    if (tenantId) this.calendarCacheService.invalidate(tenantId);
+    // Use the entity's tenantId — always present on the returned Leave record —
+    // rather than the optional method parameter so invalidation is never skipped.
+    this.calendarCacheService.invalidate(result.tenantId);
     return result;
   }
 

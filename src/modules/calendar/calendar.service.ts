@@ -20,7 +20,16 @@ export interface MemberCalendar {
   readonly userId: string;
   readonly firstName: string;
   readonly lastName: string;
-  readonly dates: DateStatusEntry[];
+  // ReadonlyArray: callers cannot push/splice; internal builder uses a separate mutable type.
+  readonly dates: ReadonlyArray<DateStatusEntry>;
+}
+
+// Mutable builder used only inside buildResponse; never exposed publicly.
+interface MemberCalendarBuilder {
+  userId: string;
+  firstName: string;
+  lastName: string;
+  dates: DateStatusEntry[];
 }
 
 interface RawCalendarRow {
@@ -35,13 +44,19 @@ interface RawCalendarRow {
   day_of_week: number;
 }
 
-// Check-ins at or after this local hour are flagged WORK_LATE (9 AM in the request timezone).
+// A check-in strictly AFTER this local hour is WORK_LATE.
+// Arriving at exactly 09:00 is on time (PRESENT).
 const WORK_START_HOUR_LOCAL = 9;
 
 const DEFAULT_TZ = 'UTC';
 
 @Injectable()
 export class CalendarService {
+  // NOTE: This cache is process-local (in-memory Map). In a single-instance
+  // deployment this is fine. For horizontally-scaled deployments (multiple
+  // pods/dyno), cache invalidation on one instance will NOT propagate to
+  // others; stale data will be served until TTL expires (60 s). Replace with
+  // a shared Redis cache when running more than one application instance.
   constructor(
     private readonly tenantDbService: TenantDatabaseService,
     private readonly cacheService: CalendarCacheService,
@@ -92,23 +107,25 @@ export class CalendarService {
 
     // Always route through withTenantSchemaReadOnly so the connection's
     // search_path is set to "<tenant_schema>", public before execution.
-    //
     // PostgreSQL silently ignores schemas that don't exist in the path, so
     // this is safe for both provisioned tenants (tenant schema used) and
     // non-provisioned tenants (falls through to public automatically).
-    // The alternative — running directly on the public DataSource — is what
-    // was causing ABSENT for all users whose data lives in a tenant schema.
     return this.tenantDbService.withTenantSchemaReadOnly(tenantId, (em) =>
       em.query<RawCalendarRow[]>(sql, params),
     );
   }
 
   private buildSql(hasTeamFilter: boolean): string {
-    // Timezone is always the last positional param.
-    // Without teamId: $1=from $2=to $3=tenantId $4=timezone
-    // With    teamId: $1=from $2=to $3=tenantId $4=teamId $5=timezone
+    // Param layout
+    // Without teamId: $1=from  $2=to  $3=tenantId  $4=timezone
+    // With    teamId: $1=from  $2=to  $3=tenantId  $4=teamId  $5=timezone
     const tzParam = hasTeamFilter ? '$5' : '$4';
 
+    // The employee subquery filters to only this tenant's active members
+    // BEFORE the CROSS JOIN with the date series. This ensures the
+    // Cartesian product is (tenant_employees × days), not (all_employees × days),
+    // which matters significantly for non-provisioned tenants sharing the
+    // public schema with many other tenants.
     return `
       SELECT
         u.id                                               AS user_id,
@@ -121,17 +138,22 @@ export class CalendarService {
         MIN(a.check_in_time)                              AS check_in_time,
         EXTRACT(DOW FROM ds.date)::int                    AS day_of_week
       FROM generate_series($1::date, $2::date, '1 day'::interval) AS ds(date)
-      CROSS JOIN employees emp
-      JOIN users u
-        ON u.id = emp.user_id
-        AND u.tenant_id = $3
+      CROSS JOIN (
+        SELECT e.user_id
+        FROM employees e
+        INNER JOIN users ue ON ue.id = e.user_id AND ue.tenant_id = $3
+        WHERE e.deleted_at IS NULL
+          AND e.status != 'terminated'
+          ${hasTeamFilter ? 'AND e.team_id = $4' : ''}
+      ) AS emp
+      JOIN users u ON u.id = emp.user_id
       LEFT JOIN leaves l
-        ON l."employeeId" = u.id
+        ON l."employeeId" = emp.user_id
         AND l."tenantId" = $3
         AND l.status IN ('approved', 'processing')
         AND ds.date::date BETWEEN l."startDate"::date AND l."endDate"::date
       LEFT JOIN wfh_requests w
-        ON w.employee_id = u.id
+        ON w.employee_id = emp.user_id
         AND w.tenant_id = $3
         AND w.status = 'approved'
         AND ds.date::date BETWEEN w.start_date::date AND w.end_date::date
@@ -145,10 +167,7 @@ export class CalendarService {
           AND (a2.timestamp AT TIME ZONE ${tzParam})::date
               BETWEEN $1::date AND $2::date
         GROUP BY a2.user_id, (a2.timestamp AT TIME ZONE ${tzParam})::date
-      ) a ON a.user_id = u.id AND a.att_date = ds.date::date
-      WHERE emp.deleted_at IS NULL
-        AND emp.status != 'terminated'
-        ${hasTeamFilter ? 'AND emp.team_id = $4' : ''}
+      ) a ON a.user_id = emp.user_id AND a.att_date = ds.date::date
       GROUP BY u.id, u.first_name, u.last_name, ds.date
       ORDER BY u.first_name, u.last_name, ds.date
     `;
@@ -158,7 +177,7 @@ export class CalendarService {
     rows: RawCalendarRow[],
     timezone: string,
   ): MemberCalendar[] {
-    const memberMap = new Map<string, MemberCalendar>();
+    const memberMap = new Map<string, MemberCalendarBuilder>();
 
     for (const row of rows) {
       if (!memberMap.has(row.user_id)) {
@@ -197,10 +216,11 @@ export class CalendarService {
     }
 
     if (row.has_attendance) {
-      const checkInHour = row.check_in_time
-        ? this.getLocalHour(row.check_in_time, timezone)
-        : 0;
-      return checkInHour >= WORK_START_HOUR_LOCAL ? 'WORK_LATE' : 'PRESENT';
+      // Guard against data anomaly: has_attendance=true with a null timestamp.
+      if (!row.check_in_time) return 'PRESENT';
+      const checkInHour = this.getLocalHour(row.check_in_time, timezone);
+      // Strictly after 9 AM = late. Arriving at exactly 09:00 is on time.
+      return checkInHour > WORK_START_HOUR_LOCAL ? 'WORK_LATE' : 'PRESENT';
     }
 
     return 'ABSENT';

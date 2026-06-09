@@ -10,15 +10,27 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+// Hard cap: prevents generate_series × employees from becoming unbounded.
+const MAX_RANGE_DAYS = 366;
+
 @ValidatorConstraint({ name: 'DateRangeValid', async: false })
 class DateRangeConstraint implements ValidatorConstraintInterface {
   validate(to: string, args: ValidationArguments): boolean {
     const dto = args.object as TeamCalendarQueryDto;
     if (!dto.from || !to) return true;
-    return new Date(to) >= new Date(dto.from);
+    const fromMs = new Date(dto.from).getTime();
+    const toMs = new Date(to).getTime();
+    if (toMs < fromMs) return false;
+    return (toMs - fromMs) / 86_400_000 <= MAX_RANGE_DAYS;
   }
-  defaultMessage(): string {
-    return '"to" must be on or after "from"';
+
+  defaultMessage(args: ValidationArguments): string {
+    const dto = args.object as TeamCalendarQueryDto;
+    if (!dto.from || !args.value) return '"to" must be on or after "from"';
+    const fromMs = new Date(dto.from).getTime();
+    const toMs = new Date(args.value as string).getTime();
+    if (toMs < fromMs) return '"to" must be on or after "from"';
+    return `Date range cannot exceed ${MAX_RANGE_DAYS} days`;
   }
 }
 
@@ -32,7 +44,7 @@ export class TeamCalendarQueryDto {
 
   @ApiProperty({
     example: '2025-06-30',
-    description: 'End of date range (inclusive)',
+    description: `End of date range (inclusive). Must be ≥ from and within ${MAX_RANGE_DAYS} days.`,
   })
   @IsDateString()
   @Validate(DateRangeConstraint)
