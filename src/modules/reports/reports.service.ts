@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, In } from 'typeorm';
+import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
+import { Repository, Between, In, DataSource } from 'typeorm';
 import { Attendance } from '../../entities/attendance.entity';
 import {
   AttendanceType,
@@ -11,6 +11,13 @@ import {
 import { Leave } from '../../entities/leave.entity';
 import { User } from '../../entities/user.entity';
 import { Employee } from '../../entities/employee.entity';
+import { TenantDatabaseService } from '../../common/services/tenant-database.service';
+import { buildFixedCsv } from '../../common/utils/csv.util';
+
+/** Default office start time in PKT (UTC+5) used for late detection. */
+const OFFICE_START_HOUR_PKT = 9;
+/** Offset in ms to convert UTC timestamps to PKT (UTC+5). */
+const PKT_OFFSET_MS = 5 * 60 * 60 * 1000;
 
 @Injectable()
 export class ReportsService {
@@ -23,7 +30,326 @@ export class ReportsService {
     private readonly userRepo: Repository<User>,
     @InjectRepository(Employee)
     private readonly employeeRepo: Repository<Employee>,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
+    private readonly tenantDbService: TenantDatabaseService,
   ) {}
+
+  // ── Shared helpers ────────────────────────────────────────────────────────
+
+  private defaultDateRange(
+    from?: string,
+    to?: string,
+  ): { start: Date; end: Date } {
+    const now = new Date();
+    const start = from
+      ? new Date(`${from}T00:00:00.000Z`)
+      : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const end = to
+      ? new Date(`${to}T23:59:59.999Z`)
+      : new Date(
+          Date.UTC(
+            now.getUTCFullYear(),
+            now.getUTCMonth() + 1,
+            0,
+            23,
+            59,
+            59,
+            999,
+          ),
+        );
+    return { start, end };
+  }
+
+  private async isTenantSchemaProvisioned(tenantId: string): Promise<boolean> {
+    const result = await this.dataSource.query<
+      { schema_provisioned: boolean }[]
+    >(`SELECT schema_provisioned FROM public.tenants WHERE id = $1 LIMIT 1`, [
+      tenantId,
+    ]);
+    return result[0]?.schema_provisioned ?? false;
+  }
+
+  // ── Attendance CSV ────────────────────────────────────────────────────────
+
+  async getAttendanceCsv(
+    tenantId: string,
+    from?: string,
+    to?: string,
+  ): Promise<string> {
+    const headers = [
+      'employee_name',
+      'date',
+      'clock_in',
+      'clock_out',
+      'total_hours',
+      'is_late',
+      'late_by_mins',
+    ] as const;
+
+    const { start, end } = this.defaultDateRange(from, to);
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
+
+    const fetchRecords = (repo: Repository<Attendance>) =>
+      repo
+        .createQueryBuilder('att')
+        .leftJoinAndSelect('att.user', 'user')
+        .where('user.tenant_id = :tenantId', { tenantId })
+        .andWhere('att.timestamp >= :start', { start })
+        .andWhere('att.timestamp <= :end', { end })
+        .orderBy('att.timestamp', 'ASC')
+        .getMany();
+
+    const records = isProvisioned
+      ? await this.tenantDbService.withTenantSchemaReadOnly(tenantId, (em) =>
+          fetchRecords(em.getRepository(Attendance)),
+        )
+      : await fetchRecords(this.attendanceRepo);
+
+    // Group by user_id + PKT date; track earliest check-in and latest check-out
+    const grouped = new Map<
+      string,
+      { user: User; checkIn?: Date; checkOut?: Date }
+    >();
+
+    for (const rec of records) {
+      const pkDate = new Date(rec.timestamp.getTime() + PKT_OFFSET_MS);
+      const dateStr = pkDate.toISOString().slice(0, 10);
+      const key = `${rec.user_id}::${dateStr}`;
+
+      if (!grouped.has(key)) grouped.set(key, { user: rec.user });
+      const entry = grouped.get(key)!;
+
+      if (rec.type === AttendanceType.CHECK_IN) {
+        if (!entry.checkIn || rec.timestamp < entry.checkIn)
+          entry.checkIn = rec.timestamp;
+      } else {
+        if (!entry.checkOut || rec.timestamp > entry.checkOut)
+          entry.checkOut = rec.timestamp;
+      }
+    }
+
+    const rows: string[][] = [];
+
+    for (const [key, entry] of grouped) {
+      const dateStr = key.split('::')[1];
+      const employeeName =
+        `${entry.user?.first_name ?? ''} ${entry.user?.last_name ?? ''}`.trim();
+
+      let clockIn = '';
+      let clockOut = '';
+      let totalHours = '';
+      let isLate = 'false';
+      let lateByMins = '0';
+
+      if (entry.checkIn) {
+        const pkCheckIn = new Date(entry.checkIn.getTime() + PKT_OFFSET_MS);
+        clockIn = pkCheckIn.toISOString().replace('T', ' ').slice(0, 19);
+
+        const minuteOfDay =
+          pkCheckIn.getUTCHours() * 60 + pkCheckIn.getUTCMinutes();
+        const late = minuteOfDay - OFFICE_START_HOUR_PKT * 60;
+        isLate = late > 0 ? 'true' : 'false';
+        lateByMins = late > 0 ? String(late) : '0';
+      }
+
+      if (entry.checkOut) {
+        const pkCheckOut = new Date(entry.checkOut.getTime() + PKT_OFFSET_MS);
+        clockOut = pkCheckOut.toISOString().replace('T', ' ').slice(0, 19);
+      }
+
+      if (entry.checkIn && entry.checkOut) {
+        const hours =
+          (entry.checkOut.getTime() - entry.checkIn.getTime()) /
+          (1000 * 60 * 60);
+        totalHours = hours.toFixed(2);
+      }
+
+      rows.push([
+        employeeName,
+        dateStr,
+        clockIn,
+        clockOut,
+        totalHours,
+        isLate,
+        lateByMins,
+      ]);
+    }
+
+    rows.sort((a, b) => {
+      const nameComp = (a[0] ?? '').localeCompare(b[0] ?? '');
+      return nameComp !== 0 ? nameComp : (a[1] ?? '').localeCompare(b[1] ?? '');
+    });
+
+    return buildFixedCsv(headers, rows);
+  }
+
+  // ── Leave CSV ─────────────────────────────────────────────────────────────
+
+  async getLeaveCsv(
+    tenantId: string,
+    from?: string,
+    to?: string,
+  ): Promise<string> {
+    const headers = [
+      'employee_name',
+      'leave_type',
+      'start_date',
+      'end_date',
+      'days',
+      'status',
+      'approved_by',
+    ] as const;
+
+    const { start, end } = this.defaultDateRange(from, to);
+    const startStr = start.toISOString().slice(0, 10);
+    const endStr = end.toISOString().slice(0, 10);
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
+
+    const fetchLeaves = (repo: Repository<Leave>) =>
+      repo
+        .createQueryBuilder('leave')
+        .leftJoinAndSelect('leave.employee', 'employee')
+        .leftJoinAndSelect('leave.leaveType', 'leaveType')
+        .leftJoinAndSelect('leave.approver', 'approver')
+        .where('leave.tenantId = :tenantId', { tenantId })
+        .andWhere('leave.startDate >= :startStr', { startStr })
+        .andWhere('leave.startDate <= :endStr', { endStr })
+        .orderBy('leave.startDate', 'ASC')
+        .getMany();
+
+    const leaves = isProvisioned
+      ? await this.tenantDbService.withTenantSchemaReadOnly(tenantId, (em) =>
+          fetchLeaves(em.getRepository(Leave)),
+        )
+      : await fetchLeaves(this.leaveRepo);
+
+    const rows: string[][] = leaves.map((leave) => {
+      const employeeName =
+        `${leave.employee?.first_name ?? ''} ${leave.employee?.last_name ?? ''}`.trim();
+      const approvedBy = leave.approver
+        ? `${leave.approver.first_name ?? ''} ${leave.approver.last_name ?? ''}`.trim()
+        : '';
+
+      return [
+        employeeName,
+        leave.leaveType?.name ?? '',
+        String(leave.startDate),
+        String(leave.endDate),
+        String(leave.totalDays),
+        leave.status,
+        approvedBy,
+      ];
+    });
+
+    return buildFixedCsv(headers, rows);
+  }
+
+  // ── Flex-Requests CSV ─────────────────────────────────────────────────────
+
+  async getFlexRequestsCsv(
+    tenantId: string,
+    from?: string,
+    to?: string,
+  ): Promise<string> {
+    const headers = [
+      'employee_name',
+      'request_type',
+      'date',
+      'status',
+      'approved_by',
+    ] as const;
+
+    const { start, end } = this.defaultDateRange(from, to);
+    const startStr = start.toISOString().slice(0, 10);
+    const endStr = end.toISOString().slice(0, 10);
+
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
+
+    type FlexRow = {
+      employee_name: string;
+      request_type: string;
+      date: string;
+      status: string;
+      approved_by: string;
+    };
+
+    const fetchRows = async (
+      runQuery: (sql: string, params: unknown[]) => Promise<FlexRow[]>,
+    ): Promise<FlexRow[]> => {
+      const wfhSql = `
+        SELECT
+          u.first_name || ' ' || u.last_name AS employee_name,
+          'WFH' AS request_type,
+          w.start_date::text AS date,
+          w.status,
+          COALESCE(au.first_name || ' ' || au.last_name, '') AS approved_by
+        FROM wfh_requests w
+        JOIN users u ON u.id = w.employee_id
+        LEFT JOIN workflow_requests wr ON wr.related_entity_id = w.id
+          AND wr.request_type = 'wfh'
+        LEFT JOIN workflow_steps ws ON ws.workflow_request_id = wr.id
+          AND ws.status = 'approved'
+        LEFT JOIN users au ON au.id = ws.approver_id
+        WHERE w.tenant_id = $1
+          AND w.start_date >= $2
+          AND w.start_date <= $3
+        ORDER BY w.start_date ASC
+      `;
+
+      const overtimeSql = `
+        SELECT
+          u.first_name || ' ' || u.last_name AS employee_name,
+          'Overtime' AS request_type,
+          o.start_date::text AS date,
+          o.status,
+          COALESCE(au.first_name || ' ' || au.last_name, '') AS approved_by
+        FROM overtime_requests o
+        JOIN users u ON u.id = o.employee_id
+        LEFT JOIN workflow_requests wr ON wr.related_entity_id = o.id
+          AND wr.request_type = 'overtime'
+        LEFT JOIN workflow_steps ws ON ws.workflow_request_id = wr.id
+          AND ws.status = 'approved'
+        LEFT JOIN users au ON au.id = ws.approver_id
+        WHERE o.tenant_id = $1
+          AND o.start_date >= $2
+          AND o.start_date <= $3
+        ORDER BY o.start_date ASC
+      `;
+
+      const params = [tenantId, startStr, endStr];
+      const [wfhRows, overtimeRows] = await Promise.all([
+        runQuery(wfhSql, params),
+        runQuery(overtimeSql, params),
+      ]);
+
+      return [...wfhRows, ...overtimeRows].sort((a, b) =>
+        a.date.localeCompare(b.date),
+      );
+    };
+
+    let flexRows: FlexRow[];
+
+    if (isProvisioned) {
+      flexRows = await this.tenantDbService.withTenantSchema(tenantId, (em) =>
+        fetchRows((sql, params) => em.query<FlexRow[]>(sql, params)),
+      );
+    } else {
+      flexRows = await fetchRows((sql, params) =>
+        this.dataSource.query<FlexRow[]>(sql, params),
+      );
+    }
+
+    const rows = flexRows.map((r) => [
+      r.employee_name,
+      r.request_type,
+      r.date,
+      r.status,
+      r.approved_by,
+    ]);
+
+    return buildFixedCsv(headers, rows);
+  }
 
   async getAttendanceSummary(userId?: string, month?: string) {
     // Parse month (format: YYYY-MM)

@@ -9,6 +9,7 @@ import { Department } from '../../entities/department.entity';
 import { Designation } from '../../entities/designation.entity';
 import { Employee } from '../../entities/employee.entity';
 import { SharedJwtModule } from '../../common/modules/jwt.module';
+import { TenantModule } from '../tenant/tenant.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { SharedJwtModule } from '../../common/modules/jwt.module';
       Employee,
     ]),
     SharedJwtModule,
+    TenantModule,
   ],
   controllers: [ReportsController],
   providers: [ReportsService],
