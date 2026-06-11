@@ -7,11 +7,17 @@ import { PaypalWebhookService } from './services/paypal-webhook.service';
 import { CompanyDetails } from '../../entities/company-details.entity';
 import { Tenant } from '../../entities/tenant.entity';
 import { SubscriptionPlan } from '../../entities/subscription-plan.entity';
+import { SignupSession } from '../../entities/signup-session.entity';
 
 @Module({
   imports: [
     ConfigModule,
-    TypeOrmModule.forFeature([CompanyDetails, Tenant, SubscriptionPlan]),
+    TypeOrmModule.forFeature([
+      CompanyDetails,
+      Tenant,
+      SubscriptionPlan,
+      SignupSession,
+    ]),
   ],
   controllers: [PaypalController],
   providers: [PaypalService, PaypalWebhookService],

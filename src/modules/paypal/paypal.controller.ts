@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -21,6 +22,7 @@ import { AuthenticatedRequest } from '../../common/types/request.types';
 import { CompanyDetails } from '../../entities/company-details.entity';
 import { Tenant } from '../../entities/tenant.entity';
 import { SubscriptionPlan } from '../../entities/subscription-plan.entity';
+import { SignupSession } from '../../entities/signup-session.entity';
 import {
   SubscriptionStatus,
   PaypalSubscriptionStatus,
@@ -29,9 +31,11 @@ import { PaypalService } from './services/paypal.service';
 import { PaypalWebhookService } from './services/paypal-webhook.service';
 import { InitiateSubscriptionDto } from './dto/initiate-subscription.dto';
 import { ActivateSubscriptionDto } from './dto/activate-subscription.dto';
+import { SignupInitiateSubscriptionDto } from './dto/signup-initiate-subscription.dto';
+import { SignupActivateSubscriptionDto } from './dto/signup-activate-subscription.dto';
 import { PaypalWebhookPayload } from './interfaces/paypal.interfaces';
 
-@Controller('paypal')
+@Controller('payments/paypal')
 export class PaypalController {
   private readonly logger = new Logger(PaypalController.name);
 
@@ -45,6 +49,8 @@ export class PaypalController {
     private readonly tenantRepo: Repository<Tenant>,
     @InjectRepository(SubscriptionPlan)
     private readonly planRepo: Repository<SubscriptionPlan>,
+    @InjectRepository(SignupSession)
+    private readonly signupSessionRepo: Repository<SignupSession>,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -79,7 +85,7 @@ export class PaypalController {
       'http://localhost:4200',
     );
 
-    const returnUrl = `${apiBaseUrl}/paypal/subscriptions/return`;
+    const returnUrl = `${apiBaseUrl}/payments/paypal/subscriptions/return`;
     const cancelUrl = `${frontendUrl}/settings/billing?paypal=cancelled`;
 
     const { subscriptionId, approvalUrl } =
@@ -289,5 +295,118 @@ export class PaypalController {
     }
 
     await this.webhookService.handleEvent(body.event_type, body.resource);
+  }
+
+  // ---------------------------------------------------------------------------
+  // POST /payments/paypal/signup/initiate  (Public — user not logged in yet)
+  // Called during the signup flow before a tenant exists.
+  // Creates a PayPal subscription and returns the subscriptionId for the JS SDK.
+  // ---------------------------------------------------------------------------
+
+  @Public()
+  @Post('signup/initiate')
+  async signupInitiateSubscription(
+    @Body() dto: SignupInitiateSubscriptionDto,
+  ): Promise<{ subscriptionId: string; approvalUrl: string }> {
+    const session = await this.signupSessionRepo.findOne({
+      where: { id: dto.signupSessionId },
+    });
+    if (!session) throw new NotFoundException('Signup session not found');
+
+    const company = await this.companyDetailsRepo.findOne({
+      where: { signup_session_id: dto.signupSessionId },
+    });
+    if (!company)
+      throw new BadRequestException(
+        'Company details not found. Complete company details step first.',
+      );
+
+    const plan = await this.planRepo.findOne({ where: { id: dto.planId } });
+    if (!plan?.paypalPlanId) {
+      throw new NotFoundException(
+        'Subscription plan not found or has no PayPal plan ID',
+      );
+    }
+
+    const apiBaseUrl = this.configService.get<string>(
+      'API_BASE_URL',
+      'http://localhost:3000',
+    );
+    const frontendUrl = this.configService.get<string>(
+      'FRONTEND_URL',
+      'http://localhost:5173',
+    );
+
+    const returnUrl = `${apiBaseUrl}/payments/paypal/subscriptions/return`;
+    const cancelUrl = `${frontendUrl}/signup/select-plan?paypal=cancelled`;
+
+    const { subscriptionId, approvalUrl } =
+      await this.paypalService.createSubscription(
+        plan.paypalPlanId,
+        dto.signupSessionId,
+        session.email,
+        returnUrl,
+        cancelUrl,
+      );
+
+    await this.companyDetailsRepo.update(
+      { signup_session_id: dto.signupSessionId },
+      { paypal_subscription_id: subscriptionId, active_plan_id: plan.id },
+    );
+
+    return { subscriptionId, approvalUrl };
+  }
+
+  // ---------------------------------------------------------------------------
+  // POST /payments/paypal/signup/activate  (Public — user not logged in yet)
+  // Called after PayPal popup approval during signup.
+  // Verifies the subscription and marks company.is_paid = true so
+  // signup/complete can proceed.
+  // ---------------------------------------------------------------------------
+
+  @Public()
+  @Post('signup/activate')
+  async signupActivateSubscription(
+    @Body() dto: SignupActivateSubscriptionDto,
+  ): Promise<{ status: string }> {
+    const session = await this.signupSessionRepo.findOne({
+      where: { id: dto.signupSessionId },
+    });
+    if (!session) throw new NotFoundException('Signup session not found');
+
+    const company = await this.companyDetailsRepo.findOne({
+      where: { signup_session_id: dto.signupSessionId },
+    });
+    if (!company) throw new BadRequestException('Company details not found');
+
+    const details = await this.paypalService.getSubscription(
+      dto.subscriptionId,
+    );
+
+    const allowedStatuses: string[] = [
+      PaypalSubscriptionStatus.APPROVED,
+      PaypalSubscriptionStatus.ACTIVE,
+    ];
+
+    if (!allowedStatuses.includes(details.status)) {
+      throw new BadRequestException(
+        `PayPal subscription is in status "${details.status}" — cannot activate`,
+      );
+    }
+
+    await this.companyDetailsRepo.update(
+      { signup_session_id: dto.signupSessionId },
+      {
+        paypal_subscription_id: details.id,
+        paypal_payer_id: details.subscriber?.payer_id ?? null,
+        is_paid: true,
+      },
+    );
+
+    this.logger.log(
+      `Signup session ${dto.signupSessionId} payment confirmed via PayPal (${details.id})`,
+    );
+
+    return { status: 'payment_confirmed' };
   }
 }
