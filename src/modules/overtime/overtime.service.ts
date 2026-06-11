@@ -165,7 +165,7 @@ export class OvertimeService {
       hours = totalDays * 8;
     }
 
-    return this.runInTenantContext(tenantId, async (repo, em) => {
+    const saved = await this.runInTenantContext(tenantId, async (repo, em) => {
       // Overlap check against active overtime requests
       const overlap = await repo
         .createQueryBuilder('o')
@@ -270,72 +270,80 @@ export class OvertimeService {
         throw err;
       }
 
-      try {
-        const employee = await this.userRepo.findOne({
-          where: { id: employeeId },
-        });
-        const employeeName = employee
-          ? `${employee.first_name} ${employee.last_name}`.trim()
-          : 'An employee';
-
-        const startLabel = startDate.toISOString().slice(0, 10);
-        const endLabel = endDate.toISOString().slice(0, 10);
-        const dateRange =
-          startLabel === endLabel ? startLabel : `${startLabel} to ${endLabel}`;
-
-        // Notify the manager (step-1 approver), not the employee who submitted
-        const managerRows = await runQuery<{ manager_id: string }[]>(
-          `SELECT t.manager_id FROM employees e
-           JOIN teams t ON e.team_id = t.id
-           WHERE e.user_id = $1 AND e.tenant_id = $2 LIMIT 1`,
-          [employeeId, tenantId],
-        );
-        const managerId = managerRows[0]?.manager_id;
-        if (managerId && managerId !== employeeId) {
-          const notification = await this.notificationService.create(
-            managerId,
-            tenantId,
-            `${employeeName} submitted an overtime request for ${dateRange} (${hours}h)`,
-            NotificationType.OVERTIME,
-            {
-              relatedEntityType: 'overtime',
-              relatedEntityId: saved.id,
-              senderId: employeeId,
-              senderRole: UserRole.EMPLOYEE,
-              action: NotificationAction.APPLIED,
-              isSystem: false,
-            },
-          );
-          this.notificationGateway.sendToUser(managerId, 'new_notification', {
-            id: notification.id,
-            message: notification.message,
-            type: notification.type,
-            related_entity_type: 'overtime',
-            related_entity_id: saved.id,
-            created_at: notification.created_at,
-          });
-          this.notificationsEmailService.sendOvertimeRequestNotification(
-            managerId,
-            employeeId,
-            {
-              id: saved.id,
-              tenantId,
-              startDate: startLabel,
-              endDate: endLabel,
-              hours,
-              reason: saved.reason,
-            },
-          );
-        }
-      } catch (err: unknown) {
-        this.logger.warn(
-          `Failed to send overtime notification for ${saved.id}`,
-          err instanceof Error ? err.message : String(err),
-        );
-      }
-
       return saved;
     });
+
+    // Notifications run after the transaction commits — any failure here must
+    // NOT roll back the overtime record that was already persisted above.
+    try {
+      const employee = await this.userRepo.findOne({
+        where: { id: employeeId },
+      });
+      const employeeName = employee
+        ? `${employee.first_name} ${employee.last_name}`.trim()
+        : 'An employee';
+
+      const startLabel = startDate.toISOString().slice(0, 10);
+      const endLabel = endDate.toISOString().slice(0, 10);
+      const dateRange =
+        startLabel === endLabel ? startLabel : `${startLabel} to ${endLabel}`;
+
+      const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
+      const schema = isProvisioned
+        ? this.tenantDbService.getSchemaName(tenantId)
+        : 'public';
+      const managerRows = await this.dataSource.query<{ manager_id: string }[]>(
+        `SELECT t.manager_id
+           FROM "${schema}".employees e
+           JOIN "${schema}".teams t ON e.team_id = t.id
+          WHERE e.user_id = $1 LIMIT 1`,
+        [employeeId],
+      );
+      const managerId = managerRows[0]?.manager_id;
+      if (managerId && managerId !== employeeId) {
+        const notification = await this.notificationService.create(
+          managerId,
+          tenantId,
+          `${employeeName} submitted an overtime request for ${dateRange} (${hours}h)`,
+          NotificationType.OVERTIME,
+          {
+            relatedEntityType: 'overtime',
+            relatedEntityId: saved.id,
+            senderId: employeeId,
+            senderRole: UserRole.EMPLOYEE,
+            action: NotificationAction.APPLIED,
+            isSystem: false,
+          },
+        );
+        this.notificationGateway.sendToUser(managerId, 'new_notification', {
+          id: notification.id,
+          message: notification.message,
+          type: notification.type,
+          related_entity_type: 'overtime',
+          related_entity_id: saved.id,
+          created_at: notification.created_at,
+        });
+        this.notificationsEmailService.sendOvertimeRequestNotification(
+          managerId,
+          employeeId,
+          {
+            id: saved.id,
+            tenantId,
+            startDate: startLabel,
+            endDate: endLabel,
+            hours,
+            reason: saved.reason,
+          },
+        );
+      }
+    } catch (err: unknown) {
+      this.logger.warn(
+        `Failed to send overtime notification for ${saved.id}`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+
+    return saved;
   }
 
   async getMyOvertimeRequests(
