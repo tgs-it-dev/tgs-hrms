@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { CalendarService, MemberCalendar } from './calendar.service';
 import { CalendarCacheService } from './calendar-cache.service';
 import { TenantDatabaseService } from '../../common/services/tenant-database.service';
@@ -73,6 +74,12 @@ describe('CalendarService', () => {
         CalendarService,
         CalendarCacheService,
         { provide: TenantDatabaseService, useValue: tenantDbService },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: (_key: string, defaultValue: string) => defaultValue,
+          },
+        },
       ],
     }).compile();
 

@@ -160,13 +160,22 @@ describe('TeamCalendarQueryDto', () => {
       expect(hasError(errors, 'tenantId')).toBe(true);
     });
 
-    it('passes when timezone is a plain string (IANA validated at service level)', async () => {
+    it('passes when timezone is a valid IANA string', async () => {
       const errors = await validateDto({
         from: '2025-06-01',
         to: '2025-06-30',
         timezone: 'Asia/Karachi',
       });
       expect(errors).toHaveLength(0);
+    });
+
+    it('fails when timezone is an invalid IANA string — returns 400, no silent UTC fallback', async () => {
+      const errors = await validateDto({
+        from: '2025-06-01',
+        to: '2025-06-30',
+        timezone: 'Invalid/Zone',
+      });
+      expect(hasError(errors, 'timezone')).toBe(true);
     });
   });
 });

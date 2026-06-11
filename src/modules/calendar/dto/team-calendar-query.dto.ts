@@ -1,7 +1,7 @@
 import {
   IsDateString,
   IsOptional,
-  IsString,
+  IsTimeZone,
   IsUUID,
   Validate,
   ValidatorConstraint,
@@ -72,6 +72,6 @@ export class TeamCalendarQueryDto {
       'Falls back to the X-Timezone request header, then UTC.',
   })
   @IsOptional()
-  @IsString()
+  @IsTimeZone()
   timezone?: string;
 }

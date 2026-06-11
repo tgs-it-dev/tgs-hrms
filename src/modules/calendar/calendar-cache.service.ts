@@ -4,6 +4,11 @@ type CacheEntry<T> = { value: T; expiresAt: number };
 
 const TTL_MS = 60_000;
 
+// Hard cap on live entries. Maps iterate in insertion order, so when the cap
+// is reached we evict the oldest entry first (a simple FIFO/LRU approximation).
+// Tune this based on: expected concurrent tenants × team/timezone variants.
+const MAX_ENTRIES = 500;
+
 // NOTE: Invalidation here is intentionally broad — any write to leaves, WFH, or
 // attendance for a tenant clears ALL cached calendar results for that tenant
 // (all team/timezone variants). This trades some redundant DB re-fetches for
@@ -26,6 +31,10 @@ export class CalendarCacheService {
   }
 
   set<T>(key: string, value: T): void {
+    if (this.store.size >= MAX_ENTRIES) {
+      const oldest = this.store.keys().next().value;
+      if (oldest !== undefined) this.store.delete(oldest);
+    }
     this.store.set(key, { value, expiresAt: Date.now() + TTL_MS });
   }
 

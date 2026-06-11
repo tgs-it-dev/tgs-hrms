@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { TenantDatabaseService } from '../../common/services/tenant-database.service';
 import { CalendarCacheService } from './calendar-cache.service';
 import { isValidTimezone } from '../../common/utils/date.util';
@@ -44,10 +45,6 @@ interface RawCalendarRow {
   day_of_week: number;
 }
 
-// A check-in strictly AFTER this local hour is WORK_LATE.
-// Arriving at exactly 09:00 is on time (PRESENT).
-const WORK_START_HOUR_LOCAL = 9;
-
 const DEFAULT_TZ = 'UTC';
 
 @Injectable()
@@ -57,10 +54,22 @@ export class CalendarService {
   // pods/dyno), cache invalidation on one instance will NOT propagate to
   // others; stale data will be served until TTL expires (60 s). Replace with
   // a shared Redis cache when running more than one application instance.
+
+  // Work-start hour in local time. A check-in strictly after this hour is
+  // flagged WORK_LATE; arriving at exactly this hour is PRESENT.
+  // Override via the WORK_START_HOUR environment variable (default: 9).
+  private readonly workStartHour: number;
+
   constructor(
     private readonly tenantDbService: TenantDatabaseService,
     private readonly cacheService: CalendarCacheService,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    this.workStartHour = parseInt(
+      this.configService.get<string>('WORK_START_HOUR', '9'),
+      10,
+    );
+  }
 
   resolveTimezone(tz?: string, headerTz?: string): string {
     for (const candidate of [tz, headerTz]) {
@@ -150,6 +159,9 @@ export class CalendarService {
       LEFT JOIN leaves l
         ON l."employeeId" = emp.user_id
         AND l."tenantId" = $3
+        -- Include 'processing' so multi-step workflow leaves (partially approved)
+        -- show ON_LEAVE during the approval chain, not ABSENT.
+        -- A rejected processing leave will revert to ABSENT after the 60 s cache TTL.
         AND l.status IN ('approved', 'processing')
         AND ds.date::date BETWEEN l."startDate"::date AND l."endDate"::date
       LEFT JOIN wfh_requests w
@@ -166,6 +178,12 @@ export class CalendarService {
         WHERE a2.type = 'check-in'
           AND (a2.timestamp AT TIME ZONE ${tzParam})::date
               BETWEEN $1::date AND $2::date
+          AND a2.user_id IN (
+              SELECT e2.user_id
+              FROM employees e2
+              INNER JOIN users ue2 ON ue2.id = e2.user_id AND ue2.tenant_id = $3
+              WHERE e2.deleted_at IS NULL
+          )
         GROUP BY a2.user_id, (a2.timestamp AT TIME ZONE ${tzParam})::date
       ) a ON a.user_id = emp.user_id AND a.att_date = ds.date::date
       GROUP BY u.id, u.first_name, u.last_name, ds.date
@@ -219,8 +237,7 @@ export class CalendarService {
       // Guard against data anomaly: has_attendance=true with a null timestamp.
       if (!row.check_in_time) return 'PRESENT';
       const checkInHour = this.getLocalHour(row.check_in_time, timezone);
-      // Strictly after 9 AM = late. Arriving at exactly 09:00 is on time.
-      return checkInHour > WORK_START_HOUR_LOCAL ? 'WORK_LATE' : 'PRESENT';
+      return checkInHour > this.workStartHour ? 'WORK_LATE' : 'PRESENT';
     }
 
     return 'ABSENT';

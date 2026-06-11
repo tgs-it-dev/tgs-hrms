@@ -99,7 +99,7 @@ export class CalendarController {
     @Query() query: TeamCalendarQueryDto,
     @Headers('x-timezone') tzHeader?: string,
   ) {
-    const isSystemAdmin = req.user.role === (UserRole.SYSTEM_ADMIN as string);
+    const isSystemAdmin = req.user.role === UserRole.SYSTEM_ADMIN;
 
     if (isSystemAdmin && !query.tenantId) {
       throw new BadRequestException('tenantId is required for system-admin');
