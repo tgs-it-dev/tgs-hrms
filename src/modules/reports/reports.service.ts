@@ -213,8 +213,10 @@ export class ReportsService {
         .leftJoinAndSelect('leave.leaveType', 'leaveType')
         .leftJoinAndSelect('leave.approver', 'approver')
         .where('leave.tenantId = :tenantId', { tenantId })
-        .andWhere('leave.startDate >= :startStr', { startStr })
-        .andWhere('leave.startDate <= :endStr', { endStr })
+        .andWhere(
+          '(leave.startDate BETWEEN :startStr AND :endStr OR leave.endDate BETWEEN :startStr AND :endStr)',
+          { startStr, endStr },
+        )
         .orderBy('leave.startDate', 'ASC')
         .getMany();
 
@@ -292,8 +294,8 @@ export class ReportsService {
           AND ws.status = 'approved'
         LEFT JOIN users au ON au.id = ws.approver_id
         WHERE w.tenant_id = $1
-          AND w.start_date >= $2
-          AND w.start_date <= $3
+          AND (w.start_date >= $2 AND w.start_date <= $3
+            OR w.end_date >= $2 AND w.end_date <= $3)
         ORDER BY w.start_date ASC
       `;
 
@@ -312,8 +314,8 @@ export class ReportsService {
           AND ws.status = 'approved'
         LEFT JOIN users au ON au.id = ws.approver_id
         WHERE o.tenant_id = $1
-          AND o.start_date >= $2
-          AND o.start_date <= $3
+          AND (o.start_date >= $2 AND o.start_date <= $3
+            OR o.end_date >= $2 AND o.end_date <= $3)
         ORDER BY o.start_date ASC
       `;
 
