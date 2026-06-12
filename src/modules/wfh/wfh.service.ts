@@ -110,170 +110,187 @@ export class WfhService {
       throw new BadRequestException('end_date cannot be before start_date');
     }
 
-    return this.runInTenantContext(tenantId, async (wfhRepo, em) => {
-      // Overlap check: reject if any active WFH request spans the requested dates
-      const overlap = await wfhRepo
-        .createQueryBuilder('w')
-        .where('w.employee_id = :employeeId', { employeeId })
-        .andWhere('w.tenant_id = :tenantId', { tenantId })
-        .andWhere('w.status IN (:...statuses)', {
-          statuses: [WfhStatus.PENDING, WfhStatus.APPROVED],
-        })
-        .andWhere('w.start_date <= :endDate', { endDate: dto.end_date })
-        .andWhere('w.end_date >= :startDate', { startDate: dto.start_date })
-        .getOne();
+    const savedWfh = await this.runInTenantContext(
+      tenantId,
+      async (wfhRepo, em) => {
+        // Overlap check: reject if any active WFH request spans the requested dates
+        const overlap = await wfhRepo
+          .createQueryBuilder('w')
+          .where('w.employee_id = :employeeId', { employeeId })
+          .andWhere('w.tenant_id = :tenantId', { tenantId })
+          .andWhere('w.status IN (:...statuses)', {
+            statuses: [WfhStatus.PENDING, WfhStatus.APPROVED],
+          })
+          .andWhere('w.start_date <= :endDate', { endDate: dto.end_date })
+          .andWhere('w.end_date >= :startDate', { startDate: dto.start_date })
+          .getOne();
 
-      if (overlap) {
-        throw new ForbiddenException(
-          overlap.status === WfhStatus.APPROVED
-            ? 'You already have an approved WFH request that overlaps these dates'
-            : 'You already have a pending WFH request that overlaps these dates',
-        );
-      }
+        if (overlap) {
+          throw new ForbiddenException(
+            overlap.status === WfhStatus.APPROVED
+              ? 'You already have an approved WFH request that overlaps these dates'
+              : 'You already have a pending WFH request that overlaps these dates',
+          );
+        }
 
-      // Cross-type check: block if any Leave or Overtime request overlaps these dates
-      const runQuery = <T>(sql: string, params: unknown[]) =>
-        em ? em.query<T>(sql, params) : this.dataSource.query<T>(sql, params);
+        // Cross-type check: block if any Leave or Overtime request overlaps these dates
+        const runQuery = <T>(sql: string, params: unknown[]) =>
+          em ? em.query<T>(sql, params) : this.dataSource.query<T>(sql, params);
 
-      const [leaveRows, overtimeRows] = await Promise.all([
-        runQuery<{ id: string }[]>(
-          `SELECT id FROM leaves
+        const [leaveRows, overtimeRows] = await Promise.all([
+          runQuery<{ id: string }[]>(
+            `SELECT id FROM leaves
            WHERE "employeeId" = $1 AND "tenantId" = $2
              AND status IN ('pending','processing','approved')
              AND "startDate"::date <= $3::date AND "endDate"::date >= $4::date
            LIMIT 1`,
-          [employeeId, tenantId, dto.end_date, dto.start_date],
-        ),
-        runQuery<{ id: string }[]>(
-          `SELECT id FROM overtime_requests
+            [employeeId, tenantId, dto.end_date, dto.start_date],
+          ),
+          runQuery<{ id: string }[]>(
+            `SELECT id FROM overtime_requests
            WHERE employee_id = $1 AND tenant_id = $2
              AND status IN ('pending','approved')
              AND start_date <= $3 AND end_date >= $4
            LIMIT 1`,
-          [employeeId, tenantId, dto.end_date, dto.start_date],
-        ),
-      ]);
+            [employeeId, tenantId, dto.end_date, dto.start_date],
+          ),
+        ]);
 
-      if (leaveRows.length > 0)
-        throw new ForbiddenException(
-          'You already have a leave request on these dates',
-        );
-      if (overtimeRows.length > 0)
-        throw new ForbiddenException(
-          'You already have an overtime request on these dates',
-        );
-
-      const wfh = wfhRepo.create({
-        employee_id: employeeId,
-        tenant_id: tenantId,
-        start_date: startDate,
-        end_date: endDate,
-        reason: dto.reason,
-        status: WfhStatus.PENDING,
-        attachments: [],
-        workflow_request_id: null,
-      });
-      const savedWfh = await wfhRepo.save(wfh);
-
-      if (files?.length) {
-        try {
-          savedWfh.attachments = await this.fileUploadService.uploadDocuments(
-            files,
-            'wfh-documents',
-            savedWfh.id,
-            employeeId,
+        if (leaveRows.length > 0)
+          throw new ForbiddenException(
+            'You already have a leave request on these dates',
           );
+        if (overtimeRows.length > 0)
+          throw new ForbiddenException(
+            'You already have an overtime request on these dates',
+          );
+
+        const wfh = wfhRepo.create({
+          employee_id: employeeId,
+          tenant_id: tenantId,
+          start_date: startDate,
+          end_date: endDate,
+          reason: dto.reason,
+          status: WfhStatus.PENDING,
+          attachments: [],
+          workflow_request_id: null,
+        });
+        const savedWfh = await wfhRepo.save(wfh);
+
+        if (files?.length) {
+          try {
+            savedWfh.attachments = await this.fileUploadService.uploadDocuments(
+              files,
+              'wfh-documents',
+              savedWfh.id,
+              employeeId,
+            );
+            await wfhRepo.save(savedWfh);
+          } catch (err: unknown) {
+            this.logger.warn(
+              `Failed to upload WFH attachments for ${savedWfh.id}: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          }
+        }
+
+        try {
+          const workflowRequest =
+            await this.workflowService.createWorkflowRequest(
+              tenantId,
+              WorkflowRequestType.WFH,
+              savedWfh.id,
+              employeeId,
+            );
+          savedWfh.workflow_request_id = workflowRequest.id;
           await wfhRepo.save(savedWfh);
         } catch (err: unknown) {
-          this.logger.warn(
-            `Failed to upload WFH attachments for ${savedWfh.id}: ${err instanceof Error ? err.message : String(err)}`,
+          this.logger.error(
+            `Failed to create workflow for WFH ${savedWfh.id}`,
+            err instanceof Error ? err.message : String(err),
           );
+          throw err;
         }
-      }
 
-      try {
-        const workflowRequest =
-          await this.workflowService.createWorkflowRequest(
-            tenantId,
-            WorkflowRequestType.WFH,
-            savedWfh.id,
-            employeeId,
-          );
-        savedWfh.workflow_request_id = workflowRequest.id;
-        await wfhRepo.save(savedWfh);
-      } catch (err: unknown) {
-        this.logger.error(
-          `Failed to create workflow for WFH ${savedWfh.id}`,
-          err instanceof Error ? err.message : String(err),
+        return savedWfh;
+      },
+    );
+
+    // Notifications run after the transaction commits — any failure here must
+    // NOT roll back the WFH record that was already persisted above.
+    try {
+      const employee = await this.userRepo.findOne({
+        where: { id: employeeId },
+      });
+      const employeeName = employee
+        ? `${employee.first_name} ${employee.last_name}`.trim()
+        : 'An employee';
+
+      const dateRange =
+        dto.start_date === dto.end_date
+          ? dto.start_date
+          : `${dto.start_date} to ${dto.end_date}`;
+
+      const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
+      const schema = isProvisioned
+        ? this.tenantDbService.getSchemaName(tenantId)
+        : 'public';
+      // In provisioned schemas there is no tenant_id column (isolated by schema).
+      // In public schema we must filter by tenant_id to scope to the right tenant.
+      const tenantFilter = isProvisioned ? '' : ' AND e.tenant_id = $2';
+      const params: unknown[] = isProvisioned
+        ? [employeeId]
+        : [employeeId, tenantId];
+      const managerRows = await this.dataSource.query<{ manager_id: string }[]>(
+        `SELECT t.manager_id
+           FROM "${schema}".employees e
+           JOIN "${schema}".teams t ON e.team_id = t.id
+          WHERE e.user_id = $1${tenantFilter} LIMIT 1`,
+        params,
+      );
+      const managerId = managerRows[0]?.manager_id;
+      if (managerId && managerId !== employeeId) {
+        const notification = await this.notificationService.create(
+          managerId,
+          tenantId,
+          `${employeeName} has submitted a WFH request for ${dateRange}`,
+          NotificationType.WFH,
+          {
+            relatedEntityType: 'wfh',
+            relatedEntityId: savedWfh.id,
+            senderId: employeeId,
+            senderRole: UserRole.EMPLOYEE,
+            action: NotificationAction.APPLIED,
+            isSystem: false,
+          },
         );
-        throw err;
-      }
-
-      try {
-        const employee = await this.userRepo.findOne({
-          where: { id: employeeId },
+        this.notificationGateway.sendToUser(managerId, 'new_notification', {
+          id: notification.id,
+          message: notification.message,
+          type: notification.type,
+          related_entity_type: 'wfh',
+          related_entity_id: savedWfh.id,
+          created_at: notification.created_at,
         });
-        const employeeName = employee
-          ? `${employee.first_name} ${employee.last_name}`.trim()
-          : 'An employee';
-
-        const dateRange =
-          dto.start_date === dto.end_date
-            ? dto.start_date
-            : `${dto.start_date} to ${dto.end_date}`;
-
-        // Notify the manager (step-1 approver), not the employee who submitted
-        const managerRows = await runQuery<{ manager_id: string }[]>(
-          `SELECT t.manager_id FROM employees e
-           JOIN teams t ON e.team_id = t.id
-           WHERE e.user_id = $1 AND e.tenant_id = $2 LIMIT 1`,
-          [employeeId, tenantId],
-        );
-        const managerId = managerRows[0]?.manager_id;
-        if (managerId && managerId !== employeeId) {
-          const notification = await this.notificationService.create(
-            managerId,
+        this.notificationsEmailService.sendFlexRequestNotification(
+          managerId,
+          employeeId,
+          {
+            id: savedWfh.id,
             tenantId,
-            `${employeeName} has submitted a WFH request for ${dateRange}`,
-            NotificationType.WFH,
-            {
-              relatedEntityType: 'wfh',
-              relatedEntityId: savedWfh.id,
-              senderId: employeeId,
-              senderRole: UserRole.EMPLOYEE,
-              action: NotificationAction.APPLIED,
-              isSystem: false,
-            },
-          );
-          this.notificationGateway.sendToUser(managerId, 'new_notification', {
-            id: notification.id,
-            message: notification.message,
-            type: notification.type,
-            related_entity_type: 'wfh',
-            related_entity_id: savedWfh.id,
-            created_at: notification.created_at,
-          });
-          this.notificationsEmailService.sendFlexRequestNotification(
-            managerId,
-            employeeId,
-            {
-              id: savedWfh.id,
-              tenantId,
-              startDate: savedWfh.start_date,
-              endDate: savedWfh.end_date,
-              reason: savedWfh.reason,
-            },
-          );
-        }
-      } catch (err: unknown) {
-        this.logger.warn(
-          `Failed to send WFH notification for ${savedWfh.id}`,
-          err instanceof Error ? err.message : String(err),
+            startDate: savedWfh.start_date,
+            endDate: savedWfh.end_date,
+            reason: savedWfh.reason,
+          },
         );
       }
+    } catch (err: unknown) {
+      this.logger.warn(
+        `Failed to send WFH notification for ${savedWfh.id}`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
 
-      return savedWfh;
-    });
+    return savedWfh;
   }
 
   async getMyWfhRequests(

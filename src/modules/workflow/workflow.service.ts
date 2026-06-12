@@ -256,31 +256,33 @@ export class WorkflowService {
   }
 
   async seedDefaultConfigsForTenant(tenantId: string): Promise<void> {
-    for (const [requestType, steps] of Object.entries(
-      DEFAULT_WORKFLOW_CONFIGS,
-    )) {
-      for (const step of steps) {
-        const exists = await this.configRepo.findOne({
-          where: {
-            tenant_id: tenantId,
-            request_type: requestType as WorkflowRequestType,
-            step_order: step.step_order,
-          },
-        });
-        if (!exists) {
-          await this.configRepo.save(
-            this.configRepo.create({
+    await this.runInTenantContext(tenantId, async (configRepo) => {
+      for (const [requestType, steps] of Object.entries(
+        DEFAULT_WORKFLOW_CONFIGS,
+      )) {
+        for (const step of steps) {
+          const exists = await configRepo.findOne({
+            where: {
               tenant_id: tenantId,
               request_type: requestType as WorkflowRequestType,
               step_order: step.step_order,
-              approver_role: step.approver_role,
-              step_label: step.step_label,
-              is_active: true,
-            }),
-          );
+            },
+          });
+          if (!exists) {
+            await configRepo.save(
+              configRepo.create({
+                tenant_id: tenantId,
+                request_type: requestType as WorkflowRequestType,
+                step_order: step.step_order,
+                approver_role: step.approver_role,
+                step_label: step.step_label,
+                is_active: true,
+              }),
+            );
+          }
         }
       }
-    }
+    });
     this.logger.log(`Seeded default workflow configs for tenant ${tenantId}`);
   }
 
@@ -901,7 +903,13 @@ export class WorkflowService {
     const [wfhRows, overtimeRows, leaveRows] = await Promise.all([
       wfhIds.length
         ? runQuery(
-            `SELECT id, start_date, end_date, reason, status, attachments
+            `SELECT id,
+                    start_date,
+                    end_date,
+                    (end_date - start_date + 1) AS total_days,
+                    reason,
+                    status,
+                    attachments
                FROM wfh_requests
               WHERE id = ANY($1::uuid[]) AND tenant_id = $2`,
             [wfhIds, tenantId],
@@ -909,7 +917,14 @@ export class WorkflowService {
         : Promise.resolve([]),
       overtimeIds.length
         ? runQuery(
-            `SELECT id, start_date, end_date, hours, reason, status, attachments
+            `SELECT id,
+                    start_date,
+                    end_date,
+                    (end_date - start_date + 1) AS total_days,
+                    hours,
+                    reason,
+                    status,
+                    attachments
                FROM overtime_requests
               WHERE id = ANY($1::uuid[]) AND tenant_id = $2`,
             [overtimeIds, tenantId],
@@ -1035,6 +1050,11 @@ export class WorkflowService {
     this.logger.log(
       `Workflow ${enabled ? 'enabled' : 'disabled'} for ${requestType} on tenant ${tenantId}`,
     );
+
+    if (enabled) {
+      await this.seedDefaultConfigsForTenant(tenantId);
+    }
+
     return this.getWorkflowSettings(tenantId);
   }
 
