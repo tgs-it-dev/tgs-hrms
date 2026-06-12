@@ -292,12 +292,18 @@ export class OvertimeService {
       const schema = isProvisioned
         ? this.tenantDbService.getSchemaName(tenantId)
         : 'public';
+      // In provisioned schemas there is no tenant_id column (isolated by schema).
+      // In public schema we must filter by tenant_id to scope to the right tenant.
+      const tenantFilter = isProvisioned ? '' : ' AND e.tenant_id = $2';
+      const params: unknown[] = isProvisioned
+        ? [employeeId]
+        : [employeeId, tenantId];
       const managerRows = await this.dataSource.query<{ manager_id: string }[]>(
         `SELECT t.manager_id
            FROM "${schema}".employees e
            JOIN "${schema}".teams t ON e.team_id = t.id
-          WHERE e.user_id = $1 LIMIT 1`,
-        [employeeId],
+          WHERE e.user_id = $1${tenantFilter} LIMIT 1`,
+        params,
       );
       const managerId = managerRows[0]?.manager_id;
       if (managerId && managerId !== employeeId) {
