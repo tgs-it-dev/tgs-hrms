@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { TenantDatabaseService } from '../../common/services/tenant-database.service';
 import { CalendarCacheService } from './calendar-cache.service';
 import { isValidTimezone } from '../../common/utils/date.util';
@@ -9,7 +10,6 @@ export type CalendarStatus =
   | 'ON_LEAVE'
   | 'PRESENT'
   | 'ABSENT'
-  | 'WORK_LATE'
   | 'WEEKEND_WORK';
 
 export interface DateStatusEntry {
@@ -21,55 +21,110 @@ export interface MemberCalendar {
   readonly userId: string;
   readonly firstName: string;
   readonly lastName: string;
-  // ReadonlyArray: callers cannot push/splice; internal builder uses a separate mutable type.
   readonly dates: ReadonlyArray<DateStatusEntry>;
 }
 
-// Mutable builder used only inside buildResponse; never exposed publicly.
-interface MemberCalendarBuilder {
-  userId: string;
-  firstName: string;
-  lastName: string;
-  dates: DateStatusEntry[];
-}
+// ── Raw row types (one per query) ─────────────────────────────────────────────
 
-interface RawCalendarRow {
+interface RawEmployee {
   user_id: string;
   first_name: string;
   last_name: string;
-  date: string; // to_char guarantees YYYY-MM-DD text — never a JS Date
-  on_leave: boolean;
-  is_wfh: boolean;
-  has_attendance: boolean;
-  check_in_time: Date | string | null;
-  day_of_week: number;
+}
+
+interface RawLeave {
+  employeeId: string;
+  start_date: string; // YYYY-MM-DD
+  end_date: string; // YYYY-MM-DD
+}
+
+interface RawWfh {
+  employee_id: string;
+  start_date: string; // YYYY-MM-DD
+  end_date: string; // YYYY-MM-DD
+}
+
+interface RawAttendance {
+  user_id: string;
+  att_date: string; // YYYY-MM-DD (shifted to request timezone)
 }
 
 const DEFAULT_TZ = 'UTC';
 
+// ── SQL ───────────────────────────────────────────────────────────────────────
+// Provisioned tenants: employees/leaves/wfh_requests/attendance live in the
+// tenant schema (set via search_path). users always lives in public.
+// Non-provisioned tenants: all tables are in public; u.tenant_id = $1 is the
+// only scope boundary — employees has no tenant_id column of its own.
+
+// $1=tenantId  [$2=teamId when hasTeam is true]
+function employeesSql(hasTeam: boolean): string {
+  return `
+    SELECT e.user_id, u.first_name, u.last_name
+    FROM   employees e
+    INNER  JOIN users u ON u.id = e.user_id AND u.tenant_id = $1
+    WHERE  e.deleted_at IS NULL
+      AND  e.status != 'terminated'
+      ${hasTeam ? 'AND e.team_id = $2' : ''}
+    ORDER  BY u.first_name, u.last_name
+  `;
+}
+
+// $1=userIds[]  $2=from (YYYY-MM-DD)  $3=to (YYYY-MM-DD)
+// Finds every approved/processing leave that overlaps [from, to].
+// leaves.employeeId stores users.id (FK to public.users, not employees.id).
+// Explicit ::uuid[] cast ensures ANY() works when pg driver sends a text[].
+const LEAVES_SQL = `
+  SELECT l."employeeId",
+         to_char(l."startDate", 'YYYY-MM-DD') AS start_date,
+         to_char(l."endDate", 'YYYY-MM-DD') AS end_date
+  FROM leaves l
+  WHERE l."employeeId" = ANY($1::uuid[])
+    AND l."status" IN ('approved')
+    AND l."startDate" <= $3::date
+    AND l."endDate" >= $2::date
+    `;
+
+// $1=userIds[]  $2=from (YYYY-MM-DD)  $3=to (YYYY-MM-DD)
+const WFH_SQL = `
+  SELECT w.employee_id,
+         to_char(w.start_date, 'YYYY-MM-DD') AS start_date,
+         to_char(w.end_date,   'YYYY-MM-DD') AS end_date
+  FROM   wfh_requests w
+  WHERE  w.employee_id = ANY($1::uuid[])
+    AND  w.status = 'approved'
+    AND  w.start_date <= $3::date
+    AND  w.end_date   >= $2::date
+`;
+
+// $1=userIds[]  $2=from (YYYY-MM-DD)  $3=to (YYYY-MM-DD)  $4=IANA timezone
+// attendance."timestamp" is timestamptz (stored in UTC).
+// AT TIME ZONE converts UTC → local time so ::date gives the correct local date.
+// The column is quoted as "timestamp" because it shares a name with a PostgreSQL
+// type keyword — without a table alias or quotes the parser can misinterpret it.
+const ATTENDANCE_SQL = `
+  SELECT DISTINCT
+         att.user_id,
+         to_char((att."timestamp" AT TIME ZONE $4)::date, 'YYYY-MM-DD') AS att_date
+  FROM   attendance att
+  WHERE  att.user_id = ANY($1::uuid[])
+    AND  att.type = 'check-in'
+    AND  (att."timestamp" AT TIME ZONE $4)::date BETWEEN $2::date AND $3::date
+`;
+
+// ── Service ───────────────────────────────────────────────────────────────────
+
 @Injectable()
 export class CalendarService {
   // NOTE: This cache is process-local (in-memory Map). In a single-instance
-  // deployment this is fine. For horizontally-scaled deployments (multiple
-  // pods/dyno), cache invalidation on one instance will NOT propagate to
-  // others; stale data will be served until TTL expires (60 s). Replace with
-  // a shared Redis cache when running more than one application instance.
-
-  // Work-start hour in local time. A check-in strictly after this hour is
-  // flagged WORK_LATE; arriving at exactly this hour is PRESENT.
-  // Override via the WORK_START_HOUR environment variable (default: 9).
-  private readonly workStartHour: number;
-
+  // deployment this is fine. For horizontally-scaled deployments replace with
+  // a shared Redis cache — local invalidation does not propagate to other pods.
   constructor(
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
     private readonly tenantDbService: TenantDatabaseService,
     private readonly cacheService: CalendarCacheService,
-    private readonly configService: ConfigService,
-  ) {
-    this.workStartHour = parseInt(
-      this.configService.get<string>('WORK_START_HOUR', '9'),
-      10,
-    );
-  }
+  ) {}
 
   resolveTimezone(tz?: string, headerTz?: string): string {
     for (const candidate of [tz, headerTz]) {
@@ -95,167 +150,143 @@ export class CalendarService {
     const cached = this.cacheService.get<MemberCalendar[]>(cacheKey);
     if (cached) return cached;
 
-    const rows = await this.runQuery(tenantId, from, to, teamId, timezone);
-    const result = this.buildResponse(rows, timezone);
-
+    const result = await this.fetchAndBuild(
+      tenantId,
+      from,
+      to,
+      teamId,
+      timezone,
+    );
     this.cacheService.set(cacheKey, result);
     return result;
   }
 
-  private async runQuery(
+  private async fetchAndBuild(
     tenantId: string,
     from: string,
     to: string,
     teamId: string | undefined,
     timezone: string,
-  ): Promise<RawCalendarRow[]> {
-    const sql = this.buildSql(!!teamId);
-    const params: unknown[] = [from, to, tenantId];
-    if (teamId) params.push(teamId);
-    params.push(timezone); // always last
+  ): Promise<MemberCalendar[]> {
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
 
-    // Always route through withTenantSchemaReadOnly so the connection's
-    // search_path is set to "<tenant_schema>", public before execution.
-    // PostgreSQL silently ignores schemas that don't exist in the path, so
-    // this is safe for both provisioned tenants (tenant schema used) and
-    // non-provisioned tenants (falls through to public automatically).
-    return this.tenantDbService.withTenantSchemaReadOnly(tenantId, (em) =>
-      em.query<RawCalendarRow[]>(sql, params),
-    );
-  }
-
-  private buildSql(hasTeamFilter: boolean): string {
-    // Param layout
-    // Without teamId: $1=from  $2=to  $3=tenantId  $4=timezone
-    // With    teamId: $1=from  $2=to  $3=tenantId  $4=teamId  $5=timezone
-    const tzParam = hasTeamFilter ? '$5' : '$4';
-
-    // The employee subquery filters to only this tenant's active members
-    // BEFORE the CROSS JOIN with the date series. This ensures the
-    // Cartesian product is (tenant_employees × days), not (all_employees × days),
-    // which matters significantly for non-provisioned tenants sharing the
-    // public schema with many other tenants.
-    return `
-      SELECT
-        u.id                                               AS user_id,
-        u.first_name,
-        u.last_name,
-        to_char(ds.date, 'YYYY-MM-DD')                    AS date,
-        BOOL_OR(l."employeeId" IS NOT NULL)               AS on_leave,
-        BOOL_OR(w.employee_id IS NOT NULL)                AS is_wfh,
-        BOOL_OR(a.user_id IS NOT NULL)                    AS has_attendance,
-        MIN(a.check_in_time)                              AS check_in_time,
-        EXTRACT(DOW FROM ds.date)::int                    AS day_of_week
-      FROM generate_series($1::date, $2::date, '1 day'::interval) AS ds(date)
-      CROSS JOIN (
-        SELECT e.user_id
-        FROM employees e
-        INNER JOIN users ue ON ue.id = e.user_id AND ue.tenant_id = $3
-        WHERE e.deleted_at IS NULL
-          AND e.status != 'terminated'
-          ${hasTeamFilter ? 'AND e.team_id = $4' : ''}
-      ) AS emp
-      JOIN users u ON u.id = emp.user_id
-      LEFT JOIN leaves l
-        ON l."employeeId" = emp.user_id
-        AND l."tenantId" = $3
-        -- Include 'processing' so multi-step workflow leaves (partially approved)
-        -- show ON_LEAVE during the approval chain, not ABSENT.
-        -- A rejected processing leave will revert to ABSENT after the 60 s cache TTL.
-        AND l.status IN ('approved', 'processing')
-        AND ds.date::date BETWEEN l."startDate"::date AND l."endDate"::date
-      LEFT JOIN wfh_requests w
-        ON w.employee_id = emp.user_id
-        AND w.tenant_id = $3
-        AND w.status = 'approved'
-        AND ds.date::date BETWEEN w.start_date::date AND w.end_date::date
-      LEFT JOIN (
-        SELECT
-          a2.user_id,
-          (a2.timestamp AT TIME ZONE ${tzParam})::date   AS att_date,
-          MIN(a2.timestamp)                               AS check_in_time
-        FROM attendance a2
-        WHERE a2.type = 'check-in'
-          AND (a2.timestamp AT TIME ZONE ${tzParam})::date
-              BETWEEN $1::date AND $2::date
-          AND a2.user_id IN (
-              SELECT e2.user_id
-              FROM employees e2
-              INNER JOIN users ue2 ON ue2.id = e2.user_id AND ue2.tenant_id = $3
-              WHERE e2.deleted_at IS NULL
+    // Routes a query through the tenant schema (provisioned) or public schema (shared).
+    const run = <T>(sql: string, params: unknown[]): Promise<T[]> =>
+      isProvisioned
+        ? this.tenantDbService.withTenantSchemaReadOnly(tenantId, (em) =>
+            em.query<T[]>(sql, params),
           )
-        GROUP BY a2.user_id, (a2.timestamp AT TIME ZONE ${tzParam})::date
-      ) a ON a.user_id = emp.user_id AND a.att_date = ds.date::date
-      GROUP BY u.id, u.first_name, u.last_name, ds.date
-      ORDER BY u.first_name, u.last_name, ds.date
-    `;
+        : this.dataSource.query<T[]>(sql, params);
+
+    // Step 1 — employees (sequential: userIds are needed for step 2)
+    const empParams: unknown[] = [tenantId];
+    if (teamId) empParams.push(teamId);
+    const employees = await run<RawEmployee>(employeesSql(!!teamId), empParams);
+
+    if (employees.length === 0) return [];
+
+    const userIds = employees.map((e) => e.user_id);
+
+    // Step 2 — leaves, WFH, attendance in parallel (no interdependencies)
+    const [leaves, wfhs, attendances] = await Promise.all([
+      run<RawLeave>(LEAVES_SQL, [userIds, from, to]),
+      run<RawWfh>(WFH_SQL, [userIds, from, to]),
+      run<RawAttendance>(ATTENDANCE_SQL, [userIds, from, to, timezone]),
+    ]);
+
+    return buildResult(employees, leaves, wfhs, attendances, from, to);
   }
 
-  private buildResponse(
-    rows: RawCalendarRow[],
-    timezone: string,
-  ): MemberCalendar[] {
-    const memberMap = new Map<string, MemberCalendarBuilder>();
+  private async isTenantSchemaProvisioned(tenantId: string): Promise<boolean> {
+    const result = await this.dataSource.query<
+      { schema_provisioned: boolean }[]
+    >(`SELECT schema_provisioned FROM public.tenants WHERE id = $1 LIMIT 1`, [
+      tenantId,
+    ]);
+    return result[0]?.schema_provisioned ?? false;
+  }
+}
 
-    for (const row of rows) {
-      if (!memberMap.has(row.user_id)) {
-        memberMap.set(row.user_id, {
-          userId: row.user_id,
-          firstName: row.first_name,
-          lastName: row.last_name,
-          dates: [],
-        });
-      }
+// ── Pure helpers ──────────────────────────────────────────────────────────────
 
-      const status = this.deriveStatus(row, timezone);
+function buildResult(
+  employees: RawEmployee[],
+  leaves: RawLeave[],
+  wfhs: RawWfh[],
+  attendances: RawAttendance[],
+  from: string,
+  to: string,
+): MemberCalendar[] {
+  const leavesByUser = groupBy(leaves, 'employeeId');
+  const wfhsByUser = groupBy(wfhs, 'employee_id');
+  const attendedSet = new Set(
+    attendances.map((a) => `${a.user_id}:${a.att_date}`),
+  );
+  const dates = generateDateSeries(from, to);
+
+  return employees.map((emp) => {
+    const empLeaves = leavesByUser.get(emp.user_id) ?? [];
+    const empWfhs = wfhsByUser.get(emp.user_id) ?? [];
+
+    const dateEntries: DateStatusEntry[] = [];
+    for (const date of dates) {
+      const status = deriveStatus(
+        date,
+        empLeaves,
+        empWfhs,
+        attendedSet.has(`${emp.user_id}:${date}`),
+      );
       if (status !== null) {
-        memberMap.get(row.user_id)!.dates.push({
-          date: String(row.date),
-          status,
-        });
+        dateEntries.push({ date, status });
       }
     }
 
-    return Array.from(memberMap.values());
+    return {
+      userId: emp.user_id,
+      firstName: emp.first_name,
+      lastName: emp.last_name,
+      dates: dateEntries,
+    };
+  });
+}
+
+function deriveStatus(
+  date: string,
+  leaves: RawLeave[],
+  wfhs: RawWfh[],
+  hasAttendance: boolean,
+): CalendarStatus | null {
+  // Noon UTC avoids DST-induced day shifts when constructing a Date from a bare date string.
+  const dow = new Date(`${date}T12:00:00Z`).getUTCDay(); // 0=Sun … 6=Sat
+  const isWeekend = dow === 0 || dow === 6;
+
+  // YYYY-MM-DD lexicographic order equals chronological order.
+  if (leaves.some((l) => l.start_date <= date && date <= l.end_date))
+    return 'ON_LEAVE';
+  if (wfhs.some((w) => w.start_date <= date && date <= w.end_date))
+    return 'WFH';
+  if (isWeekend) return hasAttendance ? 'WEEKEND_WORK' : null;
+  return hasAttendance ? 'PRESENT' : 'ABSENT';
+}
+
+function generateDateSeries(from: string, to: string): string[] {
+  const dates: string[] = [];
+  const current = new Date(`${from}T12:00:00Z`);
+  const end = new Date(`${to}T12:00:00Z`);
+  while (current <= end) {
+    dates.push(current.toISOString().slice(0, 10));
+    current.setUTCDate(current.getUTCDate() + 1);
   }
+  return dates;
+}
 
-  private deriveStatus(
-    row: RawCalendarRow,
-    timezone: string,
-  ): CalendarStatus | null {
-    const dow = Number(row.day_of_week);
-    const isWeekend = dow === 0 || dow === 6;
-
-    if (row.on_leave) return 'ON_LEAVE';
-    if (row.is_wfh) return 'WFH';
-
-    if (isWeekend) {
-      return row.has_attendance ? 'WEEKEND_WORK' : null;
-    }
-
-    if (row.has_attendance) {
-      // Guard against data anomaly: has_attendance=true with a null timestamp.
-      if (!row.check_in_time) return 'PRESENT';
-      const checkInHour = this.getLocalHour(row.check_in_time, timezone);
-      return checkInHour > this.workStartHour ? 'WORK_LATE' : 'PRESENT';
-    }
-
-    return 'ABSENT';
+function groupBy<T>(rows: T[], key: keyof T & string): Map<string, T[]> {
+  const map = new Map<string, T[]>();
+  for (const row of rows) {
+    const id = String(row[key]);
+    const list = map.get(id);
+    if (list) list.push(row);
+    else map.set(id, [row]);
   }
-
-  /**
-   * Returns the clock hour (0–23) for a timestamp in the given IANA timezone.
-   * Handles the Intl midnight edge case where hour 24 means 0.
-   */
-  private getLocalHour(timestamp: Date | string, timezone: string): number {
-    const date =
-      typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
-    const formatted = new Intl.DateTimeFormat('en', {
-      hour: 'numeric',
-      hour12: false,
-      timeZone: timezone,
-    }).format(date);
-    const hour = parseInt(formatted, 10);
-    return hour === 24 ? 0 : hour;
-  }
+  return map;
 }

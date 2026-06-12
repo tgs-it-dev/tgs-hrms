@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
+import { DataSource } from 'typeorm';
 import { CalendarService, MemberCalendar } from './calendar.service';
 import { CalendarCacheService } from './calendar-cache.service';
 import { TenantDatabaseService } from '../../common/services/tenant-database.service';
@@ -11,48 +11,80 @@ const USER_ID = 'user-001';
 const USER_FIRST = 'Jane';
 const USER_LAST = 'Doe';
 
-// day_of_week: 0=Sunday … 6=Saturday; 3=Wednesday (weekday)
-const WEEKDAY = 3;
-const SATURDAY = 6;
-const SUNDAY = 0;
+// ── Raw row factories (one per query) ─────────────────────────────────────────
 
-// ── Raw row factory ───────────────────────────────────────────────────────────
-
-function makeRow(
-  overrides: {
-    date?: string;
-    on_leave?: boolean;
-    is_wfh?: boolean;
-    has_attendance?: boolean;
-    check_in_time?: string | null;
-    day_of_week?: number;
-  } = {},
+function makeEmployee(
+  overrides: { user_id?: string; first_name?: string; last_name?: string } = {},
 ) {
   return {
-    user_id: USER_ID,
-    first_name: USER_FIRST,
-    last_name: USER_LAST,
-    date: overrides.date ?? '2025-06-04',
-    on_leave: overrides.on_leave ?? false,
-    is_wfh: overrides.is_wfh ?? false,
-    has_attendance: overrides.has_attendance ?? false,
-    check_in_time: overrides.check_in_time ?? null,
-    day_of_week: overrides.day_of_week ?? WEEKDAY,
+    user_id: overrides.user_id ?? USER_ID,
+    first_name: overrides.first_name ?? USER_FIRST,
+    last_name: overrides.last_name ?? USER_LAST,
   };
+}
+
+function makeLeave(date: string, employeeId = USER_ID) {
+  return { employeeId: employeeId, start_date: date, end_date: date };
+}
+
+function makeWfh(date: string, employeeId = USER_ID) {
+  return { employee_id: employeeId, start_date: date, end_date: date };
+}
+
+function makeAttendance(date: string, userId = USER_ID) {
+  return { user_id: userId, att_date: date };
 }
 
 // ── Mock helpers ──────────────────────────────────────────────────────────────
 
-function makeTenantDbService(rows: unknown[] = []) {
+interface MockData {
+  employees?: ReturnType<typeof makeEmployee>[];
+  leaves?: ReturnType<typeof makeLeave>[];
+  wfhs?: ReturnType<typeof makeWfh>[];
+  attendances?: ReturnType<typeof makeAttendance>[];
+}
+
+// Routes each query to the appropriate result set based on a unique SQL token.
+function makeQueryFn(data: MockData, onCalendarQuery: () => void) {
+  return (sql: string) => {
+    if (sql.includes('schema_provisioned')) {
+      return Promise.resolve([{ schema_provisioned: false }]);
+    }
+    onCalendarQuery();
+    if (sql.includes('u.first_name'))
+      return Promise.resolve(data.employees ?? []);
+    if (sql.includes('FROM leaves')) return Promise.resolve(data.leaves ?? []);
+    if (sql.includes('wfh_requests')) return Promise.resolve(data.wfhs ?? []);
+    if (sql.includes("type = 'check-in'"))
+      return Promise.resolve(data.attendances ?? []);
+    return Promise.resolve([]);
+  };
+}
+
+function makeTenantDbService(data: MockData) {
   return {
     withTenantSchemaReadOnly: jest
       .fn()
       .mockImplementation(
-        async (
+        (
           _tenantId: string,
-          cb: (em: { query: jest.Mock }) => Promise<unknown>,
+          cb: (em: {
+            query: (sql: string) => Promise<unknown[]>;
+          }) => Promise<unknown[]>,
         ) => {
-          const em = { query: jest.fn().mockResolvedValue(rows) };
+          const em = {
+            query: (sql: string) => {
+              if (sql.includes('u.first_name'))
+                return Promise.resolve(data.employees ?? []);
+              if (sql.includes('FROM leaves'))
+                return Promise.resolve(data.leaves ?? []);
+              if (sql.includes('wfh_requests'))
+                return Promise.resolve(data.wfhs ?? []);
+              if (sql.includes("type = 'check-in'"))
+                return Promise.resolve(data.attendances ?? []);
+              return Promise.resolve([]);
+            },
+          };
           return cb(em);
         },
       ),
@@ -65,21 +97,29 @@ describe('CalendarService', () => {
   let service: CalendarService;
   let cacheService: CalendarCacheService;
   let tenantDbService: ReturnType<typeof makeTenantDbService>;
+  // Counts dataSource.query calls that are NOT the schema_provisioned check.
+  let calendarQueryCount = 0;
 
-  async function buildModule(rows: unknown[] = []) {
-    tenantDbService = makeTenantDbService(rows);
+  async function buildModule(data: MockData = {}, provisioned = false) {
+    calendarQueryCount = 0;
+    tenantDbService = makeTenantDbService(data);
+
+    const baseQueryFn = makeQueryFn(data, () => calendarQueryCount++);
+    const mockDataSource = {
+      query: (sql: string) => {
+        if (provisioned && sql.includes('schema_provisioned')) {
+          return Promise.resolve([{ schema_provisioned: true }]);
+        }
+        return baseQueryFn(sql);
+      },
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CalendarService,
         CalendarCacheService,
+        { provide: DataSource, useValue: mockDataSource },
         { provide: TenantDatabaseService, useValue: tenantDbService },
-        {
-          provide: ConfigService,
-          useValue: {
-            get: (_key: string, defaultValue: string) => defaultValue,
-          },
-        },
       ],
     }).compile();
 
@@ -125,73 +165,72 @@ describe('CalendarService', () => {
   // ── caching behaviour ─────────────────────────────────────────────────────
 
   describe('caching', () => {
-    it('returns the DB result on a cache miss and stores it', async () => {
-      await buildModule([
-        makeRow({
-          has_attendance: true,
-          check_in_time: '2025-06-04T07:00:00Z',
-        }),
-      ]);
+    it('non-provisioned: hits the DB on a cache miss', async () => {
+      await buildModule({ employees: [makeEmployee()] });
 
       await service.getTeamCalendar(TENANT_ID, '2025-06-04', '2025-06-04');
 
-      expect(tenantDbService.withTenantSchemaReadOnly).toHaveBeenCalledTimes(1);
+      expect(calendarQueryCount).toBeGreaterThan(0);
     });
 
-    it('serves cached result on a second call without hitting the DB', async () => {
-      await buildModule([
-        makeRow({
-          has_attendance: true,
-          check_in_time: '2025-06-04T07:00:00Z',
-        }),
-      ]);
+    it('non-provisioned: cache hit skips the DB on a second identical call', async () => {
+      await buildModule({ employees: [makeEmployee()] });
 
       await service.getTeamCalendar(TENANT_ID, '2025-06-04', '2025-06-04');
+      const countAfterFirst = calendarQueryCount;
       await service.getTeamCalendar(TENANT_ID, '2025-06-04', '2025-06-04');
 
-      expect(tenantDbService.withTenantSchemaReadOnly).toHaveBeenCalledTimes(1);
+      expect(calendarQueryCount).toBe(countAfterFirst); // no new queries
     });
 
-    it('re-queries after the 60 s TTL expires', async () => {
-      await buildModule([
-        makeRow({
-          has_attendance: true,
-          check_in_time: '2025-06-04T07:00:00Z',
-        }),
-      ]);
+    it('non-provisioned: re-queries after the 60 s TTL expires', async () => {
+      await buildModule({ employees: [makeEmployee()] });
 
       await service.getTeamCalendar(TENANT_ID, '2025-06-04', '2025-06-04');
+      const countAfterFirst = calendarQueryCount;
       jest.advanceTimersByTime(60_001);
       await service.getTeamCalendar(TENANT_ID, '2025-06-04', '2025-06-04');
 
-      expect(tenantDbService.withTenantSchemaReadOnly).toHaveBeenCalledTimes(2);
+      expect(calendarQueryCount).toBeGreaterThan(countAfterFirst);
     });
 
-    it('treats different date ranges as separate cache entries', async () => {
-      await buildModule([]);
+    it('non-provisioned: different date ranges are cached independently', async () => {
+      await buildModule({ employees: [makeEmployee()] });
 
       await service.getTeamCalendar(TENANT_ID, '2025-06-01', '2025-06-30');
+      const countAfterFirst = calendarQueryCount;
       await service.getTeamCalendar(TENANT_ID, '2025-07-01', '2025-07-31');
 
-      expect(tenantDbService.withTenantSchemaReadOnly).toHaveBeenCalledTimes(2);
+      expect(calendarQueryCount).toBeGreaterThan(countAfterFirst);
     });
 
-    it('invalidating the tenant clears the cache and forces a re-query', async () => {
-      await buildModule([makeRow()]);
+    it('non-provisioned: invalidating the tenant forces a re-query', async () => {
+      await buildModule({ employees: [makeEmployee()] });
 
       await service.getTeamCalendar(TENANT_ID, '2025-06-04', '2025-06-04');
+      const countAfterFirst = calendarQueryCount;
       cacheService.invalidate(TENANT_ID);
       await service.getTeamCalendar(TENANT_ID, '2025-06-04', '2025-06-04');
 
-      expect(tenantDbService.withTenantSchemaReadOnly).toHaveBeenCalledTimes(2);
+      expect(calendarQueryCount).toBeGreaterThan(countAfterFirst);
+    });
+
+    it('provisioned: routes all queries through withTenantSchemaReadOnly', async () => {
+      await buildModule({ employees: [makeEmployee()] }, true);
+
+      await service.getTeamCalendar(TENANT_ID, '2025-06-04', '2025-06-04');
+
+      // employees + leaves + wfh + attendance = 4 schema-routed calls
+      expect(tenantDbService.withTenantSchemaReadOnly).toHaveBeenCalledTimes(4);
+      expect(calendarQueryCount).toBe(0); // nothing hit the public dataSource
     });
   });
 
   // ── empty result ──────────────────────────────────────────────────────────
 
   describe('empty results', () => {
-    it('returns an empty array when the DB returns no rows (no employees)', async () => {
-      await buildModule([]);
+    it('returns an empty array when there are no employees', async () => {
+      await buildModule({ employees: [] });
 
       const result = await service.getTeamCalendar(
         TENANT_ID,
@@ -202,12 +241,10 @@ describe('CalendarService', () => {
       expect(result).toEqual([]);
     });
 
-    it('returns member with empty dates array when every day is a weekend with no attendance', async () => {
-      await buildModule([
-        makeRow({ date: '2025-06-07', day_of_week: SATURDAY }), // weekend, no attendance
-        makeRow({ date: '2025-06-08', day_of_week: SUNDAY }), // weekend, no attendance
-      ]);
+    it('returns a member with empty dates when every day is a weekend with no attendance', async () => {
+      await buildModule({ employees: [makeEmployee()] });
 
+      // 2025-06-07 = Saturday, 2025-06-08 = Sunday
       const result = await service.getTeamCalendar(
         TENANT_ID,
         '2025-06-07',
@@ -219,18 +256,16 @@ describe('CalendarService', () => {
     });
   });
 
-  // ── status priority: leave > WFH > attendance ─────────────────────────────
+  // ── status derivation ─────────────────────────────────────────────────────
 
   describe('status derivation', () => {
-    it('ON_LEAVE takes priority over WFH', async () => {
-      await buildModule([
-        makeRow({
-          on_leave: true,
-          is_wfh: true,
-          has_attendance: true,
-          check_in_time: '2025-06-04T07:00:00Z',
-        }),
-      ]);
+    it('ON_LEAVE takes priority over WFH and attendance', async () => {
+      await buildModule({
+        employees: [makeEmployee()],
+        leaves: [makeLeave('2025-06-04')],
+        wfhs: [makeWfh('2025-06-04')],
+        attendances: [makeAttendance('2025-06-04')],
+      });
 
       const result = await service.getTeamCalendar(
         TENANT_ID,
@@ -242,7 +277,10 @@ describe('CalendarService', () => {
     });
 
     it('ON_LEAVE takes priority even with no attendance', async () => {
-      await buildModule([makeRow({ on_leave: true })]);
+      await buildModule({
+        employees: [makeEmployee()],
+        leaves: [makeLeave('2025-06-04')],
+      });
 
       const result = await service.getTeamCalendar(
         TENANT_ID,
@@ -254,7 +292,10 @@ describe('CalendarService', () => {
     });
 
     it('WFH is returned when there is no leave', async () => {
-      await buildModule([makeRow({ is_wfh: true })]);
+      await buildModule({
+        employees: [makeEmployee()],
+        wfhs: [makeWfh('2025-06-04')],
+      });
 
       const result = await service.getTeamCalendar(
         TENANT_ID,
@@ -265,90 +306,25 @@ describe('CalendarService', () => {
       expectSingleStatus(result, '2025-06-04', 'WFH');
     });
 
-    it('PRESENT when check-in is before 9 AM local time', async () => {
-      await buildModule([
-        makeRow({
-          has_attendance: true,
-          check_in_time: '2025-06-04T06:00:00Z',
-        }),
-      ]);
+    it('PRESENT when the employee has a check-in on a weekday', async () => {
+      await buildModule({
+        employees: [makeEmployee()],
+        attendances: [makeAttendance('2025-06-04')],
+      });
 
       const result = await service.getTeamCalendar(
         TENANT_ID,
         '2025-06-04',
         '2025-06-04',
-        undefined,
-        'UTC',
       );
 
       expectSingleStatus(result, '2025-06-04', 'PRESENT');
-    });
-
-    it('PRESENT when check-in is exactly at 9:00 AM — not WORK_LATE', async () => {
-      // This is the key regression guard: >= was changed to >.
-      // 9:00 AM UTC → hour = 9 → 9 > 9 is false → PRESENT.
-      await buildModule([
-        makeRow({
-          has_attendance: true,
-          check_in_time: '2025-06-04T09:00:00Z',
-        }),
-      ]);
-
-      const result = await service.getTeamCalendar(
-        TENANT_ID,
-        '2025-06-04',
-        '2025-06-04',
-        undefined,
-        'UTC',
-      );
-
-      expectSingleStatus(result, '2025-06-04', 'PRESENT');
-    });
-
-    it('WORK_LATE when check-in hour is after 9 AM local time', async () => {
-      // 10 AM UTC → hour = 10 → 10 > 9 → WORK_LATE
-      await buildModule([
-        makeRow({
-          has_attendance: true,
-          check_in_time: '2025-06-04T10:00:00Z',
-        }),
-      ]);
-
-      const result = await service.getTeamCalendar(
-        TENANT_ID,
-        '2025-06-04',
-        '2025-06-04',
-        undefined,
-        'UTC',
-      );
-
-      expectSingleStatus(result, '2025-06-04', 'WORK_LATE');
-    });
-
-    it('WORK_LATE is timezone-aware (9 AM PKT = 4 AM UTC)', async () => {
-      // 04:01 UTC = 09:01 PKT → hour in PKT = 9 → 9 > 9 false → PRESENT
-      // 05:00 UTC = 10:00 PKT → hour in PKT = 10 → 10 > 9 true → WORK_LATE
-      await buildModule([
-        makeRow({
-          has_attendance: true,
-          check_in_time: '2025-06-04T05:00:00Z',
-        }),
-      ]);
-
-      const result = await service.getTeamCalendar(
-        TENANT_ID,
-        '2025-06-04',
-        '2025-06-04',
-        undefined,
-        'Asia/Karachi',
-      );
-
-      expectSingleStatus(result, '2025-06-04', 'WORK_LATE');
     });
 
     it('ABSENT on a weekday with no attendance and no leave/WFH', async () => {
-      await buildModule([makeRow({ day_of_week: WEEKDAY })]);
+      await buildModule({ employees: [makeEmployee()] });
 
+      // 2025-06-04 = Wednesday
       const result = await service.getTeamCalendar(
         TENANT_ID,
         '2025-06-04',
@@ -359,14 +335,10 @@ describe('CalendarService', () => {
     });
 
     it('WEEKEND_WORK when an employee checks in on a Saturday', async () => {
-      await buildModule([
-        makeRow({
-          date: '2025-06-07',
-          day_of_week: SATURDAY,
-          has_attendance: true,
-          check_in_time: '2025-06-07T08:00:00Z',
-        }),
-      ]);
+      await buildModule({
+        employees: [makeEmployee()],
+        attendances: [makeAttendance('2025-06-07')], // 2025-06-07 = Saturday
+      });
 
       const result = await service.getTeamCalendar(
         TENANT_ID,
@@ -378,8 +350,9 @@ describe('CalendarService', () => {
     });
 
     it('weekend with no attendance is omitted from dates array', async () => {
-      await buildModule([makeRow({ date: '2025-06-08', day_of_week: SUNDAY })]);
+      await buildModule({ employees: [makeEmployee()] });
 
+      // 2025-06-08 = Sunday, no attendance
       const result = await service.getTeamCalendar(
         TENANT_ID,
         '2025-06-08',
@@ -389,35 +362,18 @@ describe('CalendarService', () => {
       expect(result).toHaveLength(1);
       expect(result[0].dates).toHaveLength(0);
     });
-
-    it('PRESENT when has_attendance is true but check_in_time is null (data anomaly guard)', async () => {
-      await buildModule([
-        makeRow({ has_attendance: true, check_in_time: null }),
-      ]);
-
-      const result = await service.getTeamCalendar(
-        TENANT_ID,
-        '2025-06-04',
-        '2025-06-04',
-      );
-
-      expectSingleStatus(result, '2025-06-04', 'PRESENT');
-    });
   });
 
   // ── response shape ────────────────────────────────────────────────────────
 
   describe('response shape', () => {
     it('groups multiple dates under a single member entry', async () => {
-      await buildModule([
-        makeRow({
-          date: '2025-06-02',
-          has_attendance: true,
-          check_in_time: '2025-06-02T07:00:00Z',
-        }),
-        makeRow({ date: '2025-06-03', on_leave: true }),
-        makeRow({ date: '2025-06-04' }), // ABSENT weekday
-      ]);
+      // 2025-06-02=Mon(PRESENT), 2025-06-03=Tue(ON_LEAVE), 2025-06-04=Wed(ABSENT)
+      await buildModule({
+        employees: [makeEmployee()],
+        leaves: [makeLeave('2025-06-03')],
+        attendances: [makeAttendance('2025-06-02')],
+      });
 
       const result = await service.getTeamCalendar(
         TENANT_ID,
@@ -433,15 +389,20 @@ describe('CalendarService', () => {
     });
 
     it('produces separate entries for different members', async () => {
-      await buildModule([
-        {
-          ...makeRow(),
-          user_id: 'user-A',
-          first_name: 'Alice',
-          last_name: 'A',
-        },
-        { ...makeRow(), user_id: 'user-B', first_name: 'Bob', last_name: 'B' },
-      ]);
+      await buildModule({
+        employees: [
+          makeEmployee({
+            user_id: 'user-A',
+            first_name: 'Alice',
+            last_name: 'A',
+          }),
+          makeEmployee({
+            user_id: 'user-B',
+            first_name: 'Bob',
+            last_name: 'B',
+          }),
+        ],
+      });
 
       const result = await service.getTeamCalendar(
         TENANT_ID,
@@ -453,15 +414,12 @@ describe('CalendarService', () => {
       expect(result.map((m) => m.userId).sort()).toEqual(['user-A', 'user-B']);
     });
 
-    it('dates are returned in chronological order (DB order preserved)', async () => {
-      await buildModule([
-        makeRow({
-          date: '2025-06-02',
-          has_attendance: true,
-          check_in_time: '2025-06-02T07:00:00Z',
-        }),
-        makeRow({ date: '2025-06-03', on_leave: true }),
-      ]);
+    it('dates are returned in chronological order', async () => {
+      await buildModule({
+        employees: [makeEmployee()],
+        attendances: [makeAttendance('2025-06-02')],
+        leaves: [makeLeave('2025-06-03')],
+      });
 
       const result = await service.getTeamCalendar(
         TENANT_ID,
