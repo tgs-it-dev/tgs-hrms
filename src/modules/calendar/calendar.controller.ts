@@ -5,6 +5,7 @@ import {
   Headers,
   Query,
   Request,
+  UseGuards,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
@@ -20,6 +21,9 @@ import { CalendarService } from './calendar.service';
 import { TeamCalendarQueryDto } from './dto/team-calendar-query.dto';
 import { AuthenticatedRequest } from '../../common/types/request.types';
 import { UserRole } from '../../common/constants/enums';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 
 @ApiTags('Calendar')
 @Controller('calendar')
@@ -28,6 +32,15 @@ export class CalendarController {
   constructor(private readonly calendarService: CalendarService) {}
 
   @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(
+    UserRole.SYSTEM_ADMIN,
+    UserRole.ADMIN,
+    UserRole.HR_ADMIN,
+    UserRole.NETWORK_ADMIN,
+    UserRole.MANAGER,
+    UserRole.EMPLOYEE,
+  )
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   @ApiOperation({
     summary: 'Team availability calendar',
