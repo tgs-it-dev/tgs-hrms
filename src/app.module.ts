@@ -43,6 +43,7 @@ import { NotificationModule } from './modules/notification/notification.module';
 import { AnnouncementModule } from './modules/announcement/announcement.module';
 import { WorkflowModule } from './modules/workflow/workflow.module';
 import { WfhModule } from './modules/wfh/wfh.module';
+import { CalendarModule } from './modules/calendar/calendar.module';
 import { OvertimeModule } from './modules/overtime/overtime.module';
 import { OrgsModule } from './modules/orgs/orgs.module';
 import { NotificationsEmailModule } from './modules/notifications-email/notifications-email.module';
@@ -176,6 +177,7 @@ import { SysDbModule } from './common/modules/sys-db.module';
     AnnouncementModule,
     WorkflowModule,
     WfhModule,
+    CalendarModule,
     OvertimeModule,
     OrgsModule,
     NotificationsEmailModule,

@@ -28,6 +28,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { Geofence, GeofenceStatus } from '../../entities/geofence.entity';
 import { checkPointWithinGeofence } from '../../common/utils/geofence.util';
+import { CalendarCacheService } from '../calendar/calendar-cache.service';
 import {
   isValidTimezone,
   toLocalDateString,
@@ -77,6 +78,7 @@ export class AttendanceService {
     private readonly tenantDbService: TenantDatabaseService,
     @InjectDataSource()
     private readonly dataSource: DataSource,
+    private readonly calendarCacheService: CalendarCacheService,
   ) {}
 
   // ── Tenant schema helpers ─────────────────────────────────────────────────
@@ -144,11 +146,18 @@ export class AttendanceService {
     );
 
     if (isProvisioned && tenantId) {
-      return this.tenantDbService.withTenantSchema(tenantId, async (em) => {
-        return this.doCreate(userId, dto, tenantId, em);
-      });
+      const result = await this.tenantDbService.withTenantSchema(
+        tenantId,
+        async (em) => {
+          return this.doCreate(userId, dto, tenantId, em);
+        },
+      );
+      this.calendarCacheService.invalidate(tenantId);
+      return result;
     }
-    return this.doCreate(userId, dto, tenantId, null);
+    const result = await this.doCreate(userId, dto, tenantId, null);
+    if (tenantId) this.calendarCacheService.invalidate(tenantId);
+    return result;
   }
 
   private async doCreate(

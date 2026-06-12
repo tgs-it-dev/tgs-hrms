@@ -35,6 +35,7 @@ import {
 } from '../tenant-settings/tenant-settings.service';
 import { EmailService } from '../../common/utils/email/email.service';
 import { NotificationsEmailService } from '../notifications-email/notifications-email.service';
+import { CalendarCacheService } from '../calendar/calendar-cache.service';
 
 @Injectable()
 export class LeaveService {
@@ -62,6 +63,7 @@ export class LeaveService {
     private readonly tenantSettings: TenantSettingsService,
     private readonly emailService: EmailService,
     private readonly notificationsEmailService: NotificationsEmailService,
+    private readonly calendarCacheService: CalendarCacheService,
   ) {}
 
   private readonly logger = new Logger(LeaveService.name);
@@ -191,7 +193,7 @@ export class LeaveService {
     dto: CreateLeaveDto,
     files?: Express.Multer.File[],
   ): Promise<Leave> {
-    return this.runInTenantContext(
+    const result = await this.runInTenantContext(
       tenantId,
       async (leaveRepo, leaveTypeRepo, employeeRepo, _teamRepo, em) => {
         return this.doCreateLeave(
@@ -206,6 +208,8 @@ export class LeaveService {
         );
       },
     );
+    this.calendarCacheService.invalidate(tenantId);
+    return result;
   }
 
   private async doCreateLeave(
@@ -526,7 +530,7 @@ export class LeaveService {
       );
     }
 
-    return this.runInTenantContext(
+    const result = await this.runInTenantContext(
       tenantId,
       async (leaveRepo, leaveTypeRepo, employeeRepo, _teamRepo, em) => {
         return this.doCreateLeaveForEmployee(
@@ -540,6 +544,8 @@ export class LeaveService {
         );
       },
     );
+    this.calendarCacheService.invalidate(tenantId);
+    return result;
   }
 
   private async doCreateLeaveForEmployee(
@@ -961,6 +967,7 @@ export class LeaveService {
       this.logger.warn('Failed to send post-approve notification', e);
     }
 
+    this.calendarCacheService.invalidate(tenantId);
     return savedLeave;
   }
 
@@ -1069,6 +1076,7 @@ export class LeaveService {
       this.logger.warn('Failed to send post-rejection notification', e);
     }
 
+    this.calendarCacheService.invalidate(tenantId);
     return savedLeave;
   }
 
@@ -1402,12 +1410,16 @@ export class LeaveService {
       return saved;
     };
 
-    if (tenantId && (await this.isTenantSchemaProvisioned(tenantId))) {
-      return this.tenantDbService.withTenantSchema(tenantId, async (em) =>
-        doCancel(em.getRepository(Leave)),
-      );
-    }
-    return doCancel(this.leaveRepo);
+    const result = await (tenantId &&
+    (await this.isTenantSchemaProvisioned(tenantId))
+      ? this.tenantDbService.withTenantSchema(tenantId, async (em) =>
+          doCancel(em.getRepository(Leave)),
+        )
+      : doCancel(this.leaveRepo));
+    // Use the entity's tenantId — always present on the returned Leave record —
+    // rather than the optional method parameter so invalidation is never skipped.
+    this.calendarCacheService.invalidate(result.tenantId);
+    return result;
   }
 
   async removeLeaveDocument(
