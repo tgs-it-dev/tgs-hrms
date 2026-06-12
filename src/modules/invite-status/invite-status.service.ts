@@ -47,9 +47,15 @@ export class InviteStatusService {
           if (employee.invite_status === InviteStatus.INVITE_SENT) {
             employee.invite_status = InviteStatus.JOINED;
             await em.getRepository(Employee).save(employee);
+
+            // Mark the user's email as verified since they've successfully
+            // completed the password setup flow and are now logging in
+            await this.userRepo.update(user.id, { email_verified: true });
+
             this.logger.log(
               `Updated invite status to 'Joined' for employee: ${employee.id}`,
             );
+            this.logger.log(`Email verified for user: ${user.id}`);
           }
         },
       );
