@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DataSource } from 'typeorm';
 import { CalendarService, MemberCalendar } from './calendar.service';
+import { UserRole } from '../../common/constants/enums';
 import { CalendarCacheService } from './calendar-cache.service';
 import { TenantDatabaseService } from '../../common/services/tenant-database.service';
 
@@ -168,7 +169,15 @@ describe('CalendarService', () => {
     it('non-provisioned: hits the DB on a cache miss', async () => {
       await buildModule({ employees: [makeEmployee()] });
 
-      await service.getTeamCalendar(TENANT_ID, '2025-06-04', '2025-06-04');
+      await service.getTeamCalendar(
+        TENANT_ID,
+        '2025-06-04',
+        '2025-06-04',
+        undefined,
+        'UTC',
+        USER_ID,
+        UserRole.ADMIN,
+      );
 
       expect(calendarQueryCount).toBeGreaterThan(0);
     });
@@ -176,9 +185,25 @@ describe('CalendarService', () => {
     it('non-provisioned: cache hit skips the DB on a second identical call', async () => {
       await buildModule({ employees: [makeEmployee()] });
 
-      await service.getTeamCalendar(TENANT_ID, '2025-06-04', '2025-06-04');
+      await service.getTeamCalendar(
+        TENANT_ID,
+        '2025-06-04',
+        '2025-06-04',
+        undefined,
+        'UTC',
+        USER_ID,
+        UserRole.ADMIN,
+      );
       const countAfterFirst = calendarQueryCount;
-      await service.getTeamCalendar(TENANT_ID, '2025-06-04', '2025-06-04');
+      await service.getTeamCalendar(
+        TENANT_ID,
+        '2025-06-04',
+        '2025-06-04',
+        undefined,
+        'UTC',
+        USER_ID,
+        UserRole.ADMIN,
+      );
 
       expect(calendarQueryCount).toBe(countAfterFirst); // no new queries
     });
@@ -186,10 +211,26 @@ describe('CalendarService', () => {
     it('non-provisioned: re-queries after the 60 s TTL expires', async () => {
       await buildModule({ employees: [makeEmployee()] });
 
-      await service.getTeamCalendar(TENANT_ID, '2025-06-04', '2025-06-04');
+      await service.getTeamCalendar(
+        TENANT_ID,
+        '2025-06-04',
+        '2025-06-04',
+        undefined,
+        'UTC',
+        USER_ID,
+        UserRole.ADMIN,
+      );
       const countAfterFirst = calendarQueryCount;
       jest.advanceTimersByTime(60_001);
-      await service.getTeamCalendar(TENANT_ID, '2025-06-04', '2025-06-04');
+      await service.getTeamCalendar(
+        TENANT_ID,
+        '2025-06-04',
+        '2025-06-04',
+        undefined,
+        'UTC',
+        USER_ID,
+        UserRole.ADMIN,
+      );
 
       expect(calendarQueryCount).toBeGreaterThan(countAfterFirst);
     });
@@ -197,9 +238,25 @@ describe('CalendarService', () => {
     it('non-provisioned: different date ranges are cached independently', async () => {
       await buildModule({ employees: [makeEmployee()] });
 
-      await service.getTeamCalendar(TENANT_ID, '2025-06-01', '2025-06-30');
+      await service.getTeamCalendar(
+        TENANT_ID,
+        '2025-06-01',
+        '2025-06-30',
+        undefined,
+        'UTC',
+        USER_ID,
+        UserRole.ADMIN,
+      );
       const countAfterFirst = calendarQueryCount;
-      await service.getTeamCalendar(TENANT_ID, '2025-07-01', '2025-07-31');
+      await service.getTeamCalendar(
+        TENANT_ID,
+        '2025-07-01',
+        '2025-07-31',
+        undefined,
+        'UTC',
+        USER_ID,
+        UserRole.ADMIN,
+      );
 
       expect(calendarQueryCount).toBeGreaterThan(countAfterFirst);
     });
@@ -207,10 +264,26 @@ describe('CalendarService', () => {
     it('non-provisioned: invalidating the tenant forces a re-query', async () => {
       await buildModule({ employees: [makeEmployee()] });
 
-      await service.getTeamCalendar(TENANT_ID, '2025-06-04', '2025-06-04');
+      await service.getTeamCalendar(
+        TENANT_ID,
+        '2025-06-04',
+        '2025-06-04',
+        undefined,
+        'UTC',
+        USER_ID,
+        UserRole.ADMIN,
+      );
       const countAfterFirst = calendarQueryCount;
       cacheService.invalidate(TENANT_ID);
-      await service.getTeamCalendar(TENANT_ID, '2025-06-04', '2025-06-04');
+      await service.getTeamCalendar(
+        TENANT_ID,
+        '2025-06-04',
+        '2025-06-04',
+        undefined,
+        'UTC',
+        USER_ID,
+        UserRole.ADMIN,
+      );
 
       expect(calendarQueryCount).toBeGreaterThan(countAfterFirst);
     });
@@ -218,7 +291,15 @@ describe('CalendarService', () => {
     it('provisioned: routes all queries through withTenantSchemaReadOnly', async () => {
       await buildModule({ employees: [makeEmployee()] }, true);
 
-      await service.getTeamCalendar(TENANT_ID, '2025-06-04', '2025-06-04');
+      await service.getTeamCalendar(
+        TENANT_ID,
+        '2025-06-04',
+        '2025-06-04',
+        undefined,
+        'UTC',
+        USER_ID,
+        UserRole.ADMIN,
+      );
 
       // employees + leaves + wfh + attendance = 4 schema-routed calls
       expect(tenantDbService.withTenantSchemaReadOnly).toHaveBeenCalledTimes(4);
@@ -236,6 +317,10 @@ describe('CalendarService', () => {
         TENANT_ID,
         '2025-06-01',
         '2025-06-30',
+        undefined,
+        'UTC',
+        USER_ID,
+        UserRole.ADMIN,
       );
 
       expect(result).toEqual([]);
@@ -249,6 +334,10 @@ describe('CalendarService', () => {
         TENANT_ID,
         '2025-06-07',
         '2025-06-08',
+        undefined,
+        'UTC',
+        USER_ID,
+        UserRole.ADMIN,
       );
 
       expect(result).toHaveLength(1);
@@ -271,6 +360,10 @@ describe('CalendarService', () => {
         TENANT_ID,
         '2025-06-04',
         '2025-06-04',
+        undefined,
+        'UTC',
+        USER_ID,
+        UserRole.ADMIN,
       );
 
       expectSingleStatus(result, '2025-06-04', 'ON_LEAVE');
@@ -286,6 +379,10 @@ describe('CalendarService', () => {
         TENANT_ID,
         '2025-06-04',
         '2025-06-04',
+        undefined,
+        'UTC',
+        USER_ID,
+        UserRole.ADMIN,
       );
 
       expectSingleStatus(result, '2025-06-04', 'ON_LEAVE');
@@ -301,6 +398,10 @@ describe('CalendarService', () => {
         TENANT_ID,
         '2025-06-04',
         '2025-06-04',
+        undefined,
+        'UTC',
+        USER_ID,
+        UserRole.ADMIN,
       );
 
       expectSingleStatus(result, '2025-06-04', 'WFH');
@@ -316,6 +417,10 @@ describe('CalendarService', () => {
         TENANT_ID,
         '2025-06-04',
         '2025-06-04',
+        undefined,
+        'UTC',
+        USER_ID,
+        UserRole.ADMIN,
       );
 
       expectSingleStatus(result, '2025-06-04', 'PRESENT');
@@ -329,6 +434,10 @@ describe('CalendarService', () => {
         TENANT_ID,
         '2025-06-04',
         '2025-06-04',
+        undefined,
+        'UTC',
+        USER_ID,
+        UserRole.ADMIN,
       );
 
       expectSingleStatus(result, '2025-06-04', 'ABSENT');
@@ -344,6 +453,10 @@ describe('CalendarService', () => {
         TENANT_ID,
         '2025-06-07',
         '2025-06-07',
+        undefined,
+        'UTC',
+        USER_ID,
+        UserRole.ADMIN,
       );
 
       expectSingleStatus(result, '2025-06-07', 'WEEKEND_WORK');
@@ -357,10 +470,99 @@ describe('CalendarService', () => {
         TENANT_ID,
         '2025-06-08',
         '2025-06-08',
+        undefined,
+        'UTC',
+        USER_ID,
+        UserRole.ADMIN,
       );
 
       expect(result).toHaveLength(1);
       expect(result[0].dates).toHaveLength(0);
+    });
+  });
+
+  // ── role-based scoping ────────────────────────────────────────────────────
+
+  describe('role-based scoping', () => {
+    it('employee role fetches only their own data (self-view)', async () => {
+      await buildModule({ employees: [makeEmployee()] });
+
+      const result = await service.getTeamCalendar(
+        TENANT_ID,
+        '2025-06-04',
+        '2025-06-04',
+        undefined,
+        'UTC',
+        USER_ID,
+        UserRole.EMPLOYEE,
+      );
+
+      expect(result).toHaveLength(1);
+      expect(result[0].userId).toBe(USER_ID);
+    });
+
+    it('employee self-view returns empty when user is not found', async () => {
+      await buildModule({ employees: [] });
+
+      const result = await service.getTeamCalendar(
+        TENANT_ID,
+        '2025-06-04',
+        '2025-06-04',
+        undefined,
+        'UTC',
+        'nonexistent-user',
+        UserRole.EMPLOYEE,
+      );
+
+      expect(result).toEqual([]);
+    });
+
+    it('employee self-view returns data even when teamId is passed', async () => {
+      await buildModule({ employees: [makeEmployee()] });
+
+      // teamId is passed but should be ignored for EMPLOYEE role
+      const result = await service.getTeamCalendar(
+        TENANT_ID,
+        '2025-06-04',
+        '2025-06-04',
+        'some-team-id',
+        'UTC',
+        USER_ID,
+        UserRole.EMPLOYEE,
+      );
+
+      expect(result).toHaveLength(1);
+      expect(result[0].userId).toBe(USER_ID);
+    });
+
+    it('manager without any teams returns empty array', async () => {
+      await buildModule({ employees: [makeEmployee()] });
+
+      // Mock dataSource to return empty teams for the manager query
+      const originalQuery = service['dataSource'].query;
+      jest
+        .spyOn(service['dataSource'], 'query')
+        .mockImplementation((sql: string) => {
+          if (sql.includes('schema_provisioned')) {
+            return Promise.resolve([{ schema_provisioned: false }]);
+          }
+          if (sql.includes('FROM teams')) {
+            return Promise.resolve([]); // no managed teams
+          }
+          return originalQuery.call(service['dataSource'], sql);
+        });
+
+      const result = await service.getTeamCalendar(
+        TENANT_ID,
+        '2025-06-04',
+        '2025-06-04',
+        undefined,
+        'UTC',
+        USER_ID,
+        UserRole.MANAGER,
+      );
+
+      expect(result).toEqual([]);
     });
   });
 
@@ -379,6 +581,10 @@ describe('CalendarService', () => {
         TENANT_ID,
         '2025-06-02',
         '2025-06-04',
+        undefined,
+        'UTC',
+        USER_ID,
+        UserRole.ADMIN,
       );
 
       expect(result).toHaveLength(1);
@@ -408,6 +614,10 @@ describe('CalendarService', () => {
         TENANT_ID,
         '2025-06-04',
         '2025-06-04',
+        undefined,
+        'UTC',
+        USER_ID,
+        UserRole.ADMIN,
       );
 
       expect(result).toHaveLength(2);
@@ -425,6 +635,10 @@ describe('CalendarService', () => {
         TENANT_ID,
         '2025-06-02',
         '2025-06-03',
+        undefined,
+        'UTC',
+        USER_ID,
+        UserRole.ADMIN,
       );
 
       const dates = result[0].dates.map((d) => d.date);

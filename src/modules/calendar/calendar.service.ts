@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { TenantDatabaseService } from '../../common/services/tenant-database.service';
 import { CalendarCacheService } from './calendar-cache.service';
 import { isValidTimezone } from '../../common/utils/date.util';
+import { UserRole } from '../../common/constants/enums';
 
 export type CalendarStatus =
   | 'WFH'
@@ -49,13 +50,13 @@ interface RawAttendance {
   att_date: string; // YYYY-MM-DD (shifted to request timezone)
 }
 
+interface RawTeam {
+  id: string;
+}
+
 const DEFAULT_TZ = 'UTC';
 
 // ── SQL ───────────────────────────────────────────────────────────────────────
-// Provisioned tenants: employees/leaves/wfh_requests/attendance live in the
-// tenant schema (set via search_path). users always lives in public.
-// Non-provisioned tenants: all tables are in public; u.tenant_id = $1 is the
-// only scope boundary — employees has no tenant_id column of its own.
 
 // $1=tenantId  [$2=teamId when hasTeam is true]
 function employeesSql(hasTeam: boolean): string {
@@ -70,10 +71,25 @@ function employeesSql(hasTeam: boolean): string {
   `;
 }
 
+// $1=tenantId  $2=userId — single employee self-view
+const EMPLOYEE_SELF_SQL = `
+  SELECT e.user_id, u.first_name, u.last_name
+  FROM   employees e
+  INNER  JOIN users u ON u.id = e.user_id AND u.tenant_id = $1
+  WHERE  e.deleted_at IS NULL
+    AND  e.status != 'terminated'
+    AND  e.user_id = $2
+  ORDER  BY u.first_name, u.last_name
+`;
+
+// $1=managerUserId — find team(s) managed by this user
+const MANAGER_TEAMS_SQL = `
+  SELECT t.id
+  FROM   teams t
+  WHERE  t.manager_id = $1
+`;
+
 // $1=userIds[]  $2=from (YYYY-MM-DD)  $3=to (YYYY-MM-DD)
-// Finds every approved/processing leave that overlaps [from, to].
-// leaves.employeeId stores users.id (FK to public.users, not employees.id).
-// Explicit ::uuid[] cast ensures ANY() works when pg driver sends a text[].
 const LEAVES_SQL = `
   SELECT l."employeeId",
          to_char(l."startDate", 'YYYY-MM-DD') AS start_date,
@@ -83,7 +99,7 @@ const LEAVES_SQL = `
     AND l."status" IN ('approved')
     AND l."startDate" <= $3::date
     AND l."endDate" >= $2::date
-    `;
+`;
 
 // $1=userIds[]  $2=from (YYYY-MM-DD)  $3=to (YYYY-MM-DD)
 const WFH_SQL = `
@@ -98,10 +114,6 @@ const WFH_SQL = `
 `;
 
 // $1=userIds[]  $2=from (YYYY-MM-DD)  $3=to (YYYY-MM-DD)  $4=IANA timezone
-// attendance."timestamp" is timestamptz (stored in UTC).
-// AT TIME ZONE converts UTC → local time so ::date gives the correct local date.
-// The column is quoted as "timestamp" because it shares a name with a PostgreSQL
-// type keyword — without a table alias or quotes the parser can misinterpret it.
 const ATTENDANCE_SQL = `
   SELECT DISTINCT
          att.user_id,
@@ -116,9 +128,6 @@ const ATTENDANCE_SQL = `
 
 @Injectable()
 export class CalendarService {
-  // NOTE: This cache is process-local (in-memory Map). In a single-instance
-  // deployment this is fine. For horizontally-scaled deployments replace with
-  // a shared Redis cache — local invalidation does not propagate to other pods.
   constructor(
     @InjectDataSource()
     private readonly dataSource: DataSource,
@@ -137,9 +146,75 @@ export class CalendarService {
     tenantId: string,
     from: string,
     to: string,
-    teamId?: string,
-    timezone: string = DEFAULT_TZ,
+    teamId: string | undefined,
+    timezone: string,
+    requestingUserId: string,
+    role: string,
   ): Promise<MemberCalendar[]> {
+    // ── Employee: self-view only ────────────────────────────────────────────
+    if (role === UserRole.EMPLOYEE) {
+      const cacheKey = this.cacheService.buildKey(
+        tenantId,
+        from,
+        to,
+        `self:${requestingUserId}`,
+        timezone,
+      );
+      const cached = this.cacheService.get<MemberCalendar[]>(cacheKey);
+      if (cached) return cached;
+
+      const result = await this.fetchSelfCalendar(
+        tenantId,
+        from,
+        to,
+        requestingUserId,
+        timezone,
+      );
+      this.cacheService.set(cacheKey, result);
+      return result;
+    }
+
+    // ── Manager: default to their own team, validate teamId ownership ──────
+    if (role === UserRole.MANAGER) {
+      const managedTeamIds = await this.findManagedTeamIds(
+        tenantId,
+        requestingUserId,
+      );
+
+      if (managedTeamIds.length === 0) {
+        return [];
+      }
+
+      const resolvedTeamId = teamId ?? managedTeamIds[0];
+
+      if (teamId && !managedTeamIds.includes(teamId)) {
+        throw new ForbiddenException(
+          'You can only view calendar data for your own team',
+        );
+      }
+
+      const cacheKey = this.cacheService.buildKey(
+        tenantId,
+        from,
+        to,
+        resolvedTeamId,
+        timezone,
+      );
+      const cached = this.cacheService.get<MemberCalendar[]>(cacheKey);
+      if (cached) return cached;
+
+      const result = await this.fetchAndBuild(
+        tenantId,
+        from,
+        to,
+        resolvedTeamId,
+        timezone,
+      );
+      this.cacheService.set(cacheKey, result);
+      return result;
+    }
+
+    // ── Admin roles: teamId required (validated in controller) ─────────────
     const cacheKey = this.cacheService.buildKey(
       tenantId,
       from,
@@ -161,6 +236,63 @@ export class CalendarService {
     return result;
   }
 
+  /**
+   * Returns a tenant-aware query runner that routes through the tenant schema
+   * (provisioned) or public schema (shared). Caches the provisioning check via
+   * the tenant database service call per invocation.
+   */
+  private async runInTenantContext<T>(
+    tenantId: string,
+  ): Promise<(sql: string, params: unknown[]) => Promise<T[]>> {
+    const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
+
+    return (sql: string, params: unknown[]): Promise<T[]> =>
+      isProvisioned
+        ? this.tenantDbService.withTenantSchemaReadOnly(tenantId, (em) =>
+            em.query<T[]>(sql, params),
+          )
+        : this.dataSource.query<T[]>(sql, params);
+  }
+
+  /**
+   * Find all teams managed by a user. Returns team IDs (empty array if none).
+   */
+  private async findManagedTeamIds(
+    tenantId: string,
+    userId: string,
+  ): Promise<string[]> {
+    const run = await this.runInTenantContext<RawTeam>(tenantId);
+    const teams = await run(MANAGER_TEAMS_SQL, [userId]);
+    return teams.map((t) => t.id);
+  }
+
+  /**
+   * Fetch calendar for a single employee (self-view).
+   */
+  private async fetchSelfCalendar(
+    tenantId: string,
+    from: string,
+    to: string,
+    userId: string,
+    timezone: string,
+  ): Promise<MemberCalendar[]> {
+    const run = await this.runInTenantContext<RawEmployee>(tenantId);
+
+    const employees = await run(EMPLOYEE_SELF_SQL, [tenantId, userId]);
+
+    if (employees.length === 0) return [];
+
+    const userIds = employees.map((e) => e.user_id);
+
+    const [leaves, wfhs, attendances] = await Promise.all([
+      this.runLeavesQuery(tenantId, userIds, from, to),
+      this.runWfhQuery(tenantId, userIds, from, to),
+      this.runAttendanceQuery(tenantId, userIds, from, to, timezone),
+    ]);
+
+    return buildResult(employees, leaves, wfhs, attendances, from, to);
+  }
+
   private async fetchAndBuild(
     tenantId: string,
     from: string,
@@ -168,33 +300,56 @@ export class CalendarService {
     teamId: string | undefined,
     timezone: string,
   ): Promise<MemberCalendar[]> {
-    const isProvisioned = await this.isTenantSchemaProvisioned(tenantId);
+    const run = await this.runInTenantContext<RawEmployee>(tenantId);
 
-    // Routes a query through the tenant schema (provisioned) or public schema (shared).
-    const run = <T>(sql: string, params: unknown[]): Promise<T[]> =>
-      isProvisioned
-        ? this.tenantDbService.withTenantSchemaReadOnly(tenantId, (em) =>
-            em.query<T[]>(sql, params),
-          )
-        : this.dataSource.query<T[]>(sql, params);
-
-    // Step 1 — employees (sequential: userIds are needed for step 2)
+    // Step 1 — employees (sequential: userIds needed for step 2)
     const empParams: unknown[] = [tenantId];
     if (teamId) empParams.push(teamId);
-    const employees = await run<RawEmployee>(employeesSql(!!teamId), empParams);
+    const employees = await run(employeesSql(!!teamId), empParams);
 
     if (employees.length === 0) return [];
 
     const userIds = employees.map((e) => e.user_id);
 
-    // Step 2 — leaves, WFH, attendance in parallel (no interdependencies)
+    // Step 2 — leaves, WFH, attendance in parallel
     const [leaves, wfhs, attendances] = await Promise.all([
-      run<RawLeave>(LEAVES_SQL, [userIds, from, to]),
-      run<RawWfh>(WFH_SQL, [userIds, from, to]),
-      run<RawAttendance>(ATTENDANCE_SQL, [userIds, from, to, timezone]),
+      this.runLeavesQuery(tenantId, userIds, from, to),
+      this.runWfhQuery(tenantId, userIds, from, to),
+      this.runAttendanceQuery(tenantId, userIds, from, to, timezone),
     ]);
 
     return buildResult(employees, leaves, wfhs, attendances, from, to);
+  }
+
+  private async runLeavesQuery(
+    tenantId: string,
+    userIds: string[],
+    from: string,
+    to: string,
+  ): Promise<RawLeave[]> {
+    const run = await this.runInTenantContext<RawLeave>(tenantId);
+    return run(LEAVES_SQL, [userIds, from, to]);
+  }
+
+  private async runWfhQuery(
+    tenantId: string,
+    userIds: string[],
+    from: string,
+    to: string,
+  ): Promise<RawWfh[]> {
+    const run = await this.runInTenantContext<RawWfh>(tenantId);
+    return run(WFH_SQL, [userIds, from, to]);
+  }
+
+  private async runAttendanceQuery(
+    tenantId: string,
+    userIds: string[],
+    from: string,
+    to: string,
+    timezone: string,
+  ): Promise<RawAttendance[]> {
+    const run = await this.runInTenantContext<RawAttendance>(tenantId);
+    return run(ATTENDANCE_SQL, [userIds, from, to, timezone]);
   }
 
   private async isTenantSchemaProvisioned(tenantId: string): Promise<boolean> {
@@ -256,11 +411,9 @@ function deriveStatus(
   wfhs: RawWfh[],
   hasAttendance: boolean,
 ): CalendarStatus | null {
-  // Noon UTC avoids DST-induced day shifts when constructing a Date from a bare date string.
-  const dow = new Date(`${date}T12:00:00Z`).getUTCDay(); // 0=Sun … 6=Sat
+  const dow = new Date(`${date}T12:00:00Z`).getUTCDay();
   const isWeekend = dow === 0 || dow === 6;
 
-  // YYYY-MM-DD lexicographic order equals chronological order.
   if (leaves.some((l) => l.start_date <= date && date <= l.end_date))
     return 'ON_LEAVE';
   if (wfhs.some((w) => w.start_date <= date && date <= w.end_date))

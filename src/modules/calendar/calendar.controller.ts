@@ -94,18 +94,34 @@ export class CalendarController {
       },
     },
   })
-  getCalendar(
+  async getCalendar(
     @Request() req: AuthenticatedRequest,
     @Query() query: TeamCalendarQueryDto,
     @Headers('x-timezone') tzHeader?: string,
   ) {
-    const isSystemAdmin = req.user.role === UserRole.SYSTEM_ADMIN;
+    const role = req.user.role;
+    const isSystemAdmin = role === UserRole.SYSTEM_ADMIN;
 
     if (isSystemAdmin && !query.tenantId) {
       throw new BadRequestException('tenantId is required for system-admin');
     }
 
     const tenantId = isSystemAdmin ? query.tenantId! : req.user.tenant_id;
+
+    // System-admin and admin roles must always provide a teamId
+    const needsTeamId =
+      role === UserRole.SYSTEM_ADMIN ||
+      role === UserRole.ADMIN ||
+      role === UserRole.HR_ADMIN ||
+      role === UserRole.NETWORK_ADMIN;
+
+    if (needsTeamId && !query.teamId) {
+      throw new BadRequestException('teamId is required for admin roles');
+    }
+
+    // Manager role may also provide teamId — scoping is enforced server-side
+    // Employee role must NOT provide teamId — ignored server-side
+
     const timezone = this.calendarService.resolveTimezone(
       query.timezone,
       tzHeader,
@@ -117,6 +133,8 @@ export class CalendarController {
       query.to,
       query.teamId,
       timezone,
+      req.user.id,
+      role,
     );
   }
 }
