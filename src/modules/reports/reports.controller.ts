@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { ReportsService } from './reports.service';
 import {
   ApiBearerAuth,
@@ -10,6 +10,7 @@ import {
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { AuthenticatedRequest } from '../../common/types/request.types';
+import { Response } from 'express';
 
 @ApiTags('Reports')
 @ApiBearerAuth()
@@ -98,5 +99,143 @@ export class ReportsController {
   async headcount(@Query('page') page?: string) {
     const pageNumber = Math.max(1, parseInt(page || '1', 10) || 1);
     return this.reportsService.getHeadcount(pageNumber);
+  }
+
+  // ── CSV export endpoints ──────────────────────────────────────────────────
+
+  @Get('attendance')
+  @UseGuards(RolesGuard)
+  @Roles('hr-admin', 'admin', 'system-admin', 'network-admin')
+  @ApiOperation({
+    summary: 'Export attendance records as CSV for payroll reconciliation',
+  })
+  @ApiQuery({
+    name: 'from',
+    required: false,
+    description:
+      'Start date (YYYY-MM-DD). Defaults to first day of current month.',
+  })
+  @ApiQuery({
+    name: 'to',
+    required: false,
+    description:
+      'End date (YYYY-MM-DD). Defaults to last day of current month.',
+  })
+  @ApiQuery({
+    name: 'format',
+    required: false,
+    description: 'Response format. Use "csv" to download.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'CSV file with attendance records.',
+  })
+  async attendanceCsv(
+    @Req() req: AuthenticatedRequest,
+    @Res() res: Response,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ): Promise<void> {
+    const csv = await this.reportsService.getAttendanceCsv(
+      req.user.tenant_id,
+      from,
+      to,
+    );
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="attendance-report.csv"',
+    );
+    res.send(csv);
+  }
+
+  @Get('leave')
+  @UseGuards(RolesGuard)
+  @Roles('hr-admin', 'admin', 'system-admin', 'network-admin')
+  @ApiOperation({
+    summary: 'Export leave records as CSV for payroll reconciliation',
+  })
+  @ApiQuery({
+    name: 'from',
+    required: false,
+    description:
+      'Start date (YYYY-MM-DD). Defaults to first day of current month.',
+  })
+  @ApiQuery({
+    name: 'to',
+    required: false,
+    description:
+      'End date (YYYY-MM-DD). Defaults to last day of current month.',
+  })
+  @ApiQuery({
+    name: 'format',
+    required: false,
+    description: 'Response format. Use "csv" to download.',
+  })
+  @ApiResponse({ status: 200, description: 'CSV file with leave records.' })
+  async leaveCsv(
+    @Req() req: AuthenticatedRequest,
+    @Res() res: Response,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ): Promise<void> {
+    const csv = await this.reportsService.getLeaveCsv(
+      req.user.tenant_id,
+      from,
+      to,
+    );
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="leave-report.csv"',
+    );
+    res.send(csv);
+  }
+
+  @Get('flex-requests')
+  @UseGuards(RolesGuard)
+  @Roles('hr-admin', 'admin', 'system-admin', 'network-admin')
+  @ApiOperation({
+    summary:
+      'Export WFH and overtime flex-request records as CSV for payroll reconciliation',
+  })
+  @ApiQuery({
+    name: 'from',
+    required: false,
+    description:
+      'Start date (YYYY-MM-DD). Defaults to first day of current month.',
+  })
+  @ApiQuery({
+    name: 'to',
+    required: false,
+    description:
+      'End date (YYYY-MM-DD). Defaults to last day of current month.',
+  })
+  @ApiQuery({
+    name: 'format',
+    required: false,
+    description: 'Response format. Use "csv" to download.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'CSV file with WFH and overtime flex-request records.',
+  })
+  async flexRequestsCsv(
+    @Req() req: AuthenticatedRequest,
+    @Res() res: Response,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ): Promise<void> {
+    const csv = await this.reportsService.getFlexRequestsCsv(
+      req.user.tenant_id,
+      from,
+      to,
+    );
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="flex-requests-report.csv"',
+    );
+    res.send(csv);
   }
 }

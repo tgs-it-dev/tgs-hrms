@@ -1,5 +1,22 @@
 import { Response } from 'express';
 
+/**
+ * Builds a CSV string with a fixed, ordered set of columns.
+ * Returns a header-only CSV when rows is empty (never returns an empty string).
+ */
+export function buildFixedCsv(
+  headers: readonly string[],
+  rows: readonly (string | number | boolean | null | undefined)[][],
+): string {
+  const escape = (v: string | number | boolean | null | undefined): string => {
+    if (v === null || v === undefined) return '';
+    const s = String(v);
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [headers, ...rows].map((row) => row.map(escape).join(','));
+  return lines.join('\n');
+}
+
 export function toCsv(rows: Array<Record<string, unknown>>): string {
   if (!rows || rows.length === 0) {
     return '';
